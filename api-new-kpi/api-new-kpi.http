@@ -1,0 +1,6 @@
+@api_new_kpi_HostAddress = http://localhost:5207
+
+GET {{api_new_kpi_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
