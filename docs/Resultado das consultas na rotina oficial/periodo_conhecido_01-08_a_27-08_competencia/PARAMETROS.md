@@ -1,0 +1,26 @@
+# Exportação de referência — parâmetros conhecidos
+
+Diferente das exportações da Fase 0, **esta tem os parâmetros registrados**. É a referência
+para conferir os incrementos da Fase 4.
+
+| Parâmetro | Valor |
+|---|---|
+| Período | **01/08/2026 a 27/08/2026** |
+| Regime | **Competência** |
+| Análise | **Grupo de Contas** |
+| Filiais | 7 (EPC-MAT), 12 (EPC-ES), 25 (VIVALOG-GBH) |
+| Checkboxes | como nas capturas da Fase 0 |
+| Exportado em | 28/08/2026 |
+
+Dois arquivos, com e sem `Mostrar Contas Zeradas`. O "com zeradas" serve para casar linha a
+linha com o endpoint de estrutura, que devolve todas.
+
+## Por que existe
+
+As planilhas da Fase 0 não registram o período. Ao conferir o incremento 3 apareceu uma
+divergência em `Despesas Adm e Vendas` cujo valor ficava **entre** o de 26/08 e o de 27/08 —
+e como despesa só cresce em módulo com o período, nenhuma data final explicava aquilo. A
+conclusão foi que os parâmetros da exportação antiga eram desconhecidos, não que o SQL
+estivesse errado. Com esta exportação, tudo bateu ao centavo.
+
+**Lição:** planilha de referência sem parâmetro registrado não serve para validar.
