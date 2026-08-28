@@ -82,14 +82,17 @@ docs/                    documentação do monólito (raiz, não por projeto)
 ## Regras de negócio críticas
 
 A versão web da 9815 tem que produzir **exatamente os mesmos números** da rotina Delphi,
-inclusive nos pontos que parecem defeito. Decisão do Gabriel em 27/08/2026. Os três casos
+inclusive nos pontos que parecem defeito. Decisão do Gabriel em 27/08/2026. Os quatro casos
 que mais confundem quem lê o SQL pela primeira vez:
 
-1. **Regime altera apenas a data das despesas.** Caixa usa `nvl(DTPAGTO, DTVENC)`,
+1. **`RECEITAS LIQUIDAS = RECEITA BRUTA − ABAT./DESC. − DEVOLUCAO`.** ST, PIS e COFINS
+   **não são deduzidos** — são linhas informativas, marcadas com `NÃO SOMA` na tela.
+   Verificado ao centavo contra 4 cenários exportados.
+2. **Regime altera apenas a data das despesas.** Caixa usa `nvl(DTPAGTO, DTVENC)`,
    competência usa `dtcompetencia`. Receita, deduções e CMV são idênticos nos dois.
-2. **Em competência, o mês da coluna sai por data de pagamento**, não por competência.
+3. **Em competência, o mês da coluna sai por data de pagamento**, não por competência.
    Confirmado como correto pelo negócio — manter.
-3. **Despesa não paga nunca entra no DRE**, nem em competência (`DTPAGTO IS NOT NULL`).
+4. **Despesa não paga nunca entra no DRE**, nem em competência (`DTPAGTO IS NOT NULL`).
    Confirmado como correto — manter.
 
 O detalhamento está em [docs/ROTINA_9815.md](docs/ROTINA_9815.md) e no levantamento.

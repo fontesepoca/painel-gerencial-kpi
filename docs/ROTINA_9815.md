@@ -37,6 +37,12 @@ Melhorias de comportamento só entram **depois** dessa validação, uma a uma, c
 Simulado · Orçamento · Gráfico · Imprimir · Ind.A / Ind.B / FCont · drill-down ·
 autenticação e login · abas 1-Compra, 2-Vendas, 3-Logística, 5-Financeiro, 6-Fiscal.
 
+**Também fora: o log de execução.** A 9815 grava uma linha em `tab_log_exec_rotina` ao fim de
+cada apuração; a web não grava. Isso permite rodar todo o piloto com **usuário Oracle
+somente-leitura** — a aplicação nova fica incapaz de alterar qualquer coisa na base de
+produção enquanto validamos os números. O log volta depois, com sequence própria, se fizer
+falta.
+
 Também fora, os checkboxes do Winthor que não aparecem no mockup: `Deduzir ST`,
 `Deduzir PIS/COFINS`, `Mostrar Cli.Especial`, `Mostrar Contas Zeradas`,
 `Mostrar Investimento`, `Mostrar NÃO PAGO`. O SQL é reproduzido com a combinação capturada no
@@ -167,6 +173,30 @@ Custo (ver §6).
 
 Replicadas do Delphi. Cada uma tem origem rastreável no trace.
 
+### Cabeçalho — aritmética verificada
+
+Conferida contra 4 cenários exportados; bate ao centavo.
+
+```
+RECEITAS LIQUIDAS = RECEITA BRUTA − ABAT./DESC. − DEVOLUCAO
+LUCRO BRUTO       = RECEITAS LIQUIDAS − CMV LIQ.
+```
+
+**ST, PIS e COFINS não entram no cálculo** — são informativas, e recebem o marcador
+`NÃO SOMA` na tela. Deduzi-las erra o resultado em milhões.
+
+Os checkboxes `Deduzir ST` e `Deduzir PIS/COFINS` do Winthor mudariam isso; estavam
+desmarcados em todas as capturas, e a web replica o comportamento desmarcado.
+
+| Linha | Coluna da consulta de faturamento |
+|---|---|
+| `(+) RECEITA BRUTA` | `VLTABELA` |
+| `(-) ABAT./DESC.` | `VLTABELA − VLVENDA` |
+| `(-) DEVOLUCAO` | `VLDEVOLUCAO` |
+| `(=) RECEITAS LIQUIDAS` | `VlVendaLiq` — a consulta já calcula |
+| `(-) ST` · `(-) PIS` · `(-) COFINS` | `ST_Liq` · `PIS_Liq` · `COFINS_Liq` — **não somam** |
+| `(=) CMV LIQ.` | `VLCUSTOFIN − VLCUSTOFINDEVOL` |
+
 ### Despesas
 
 1. Fonte `PCLANC`, com `DTPAGTO IS NOT NULL` — **despesa não paga nunca entra**, nem em
@@ -285,11 +315,11 @@ planilha antes de seguir.
 
 ---
 
-## 8. Pendências
+## 8. Pendências — todas fechadas em 28/08/2026
 
-| # | Assunto | Estado |
+| # | Assunto | Decisão |
 |---|---|---|
-| 1 | Grupo `8501` — R$ 225.000 sem linha em `EPCPARDRE`; o valor some do DRE | confirmar com o dono se é descarte proposital |
-| 2 | `AntesLL` e `AntesLF` têm condição idêntica no SQL | confirmar se é intencional |
-| 3 | Mapa exato das 8 linhas de cabeçalho para as colunas da consulta de faturamento | resolver no incremento 4, comparando com a planilha |
-| 4 | Sequence para `tab_log_exec_rotina`, ou log fora do piloto | decidir antes do incremento 1 |
+| 1 | Grupo `8501` — R$ 225.000 sem linha em `EPCPARDRE` | **Replicar o descarte.** O valor não aparece em nenhuma das 16 planilhas exportadas. Sendo `CODCOB = 'CAR'` com `CONDVENDA = 0`, é provavelmente venda à vista já contada pelo faturamento — incluir causaria contagem dupla. A web calcula e descarta, como a 9815 |
+| 2 | `AntesLL` e `AntesLF` com condição idêntica | **Sem impacto.** Calcular uma vez, expor com os dois nomes para rastreabilidade |
+| 3 | Mapa das linhas de cabeçalho para as colunas de faturamento | **Resolvido** por aritmética sobre as planilhas — ver §5, *Cabeçalho* |
+| 4 | Log de execução | **Fora do piloto.** A web não grava `tab_log_exec_rotina`, o que permite rodar com usuário Oracle **somente-leitura** durante toda a validação. Volta depois, com sequence, se fizer falta |

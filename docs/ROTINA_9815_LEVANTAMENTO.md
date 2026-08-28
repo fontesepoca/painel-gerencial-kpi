@@ -418,6 +418,32 @@ será o caso.)
 
 ## 7. Regras de negócio consolidadas
 
+0. **A aritmética do cabeçalho** — verificada contra 4 cenários exportados, bate ao centavo:
+
+   ```
+   RECEITAS LIQUIDAS = RECEITA BRUTA − ABAT./DESC. − DEVOLUCAO
+   LUCRO BRUTO       = RECEITAS LIQUIDAS − CMV LIQ.
+   ```
+
+   **ST, PIS e COFINS não são deduzidos** — são linhas informativas. Deduzi-los erra o
+   resultado em ~3 milhões em todos os cenários. É por isso que o mockup da versão web marca
+   `ST Líquido`, `PIS Líquido` e `COFINS Líquido` com o badge `NÃO SOMA`.
+
+   Isso também explica os checkboxes `Deduzir ST` e `Deduzir PIS/COFINS`: eles alterariam o
+   número, e estavam **desmarcados** em todas as capturas. A web replica o comportamento
+   desmarcado.
+
+   Mapa para a consulta de faturamento (§4.8):
+
+   | Linha | Coluna |
+   |---|---|
+   | `(+) RECEITA BRUTA` | `VLTABELA` |
+   | `(-) ABAT./DESC.` | `VLTABELA − VLVENDA` |
+   | `(-) DEVOLUCAO` | `VLDEVOLUCAO` |
+   | `(=) RECEITAS LIQUIDAS` | `VlVendaLiq` (a própria consulta já calcula) |
+   | `(-) ST` · `(-) PIS` · `(-) COFINS` | `ST_Liq` · `PIS_Liq` · `COFINS_Liq` — informativas |
+   | `(=) CMV LIQ.` | `VLCUSTOFIN − VLCUSTOFINDEVOL` |
+
 1. **%AV** é calculado sobre `RECEITAS LIQUIDAS = 100%`.
 2. **%AH** compara o mês com o mês anterior do período; com 1 mês só, sai `0,00`.
 3. Só entram contas com `PCCONTA.GRUPOCONTA >= 200`.
@@ -454,7 +480,7 @@ Referência visual aprovada: `prints/Como deve ser a rotina em web.png` — tema
 
 **Escopo do piloto (acordado):**
 
-- **Sem autenticação/login por enquanto** — a raiz redireciona direto para a tela DRE Gerencial.
+- **Sem autenticação e sem escrita no banco** — — a raiz redireciona direto para a tela DRE Gerencial.
 - **4 filtros:** Filial (multisseleção com **as 18 filiais**, lidas do banco — §5.5),
   Intervalo de datas, Regime (Caixa/Competência),
   Tipo de Análise (Grupo de Contas · Conta Gerencial · C.Custo Principal · Centro de Custo).
@@ -483,13 +509,15 @@ trecho de código ou dependência. Toda biblioteca nova passa por aprovação.
 
 ## 10. Lacunas em aberto
 
+**Todas resolvidas em 28/08/2026.** Nenhuma lacuna bloqueia a implementação.
+
 | # | Pergunta | Como resolver |
 |---|---|---|
-| 1 | Cada linha do cabeçalho (RECEITA BRUTA, ABAT./DESC., ...) mapeia para qual coluna do retorno de faturamento? A soma é feita no Delphi. | Rodar a consulta de faturamento isolada e bater os números contra a planilha exportada |
+| ~~1~~ | ~~Mapa das linhas de cabeçalho para as colunas de faturamento~~ | **RESOLVIDO** por aritmética sobre as planilhas — ver §7 regra 0 |
 | ~~2~~ | ~~`CodigoCentroCusto` é numérico ou hierárquico com ponto?~~ | **RESOLVIDO** — 1666 de 1757 têm ponto; chave da dimensão será `VARCHAR2` (§6) |
-| 3 | Grupo **8501**: Query B deu 1 lançamento, `CODCOB = 'CAR'`, R$ 225.000. A Query D mostrou que **8501 não existe em `EPCPARDRE`** | confirmar com o negócio: o valor deve aparecer no DRE ou é descarte proposital? (§5.4 item 5) |
-| ~~4~~ | ~~Efeito dos checkboxes não mapeados~~ | **FORA DO PILOTO** (§9) |
-| 5 | `AntesLL` e `AntesLF` têm a mesma condição — intencional ou defeito? | Conferir com o negócio |
+| ~~3~~ | ~~Grupo **8501**: 1 lançamento, `CODCOB = 'CAR'`, R$ 225.000, sem linha em `EPCPARDRE`~~ | **RESOLVIDO** — o valor **não aparece em nenhuma das 16 planilhas exportadas**, confirmando o descarte. Sendo `CODCOB = 'CAR'` com `CONDVENDA = 0`, é provavelmente recebimento de venda à vista, que já entra pelo faturamento via `PCNFSAID` — incluir causaria contagem dupla. **Decisão: replicar o descarte** |
+| ~~4~~ | ~~Efeito dos checkboxes não mapeados~~ | **FORA DO PILOTO** (§9). Exceção documentada: `Deduzir ST` e `Deduzir PIS/COFINS` afetam o número, e a web replica o comportamento desmarcado (§7 regra 0) |
+| ~~5~~ | ~~`AntesLL` e `AntesLF` têm a mesma condição~~ | **RESOLVIDO** — são idênticas (`ID < ID('LUCRO LIQUIDO')`) e não há rótulo em `EPCPARDRE` que justificasse um "LF" diferente. Calcular uma vez e expor com os dois nomes; sem diferença de comportamento |
 | ~~6~~ | ~~Distribuir por `nvl(DTPAGTO,DTVENC)` em Competência está correto?~~ | **CONFIRMADO correto** — replicar (§4.7) |
 | ~~6b~~ | ~~Despesa não paga fora do DRE em Competência está correto?~~ | **CONFIRMADO correto** — replicar (§4.7) |
 | ~~7~~ | ~~Quantas matrículas têm restrição de data?~~ | **RESOLVIDO** — 1 linha, janela aberta; fora do piloto (§5.2) |

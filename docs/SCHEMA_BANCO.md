@@ -16,7 +16,12 @@ não é o dicionário completo das tabelas.
 | Acesso | Tabelas |
 |---|---|
 | **Leitura** | 22 tabelas — todas as listadas abaixo, exceto a próxima linha |
-| **Escrita** | `tab_log_exec_rotina` — apenas `INSERT` de log |
+| **Escrita** | `tab_log_exec_rotina` — apenas `INSERT` de log, **e fora do escopo do piloto** |
+
+> **O piloto é 100% leitura.** Decidido em 28/08/2026: a versão web **não grava** o log de
+> execução. Consequência prática — a aplicação pode rodar com **usuário Oracle
+> somente-leitura** durante toda a validação, e fica impossibilitada de alterar qualquer
+> coisa na base de produção.
 
 Confirmado por varredura dos 16 arquivos de trace: **12 `INSERT INTO tab_log_exec_rotina`**,
 12 `COMMIT`, 4 `ROLLBACK` (os cenários que falharam), e **nenhum** `UPDATE`, `DELETE`,
@@ -155,7 +160,7 @@ grupo `8501` sem linha correspondente.
 | `cliente_especial` | `CODCLI`, `CODFIL`, `MOSTRA_DRE` | entra se `MOSTRA_DRE = 'S'` **ou** `CONDVENDA = 5` |
 | `tab_ger_restricao_data_dre` | `MATRICULA`, `DTINI`, `DTFIM` | janela de data por usuário. **1 linha só** (matrícula 51, janela aberta) — fora do escopo do piloto |
 
-### `tab_log_exec_rotina` — **a única escrita**
+### `tab_log_exec_rotina` — a única escrita da 9815, **não usada no piloto**
 
 | Coluna | Conteúdo |
 |---|---|
@@ -165,14 +170,13 @@ grupo `8501` sem linha correspondente.
 | `DESCRICAO` | `'Ult Processamento: 4-DRE / <Análise> - '` |
 | `USUARIO` | `'<matrícula> - <nome>'` |
 
-> **Risco de concorrência:** a chave vem de `max(codlog)+1`, sem sequence. No Delphi
-> monousuário quase nunca colidia; numa API web com várias abas, colide. Proposta para a
-> Fase 4: criar uma sequence Oracle — objeto **novo**, não mexe em nada legado. Depende de
-> aprovação.
+> **Decisão de 28/08/2026: o piloto não grava aqui.** A tabela é da Época, não do Winthor, e
+> gravar nela não violaria a regra de tabela legada — mas ficar sem escrita nenhuma permite
+> usuário Oracle somente-leitura, o que elimina qualquer risco durante a validação.
 >
-> A tabela é da Época, não do Winthor — gravar nela não viola a regra de tabela legada.
-> Ainda assim, o piloto pode rodar com **usuário Oracle somente-leitura** se o log ficar
-> para depois.
+> Quando o log voltar, terá que resolver a concorrência: a chave vem de `max(codlog)+1`, sem
+> sequence. No Delphi monousuário quase nunca colidia; numa API web com várias abas, colide.
+> A correção é uma sequence Oracle — objeto **novo**, não mexe em nada legado.
 
 ---
 
