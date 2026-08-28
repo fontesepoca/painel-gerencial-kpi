@@ -46,6 +46,12 @@ Get-ChildItem $src -Filter *.xlsx | ForEach-Object {
 
 O texto das células fica em `xl/sharedStrings.xml`, na ordem em que aparece na planilha:
 
+> **Cuidado: `sharedStrings` deduplica.** Um rótulo que se repete na planilha aparece uma vez
+> só no XML. Ler o arquivo linearmente perde as repetições — e no DRE elas existem
+> (`Despesas Adm e Vendas` sai três vezes). Para casar linha a linha, leia `xl/worksheets/
+> sheet1.xml` e resolva cada célula pelo índice; use o `sharedStrings` só para conferir
+> valores, nunca para reconstruir a ordem das linhas.
+
 ```bash
 sed -e 's/<\/t>/\n/g' "$TEMP/dre/grupo-contas-competencia/xl/sharedStrings.xml" \
   | sed -e 's/.*<t[^>]*>//'
@@ -101,6 +107,12 @@ LUCRO BRUTO       = RECEITAS LIQUIDAS − CMV LIQ.
 **ST, PIS e COFINS não entram.** Se você somou os três e "quase bateu", o erro é esse — a
 diferença fica na casa dos milhões, não em centavos.
 
+Os totalizadores também têm identidade fixa, verificada em 28/08/2026:
+
+
+
+Linhas com `AntesLL = 'N'` não entram em totalizador nenhum — são o bloco `NÃO SOMA`.
+
 ## 6. Registrar
 
 Incremento conferido vira uma linha na tabela do §7 de `docs/ROTINA_9815.md`, com o cenário
@@ -113,17 +125,20 @@ usado e a data. Divergência não resolvida vira pendência documentada — **nu
 |---|---|---|
 | `Expand-Archive` recusa o arquivo | Ele só aceita a extensão `.zip` | Copiar para `.zip` antes de descompactar |
 | `python` não encontrado | Não há Python nesta máquina; o alias abre a Microsoft Store | Usar PowerShell + `sed` sobre o XML |
-| Receita Bruta diverge entre planilhas do mesmo mês | Exportações feitas com **data final diferente** (26/08 vs 27/08) | Confira o período no cabeçalho da planilha antes de comparar |
+| Valor da planilha fica ENTRE dois períodos testados | A planilha foi exportada com parâmetros desconhecidos. Despesa só cresce em módulo com o período, então nenhuma data final produz um valor intermediário | Peça uma exportação nova com parâmetros registrados, em vez de bissetar datas |
+| Rótulo some ao extrair do xlsx | `sharedStrings.xml` deduplica texto repetido | Leia `sheet1.xml` e resolva os índices |
 | Diferença de ~3 milhões na Receita Líquida | Deduziu ST, PIS e COFINS | Eles não entram no cálculo |
 | Cenário de Centro de Custo sem planilha para comparar | A análise por Centro de Custo **nunca funcionou** na 9815 — os arquivos `*_com_erro_sempre` são o trace do erro | Única dimensão que precisa de validação manual com o negócio |
-| Números batem em 1 mês e erram em 2 | Com 2 meses a rotina executa o faturamento **uma vez por mês**, e a despesa numa passada só agrupada por `MES_ANO` | Reproduza a distribuição por `MES_ANO`, que sai de `nvl(DTPAGTO, DTVENC)` mesmo em competência |
-| Linha aparece na query e não na planilha | Provavelmente conta em `EPCPARDRE_NAOEXIBIR`, ou o grupo `8501`, que a 9815 calcula e descarta | Ver `docs/ROTINA_9815.md` §8 |
+| Números batem em 1 mês e erram em 2 | Com 2 meses a rotina executa o faturamento **uma vez por mês**; a despesa sai numa passada só, agrupada por `MES_ANO` | O `MES_ANO` acompanha o regime: caixa por `nvl(DTPAGTO,DTVENC)`, competência por `nvl(DTCOMPETENCIA,DTVENC)` |
+| Duas linhas do DRE com o mesmo valor | Casou estrutura com valores só por `GRUPOCONTA` | A identidade é a tupla `(GRUPOCONTA, AntesRO, AntesLL, AntesLF, MES_ANO)` |
+| Linha aparece na query e não na planilha | Conta em `EPCPARDRE_NAOEXIBIR`, ou linha zerada escondida por `Mostrar Contas Zeradas` desmarcado | Exporte também COM contas zeradas para casar uma a uma |
 | Ordem das linhas diferente | `EPCPARDRE.ID` tem uma linha com valor **nulo** | `ORDER BY ID NULLS LAST` |
 | Total confere mas o detalhe não | Rateio: quando existe `PCRATEIOCENTROCUSTO`, o valor rateado **substitui** o do lançamento | Não somar os dois |
 
 ## Checklist final
 
-- [ ] Cenário identificado, com período e regime conferidos no cabeçalho da planilha
+- [ ] Planilha de referência tem os PARAMETROS REGISTRADOS. Exportação sem período conhecido não valida nada — foi o que gerou uma falsa divergência no incremento 3
+- [ ] Cenário identificado, com período e regime conferidos
 - [ ] Valores esperados extraídos do `.xlsx`, não digitados à mão
 - [ ] Query entregue ao Gabriel em bloco `bash` — **nenhuma conexão ao banco**
 - [ ] Comparação feita por script, com tolerância de meio centavo

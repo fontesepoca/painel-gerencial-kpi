@@ -313,7 +313,7 @@ Em incrementos revisáveis, um por vez:
 |---|---|---|
 | 1 | `GET /filiais` | ✅ **conferido em 28/08/2026** — 18 filiais, de EPC-MAT (0) a EPC-TRANSP (31) |
 | 2 | Estrutura do DRE a partir de `EPCPARDRE` | ✅ **conferido em 28/08/2026** — Grupo de Contas bate com o print: ordem, rótulos e cores. As linhas a mais são as zeradas, que o print esconde. As outras 3 dimensões têm SQL próprio (§4.4.1 do levantamento) |
-| 3 | Despesas (`GetValorGrupo`), 1 mês, 1 filial, competência | bate com a planilha |
+| 3 | Despesas (`GetValorGrupo`) | ✅ **conferido em 28/08/2026** — as 15 linhas batem ao centavo, incluindo o bloco de contas órfãs |
 | 4 | Faturamento e CMV | cabeçalho bate com a planilha |
 | 5 | Montagem do DRE completo | os 6 cenários batem linha a linha |
 | 6 | Filtros na tela | — |
@@ -365,3 +365,41 @@ distintos.
 > `GRUPOCONTA` faria as duas linhas receberem o mesmo número — e o total do DRE ficaria
 > errado sem nenhum erro aparente. O dicionário de valores tem que ser indexado pela
 > tupla completa.
+
+---
+
+## 10. Aritmética dos totalizadores — verificada
+
+Deduzida e conferida em 28/08/2026 contra a exportação de parâmetros conhecidos
+(`docs/Resultado das consultas na rotina oficial/periodo_conhecido_01-08_a_27-08_competencia/`).
+As quatro identidades batem ao centavo.
+
+```
+RECEITAS LIQUIDAS  = RECEITA BRUTA − ABAT./DESC. − DEVOLUCAO
+LUCRO BRUTO        = RECEITAS LIQUIDAS − CMV LIQ.
+
+Sub-Total Desp.Op. = Σ linhas com AntesRO = 'S'          (fora o cabeçalho)
+RESULTADO OPER.    = LUCRO BRUTO + Sub-Total
+Total das Despesas = Sub-Total + Σ linhas com AntesRO = 'N' e AntesLL = 'S'
+LUCRO LIQUIDO      = LUCRO BRUTO + Total das Despesas
+```
+
+Conferência no cenário 01/08 a 27/08/2026, competência, filiais 7/12/25:
+
+| Linha | Cálculo | Planilha |
+|---|---|---|
+| Sub-Total | −8.395.125,78 | (8.395.125,78) |
+| RESULTADO OPERACIONAL | 9.847.583,27 − 8.395.125,78 = 1.452.457,49 | 1.452.457,49 |
+| Total das Despesas | −8.395.125,78 + 980.109,22 = −7.415.016,56 | (7.415.016,56) |
+| LUCRO LIQUIDO | 9.847.583,27 − 7.415.016,56 = 2.432.566,71 | 2.432.566,71 |
+
+**As flags são o que separa os blocos.** `AntesRO = 'S'` é o corpo operacional;
+`AntesRO = 'N'` com `AntesLL = 'S'` é o bloco entre RESULTADO OPERACIONAL e Total das
+Despesas; `AntesLL = 'N'` é o bloco informativo depois do LUCRO LIQUIDO, que **não entra em
+totalizador nenhum** — é o que a tela marca como `NÃO SOMA`.
+
+### O bloco informativo ignora "Mostrar Contas Zeradas"
+
+`CONTRATO DE MUTUO` aparece com `0,00` mesmo na exportação **sem** contas zeradas, enquanto
+linhas zeradas do corpo (`VERBAS P&G`, `% SALDO FINAL`, …) somem. O filtro de zeradas vale
+para as linhas parametrizadas, não para as órfãs.
