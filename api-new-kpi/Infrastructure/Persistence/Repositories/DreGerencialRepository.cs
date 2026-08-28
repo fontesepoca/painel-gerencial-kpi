@@ -1,3 +1,4 @@
+using Epoca.Kpi.Api.Application.Features.DreGerencial;
 using Dapper;
 using Epoca.Kpi.Api.Domain.Entities;
 using Epoca.Kpi.Api.Domain.Interfaces;
@@ -44,5 +45,65 @@ public sealed class DreGerencialRepository : IDreGerencialRepository
                 cancellationToken: cancellationToken));
 
         return linhas.ToList();
+    }
+
+    public async Task<IReadOnlyList<DespesaDre>> ObterDespesasGrupoDeContasAsync(
+        IReadOnlyList<string> filiais,
+        DateOnly dataInicio,
+        DateOnly dataFim,
+        RegimeDre regime,
+        CancellationToken cancellationToken = default)
+    {
+        if (filiais.Count == 0)
+        {
+            return [];
+        }
+
+        // Dois conjuntos de placeholders porque a lista de filiais aparece duas vezes no
+        // SQL — em PCLANC e em PCNFSAID. Com bind posicional, reusar os mesmos nomes daria
+        // um parâmetro só para duas posições.
+        var placeholdersA = string.Join(", ", filiais.Select((_, i) => $":filialA{i}"));
+        var placeholdersB = string.Join(", ", filiais.Select((_, i) => $":filialB{i}"));
+
+        var sql = string.Format(
+            DreGerencialQueries.DespesasGrupoDeContas,
+            placeholdersA,
+            regime.ExpressaoBucket,
+            regime.ExpressaoFiltro,
+            placeholdersB);
+
+        // Meia-noite nas duas pontas, de propósito: a 9815 usa
+        // To_Date('27/08/2026','dd/mm/yyyy'), que é 00:00. Usar o fim do dia incluiria
+        // lançamentos que a rotina antiga não conta, e o número deixaria de bater.
+        var inicio = dataInicio.ToDateTime(TimeOnly.MinValue);
+        var fim = dataFim.ToDateTime(TimeOnly.MinValue);
+
+        // A ORDEM DOS Add TEM QUE SER ESTA — é a ordem em que os binds aparecem no SQL.
+        var parametros = new DynamicParameters();
+        for (var i = 0; i < filiais.Count; i++)
+        {
+            parametros.Add($"filialA{i}", filiais[i]);
+        }
+        parametros.Add("dtIni1", inicio);
+        parametros.Add("dtFim1", fim);
+        parametros.Add("dtIni2", inicio);
+        parametros.Add("dtFim2", fim);
+        for (var i = 0; i < filiais.Count; i++)
+        {
+            parametros.Add($"filialB{i}", filiais[i]);
+        }
+
+        using var conexao = await _conexoes.CriarConexaoAsync(cancellationToken);
+
+        // No trace a consulta levou ~3,3 s com 3 filiais e 1 mês. Com 18 filiais e 4 meses
+        // o custo cresce; 600 s dá folga sem pendurar indefinidamente.
+        var despesas = await conexao.QueryAsync<DespesaDre>(
+            new CommandDefinition(
+                sql,
+                parametros,
+                commandTimeout: 600,
+                cancellationToken: cancellationToken));
+
+        return despesas.ToList();
     }
 }

@@ -76,4 +76,61 @@ public sealed class DreGerencialService
 
         return Result<IReadOnlyList<LinhaEstruturaDto>>.Ok(dtos);
     }
+
+    /// <summary>
+    /// Despesas do período. Só Grupo de Contas por enquanto — cada dimensão tem sua
+    /// própria expressão de agrupamento na 9815.
+    /// </summary>
+    public async Task<Result<IReadOnlyList<DespesaDto>>> ObterDespesasAsync(
+        DespesasFiltroDto filtro,
+        CancellationToken cancellationToken = default)
+    {
+        if (filtro.Filiais.Count == 0)
+        {
+            return Result<IReadOnlyList<DespesaDto>>.Invalido("Selecione ao menos uma filial.");
+        }
+
+        if (filtro.DataFim < filtro.DataInicio)
+        {
+            return Result<IReadOnlyList<DespesaDto>>.Invalido(
+                "A data final não pode ser anterior à inicial.");
+        }
+
+        // Protege o banco: a consulta varre PCLANC no período inteiro.
+        if (filtro.DataInicio.AddMonths(12) < filtro.DataFim)
+        {
+            return Result<IReadOnlyList<DespesaDto>>.Invalido(
+                "O período não pode passar de 12 meses.");
+        }
+
+        var regime = RegimeDre.Resolver(filtro.Regime);
+        if (regime is null)
+        {
+            return Result<IReadOnlyList<DespesaDto>>.Invalido(
+                $"Regime '{filtro.Regime}' não existe. Valores aceitos: " +
+                $"{string.Join(", ", RegimeDre.Todos.Select(r => r.Codigo))}.");
+        }
+
+        if (filtro.Analise != AnaliseGrupoDeContas)
+        {
+            return Result<IReadOnlyList<DespesaDto>>.Invalido(
+                $"A análise '{filtro.Analise}' ainda não foi implementada.");
+        }
+
+        var despesas = await _repositorio.ObterDespesasGrupoDeContasAsync(
+            filtro.Filiais, filtro.DataInicio, filtro.DataFim, regime, cancellationToken);
+
+        var dtos = despesas
+            .Select(d => new DespesaDto(
+                Chave: d.GrupoConta,
+                MesAno: d.MesAno,
+                AntesResultadoOperacional: d.AntesRo == "S",
+                AntesLucroLiquido: d.AntesLl == "S",
+                AntesLucroFinal: d.AntesLf == "S",
+                Valor: d.VlRealizado,
+                QuantidadeLancamentos: d.QdeReg))
+            .ToList();
+
+        return Result<IReadOnlyList<DespesaDto>>.Ok(dtos);
+    }
 }

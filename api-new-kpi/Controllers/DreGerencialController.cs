@@ -55,4 +55,23 @@ public sealed class DreGerencialController : ControllerBase
 
         return Ok(ApiResponse<IReadOnlyList<LinhaEstruturaDto>>.Ok(resultado.Valor!));
     }
+
+    /// <summary>
+    /// Despesas do período, agregadas por grupo e mês. Etapa intermediária: ainda não é o
+    /// DRE montado, é a saída bruta do `GetValorGrupo` para conferência contra a 9815.
+    /// </summary>
+    [HttpPost("despesas")]
+    public async Task<IActionResult> ObterDespesas(
+        [FromBody] DespesasFiltroDto filtro,
+        CancellationToken cancellationToken)
+    {
+        var resultado = await _servico.ObterDespesasAsync(filtro, cancellationToken);
+
+        if (resultado.Falha)
+        {
+            return BadRequest(ApiResponse<object>.Falha(resultado.Erro!));
+        }
+
+        return Ok(ApiResponse<IReadOnlyList<DespesaDto>>.Ok(resultado.Valor!));
+    }
 }
