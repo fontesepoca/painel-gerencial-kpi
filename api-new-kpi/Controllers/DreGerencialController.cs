@@ -36,4 +36,23 @@ public sealed class DreGerencialController : ControllerBase
 
         return Ok(ApiResponse<IReadOnlyList<FilialDto>>.Ok(resultado.Valor!));
     }
+
+    /// <summary>
+    /// Estrutura de linhas do DRE — o que a tabela exibe, em que ordem e com que cor.
+    /// Ainda sem os valores e sem o bloco de contas órfãs.
+    /// </summary>
+    [HttpGet("estrutura")]
+    public async Task<IActionResult> ObterEstrutura(
+        [FromQuery] string analise = DreGerencialService.AnaliseGrupoDeContas,
+        CancellationToken cancellationToken = default)
+    {
+        var resultado = await _servico.ObterEstruturaAsync(analise, cancellationToken);
+
+        if (resultado.Falha)
+        {
+            return BadRequest(ApiResponse<object>.Falha(resultado.Erro!));
+        }
+
+        return Ok(ApiResponse<IReadOnlyList<LinhaEstruturaDto>>.Ok(resultado.Valor!));
+    }
 }

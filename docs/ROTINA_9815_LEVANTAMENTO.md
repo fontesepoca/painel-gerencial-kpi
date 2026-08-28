@@ -163,7 +163,36 @@ Monta as linhas a partir de `EPCPARDRE` unida a `PCCONTA`/`PCGRUPO`, e concatena
 |---|---|
 | `AntesRO` | linha anterior à linha cujo grupo é `RESULTADO OPERACIONAL` |
 | `AntesLL` | linha anterior a `LUCRO LIQUIDO` |
-| `AntesLF` | idêntica a `AntesLL` no SQL capturado (mesma condição) |
+| `AntesLF` | **depende da dimensão** — ver abaixo |
+
+> **Correção de 28/08/2026.** Eu havia registrado que `AntesLL` e `AntesLF` eram sempre
+> idênticas. Isso vale só para **Grupo de Contas** e **Conta Gerencial**. Nas duas dimensões
+> de centro de custo, a consulta de estrutura compara com o rótulo **`LUCRO FINAL`**:
+>
+> ```sql
+> -- Grupo de Contas / Conta Gerencial
+> case when PAR.ID < (select ID from EPCPARDRE where upper(grupo) like 'LUCRO LIQUIDO') ...
+> -- C.Custo Principal / Centro de Custo
+> case when PAR.ID < (select ID from EPCPARDRE where upper(grupo) like 'LUCRO FINAL')  ...
+> ```
+>
+> `LUCRO FINAL` não aparece no dump de `EPCPARDRE`. Se de fato não existir, a subconsulta
+> devolve `NULL`, `PAR.ID < NULL` é `NULL`, e o `ELSE` fixa `AntesLF = 'N'` em **todas** as
+> linhas de estrutura dessas duas dimensões. Pendente de confirmação (§10, item 5).
+>
+> Atenção: em `GetValorGrupo` a flag `AntesLF` é calculada à parte e usa `LUCRO LIQUIDO`
+> nas quatro dimensões. São dois cálculos distintos com o mesmo nome.
+
+### 4.4.1 A consulta de estrutura muda conforme a dimensão
+
+Não é uma consulta parametrizada — são quatro SQLs diferentes:
+
+| Dimensão | Chave e rótulo das linhas de conta | Particularidades |
+|---|---|---|
+| **Grupo de Contas** | `gr.codgrupo` / `gr.grupo` — agrupa a conta pelo seu **grupo** | — |
+| **Conta Gerencial** | `PAR.CODGRUCONTA` / `NVL(CO.CONTA, PAR.GRUPO)` | traz `TIPOCONTA` de `PCCONTA.FIXAVARIAVEL` e `RESPONSAVEL` de **`EPCPARDRE_RESP`** com `codfil = 25` fixo |
+| **C.Custo Principal** | só linhas calculadas (`codgruconta <= 0`) | exclui os grupos `DESPESA OPERACIONAL`, `LUCRO OPERACIONAL`, `DESPESA FINANCEIRA`, `LUCRO FINANCEIRO`, `DESPESA TRIBUTARIA`, `LUCRO TRIBUTARIO`; recalcula `ID` deslocando pelo `RESULTADO OPERACIONAL`/`LUCRO LIQUIDO` |
+| **Centro de Custo** | idem C.Custo Principal | idem |
 
 ### 4.5 `GetValorGrupo` — despesas
 
@@ -524,7 +553,8 @@ trecho de código ou dependência. Toda biblioteca nova passa por aprovação.
 | ~~2~~ | ~~`CodigoCentroCusto` é numérico ou hierárquico com ponto?~~ | **RESOLVIDO** — 1666 de 1757 têm ponto; chave da dimensão será `VARCHAR2` (§6) |
 | ~~3~~ | ~~Grupo **8501**: 1 lançamento, `CODCOB = 'CAR'`, R$ 225.000, sem linha em `EPCPARDRE`~~ | **RESOLVIDO** — o valor **não aparece em nenhuma das 16 planilhas exportadas**, confirmando o descarte. Sendo `CODCOB = 'CAR'` com `CONDVENDA = 0`, é provavelmente recebimento de venda à vista, que já entra pelo faturamento via `PCNFSAID` — incluir causaria contagem dupla. **Decisão: replicar o descarte** |
 | ~~4~~ | ~~Efeito dos checkboxes não mapeados~~ | **FORA DO PILOTO** (§9). Exceção documentada: `Deduzir ST` e `Deduzir PIS/COFINS` afetam o número, e a web replica o comportamento desmarcado (§7 regra 0) |
-| ~~5~~ | ~~`AntesLL` e `AntesLF` têm a mesma condição~~ | **RESOLVIDO** — são idênticas (`ID < ID('LUCRO LIQUIDO')`) e não há rótulo em `EPCPARDRE` que justificasse um "LF" diferente. Calcular uma vez e expor com os dois nomes; sem diferença de comportamento |
+| 5 | **`AntesLF` usa `LUCRO FINAL` nas dimensões de centro de custo** — rótulo que não aparece no dump de `EPCPARDRE` | **REABERTA em 28/08/2026.** Eu havia fechado como "idênticas" olhando só dois dos seis traces. Confirmar com a Query E se `LUCRO FINAL` existe (§4.4) |
+| 6 | `EPCPARDRE_RESP` — tabela nova, descoberta na estrutura de Conta Gerencial, com `codfil = 25` fixo no SQL | levantar colunas e uso (Query F) |
 | ~~6~~ | ~~Distribuir por `nvl(DTPAGTO,DTVENC)` em Competência está correto?~~ | **CONFIRMADO correto** — replicar (§4.7) |
 | ~~6b~~ | ~~Despesa não paga fora do DRE em Competência está correto?~~ | **CONFIRMADO correto** — replicar (§4.7) |
 | ~~7~~ | ~~Quantas matrículas têm restrição de data?~~ | **RESOLVIDO** — 1 linha, janela aberta; fora do piloto (§5.2) |

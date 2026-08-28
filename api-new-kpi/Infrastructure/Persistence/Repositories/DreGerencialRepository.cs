@@ -29,4 +29,20 @@ public sealed class DreGerencialRepository : IDreGerencialRepository
 
         return filiais.ToList();
     }
+
+    public async Task<IReadOnlyList<LinhaEstruturaDre>> ObterEstruturaGrupoDeContasAsync(
+        CancellationToken cancellationToken = default)
+    {
+        using var conexao = await _conexoes.CriarConexaoAsync(cancellationToken);
+
+        // No trace da 9815 esta consulta levou ~2,2 s. O timeout tem folga, mas não é o
+        // de apuração: aqui não há varredura de PCLANC.
+        var linhas = await conexao.QueryAsync<LinhaEstruturaDre>(
+            new CommandDefinition(
+                DreGerencialQueries.EstruturaGrupoDeContas,
+                commandTimeout: 60,
+                cancellationToken: cancellationToken));
+
+        return linhas.ToList();
+    }
 }

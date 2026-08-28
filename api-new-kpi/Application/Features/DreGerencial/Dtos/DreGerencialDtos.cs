@@ -11,3 +11,17 @@ public record FilialDto(
     string Unidade,
     string Uf,
     int? Ordem);
+
+/// <summary>
+/// Linha da estrutura do DRE, já traduzida para a tela: flags como booleano e cor em CSS.
+/// </summary>
+public record LinhaEstruturaDto(
+    int? Id,
+    string Chave,
+    string Descricao,
+    bool Totalizadora,
+    bool Calculada,
+    string? Cor,
+    bool AntesResultadoOperacional,
+    bool AntesLucroLiquido,
+    bool AntesLucroFinal);

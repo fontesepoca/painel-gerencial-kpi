@@ -45,4 +45,65 @@ public static class DreGerencialQueries
            AND F.CODFIL  = FW.CODIGO (+)
          ORDER BY F.ORDEM_PROCESSA, LPAD(F.CODFIL, 10, '0')
         """;
+
+    /// <summary>
+    /// Estrutura de linhas do DRE para a análise **Grupo de Contas**.
+    ///
+    /// <para>
+    /// A 9815 usa um SQL diferente para cada dimensão — não é uma consulta parametrizada.
+    /// As outras três entram nos próximos incrementos (ver `docs/ROTINA_9815_LEVANTAMENTO.md`
+    /// §4.4.1).
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Falta aqui, de propósito, o `UNION ALL` das contas órfãs</b> — as que têm
+    /// movimento no período e não estão parametrizadas em `EPCPARDRE`, e que a 9815 exibe
+    /// depois do LUCRO LIQUIDO. Aquele trecho precisa de período e filiais, e varre `PCLANC`;
+    /// entra no incremento 3, junto com a leitura de despesas, para não pagar duas vezes
+    /// pela mesma varredura.
+    /// </para>
+    ///
+    /// <para>
+    /// `ORDER BY ID` com `MIN(ID)`: a linha de `ID` nulo do cadastro cai no fim
+    /// (`NULLS LAST` é o padrão do Oracle em ordem crescente, e está explícito para não
+    /// depender disso). É assim que "Pneus e Câmaras" aparece após o LUCRO LIQUIDO.
+    /// </para>
+    ///
+    /// Sem parâmetros.
+    /// </summary>
+    public const string EstruturaGrupoDeContas = """
+        SELECT MIN(ID)         AS ID,
+               CODGRUCONTA     AS CODGRUCONTA,
+               GRUPO           AS GRUPO,
+               MAX(INFCONTAS)  AS INFCONTAS,
+               MAX(COR)        AS COR,
+               ANTESRO         AS ANTESRO,
+               ANTESLL         AS ANTESLL,
+               ANTESLF         AS ANTESLF
+          FROM (
+                SELECT PAR.ID                                     AS ID,
+                       CASE WHEN PAR.CODGRUCONTA <= 0
+                            THEN TO_CHAR(PAR.CODGRUCONTA)
+                            ELSE TO_CHAR(GR.CODGRUPO) END         AS CODGRUCONTA,
+                       CASE WHEN PAR.CODGRUCONTA <= 0
+                            THEN PAR.GRUPO
+                            ELSE GR.GRUPO END                     AS GRUPO,
+                       PAR.INFCONTAS                              AS INFCONTAS,
+                       PAR.COR                                    AS COR,
+                       CASE WHEN PAR.ID < (SELECT ID FROM EPCPARDRE
+                                            WHERE UPPER(GRUPO) LIKE 'RESULTADO OPERACIONAL')
+                            THEN 'S' ELSE 'N' END                 AS ANTESRO,
+                       CASE WHEN PAR.ID < (SELECT ID FROM EPCPARDRE
+                                            WHERE UPPER(GRUPO) LIKE 'LUCRO LIQUIDO')
+                            THEN 'S' ELSE 'N' END                 AS ANTESLL,
+                       CASE WHEN PAR.ID < (SELECT ID FROM EPCPARDRE
+                                            WHERE UPPER(GRUPO) LIKE 'LUCRO LIQUIDO')
+                            THEN 'S' ELSE 'N' END                 AS ANTESLF
+                  FROM EPCPARDRE PAR, PCCONTA CO, PCGRUPO GR
+                 WHERE PAR.CODGRUCONTA = CO.CODCONTA (+)
+                   AND CO.GRUPOCONTA   = GR.CODGRUPO (+)
+               )
+         GROUP BY CODGRUCONTA, GRUPO, ANTESRO, ANTESLL, ANTESLF
+         ORDER BY ID NULLS LAST
+        """;
 }
