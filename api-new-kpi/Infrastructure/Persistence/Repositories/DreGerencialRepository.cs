@@ -32,16 +32,47 @@ public sealed class DreGerencialRepository : IDreGerencialRepository
     }
 
     public async Task<IReadOnlyList<LinhaEstruturaDre>> ObterEstruturaGrupoDeContasAsync(
+        IReadOnlyList<string> filiais,
+        DateOnly dataInicio,
+        DateOnly dataFim,
+        RegimeDre regime,
         CancellationToken cancellationToken = default)
     {
+        if (filiais.Count == 0)
+        {
+            return [];
+        }
+
+        var placeholders = string.Join(", ", filiais.Select((_, i) => $":filial{i}"));
+
+        // ExpressaoFiltroEstrutura, nao ExpressaoFiltro: o bloco de orfas usa
+        // FIN.DTPAGTO puro em caixa, enquanto o GetValorGrupo usa nvl(DTPAGTO,DTVENC).
+        var sql = string.Format(
+            DreGerencialQueries.EstruturaGrupoDeContas,
+            placeholders,
+            regime.ExpressaoFiltroEstrutura);
+
+        var inicio = dataInicio.ToDateTime(TimeOnly.MinValue);
+        var fim = dataFim.ToDateTime(TimeOnly.MinValue);
+
+        // Filiais primeiro, depois as datas — a ordem em que os binds aparecem no SQL.
+        var parametros = new DynamicParameters();
+        for (var i = 0; i < filiais.Count; i++)
+        {
+            parametros.Add($"filial{i}", filiais[i]);
+        }
+        parametros.Add("dtIni", inicio);
+        parametros.Add("dtFim", fim);
+
         using var conexao = await _conexoes.CriarConexaoAsync(cancellationToken);
 
-        // No trace da 9815 esta consulta levou ~2,2 s. O timeout tem folga, mas não é o
-        // de apuração: aqui não há varredura de PCLANC.
+        // No trace levou ~2,2 s. Agora varre PCLANC no bloco de orfas, entao merece
+        // o mesmo folego das demais consultas de apuracao.
         var linhas = await conexao.QueryAsync<LinhaEstruturaDre>(
             new CommandDefinition(
-                DreGerencialQueries.EstruturaGrupoDeContas,
-                commandTimeout: 60,
+                sql,
+                parametros,
+                commandTimeout: 600,
                 cancellationToken: cancellationToken));
 
         return linhas.ToList();

@@ -47,64 +47,80 @@ public static class DreGerencialQueries
         """;
 
     /// <summary>
-    /// Estrutura de linhas do DRE para a análise **Grupo de Contas**.
+    /// Estrutura de linhas do DRE para a análise **Grupo de Contas**, já com o bloco de
+    /// **contas órfãs** — as que têm movimento no período e não estão parametrizadas em
+    /// `EPCPARDRE`. São elas que dão rótulo ao bloco final do relatório
+    /// (`Acerto De Estoque`, `CONTRATO DE MUTUO`, …).
     ///
-    /// <para>
-    /// A 9815 usa um SQL diferente para cada dimensão — não é uma consulta parametrizada.
-    /// As outras três entram nos próximos incrementos (ver `docs/ROTINA_9815_LEVANTAMENTO.md`
-    /// §4.4.1).
-    /// </para>
+    /// <para><b>Validada contra o original</b> em 28/08/2026 por
+    /// `docs/validacao/inc5a_comparacao_estrutura.sql`. Única mudança: os três blocos de
+    /// órfãs (um por filial) viraram um, com `CODFILIAL IN (...)`.</para>
     ///
-    /// <para>
-    /// <b>Falta aqui, de propósito, o `UNION ALL` das contas órfãs</b> — as que têm
-    /// movimento no período e não estão parametrizadas em `EPCPARDRE`, e que a 9815 exibe
-    /// depois do LUCRO LIQUIDO. Aquele trecho precisa de período e filiais, e varre `PCLANC`;
-    /// entra no incremento 3, junto com a leitura de despesas, para não pagar duas vezes
-    /// pela mesma varredura.
-    /// </para>
+    /// <para><b>Duas particularidades do bloco de órfãs, replicadas como estão:</b></para>
+    /// <list type="number">
+    ///   <item>Ele lê `PCLANC` <b>direto, sem o `DTPAGTO IS NOT NULL`</b> que o
+    ///         `GetValorGrupo` aplica. Em competência isso significa que a estrutura pode
+    ///         listar uma conta cuja linha de despesa não existe — rótulo sem valor. Em
+    ///         caixa não há diferença prática, porque o filtro `FIN.DTPAGTO BETWEEN` já
+    ///         exclui nulo.</item>
+    ///   <item>O filtro de "não parametrizada" é um `NOT IN` sobre o <b>par</b>
+    ///         `(conta, centro de custo)`, com `PCCONTACENTROCUSTO` em outer join. Uma
+    ///         conta parametrizada só para certos centros de custo continua órfã nos
+    ///         demais. É a construção mais sutil do SQL da rotina.</item>
+    /// </list>
     ///
-    /// <para>
-    /// `ORDER BY ID` com `MIN(ID)`: a linha de `ID` nulo do cadastro cai no fim
-    /// (`NULLS LAST` é o padrão do Oracle em ordem crescente, e está explícito para não
-    /// depender disso). É assim que "Pneus e Câmaras" aparece após o LUCRO LIQUIDO.
-    /// </para>
+    /// <para>O `ORDER BY ID` é o do original — sem `NULLS LAST` explícito, porque no Oracle
+    /// esse já é o padrão em ordem crescente. A linha de `ID` nulo do cadastro cai no fim, e
+    /// as órfãs recebem `ID` sintético (`ROWNUM + max(ID)`), o que as coloca depois de todas
+    /// as parametrizadas.</para>
     ///
-    /// Sem parâmetros.
+    /// <para>Binds, nesta ordem: {0} placeholders das filiais, depois `:dtIni` e `:dtFim`.
+    /// {1} é a expressão de data do regime — <b>não</b> é a mesma do `GetValorGrupo`:
+    /// aqui caixa usa `FIN.DTPAGTO` puro, ver
+    /// <see cref="Application.Features.DreGerencial.RegimeDre.ExpressaoFiltroEstrutura"/>.</para>
     /// </summary>
     public const string EstruturaGrupoDeContas = """
-        SELECT MIN(ID)         AS ID,
-               CODGRUCONTA     AS CODGRUCONTA,
-               GRUPO           AS GRUPO,
-               MAX(INFCONTAS)  AS INFCONTAS,
-               MAX(COR)        AS COR,
-               ANTESRO         AS ANTESRO,
-               ANTESLL         AS ANTESLL,
-               ANTESLF         AS ANTESLF
-          FROM (
-                SELECT PAR.ID                                     AS ID,
-                       CASE WHEN PAR.CODGRUCONTA <= 0
-                            THEN TO_CHAR(PAR.CODGRUCONTA)
-                            ELSE TO_CHAR(GR.CODGRUPO) END         AS CODGRUCONTA,
-                       CASE WHEN PAR.CODGRUCONTA <= 0
-                            THEN PAR.GRUPO
-                            ELSE GR.GRUPO END                     AS GRUPO,
-                       PAR.INFCONTAS                              AS INFCONTAS,
-                       PAR.COR                                    AS COR,
-                       CASE WHEN PAR.ID < (SELECT ID FROM EPCPARDRE
-                                            WHERE UPPER(GRUPO) LIKE 'RESULTADO OPERACIONAL')
-                            THEN 'S' ELSE 'N' END                 AS ANTESRO,
-                       CASE WHEN PAR.ID < (SELECT ID FROM EPCPARDRE
-                                            WHERE UPPER(GRUPO) LIKE 'LUCRO LIQUIDO')
-                            THEN 'S' ELSE 'N' END                 AS ANTESLL,
-                       CASE WHEN PAR.ID < (SELECT ID FROM EPCPARDRE
-                                            WHERE UPPER(GRUPO) LIKE 'LUCRO LIQUIDO')
-                            THEN 'S' ELSE 'N' END                 AS ANTESLF
-                  FROM EPCPARDRE PAR, PCCONTA CO, PCGRUPO GR
-                 WHERE PAR.CODGRUCONTA = CO.CODCONTA (+)
-                   AND CO.GRUPOCONTA   = GR.CODGRUPO (+)
-               )
-         GROUP BY CODGRUCONTA, GRUPO, ANTESRO, ANTESLL, ANTESLF
-         ORDER BY ID NULLS LAST
+          SELECT min(ID) as ID, CODGRUCONTA, GRUPO, max(INFCONTAS) as INFCONTAS, max(cor) as COR, AntesRO, AntesLL, AntesLF, TIPOCONTA, RESPONSAVEL 
+           FROM ( 
+                 select PAR.ID, 
+                        case when PAR.CODGRUCONTA <= 0 then  to_char(PAR.CODGRUCONTA) else to_Char(gr.codgrupo) end as CODGRUCONTA, 
+                        case when PAR.CODGRUCONTA <= 0 then PAR.GRUPO else gr.grupo end as GRUPO, PAR.INFCONTAS, PAR.COR, '' as TIPOCONTA, '' as RESPONSAVEL,  
+                          case when PAR.ID < (select ID from EPCPARDRE where upper(grupo) like 'RESULTADO OPERACIONAL')  then 'S' else 'N' end as AntesRO, 
+                          case when PAR.ID < (select ID from EPCPARDRE where upper(grupo) like 'LUCRO LIQUIDO')  then 'S' else 'N' end as AntesLL, 
+                          case when PAR.ID < (select ID from EPCPARDRE where upper(grupo) like 'LUCRO LIQUIDO')  then 'S' else 'N' end as AntesLF 
+                     from EPCPARDRE PAR, PCCONTA CO, PCGRUPO GR 
+                    WHERE PAR.CODGRUCONTA = CO.codconta (+) 
+                      AND CO.GRUPOCONTA = gr.codgrupo (+) 
+                 union all 
+                 SELECT ROWNUM+(select max(ID) from EPCPARDRE) as ID, to_char(codgrupo) as CODGRUCONTA, GRUPO, 'N' as INFCONTAS,  NULL as COR, '' as TIPOCONTA, '' as RESPONSAVEL, 'N' as AntesRO, 'N' as AntesLL, 'N' as AntesLF 
+                   FROM ( 
+                        SELECT CODGRUPO, GRUPO, SUM(VPAGO) AS VPAGO, count(*) as qdeReg 
+                        FROM ( 
+         SELECT CT.CodConta as codgrupo, CT.conta as GRUPO,  
+                  DECODE(RC.valor,NULL,NVL(FIN.VPAGO,0)*(-1),NVL(RC.valor,FIN.VPAGO)*(-1)) as VPAGO  
+            FROM  PCLANC FIN, PCCONTA CT, PCGRUPO GR, PCRATEIOCENTROCUSTO RC, PCCENTROCUSTO CC, 
+                  ( select '99' as codccprinc, 'NÃO USA/NÃO INFORMADO' as DescCCPrinc FROM DUAL 
+                    union 
+                    select codccprinc, (select descricao from PCCENTROCUSTO where CodigoCentroCusto = CCP.CodPrinc) as DescCCPrinc 
+                    FROM (select SUBSTR(CodigoCentroCusto,1,2) as CODCCPRINC, min(CodigoCentroCusto) as CodPrinc 
+                    from PCCENTROCUSTO where CodigoCentroCusto not like '%.%' group by SUBSTR(CodigoCentroCusto,1,2)) CCP) CCPrinc  
+           WHERE  FIN.CODCONTA = CT.CODCONTA 
+             AND  CT.GRUPOCONTA >= 200 
+             AND  FIN.CODFILIAL IN ({0}) 
+             AND  FIN.RECNUM = RC.RECNUM (+) 
+             AND  FIN.CODCONTA = RC.CODCONTA (+) 
+             AND  CT.grupoconta = GR.codgrupo (+) 
+             AND  RC.CodigoCentroCusto = cc.CodigoCentroCusto (+) 
+             AND  SUBSTR(cc.CodigoCentroCusto,1,2) = CCPrinc.codccprinc (+) 
+             AND  (CT.CodConta,nvl(RC.CodigoCentroCusto,99)) not in (select p.CODGRUCONTA, nvl(ccc.codigocentrocusto,99) from EPCPARDRE p, PCCONTACENTROCUSTO ccc where p.CODGRUCONTA = ccc.codconta (+) ) 
+            AND {1} BETWEEN :dtIni AND :dtFim
+                         ) GROUP BY CODGRUPO, GRUPO 
+                     ORDER BY 1 
+                     ) 
+                      where VPAGO <> 0  or qdereg <> 0 
+               )   
+            group by CODGRUCONTA, GRUPO, AntesRO, AntesLL, AntesLF, TIPOCONTA, RESPONSAVEL 
+            order By ID 
         """;
 
     /// <summary>

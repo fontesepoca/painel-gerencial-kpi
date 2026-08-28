@@ -14,10 +14,14 @@ public interface IDreGerencialRepository
     Task<IReadOnlyList<Filial>> ObterFiliaisAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Estrutura de linhas do DRE para a análise Grupo de Contas.
-    /// Ainda sem o bloco de contas órfãs, que entra no incremento 3.
+    /// Estrutura de linhas do DRE para a análise Grupo de Contas, incluindo as contas
+    /// órfãs do período — as que dão rótulo ao bloco final do relatório.
     /// </summary>
     Task<IReadOnlyList<LinhaEstruturaDre>> ObterEstruturaGrupoDeContasAsync(
+        IReadOnlyList<string> filiais,
+        DateOnly dataInicio,
+        DateOnly dataFim,
+        RegimeDre regime,
         CancellationToken cancellationToken = default);
 
     /// <summary>

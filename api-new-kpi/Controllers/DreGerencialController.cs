@@ -38,15 +38,16 @@ public sealed class DreGerencialController : ControllerBase
     }
 
     /// <summary>
-    /// Estrutura de linhas do DRE — o que a tabela exibe, em que ordem e com que cor.
-    /// Ainda sem os valores e sem o bloco de contas órfãs.
+    /// Estrutura de linhas do DRE — o que a tabela exibe, em que ordem e com que cor,
+    /// já incluindo as contas órfãs do período. Ainda sem os valores.
+    /// Virou POST porque agora depende de filiais, período e regime.
     /// </summary>
-    [HttpGet("estrutura")]
+    [HttpPost("estrutura")]
     public async Task<IActionResult> ObterEstrutura(
-        [FromQuery] string analise = DreGerencialService.AnaliseGrupoDeContas,
-        CancellationToken cancellationToken = default)
+        [FromBody] DespesasFiltroDto filtro,
+        CancellationToken cancellationToken)
     {
-        var resultado = await _servico.ObterEstruturaAsync(analise, cancellationToken);
+        var resultado = await _servico.ObterEstruturaAsync(filtro, cancellationToken);
 
         if (resultado.Falha)
         {

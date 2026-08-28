@@ -14,7 +14,8 @@ public sealed record RegimeDre(
     string Codigo,
     string Rotulo,
     string ExpressaoBucket,
-    string ExpressaoFiltro)
+    string ExpressaoFiltro,
+    string ExpressaoFiltroEstrutura)
 {
     /// <summary>
     /// Caixa: filtra e distribui pela data de pagamento, com vencimento como fallback.
@@ -23,7 +24,8 @@ public sealed record RegimeDre(
         Codigo: "caixa",
         Rotulo: "Caixa",
         ExpressaoBucket: "nvl(FIN.DTPAGTO,fin.DTVENC)",
-        ExpressaoFiltro: "nvl(FIN.DTPAGTO,fin.DTVENC)");
+        ExpressaoFiltro: "nvl(FIN.DTPAGTO,fin.DTVENC)",
+        ExpressaoFiltroEstrutura: "FIN.DTPAGTO");
 
     /// <summary>
     /// Competência: **filtra** por `DTCOMPETENCIA` pura, mas **distribui** por
@@ -33,7 +35,8 @@ public sealed record RegimeDre(
         Codigo: "competencia",
         Rotulo: "Competência",
         ExpressaoBucket: "nvl(FIN.DTCOMPETENCIA,fin.DTVENC)",
-        ExpressaoFiltro: "FIN.dtcompetencia");
+        ExpressaoFiltro: "FIN.dtcompetencia",
+        ExpressaoFiltroEstrutura: "FIN.dtcompetencia");
 
     public static readonly IReadOnlyList<RegimeDre> Todos = [Caixa, Competencia];
 

@@ -37,27 +37,42 @@ public sealed class DreGerencialService
     }
 
     /// <summary>
-    /// Estrutura de linhas do DRE. Cada dimensão tem seu próprio SQL na 9815; só
-    /// Grupo de Contas está implementada até aqui.
+    /// Estrutura de linhas do DRE, já com as contas órfãs do período. Precisa de filiais,
+    /// período e regime porque o bloco de órfãs varre `PCLANC`.
+    /// Cada dimensão tem seu próprio SQL na 9815; só Grupo de Contas está implementada.
     /// </summary>
     public async Task<Result<IReadOnlyList<LinhaEstruturaDto>>> ObterEstruturaAsync(
-        string analise,
+        DespesasFiltroDto filtro,
         CancellationToken cancellationToken = default)
     {
-        if (!AnalisesConhecidas.Contains(analise))
+        var erroBase = ValidarPeriodoEFiliais(filtro);
+        if (erroBase is not null)
         {
-            return Result<IReadOnlyList<LinhaEstruturaDto>>.Invalido(
-                $"Análise '{analise}' não existe. Valores aceitos: {string.Join(", ", AnalisesConhecidas)}.");
+            return Result<IReadOnlyList<LinhaEstruturaDto>>.Invalido(erroBase);
         }
 
-        if (analise != AnaliseGrupoDeContas)
+        var regime = RegimeDre.Resolver(filtro.Regime);
+        if (regime is null)
         {
             return Result<IReadOnlyList<LinhaEstruturaDto>>.Invalido(
-                $"A análise '{analise}' ainda não foi implementada. " +
+                $"Regime '{filtro.Regime}' não existe.");
+        }
+
+        if (!AnalisesConhecidas.Contains(filtro.Analise))
+        {
+            return Result<IReadOnlyList<LinhaEstruturaDto>>.Invalido(
+                $"Análise '{filtro.Analise}' não existe. Valores aceitos: {string.Join(", ", AnalisesConhecidas)}.");
+        }
+
+        if (filtro.Analise != AnaliseGrupoDeContas)
+        {
+            return Result<IReadOnlyList<LinhaEstruturaDto>>.Invalido(
+                $"A análise '{filtro.Analise}' ainda não foi implementada. " +
                 "Na 9815 cada dimensão tem uma consulta de estrutura própria.");
         }
 
-        var linhas = await _repositorio.ObterEstruturaGrupoDeContasAsync(cancellationToken);
+        var linhas = await _repositorio.ObterEstruturaGrupoDeContasAsync(
+            filtro.Filiais, filtro.DataInicio, filtro.DataFim, regime, cancellationToken);
 
         var dtos = linhas
             .Select(l => new LinhaEstruturaDto(
