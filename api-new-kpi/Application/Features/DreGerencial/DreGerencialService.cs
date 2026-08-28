@@ -23,7 +23,8 @@ public sealed class DreGerencialService
         var filiais = await _repositorio.ObterFiliaisAsync(cancellationToken);
 
         var dtos = filiais
-            .Select(f => new FilialDto(f.CodFilial, f.Label, f.Empresa, f.Unidade, f.Uf, f.Ordem))
+            .Select(f => new FilialDto(
+                f.CodFilial, f.Label, f.Empresa, f.EmpresaCodigo, f.Unidade, f.Uf, f.Ordem))
             .ToList();
 
         return Result<IReadOnlyList<FilialDto>>.Ok(dtos);

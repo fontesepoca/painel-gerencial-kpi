@@ -22,6 +22,11 @@ public static class DreGerencialQueries
     ///    deixa a ordem dessas linhas a critério do banco — a lista mudaria de posição
     ///    entre execuções. Não altera quais filiais aparecem, só torna a ordem estável.
     ///
+    ///    O `LPAD` existe porque `CODFIL` é texto: sem ele a ordenação é lexicográfica e
+    ///    a filial `5` viria depois da `19`. `LPAD` alinha à direita e ordena como número,
+    ///    sem `TO_NUMBER` — converter código de cadastro é o erro que derrubou o Centro
+    ///    de Custo na 9815.
+    ///
     /// O outer join `(+)` é o do original e fica como está: `PCFILIAL` só fornece a UF,
     /// e filial sem registro lá não pode sumir da lista.
     ///
@@ -30,13 +35,14 @@ public static class DreGerencialQueries
     public const string Filiais = """
         SELECT F.CODFIL                             AS CODFILIAL,
                F.LABEL                              AS LABEL,
-               E.EMPRESA                            AS EMPRESA,
+               E.EMPRESA                            AS EMPRESACODIGO,
+               E.DESCRICAO                          AS EMPRESA,
                E.DESCRICAO || ' - ' || F.DESCRICAO  AS UNIDADE,
                NVL(FW.UF, 'MG')                     AS UF,
                F.ORDEM_PROCESSA                     AS ORDEM
           FROM FILIAIS F, EMPRESA E, PCFILIAL FW
          WHERE F.EMPRESA = E.EMPRESA
            AND F.CODFIL  = FW.CODIGO (+)
-         ORDER BY F.ORDEM_PROCESSA, F.CODFIL
+         ORDER BY F.ORDEM_PROCESSA, LPAD(F.CODFIL, 10, '0')
         """;
 }

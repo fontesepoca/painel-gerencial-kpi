@@ -329,26 +329,33 @@ Encontrados na consulta completa. Nenhum deles é hipótese; todos estão na tab
 
 Consulta executada em 27/08/2026: **18 filiais** em `filiais`/`empresa`.
 
-| codfil | label | empresa | ordem |
-|---|---|---|---|
-| **7** | **EPC-MAT** | EPC | 0 |
-| 27 | FUTURA | FUT | 1 |
-| 20 | EPC-CEASA | EPC | 1 |
-| **12** | **EPC-ES** | EPC | 2 |
-| 22 | EPC-RJ | GB | 2 |
-| 24 | POTENCIAL CONTAGEM | VIVALOG | 3 |
-| 34 | POTENCIAL | VIVALOG | 3 |
-| 35 | VIVALOG-SUL | VIVALOG | 3 |
-| **25** | **VIVALOG-GBH** | VIVALOG | 3 |
-| 91 | CeM-MG | EPC | 5 |
-| 31 | CeM-ES | EPC | 5 |
-| 19 | FUT-2013- | FUT | 5 |
-| 13 | MR::BH - BELO HORIZONTE | MRURAL | 9 |
-| 1 | ALFALOG | VALE | 26 |
-| 16 | SUP-NP | SUP | 27 |
-| 17 | SUP-PL | SUP | 28 |
-| 27 | SUP-SM | SUP | 29 |
-| 28 | EPC-TRANSP | EPC | 31 |
+Conferida em 28/08/2026 contra o retorno de `GET /api/dre-gerencial/filiais` — a listagem
+abaixo veio da API, não da transcrição do screenshot, que trazia `SUP-SM` como filial 27
+em vez de 18.
+
+| codfil | label | empresa | cód. empresa | ordem |
+|---|---|---|---|---|
+| **7** | **EPC-MAT** | EPC | 1 | 0 |
+| 20 | EPC-CEASA | EPC | 1 | 1 |
+| 27 | FUTURA | FUT | 6 | 1 |
+| **12** | **EPC-ES** | EPC | 1 | 2 |
+| 22 | EPC-RJ | GB | 2 | 2 |
+| 24 | POTENCIAL CONTAGEM | VIVALOG | 7 | 3 |
+| **25** | **VIVALOG-GBH** | VIVALOG | 7 | 3 |
+| 34 | POTENCIAL | VIVALOG | 7 | 3 |
+| 35 | VIVALOG-SUL | VIVALOG | 7 | 3 |
+| 19 | FUT-2013- | FUT | 6 | 5 |
+| 31 | CeM-ES | EPC | 1 | 5 |
+| 91 | CeM-MG | EPC | 1 | 5 |
+| 13 | MR::BH - BELO HORIZONTE | MRURAL | 3 | 9 |
+| 1 | ALFALOG | VALE | 5 | 26 |
+| 16 | SUP-NP | SUP | 4 | 27 |
+| 17 | SUP-PL | SUP | 4 | 28 |
+| 18 | SUP-SM | SUP | 4 | 29 |
+| 28 | EPC-TRANSP | EPC | 1 | 31 |
+
+`EMPRESA.EMPRESA` é a chave numérica; `EMPRESA.DESCRICAO` é o nome (`EPC`, `FUT`, …). O
+filtro exibe a descrição.
 
 As três em negrito são as que aparecem nas capturas **porque foram as marcadas na tela de
 seleção de filiais que o Winthor exibe antes de abrir a rotina** (§4.1). Não é limitação da

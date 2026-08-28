@@ -111,10 +111,14 @@ Popula o filtro Filial. Sem parâmetros.
 
 ```json
 { "sucesso": true, "dados": [
-  { "codFilial": "7", "label": "EPC-MAT", "empresa": "EPC",
-    "unidade": "EPC - MATRIZ", "uf": "MG", "ordem": 0 }
+  { "codFilial": "7", "label": "EPC-MAT", "empresa": "EPC", "empresaCodigo": "1",
+    "unidade": "EPC - EPC - MAT", "uf": "MG", "ordem": 0 }
 ] }
 ```
+
+`empresa` é `EMPRESA.DESCRICAO` — o nome exibido no filtro. `empresaCodigo` é a chave
+numérica, útil para agrupar sem depender do texto. ✅ **Implementado e conferido em
+28/08/2026: 18 filiais, de `EPC-MAT` (ordem 0) a `EPC-TRANSP` (ordem 31).**
 
 **`codFilial` é `string`, não número.** Em todo o trace da 9815 o código aparece entre aspas
 (`CODFILIAL IN ('7','12','25')`) e no Winthor a coluna é `VARCHAR2`. Converter para inteiro
@@ -306,7 +310,7 @@ Em incrementos revisáveis, um por vez:
 
 | # | Entrega | Como valido |
 |---|---|---|
-| 1 | `GET /filiais` | 18 filiais na ordem de `ORDEM_PROCESSA` |
+| 1 | `GET /filiais` | ✅ **conferido em 28/08/2026** — 18 filiais, de EPC-MAT (0) a EPC-TRANSP (31) |
 | 2 | Estrutura do DRE a partir de `EPCPARDRE` | ordem e rótulos batem com o print |
 | 3 | Despesas (`GetValorGrupo`), 1 mês, 1 filial, competência | bate com a planilha |
 | 4 | Faturamento e CMV | cabeçalho bate com a planilha |

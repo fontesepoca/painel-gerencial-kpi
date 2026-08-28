@@ -17,8 +17,18 @@ public class Filial
     /// <summary>Nome curto exibido no filtro: `EPC-MAT`, `VIVALOG-GBH`.</summary>
     public string Label { get; init; } = string.Empty;
 
-    /// <summary>Agrupador: `EPC`, `FUT`, `VIVALOG`, `GB`, `MRURAL`, `VALE`, `SUP`.</summary>
+    /// <summary>
+    /// Nome do agrupador, vindo de `EMPRESA.DESCRICAO`: `EPC`, `FUT`, `VIVALOG`, `GB`,
+    /// `MRURAL`, `VALE`, `SUP`. É este o rótulo que o filtro exibe.
+    /// </summary>
     public string Empresa { get; init; } = string.Empty;
+
+    /// <summary>
+    /// Chave numérica da empresa (`EMPRESA.EMPRESA`): 1 = EPC, 2 = GB, 3 = MRURAL,
+    /// 4 = SUP, 5 = VALE, 6 = FUT, 7 = VIVALOG. Serve para agrupar sem depender do
+    /// texto da descrição; não deve ser exibida.
+    /// </summary>
+    public string EmpresaCodigo { get; init; } = string.Empty;
 
     /// <summary>Descrição da empresa e da filial concatenadas.</summary>
     public string Unidade { get; init; } = string.Empty;

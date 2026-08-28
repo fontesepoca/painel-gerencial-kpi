@@ -7,6 +7,7 @@ public record FilialDto(
     string CodFilial,
     string Label,
     string Empresa,
+    string EmpresaCodigo,
     string Unidade,
     string Uf,
     int? Ordem);
