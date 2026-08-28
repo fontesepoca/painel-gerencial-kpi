@@ -334,3 +334,34 @@ planilha antes de seguir.
 | 2 | `AntesLL` e `AntesLF` com condição idêntica | **Sem impacto.** Calcular uma vez, expor com os dois nomes para rastreabilidade |
 | 3 | Mapa das linhas de cabeçalho para as colunas de faturamento | **Resolvido** por aritmética sobre as planilhas — ver §5, *Cabeçalho* |
 | 4 | Log de execução | **Fora do piloto.** A web não grava `tab_log_exec_rotina`, o que permite rodar com usuário Oracle **somente-leitura** durante toda a validação. Volta depois, com sequence, se fizer falta |
+
+---
+
+## 9. A chave de uma linha do DRE
+
+Descoberto em 28/08/2026, ao comparar a consulta de despesas original com a adaptada.
+
+**A identidade de uma linha não é a chave sozinha.** É a combinação:
+
+```
+(GRUPOCONTA, AntesRO, AntesLL, AntesLF, MES_ANO)
+```
+
+O `GROUP BY` externo do `GetValorGrupo` inclui as três flags, e a consulta de estrutura
+agrupa pelos mesmos campos. O mesmo grupo aparece **mais de uma vez** no relatório com flags
+diferentes — `Despesas Adm e Vendas` (chave `300`) surge antes do `RESULTADO OPERACIONAL`
+(`ID 18`, `AntesRO = 'S'`) e de novo depois dele (`ID 1249`, `AntesRO = 'N'`), com valores
+distintos.
+
+| Chave | Ocorrências na estrutura |
+|---|---|
+| `300` — Despesas Adm e Vendas | `ID 18`, `ID 1249`, e a de `ID` nulo |
+| `301` — Receitas Financeiras | `ID 144`, `ID 1248` |
+| `302` — Despesas Financeiras | `ID 153`, `ID 1261` |
+| `303` — Despesas Encargos / Impostos | `ID 32`, `ID 1269`, `ID 1348` |
+| `400` — Outras Receitas | `ID 577`, `ID 1239` |
+
+> **Consequência para a implementação:** casar estrutura com valores apenas por
+> `GRUPOCONTA` faria as duas linhas receberem o mesmo número — e o total do DRE ficaria
+> errado sem nenhum erro aparente. O dicionário de valores tem que ser indexado pela
+> tupla completa.

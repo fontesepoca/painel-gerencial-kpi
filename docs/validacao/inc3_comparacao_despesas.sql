@@ -19,6 +19,12 @@
 --   3. round-trip TO_DATE/TO_CHAR        ->  TO_CHAR direto
 --
 -- RESULTADO ESPERADO: NENHUMA LINHA. Qualquer linha e uma divergencia.
+--
+-- ATENCAO: a chave de uma linha do DRE e
+--   (GRUPOCONTA, ANTESRO, ANTESLL, ANTESLF, MES_ANO)
+-- e nao apenas GRUPOCONTA. O mesmo grupo aparece duas vezes no relatorio,
+-- antes e depois do RESULTADO OPERACIONAL, com flags diferentes. Juntar so
+-- por GRUPOCONTA cruza as combinacoes e produz falsas divergencias.
 -- ============================================================================
 
 ALTER SESSION SET NLS_DATE_FORMAT = 'DD/MM/YYYY';
@@ -317,6 +323,9 @@ PCRATEIOCENTROCUSTO RC,
 )
 SELECT NVL(TO_CHAR(o.GRUPOCONTA), a.GRUPOCONTA) AS GRUPOCONTA,
        NVL(o.MES_ANO, a.MES_ANO)                AS MES_ANO,
+       NVL(o.ANTESRO, a.ANTESRO)                AS ANTESRO,
+       NVL(o.ANTESLL, a.ANTESLL)                AS ANTESLL,
+       NVL(o.ANTESLF, a.ANTESLF)                AS ANTESLF,
        o.VLREALIZADO                            AS VL_ORIGINAL,
        a.VLREALIZADO                            AS VL_ADAPTADA,
        NVL(o.VLREALIZADO,0) - NVL(a.VLREALIZADO,0) AS DIFERENCA,
@@ -326,6 +335,9 @@ SELECT NVL(TO_CHAR(o.GRUPOCONTA), a.GRUPOCONTA) AS GRUPOCONTA,
   FULL OUTER JOIN adaptada a
     ON TO_CHAR(o.GRUPOCONTA) = a.GRUPOCONTA
    AND o.MES_ANO = a.MES_ANO
+   AND o.ANTESRO = a.ANTESRO
+   AND o.ANTESLL = a.ANTESLL
+   AND o.ANTESLF = a.ANTESLF
  WHERE o.GRUPOCONTA IS NULL
     OR a.GRUPOCONTA IS NULL
     OR ABS(NVL(o.VLREALIZADO,0) - NVL(a.VLREALIZADO,0)) > 0.005
