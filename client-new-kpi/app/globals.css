@@ -1,26 +1,160 @@
 @import "tailwindcss";
 
+/* ═══════════════════════════════════════════════════════════════
+   ÉPOCA KPI — TOKENS VISUAIS
+   Paleta, tipografia, raio, sombra e movimento herdados do padrão
+   visual "Época Analytics" (referência: Projeto KPI Ian).
+   Somente estilo — nenhuma regra de negócio ou código de componente
+   foi trazido de lá.
+   ═══════════════════════════════════════════════════════════════ */
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* ── Superfícies — escala Abyssal Navy ── */
+  --bg:            #080d1a;
+  --surface-0:     #070c14;
+  --surface-1:     #0c1220;
+  --surface-2:     #101828;
+  --surface-3:     #1a2540;
+  --surface-4:     #1f2d42;
+  --surface-hover: #1e2d4a;
+
+  /* ── Bordas ── */
+  --border:        rgb(255 255 255 / 0.06);
+  --border-strong: rgb(255 255 255 / 0.11);
+  --border-focus:  rgb(255 255 255 / 0.18);
+
+  /* ── Acento único — Cobalt Blue ── */
+  --primary:      #3b82f6;
+  --primary-dim:  rgb(59 130 246 / 0.08);
+  --primary-glow: rgb(59 130 246 / 0.15);
+  --primary-ring: rgb(59 130 246 / 0.25);
+
+  /* ── Cores semânticas de dado ── */
+  --positive:      #10b981;
+  --positive-glow: rgb(16 185 129 / 0.12);
+  --negative:      #f43f5e;
+  --negative-glow: rgb(244 63 94 / 0.12);
+  --warning:       #f59e0b;
+  --warning-glow:  rgb(245 158 11 / 0.10);
+  --info:          #0ea5e9;
+
+  /* ── Texto ── */
+  --text-primary:   #f1f5f9;
+  --text-secondary: #94a3b8;
+  --text-muted:     #475569;
+
+  /* ── Tipografia ── */
+  --font-ui:      var(--font-geist-sans), "Outfit", system-ui, -apple-system, sans-serif;
+  --font-display: var(--font-geist-sans), "Outfit", system-ui, sans-serif;
+  --font-mono:    var(--font-geist-mono), "JetBrains Mono", "Fira Code", monospace;
+  /* Números de DRE em fonte monoespaçada: as colunas alinham na vírgula
+     e a leitura vertical de valores fica possível. */
+  --font-data:    var(--font-geist-mono), "JetBrains Mono", "Fira Code", monospace;
+
+  /* ── Layout ── */
+  --sidebar-w:    256px;
+  --sidebar-w-sm: 64px;
+  --header-h:     64px;
+
+  /* ── Raio ── */
+  --radius-sm: 5px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+
+  /* ── Sombra ── */
+  --shadow-card:  0 1px 3px rgb(0 0 0 / 0.4), 0 4px 16px rgb(0 0 0 / 0.3);
+  --shadow-float: 0 4px 24px rgb(0 0 0 / 0.45), 0 1px 4px rgb(0 0 0 / 0.3);
+  --shadow-modal: 0 8px 32px rgb(0 0 0 / 0.5), 0 32px 80px rgb(0 0 0 / 0.6);
+
+  /* ── Movimento ── */
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
+  --dur-instant: 80ms;
+  --dur-fast:    150ms;
+  --dur-normal:  250ms;
+  --dur-slow:    400ms;
+
+  color-scheme: dark;
 }
 
+/* Tema claro. Ativado por html.light — o seletor fica pronto desde já
+   para não ter que reescrever token nenhum quando o toggle entrar. */
+html.light {
+  --bg:            #f8fafc;
+  --surface-0:     #ffffff;
+  --surface-1:     #ffffff;
+  --surface-2:     #f1f5f9;
+  --surface-3:     #e2e8f0;
+  --surface-4:     #e2e8f0;
+  --surface-hover: #cbd5e1;
+
+  --border:        rgb(15 23 42 / 0.08);
+  --border-strong: rgb(15 23 42 / 0.14);
+  --border-focus:  rgb(15 23 42 / 0.22);
+
+  --text-primary:   #0f172a;
+  --text-secondary: #334155;
+  --text-muted:     #64748b;
+
+  color-scheme: light;
+}
+
+/* Expõe os tokens ao Tailwind 4: habilita bg-surface-1, text-muted,
+   font-data, rounded-lg etc. sem escrever CSS arbitrário nos componentes. */
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+  --color-bg: var(--bg);
+  --color-surface-0: var(--surface-0);
+  --color-surface-1: var(--surface-1);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-surface-4: var(--surface-4);
+  --color-surface-hover: var(--surface-hover);
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --color-border-subtle: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-border-focus: var(--border-focus);
+
+  --color-primary: var(--primary);
+  --color-primary-dim: var(--primary-dim);
+  --color-primary-glow: var(--primary-glow);
+
+  --color-positive: var(--positive);
+  --color-negative: var(--negative);
+  --color-warning: var(--warning);
+  --color-info: var(--info);
+
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-muted: var(--text-muted);
+
+  --font-ui: var(--font-ui);
+  --font-display: var(--font-display);
+  --font-mono: var(--font-mono);
+  --font-data: var(--font-data);
+
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+  --radius-xl: var(--radius-xl);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--bg);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Números tabulares: dígitos de mesma largura, colunas alinhadas. */
+.tabular {
+  font-family: var(--font-data);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+::selection {
+  background: var(--primary-ring);
+  color: var(--text-primary);
 }
