@@ -107,13 +107,19 @@ Rota base `/api/dre-gerencial`. Toda resposta no envelope `ApiResponse<T>`.
 
 ### `GET /filiais`
 
-Popula o filtro Filial.
+Popula o filtro Filial. Sem parâmetros.
 
 ```json
 { "sucesso": true, "dados": [
-  { "codFilial": 7, "label": "EPC-MAT", "empresa": "EPC", "ordem": 0 }
+  { "codFilial": "7", "label": "EPC-MAT", "empresa": "EPC",
+    "unidade": "EPC - MATRIZ", "uf": "MG", "ordem": 0 }
 ] }
 ```
+
+**`codFilial` é `string`, não número.** Em todo o trace da 9815 o código aparece entre aspas
+(`CODFILIAL IN ('7','12','25')`) e no Winthor a coluna é `VARCHAR2`. Converter para inteiro
+descartaria um eventual zero à esquerda, e o valor deixaria de casar no `IN` da consulta —
+a mesma armadilha que derrubou a análise por Centro de Custo.
 
 ### `POST /apuracao`
 
@@ -122,7 +128,7 @@ querystring longa.
 
 ```json
 {
-  "filiais": [7, 12, 25],
+  "filiais": ["7", "12", "25"],
   "dataInicio": "2026-08-01",
   "dataFim": "2026-08-27",
   "regime": "competencia",

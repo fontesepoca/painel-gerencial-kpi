@@ -1,17 +1,15 @@
 using Epoca.Kpi.Api.Application.Common;
+using Epoca.Kpi.Api.Domain.Interfaces;
+using Epoca.Kpi.Api.Infrastructure.Persistence.Repositories;
 
 namespace Epoca.Kpi.Api.Application.Features.DreGerencial;
 
 /// <summary>
 /// Módulo da rotina DRE Gerencial (rotina 9815 do Winthor).
 ///
-/// Na Fase 1 ele existe só para provar o mecanismo de descoberta automática: o host
-/// encontra esta classe por reflexão e a lista aparece em GET /api/health.
-/// Nenhuma regra de negócio da 9815 é implementada aqui ainda — isso é Fase 4.
-///
-/// Para criar o módulo da próxima rotina, copie o padrão: nova pasta em
-/// Application/Features/, uma classe implementando IModuleInstaller, e pronto.
-/// Nenhum arquivo existente precisa ser alterado.
+/// O host encontra esta classe por reflexão no boot, e é por isso que acrescentar uma
+/// rotina nova não exige editar Program.cs — basta criar a pasta com a sua classe de
+/// módulo. Ver docs/ARQUITETURA.md.
 /// </summary>
 public sealed class DreGerencialModule : IModuleInstaller
 {
@@ -19,7 +17,7 @@ public sealed class DreGerencialModule : IModuleInstaller
 
     public void Instalar(IServiceCollection services, IConfiguration configuration)
     {
-        // Fase 4: registrar aqui IDreGerencialRepository, as queries Dapper e os
-        // serviços de aplicação desta rotina.
+        services.AddScoped<IDreGerencialRepository, DreGerencialRepository>();
+        services.AddScoped<DreGerencialService>();
     }
 }
