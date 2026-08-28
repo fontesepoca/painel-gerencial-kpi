@@ -30,7 +30,7 @@ public sealed class OracleConnectionFactory : IOracleConnectionFactory
 
         // BindByName = false é o padrão do ODP.NET: os parâmetros são posicionais.
         // A ordem dos parâmetros precisa bater com a ordem dos :placeholders no SQL.
-        // Ver Docs/CONVENCOES_ORACLE.md antes de escrever qualquer query.
+        // Ver docs/CONVENCOES_ORACLE.md na raiz do repositorio antes de escrever query.
         conexao.BindByName = false;
 
         try

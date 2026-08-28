@@ -2,7 +2,7 @@ namespace Epoca.Kpi.Api.Application.Common;
 
 /// <summary>
 /// Página de resultados. Oracle 11g não tem OFFSET/FETCH — a paginação é feita com
-/// ROWNUM em subconsulta aninhada (ver Docs/CONVENCOES_ORACLE.md).
+/// ROWNUM em subconsulta aninhada. Ver docs/CONVENCOES_ORACLE.md na raiz do repositório.
 /// </summary>
 public record PagedResult<T>
 {
