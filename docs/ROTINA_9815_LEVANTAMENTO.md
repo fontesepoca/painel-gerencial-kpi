@@ -74,12 +74,12 @@ despesa; vermelho/azul no %AH = variação positiva/negativa.
  (+) RECEITA BRUTA
  (-) ABAT./DESC.
  (-) DEVOLUCAO
- (-) ST
- (-) PIS
- (-) COFINS
- (=) RECEITAS LIQUIDAS      <- base 100% do %AV
+ (-) ST                     <- NAO subtrai. Informativa (ver §7 regra 0)
+ (-) PIS                    <- NAO subtrai. Informativa
+ (-) COFINS                 <- NAO subtrai. Informativa
+ (=) RECEITAS LIQUIDAS      <- = BRUTA - ABAT - DEVOLUCAO. Base 100% do %AV
  (=) CMV LIQ.
-     LUCRO BRUTO
+     LUCRO BRUTO            <- = RECEITAS LIQUIDAS - CMV LIQ.
      ... bloco variável, quebrado pela dimensão escolhida em "Análise" ...
      Sub-Total -> Despesas Operacionais
      RESULTADO OPERACIONAL
