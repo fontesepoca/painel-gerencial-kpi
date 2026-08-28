@@ -241,3 +241,41 @@ mês** no cenário de 2 meses; com 4 meses a projeção passa de 8 minutos.
 - [ ] `commandTimeout` compatível com o custo da consulta?
 - [ ] Nenhum valor concatenado direto no SQL?
 - [ ] Se replica a 9815: os números batem com a planilha exportada da rotina?
+
+---
+
+## 11. `NLS_DATE_FORMAT` — a dependência escondida
+
+A 9815 escreve, em toda coluna de mês:
+
+```sql
+TO_CHAR(To_Date(nvl(FIN.DTCOMPETENCIA, FIN.DTVENC), 'dd/mm/yyyy'), 'mm/yyyy')
+```
+
+`DTCOMPETENCIA` **já é `DATE`**. Aplicar `TO_DATE` sobre `DATE` obriga o Oracle a converter
+para texto antes, usando o **`NLS_DATE_FORMAT` da sessão**, e só então reinterpretar com a
+máscara `dd/mm/yyyy`. Funciona enquanto a sessão estiver nesse formato — era o caso do
+FireDAC. Em qualquer outra sessão, sobra caractere e estoura:
+
+```
+ORA-01830: date format picture ends before converting entire input string
+```
+
+**Não replique o round-trip.** É um no-op que só adiciona dependência de ambiente:
+
+```sql
+-- Frágil: depende do NLS_DATE_FORMAT da sessão
+TO_CHAR(To_Date(<data>, 'dd/mm/yyyy'), 'mm/yyyy')
+
+-- Correto: equivalente e independente de NLS
+TO_CHAR(<data>, 'mm/yyyy')
+```
+
+São equivalentes: `mm/yyyy` ignora a hora, e o round-trip só a descartaria.
+
+**Por que isso importa na API:** a sessão do ODP.NET não herda o `NLS_DATE_FORMAT` do
+FireDAC. Replicar o SQL verbatim colocaria na aplicação um erro que depende de configuração
+de ambiente — o tipo que passa em desenvolvimento e quebra em produção.
+
+A mesma regra vale para o inverso: **nunca compare `DATE` com literal de texto** confiando na
+conversão implícita. Sempre `DATE` com `DATE`, via parâmetro.

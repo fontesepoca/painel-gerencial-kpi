@@ -2,11 +2,27 @@
 -- INCREMENTO 3 - validacao da consulta de despesas (GetValorGrupo)
 -- Cenario: 01/08/2026 a 27/08/2026 | COMPETENCIA | Grupo de Contas | filiais 7, 12, 25
 --
--- Compara o SQL ORIGINAL da 9815 (3 blocos UNION ALL, um por filial) com a
--- versao ADAPTADA (um bloco so, CODFILIAL IN ('7','12','25')).
+-- COMO RODAR: execute como SCRIPT (F5), nao statement a statement (Ctrl+Enter).
+-- O ALTER SESSION abaixo e obrigatorio para o bloco "original" funcionar.
 --
--- Resultado esperado: NENHUMA LINHA. Qualquer linha e uma divergencia.
+-- POR QUE: a 9815 usa TO_CHAR(To_Date(<coluna DATE>,'dd/mm/yyyy'),'mm/yyyy').
+-- Aplicar TO_DATE sobre uma coluna que ja e DATE forca o Oracle a converter
+-- para texto antes, usando o NLS_DATE_FORMAT da sessao. No FireDAC o formato
+-- era dd/mm/yyyy e funcionava; em outra sessao da ORA-01830.
+--
+-- O bloco "adaptada" nao tem esse round-trip: usa TO_CHAR(<data>,'mm/yyyy')
+-- direto, que e equivalente e independe de NLS.
+--
+-- Diferencas testadas de uma vez:
+--   1. tres blocos UNION ALL por filial  ->  um bloco com CODFILIAL IN (...)
+--   2. TO_NUMBER na chave                ->  TO_CHAR
+--   3. round-trip TO_DATE/TO_CHAR        ->  TO_CHAR direto
+--
+-- RESULTADO ESPERADO: NENHUMA LINHA. Qualquer linha e uma divergencia.
 -- ============================================================================
+
+ALTER SESSION SET NLS_DATE_FORMAT = 'DD/MM/YYYY';
+
 WITH original AS (
  SELECT  GRUPOCONTA, AntesRO, AntesLL, AntesLF, MES_ANO, MES, ANO, sum(VLREALIZADO) as VLREALIZADO, sum(VPAGO_EXCLUSIVO_FORNEC) as VPAGO_EXCLUSIVO_FORNEC, sum(QdeReg) as QdeReg 
  FROM ( 
@@ -243,8 +259,8 @@ adaptada AS (
           DECODE(RC.valor,NULL, DECODE(CT.usarateiocentrocusto,'S',NVL(CC.DESCRICAO,'NÃO INFORMADO'),'NÃO USA CENTRO DE CUSTO') ,NVL(CC.DESCRICAO,'NÃO INFORMADO')) as DESCCENTROCUSTO,  
           GR.codgrupo, GR.GRUPO, FIN.CODCONTA, CT.CONTA, 
           FIN.numtrans, FIN.NUMNOTA, FIN.Duplic, FIN.codprojeto, FIN.dtcompetencia, 
-          TO_CHAR(To_Date(nvl(FIN.DTCOMPETENCIA,fin.DTVENC),'dd/mm/yyyy'),'mm/yyyy') as MES_ANO, 
-          TO_CHAR(To_Date(nvl(FIN.DTCOMPETENCIA,fin.DTVENC),'dd/mm/yyyy'),'mm') as MES, 
+          TO_CHAR(nvl(FIN.DTCOMPETENCIA,fin.DTVENC),'mm/yyyy') as MES_ANO, 
+          TO_CHAR(nvl(FIN.DTCOMPETENCIA,fin.DTVENC),'mm') as MES, 
           extract(YEAR FROM nvl(FIN.DTCOMPETENCIA,fin.DTVENC)) as ANO, 
           SUBSTR(CONCAT(CONCAT(TRIM(FIN.HISTORICO), '. '), TRIM(FIN.HISTORICO2)),0,200) HISTORICO, 
           DECODE(RC.valor,NULL,NVL(FIN.VPAGO,0)*(-1),NVL(RC.valor,FIN.VPAGO)*(-1)) as VPAGO,  
@@ -287,8 +303,8 @@ PCRATEIOCENTROCUSTO RC,
                  ) GROUP BY  to_char(decode(AntesLF,'N',CODCONTA,  codgrupo)), AntesRO, AntesLL, AntesLF, MES_ANO, MES, ANO  
  union all 
  select '400' as GRUPOCONTA,  
-        'N' as AntesRO, 'S' as AntesLL,  'S' as AntesLF, TO_CHAR(To_Date(FIN.dtpag,'dd/mm/yyyy'),'mm/yyyy') as MES_ANO, 
-        TO_CHAR(To_Date(FIN.dtpag,'dd/mm/yyyy'),'mm') as MES, 
+        'N' as AntesRO, 'S' as AntesLL,  'S' as AntesLF, TO_CHAR(FIN.dtpag,'mm/yyyy') as MES_ANO, 
+        TO_CHAR(FIN.dtpag,'mm') as MES, 
         extract(YEAR FROM FIN.dtpag) as ANO, fin.valor as VLREALIZADO, 0 as VPAGO_EXCLUSIVO_FORNEC, 0 as QdeReg  
    from pcnfsaid nf, pcprest fin 
   where nf.numnota = fin.duplic 
