@@ -311,7 +311,7 @@ Em incrementos revisáveis, um por vez:
 | # | Entrega | Como valido |
 |---|---|---|
 | 1 | `GET /filiais` | ✅ **conferido em 28/08/2026** — 18 filiais, de EPC-MAT (0) a EPC-TRANSP (31) |
-| 2 | Estrutura do DRE a partir de `EPCPARDRE` | 🔄 Grupo de Contas implementado; conferir ordem e rótulos contra o print. As outras 3 dimensões têm SQL próprio (§4.4.1 do levantamento) |
+| 2 | Estrutura do DRE a partir de `EPCPARDRE` | ✅ **conferido em 28/08/2026** — Grupo de Contas bate com o print: ordem, rótulos e cores. As linhas a mais são as zeradas, que o print esconde. As outras 3 dimensões têm SQL próprio (§4.4.1 do levantamento) |
 | 3 | Despesas (`GetValorGrupo`), 1 mês, 1 filial, competência | bate com a planilha |
 | 4 | Faturamento e CMV | cabeçalho bate com a planilha |
 | 5 | Montagem do DRE completo | os 6 cenários batem linha a linha |

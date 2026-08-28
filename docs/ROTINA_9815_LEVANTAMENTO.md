@@ -553,13 +553,13 @@ trecho de código ou dependência. Toda biblioteca nova passa por aprovação.
 | ~~2~~ | ~~`CodigoCentroCusto` é numérico ou hierárquico com ponto?~~ | **RESOLVIDO** — 1666 de 1757 têm ponto; chave da dimensão será `VARCHAR2` (§6) |
 | ~~3~~ | ~~Grupo **8501**: 1 lançamento, `CODCOB = 'CAR'`, R$ 225.000, sem linha em `EPCPARDRE`~~ | **RESOLVIDO** — o valor **não aparece em nenhuma das 16 planilhas exportadas**, confirmando o descarte. Sendo `CODCOB = 'CAR'` com `CONDVENDA = 0`, é provavelmente recebimento de venda à vista, que já entra pelo faturamento via `PCNFSAID` — incluir causaria contagem dupla. **Decisão: replicar o descarte** |
 | ~~4~~ | ~~Efeito dos checkboxes não mapeados~~ | **FORA DO PILOTO** (§9). Exceção documentada: `Deduzir ST` e `Deduzir PIS/COFINS` afetam o número, e a web replica o comportamento desmarcado (§7 regra 0) |
-| 5 | **`AntesLF` usa `LUCRO FINAL` nas dimensões de centro de custo** — rótulo que não aparece no dump de `EPCPARDRE` | **REABERTA em 28/08/2026.** Eu havia fechado como "idênticas" olhando só dois dos seis traces. Confirmar com a Query E se `LUCRO FINAL` existe (§4.4) |
-| 6 | `EPCPARDRE_RESP` — tabela nova, descoberta na estrutura de Conta Gerencial, com `codfil = 25` fixo no SQL | levantar colunas e uso (Query F) |
+| ~~5~~ | ~~`AntesLF` usa `LUCRO FINAL` nas dimensões de centro de custo~~ | **RESOLVIDO em 28/08/2026** — `LUCRO FINAL` **não existe** em `EPCPARDRE` (só `LUCRO BRUTO`, `DESPESA OPERACIONAL ECL` e `LUCRO LIQUIDO`). Logo `AntesLF = N` em todas as linhas de estrutura dessas duas dimensões |
 | ~~6~~ | ~~Distribuir por `nvl(DTPAGTO,DTVENC)` em Competência está correto?~~ | **CONFIRMADO correto** — replicar (§4.7) |
 | ~~6b~~ | ~~Despesa não paga fora do DRE em Competência está correto?~~ | **CONFIRMADO correto** — replicar (§4.7) |
 | ~~7~~ | ~~Quantas matrículas têm restrição de data?~~ | **RESOLVIDO** — 1 linha, janela aberta; fora do piloto (§5.2) |
 | ~~8~~ | ~~Filiais serão sempre 7/12/25?~~ | **RESOLVIDO** — o `IN` vem da pré-seleção do Winthor; a web lista **as 18** direto do banco (§5.5) |
 | 9 | Os 6 problemas de dado de `EPCPARDRE` (§5.4): replicar o comportamento atual ou corrigir na web? | Decisão de negócio antes da Fase 4 |
+| ~~10~~ | ~~`EPCPARDRE_RESP` — tabela nova, com `codfil = 25` fixo no SQL~~ | **RESOLVIDO em 28/08/2026** — colunas `CODCONTA`, `CODFIL`, `MATRICULA`; `MATRICULA` vem **vazia** na amostra, então `RESPONSAVEL` resultaria nulo. Não está no mockup: **omitir da implementação** |
 
 ### Queries de exploração propostas
 
