@@ -1,0 +1,65 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "api: build",
+      "type": "shell",
+      "command": "dotnet",
+      "args": ["build", "api-new-kpi/api-new-kpi.csproj"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": "$msCompile",
+      "group": { "kind": "build", "isDefault": true }
+    },
+    {
+      "label": "api: watch",
+      "detail": "Sobe a API recompilando a cada arquivo salvo (http://localhost:5207).",
+      "type": "shell",
+      "command": "dotnet",
+      "args": ["watch", "run", "--urls", "http://localhost:5207"],
+      "options": { "cwd": "${workspaceFolder}/api-new-kpi" },
+      "isBackground": true,
+      "problemMatcher": {
+        "pattern": { "regexp": "^$" },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": ".*Building.*",
+          "endsPattern": ".*Now listening on.*"
+        }
+      },
+      "presentation": { "group": "dev", "panel": "dedicated" }
+    },
+    {
+      "label": "client: dev",
+      "detail": "Sobe o Next.js em modo desenvolvimento (http://localhost:3000).",
+      "type": "shell",
+      "command": "npm",
+      "args": ["run", "dev"],
+      "options": { "cwd": "${workspaceFolder}/client-new-kpi" },
+      "isBackground": true,
+      "problemMatcher": {
+        "pattern": { "regexp": "^$" },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": ".*(Starting|Compiling).*",
+          "endsPattern": ".*(Ready|ready) in.*"
+        }
+      },
+      "presentation": { "group": "dev", "panel": "dedicated" }
+    },
+    {
+      "label": "client: typecheck",
+      "type": "shell",
+      "command": "npx",
+      "args": ["tsc", "--noEmit"],
+      "options": { "cwd": "${workspaceFolder}/client-new-kpi" },
+      "problemMatcher": "$tsc"
+    },
+    {
+      "label": "dev: tudo",
+      "detail": "Sobe API e front juntos.",
+      "dependsOn": ["api: watch", "client: dev"],
+      "dependsOrder": "parallel",
+      "problemMatcher": []
+    }
+  ]
+}

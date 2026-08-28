@@ -1,0 +1,12 @@
+{
+  "recommendations": [
+    "ms-dotnettools.csharp",
+    "dbaeumer.vscode-eslint",
+    "bradlc.vscode-tailwindcss",
+    "esbenp.prettier-vscode",
+    "humao.rest-client"
+  ],
+  "unwantedRecommendations": [
+    "ms-dotnettools.csdevkit"
+  ]
+}

@@ -1,0 +1,45 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "API (.NET) — depurar",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "api: build",
+      "program": "${workspaceFolder}/api-new-kpi/bin/Debug/net10.0/api-new-kpi.dll",
+      "args": ["--urls", "http://localhost:5207"],
+      "cwd": "${workspaceFolder}/api-new-kpi",
+      "stopAtEntry": false,
+      "console": "internalConsole",
+      "serverReadyAction": {
+        "action": "openExternally",
+        "pattern": "\\bNow listening on:\\s+(https?://\\S+)",
+        "uriFormat": "%s/scalar/v1"
+      },
+      "env": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      }
+    },
+    {
+      "name": "Front (Next.js) — servidor",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "npm run dev",
+      "cwd": "${workspaceFolder}/client-new-kpi",
+      "serverReadyAction": {
+        "action": "debugWithChrome",
+        "pattern": "- Local:\\s+(https?://\\S+)",
+        "uriFormat": "%s",
+        "webRoot": "${workspaceFolder}/client-new-kpi"
+      }
+    }
+  ],
+  "compounds": [
+    {
+      "name": "▶ API + Front",
+      "configurations": ["API (.NET) — depurar", "Front (Next.js) — servidor"],
+      "stopAll": true,
+      "presentation": { "order": 1 }
+    }
+  ]
+}

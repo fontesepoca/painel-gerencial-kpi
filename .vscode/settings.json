@@ -1,0 +1,54 @@
+{
+  "// Arquivos": "Esconde ruído de build da árvore lateral. Continuam no disco.",
+  "files.exclude": {
+    "**/bin": true,
+    "**/obj": true,
+    "**/.vs": true,
+    "**/node_modules": true,
+    "**/.next": true
+  },
+  "search.exclude": {
+    "**/bin": true,
+    "**/obj": true,
+    "**/node_modules": true,
+    "**/.next": true,
+    "**/package-lock.json": true
+  },
+  "files.encoding": "utf8",
+  "files.eol": "\r\n",
+  "files.trimTrailingWhitespace": true,
+  "files.insertFinalNewline": true,
+
+  "// Editor": "Formata ao salvar; organiza usings/imports.",
+  "editor.formatOnSave": true,
+  "editor.tabSize": 2,
+
+  "// C#": "O servidor de linguagem do Roslyn vem na extensão ms-dotnettools.csharp.",
+  "[csharp]": {
+    "editor.defaultFormatter": "ms-dotnettools.csharp",
+    "editor.tabSize": 4,
+    "editor.codeActionsOnSave": {
+      "source.organizeImports": "explicit"
+    }
+  },
+  "dotnet.server.useOmnisharp": false,
+
+  "// TypeScript": "Usa a versão do TS instalada no projeto, não a embutida no VS Code.",
+  "typescript.tsdk": "client-new-kpi/node_modules/typescript/lib",
+  "typescript.enablePromptUseWorkspaceTsdk": true,
+  "javascript.preferences.importModuleSpecifier": "non-relative",
+  "typescript.preferences.importModuleSpecifier": "non-relative",
+
+  "[typescript]": { "editor.defaultFormatter": "esbenp.prettier-vscode" },
+  "[typescriptreact]": { "editor.defaultFormatter": "esbenp.prettier-vscode" },
+  "[json]": { "editor.defaultFormatter": "esbenp.prettier-vscode" },
+  "[jsonc]": { "editor.defaultFormatter": "esbenp.prettier-vscode" },
+
+  "eslint.workingDirectories": ["client-new-kpi"],
+
+  "// Tailwind": "Faz o IntelliSense funcionar dentro do helper cn().",
+  "tailwindCSS.experimental.classRegex": [
+    ["cn\\(([^)]*)\\)", "[\"'`]([^\"'`]*).*?[\"'`]"]
+  ],
+  "css.lint.unknownAtRules": "ignore"
+}
