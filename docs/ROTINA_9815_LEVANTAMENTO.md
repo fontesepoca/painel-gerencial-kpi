@@ -520,7 +520,10 @@ será o caso.)
    | `(-) ST` · `(-) PIS` · `(-) COFINS` | `ST_Liq` · `PIS_Liq` · `COFINS_Liq` — informativas |
    | `(=) CMV LIQ.` | `VLCUSTOFIN − VLCUSTOFINDEVOL` |
 
-1. **%AV** é calculado sobre `RECEITAS LIQUIDAS = 100%`.
+1. **%AV tem duas bases.** As cinco linhas de dedução (`ABAT./DESC.`, `DEVOLUCAO`, `ST`, `PIS`,
+   `COFINS`) são percentuais da **RECEITA BRUTA**; de `RECEITAS LIQUIDAS` para baixo, a base
+   é a **RECEITAS LIQUIDAS**. Verificado em 28/08/2026 contra a planilha de parâmetros
+   conhecidos. `RECEITA BRUTA` não exibe %AV.
 2. **%AH** compara o mês com o mês anterior do período; com 1 mês só, sai `0,00`.
 3. Só entram contas com `PCCONTA.GRUPOCONTA >= 200`.
 4. Havendo rateio em `PCRATEIOCENTROCUSTO`, o valor rateado **substitui** o valor do lançamento.

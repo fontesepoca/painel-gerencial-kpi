@@ -134,6 +134,7 @@ usado e a data. Divergência não resolvida vira pendência documentada — **nu
 | Valor da planilha fica ENTRE dois períodos testados | A planilha foi exportada com parâmetros desconhecidos. Despesa só cresce em módulo com o período, então nenhuma data final produz um valor intermediário | Peça uma exportação nova com parâmetros registrados, em vez de bissetar datas |
 | Rótulo some ao extrair do xlsx | `sharedStrings.xml` deduplica texto repetido | Leia `sheet1.xml` e resolva os índices |
 | Diferença de ~3 milhões na Receita Líquida | Deduziu ST, PIS e COFINS | Eles não entram no cálculo |
+| %AV errado em ABAT./DESC., DEVOLUCAO, ST, PIS e COFINS | Usou RECEITAS LIQUIDAS como base | Essas cinco são percentuais da RECEITA BRUTA; o resto é da RECEITAS LIQUIDAS |
 | Cenário de Centro de Custo sem planilha para comparar | A análise por Centro de Custo **nunca funcionou** na 9815 — os arquivos `*_com_erro_sempre` são o trace do erro | Única dimensão que precisa de validação manual com o negócio |
 | Números batem em 1 mês e erram em 2 | Com 2 meses a rotina executa o faturamento **uma vez por mês**; a despesa sai numa passada só, agrupada por `MES_ANO` | O `MES_ANO` acompanha o regime: caixa por `nvl(DTPAGTO,DTVENC)`, competência por `nvl(DTCOMPETENCIA,DTVENC)` |
 | Duas linhas do DRE com o mesmo valor | Casou estrutura com valores só por `GRUPOCONTA` | A identidade é a tupla `(GRUPOCONTA, AntesRO, AntesLL, AntesLF, MES_ANO)` |

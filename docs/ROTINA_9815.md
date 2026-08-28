@@ -87,7 +87,16 @@ colunas por mês, mais o bloco de total.
 | `NÃO SOMA` | marcador nas linhas que não entram nos totais |
 | Números | fonte monoespaçada tabular, alinhados à direita |
 
-**Base do `AV %`:** `RECEITAS LIQUIDAS = 100%`.
+**Base do `AV %` — são DUAS bases**, verificado em 28/08/2026:
+
+| Linhas | Base |
+|---|---|
+| `(-) ABAT./DESC.`, `(-) DEVOLUCAO`, `(-) ST`, `(-) PIS`, `(-) COFINS` | **RECEITA BRUTA** |
+| de `(=) RECEITAS LIQUIDAS` para baixo, inclusive | **RECEITAS LIQUIDAS** |
+| `(+) RECEITA BRUTA` | sem `%AV` |
+
+Usar a receita líquida nas cinco deduções daria 8,659 no lugar de 7,742 em ABAT./DESC.
+
 **`AH %`:** compara com o mês anterior do período; com um mês só, `0,00`.
 
 ### 3.3 Estados
@@ -314,7 +323,7 @@ Em incrementos revisáveis, um por vez:
 | 1 | `GET /filiais` | ✅ **conferido em 28/08/2026** — 18 filiais, de EPC-MAT (0) a EPC-TRANSP (31) |
 | 2 | Estrutura do DRE a partir de `EPCPARDRE` | ✅ **conferido em 28/08/2026** — Grupo de Contas bate com o print: ordem, rótulos e cores. As linhas a mais são as zeradas, que o print esconde. As outras 3 dimensões têm SQL próprio (§4.4.1 do levantamento) |
 | 3 | Despesas (`GetValorGrupo`) | ✅ **conferido em 28/08/2026** — as 15 linhas batem ao centavo, incluindo o bloco de contas órfãs |
-| 4 | Faturamento e CMV | cabeçalho bate com a planilha |
+| 4 | Faturamento e CMV | ✅ **conferido em 28/08/2026** — as 9 colunas batem ao centavo |
 | 5 | Montagem do DRE completo | os 6 cenários batem linha a linha |
 | 6 | Filtros na tela | — |
 | 7 | Tabela | comparação visual com o print |
