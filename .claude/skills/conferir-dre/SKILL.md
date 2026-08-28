@@ -107,9 +107,15 @@ LUCRO BRUTO       = RECEITAS LIQUIDAS − CMV LIQ.
 **ST, PIS e COFINS não entram.** Se você somou os três e "quase bateu", o erro é esse — a
 diferença fica na casa dos milhões, não em centavos.
 
-Os totalizadores também têm identidade fixa, verificada em 28/08/2026:
+Os totalizadores também têm identidade fixa, verificada em 28/08/2026 contra a exportação de
+parâmetros conhecidos:
 
-
+```
+Sub-Total Desp.Op. = soma das linhas com AntesRO = 'S'
+RESULTADO OPER.    = LUCRO BRUTO + Sub-Total
+Total das Despesas = Sub-Total + soma das linhas com AntesRO = 'N' e AntesLL = 'S'
+LUCRO LIQUIDO      = LUCRO BRUTO + Total das Despesas
+```
 
 Linhas com `AntesLL = 'N'` não entram em totalizador nenhum — são o bloco `NÃO SOMA`.
 
