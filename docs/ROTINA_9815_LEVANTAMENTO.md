@@ -210,8 +210,28 @@ Regras extraídas:
 - Centro de custo ausente vira `9998` (*NÃO INFORMADO*) ou `9999` (*NÃO USA CENTRO DE CUSTO*),
   conforme `PCCONTA.usarateiocentrocusto`.
 - Centro de custo **principal** = `SUBSTR(CodigoCentroCusto,1,2)`; sem CC → `99`.
-- Um `UNION ALL` extra injeta o grupo fixo **8501** a partir de `PCNFSAID`+`PCPREST`
-  (`condvenda = 0`, sem `DESD`, sem cancelamento) — natureza a confirmar (§10).
+- Um `UNION ALL` extra injeta uma linha fixa a partir de `PCNFSAID`+`PCPREST`
+  (`condvenda = 0`, sem `DESD`, sem cancelamento, por `fin.dtpag`), com
+  `AntesRO = 'N'` e `AntesLL = AntesLF = 'S'`.
+
+  **A chave injetada muda conforme a dimensão** — é o mesmo fato de negócio escrito no
+  espaço de chaves de cada análise:
+
+  | Dimensão | Chave | Corresponde a |
+  |---|---|---|
+  | Grupo de Contas | `400` | grupo *Outras Receitas* (existe em `EPCPARDRE`, ids 577 e 1239) |
+  | Conta Gerencial | `4000004` | conta *Receita com Venda de Ativo* (id 1239) |
+  | C.Custo Principal | `85` | centro de custo principal 85 |
+  | Centro de Custo | `8501` | centro de custo 85.01 |
+
+  > **Correção de 28/08/2026.** Eu havia registrado que `8501` era um grupo sem linha
+  > correspondente e que o valor era descartado. **Não procede.** O `8501` só aparece na
+  > dimensão Centro de Custo, e é o código do centro de custo, não um grupo. Com
+  > `AntesRO = 'N'` e `AntesLL = 'S'`, a linha cai **depois do RESULTADO OPERACIONAL** —
+  > em Grupo de Contas, sob *Outras Receitas*.
+  >
+  > O erro de método: concluí "descartado" porque não achei R$ 225.000 nas planilhas, sem
+  > considerar que os xlsx foram exportados em período diferente do trace.
 
 ### 4.6 A dimensão de análise é um único trecho de SQL trocado
 
@@ -224,7 +244,22 @@ Toda a diferença entre as quatro opções do combo *Análise* está na express�
 | C.Custo Principal | `to_number(decode(AntesLF,'N',CODCONTA, NVL(codccprinc,99)))` |
 | Centro de Custo | `to_number(decode(AntesLF,'N',CODCONTA, CODCENTROCUSTO)))` ← **quebrada** |
 
-Leitura: linhas **antes** do Lucro Líquido agrupam por conta; **depois** dele, pela dimensão.
+Leitura correta do `decode(AntesLF, 'N', CODCONTA, <dimensão>)`:
+
+| `AntesLF` | Significado | Agrupa por |
+|---|---|---|
+| `'S'` | a conta **está** em `EPCPARDRE` com `ID` anterior ao `LUCRO LIQUIDO` | **a dimensão** (grupo, conta, c.custo) |
+| `'N'` | a conta não está parametrizada, ou está depois do `LUCRO LIQUIDO` | **a própria conta** |
+
+É por isso que o corpo do DRE mostra grupos e o bloco final mostra contas individuais
+(`Acerto De Estoque`, `CONTRATO DE MUTUO`).
+
+> **Correção de 28/08/2026.** Este parágrafo dizia o inverso — "antes do Lucro Líquido agrupa
+> por conta; depois, pela dimensão". Errado nos dois sentidos.
+
+Aqui `AntesLF` é derivada de `FIN.CODCONTA in (select codgruconta from EPCPARDRE ... )` e usa
+`LUCRO LIQUIDO` nas **quatro** dimensões — não confundir com a `AntesLF` da consulta de
+estrutura (§4.4), que é outro cálculo com o mesmo nome.
 
 ### 4.7 Regime = apenas o campo de data das despesas
 
@@ -239,16 +274,21 @@ A consulta de faturamento/CMV é **byte a byte idêntica** nos dois regimes.
 > **não vem do regime** — vem de as exportações terem usado datas finais diferentes.
 > Receita, deduções e CMV não mudam com o regime; **só a despesa muda**.
 
-**Dois comportamentos validados com o negócio em 27/08/2026 — replicar exatamente como está:**
+O mês da coluna acompanha o regime — a rotina é coerente:
 
-1. Mesmo em Competência, o mês da coluna (`MES_ANO`, `MES`, `ANO`) é calculado sobre
-   `nvl(DTPAGTO, DTVENC)`, não sobre `dtcompetencia`. Filtra por competência, distribui por
-   caixa. **Confirmado como correto** — manter.
-2. O subselect fixa `WHERE DTPAGTO IS NOT NULL` em ambos os regimes: **despesa não paga nunca
-   entra no DRE**, nem em competência. **Confirmado como correto** — manter.
+| Regime | Filtro | `MES_ANO`, `MES`, `ANO` |
+|---|---|---|
+| Caixa | `nvl(DTPAGTO, DTVENC)` | `nvl(DTPAGTO, DTVENC)` |
+| Competência | `DTCOMPETENCIA` | `nvl(DTCOMPETENCIA, DTVENC)` |
 
-> Não são defeitos a corrigir. São regra de negócio da Época e a versão web deve reproduzi-las
-> literalmente, sob pena de os números não baterem com a 9815.
+> **Correção de 28/08/2026.** Eu havia registrado aqui uma "suspeita de defeito": que mesmo em
+> competência o mês sairia por data de pagamento. **Não procede.** Eu tinha lido o `MES_ANO` no
+> trace de *caixa* e comparado com o filtro do trace de *competência*. Cada regime distribui
+> pela sua própria data. Não há nada a replicar como defeito neste ponto.
+
+**Comportamento validado com o negócio em 27/08/2026 — replicar como está:** o subselect fixa
+`WHERE DTPAGTO IS NOT NULL` em ambos os regimes, então **despesa não paga nunca entra no DRE**,
+nem em competência. Confirmado como correto.
 
 ### 4.8 Faturamento, CMV e impostos
 
@@ -551,7 +591,7 @@ trecho de código ou dependência. Toda biblioteca nova passa por aprovação.
 |---|---|---|
 | ~~1~~ | ~~Mapa das linhas de cabeçalho para as colunas de faturamento~~ | **RESOLVIDO** por aritmética sobre as planilhas — ver §7 regra 0 |
 | ~~2~~ | ~~`CodigoCentroCusto` é numérico ou hierárquico com ponto?~~ | **RESOLVIDO** — 1666 de 1757 têm ponto; chave da dimensão será `VARCHAR2` (§6) |
-| ~~3~~ | ~~Grupo **8501**: 1 lançamento, `CODCOB = 'CAR'`, R$ 225.000, sem linha em `EPCPARDRE`~~ | **RESOLVIDO** — o valor **não aparece em nenhuma das 16 planilhas exportadas**, confirmando o descarte. Sendo `CODCOB = 'CAR'` com `CONDVENDA = 0`, é provavelmente recebimento de venda à vista, que já entra pelo faturamento via `PCNFSAID` — incluir causaria contagem dupla. **Decisão: replicar o descarte** |
+| ~~3~~ | ~~Grupo 8501 seria descartado~~ | **REVISTO em 28/08/2026** — a chave injetada muda por dimensão (400, 4000004, 85, 8501) e corresponde a linha existente. O valor NÃO é descartado: entra em *Outras Receitas*, depois do RESULTADO OPERACIONAL (§4.5) |
 | ~~4~~ | ~~Efeito dos checkboxes não mapeados~~ | **FORA DO PILOTO** (§9). Exceção documentada: `Deduzir ST` e `Deduzir PIS/COFINS` afetam o número, e a web replica o comportamento desmarcado (§7 regra 0) |
 | ~~5~~ | ~~`AntesLF` usa `LUCRO FINAL` nas dimensões de centro de custo~~ | **RESOLVIDO em 28/08/2026** — `LUCRO FINAL` **não existe** em `EPCPARDRE` (só `LUCRO BRUTO`, `DESPESA OPERACIONAL ECL` e `LUCRO LIQUIDO`). Logo `AntesLF = N` em todas as linhas de estrutura dessas duas dimensões |
 | ~~6~~ | ~~Distribuir por `nvl(DTPAGTO,DTVENC)` em Competência está correto?~~ | **CONFIRMADO correto** — replicar (§4.7) |

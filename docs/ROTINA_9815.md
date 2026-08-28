@@ -229,8 +229,9 @@ desmarcados em todas as capturas, e a web replica o comportamento desmarcado.
 
 Receita, deduções e CMV são **idênticos** nos dois regimes.
 
-**O mês da coluna sai sempre de `nvl(DTPAGTO, DTVENC)`**, mesmo em competência. Filtra por
-competência, distribui por caixa. Confirmado como correto pelo negócio — manter.
+**O mês da coluna acompanha o regime:** caixa distribui por `nvl(DTPAGTO, DTVENC)`, competência
+por `nvl(DTCOMPETENCIA, DTVENC)`. A rotina é coerente — a "suspeita de defeito" que eu havia
+registrado aqui não procedia (ver correção no levantamento, §4.7).
 
 ### Dimensão de análise
 
@@ -329,7 +330,7 @@ planilha antes de seguir.
 
 | # | Assunto | Decisão |
 |---|---|---|
-| 1 | Grupo `8501` — R$ 225.000 sem linha em `EPCPARDRE` | **Replicar o descarte.** O valor não aparece em nenhuma das 16 planilhas exportadas. Sendo `CODCOB = 'CAR'` com `CONDVENDA = 0`, é provavelmente venda à vista já contada pelo faturamento — incluir causaria contagem dupla. A web calcula e descarta, como a 9815 |
+| 1 | Linha injetada por `PCNFSAID` + `PCPREST` | **REVISTO em 28/08/2026.** Não há descarte. A chave muda conforme a dimensão — `400` (Grupo de Contas), `4000004` (Conta Gerencial), `85` e `8501` (centro de custo) — e corresponde a linha existente do DRE. Em Grupo de Contas entra sob *Outras Receitas*, depois do RESULTADO OPERACIONAL. **Replicar o `UNION ALL` como está** |
 | 2 | `AntesLL` e `AntesLF` com condição idêntica | **Sem impacto.** Calcular uma vez, expor com os dois nomes para rastreabilidade |
 | 3 | Mapa das linhas de cabeçalho para as colunas de faturamento | **Resolvido** por aritmética sobre as planilhas — ver §5, *Cabeçalho* |
 | 4 | Log de execução | **Fora do piloto.** A web não grava `tab_log_exec_rotina`, o que permite rodar com usuário Oracle **somente-leitura** durante toda a validação. Volta depois, com sequence, se fizer falta |

@@ -90,8 +90,8 @@ que mais confundem quem lê o SQL pela primeira vez:
    Verificado ao centavo contra 4 cenários exportados.
 2. **Regime altera apenas a data das despesas.** Caixa usa `nvl(DTPAGTO, DTVENC)`,
    competência usa `dtcompetencia`. Receita, deduções e CMV são idênticos nos dois.
-3. **Em competência, o mês da coluna sai por data de pagamento**, não por competência.
-   Confirmado como correto pelo negócio — manter.
+3. **O mês da coluna acompanha o regime** — caixa por `nvl(DTPAGTO, DTVENC)`, competência por
+   `nvl(DTCOMPETENCIA, DTVENC)`. A rotina é coerente neste ponto.
 4. **Despesa não paga nunca entra no DRE**, nem em competência (`DTPAGTO IS NOT NULL`).
    Confirmado como correto — manter.
 
