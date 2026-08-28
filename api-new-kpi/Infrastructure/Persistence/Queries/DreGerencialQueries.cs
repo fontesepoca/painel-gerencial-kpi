@@ -214,4 +214,91 @@ public static class DreGerencialQueries
             and nf.codfilial IN ({3}) 
         ) GROUP BY GRUPOCONTA, AntesRO, AntesLL, AntesLF, MES_ANO, MES, ANO
         """;
+
+    /// <summary>
+    /// Faturamento, CMV e impostos do período — a consulta mais cara da 9815
+    /// (16,9 s por mês em 1 mês; 115 s por mês no cenário de 2 meses).
+    ///
+    /// <para><b>Validada contra o original</b> em 28/08/2026 por
+    /// `docs/validacao/inc4_comparacao_faturamento.sql`: zero divergências nas 9 colunas.
+    /// A mudança é uma só — os **seis** blocos do original (3 filiais × vendas e
+    /// devoluções) viraram **dois**, com `CODFILIAL IN (...)`. Com as 18 filiais marcadas,
+    /// a rotina antiga geraria 36 blocos.</para>
+    ///
+    /// <para>A projeção externa já aplica a aritmética do cabeçalho, verificada contra a
+    /// planilha de parâmetros conhecidos (`docs/ROTINA_9815.md` §5):</para>
+    /// <code>
+    /// RECEITA BRUTA     = VLTABELA
+    /// ABAT./DESC.       = VLTABELA − VLVENDA
+    /// DEVOLUCAO         = VLDEVOLUCAO
+    /// RECEITAS LIQUIDAS = VLVENDA − VLDEVOLUCAO
+    /// CMV LIQ.          = VLCUSTOFIN − VLCMVDEVOL
+    /// </code>
+    ///
+    /// <para><b>Não depende do regime.</b> Receita, deduções e CMV são idênticos em caixa e
+    /// competência — verificado byte a byte nos dois traces.</para>
+    ///
+    /// <para><b>Ordem dos binds</b> (ODP.NET é posicional): :dtIni1, :dtFim1 (DTSAIDA das
+    /// vendas), {0} filiais de `PCNFSAID`, {1} filiais de `PCNFENT`, :dtIni2, :dtFim2
+    /// (DTENT das devoluções).</para>
+    /// </summary>
+    public const string Faturamento = """
+        SELECT Sum(NVL(VLTABELA,0))                            AS RECEITABRUTA,
+               Sum(NVL(VLTABELA,0)) - Sum(NVL(VLVENDA,0))      AS ABATDESC,
+               Sum(NVL(VLDEVOLUCAO,0))                         AS DEVOLUCAO,
+               Sum(NVL(VLVENDA,0)) - Sum(NVL(VLDEVOLUCAO,0))   AS RECEITALIQUIDA,
+               Sum(NVL(VLCUSTOFIN,0)) - Sum(NVL(VLCMVDEVOL,0)) AS CMVLIQ,
+               Sum(NVL(VLST,0))     - Sum(NVL(VLST_DEV,0))     AS STLIQ,
+               Sum(NVL(VLPIS,0))    - Sum(NVL(VLPIS_DEV,0))    AS PISLIQ,
+               Sum(NVL(VLCOFINS,0)) - Sum(NVL(VLCOFINS_DEV,0)) AS COFINSLIQ
+         FROM (
+          SELECT SUM(  decode(MV.custofin,0,MV.custofinest-nvl(MV.st,0)-nvl(MVC.vlfecp,0), (MV.custofin-nvl(MV.st,0)-nvl(MVC.vlfecp,0)) ) * MV.qt) as VLCUSTOFIN, 
+                 SUM(  MV.punit * MV.qt) as VLVENDA,  
+                 SUM(  MV.punit * MV.qt) VLVENDA_Total,   
+                 SUM(  MV.ptabela * MV.qt) as VLTABELA, 0 as VLDEVOLUCAO,  0 as VLDEVOLUCAO_total, 0 as VLCMVDEVOL, 
+                 SUM(  (nvl(MV.st,0)+nvl(MVC.vlfecp,0)) * MV.qt) VLST, 0 as VLST_DEV, 
+                 SUM(  ( mv.VLPIS - (mv.custocont * mv.PERPIS/100) ) * MV.qt  ) as VLPIS, 0 AS VLPIS_dev, 
+                 SUM(  ( mv.vlcofins - (mv.custocont * mv.PERCOFINS/100) ) * MV.qt ) as vlcofins, 0 AS vlcofins_dev 
+           FROM PCNFSAID NF, PCMOV MV, PCMOVCOMPLE MVC, PCPRODUT PR,  
+                (select clie.codcli, ce.codfil, ce.mostra_dre from cliente_especial ce, pcclient clie where clie.codcliprinc = ce.codcli) esp 
+          WHERE NF.numtransvenda = MV.numtransvenda 
+            AND mv.numtransitem  = mvc.numtransitem (+) 
+            AND MV.CODPROD       = PR.CODPROD 
+            AND NF.codcli        = esp.codcli (+) 
+            AND NF.CODFILIAL     = esp.codfil (+) 
+            AND MV.DTCANCEL      IS NULL 
+            AND NF.DTCANCEL      IS NULL 
+            AND MV.CODFISCAL IN (5102,5502,5114,5115,5403,6403,5405,5117,5119,5910,5922,6108,6922,6102,6114,6115,6117,6119,6404,6910) 
+            AND ( (NVL(NF.VLTABELA,0) > 0) OR (NVL(NF.VLTOTGER,0) > 0)  OR (NVL(NF.VLTOTAL,0) > 0) OR (NVL(NF.VLCUSTOFIN,0) > 0) ) 
+            AND ( (NF.CONDVENDA IN (1,3,5,6,8)) OR (NF.ESPECIE = 'CO') ) 
+            AND NF.DTSAIDA BETWEEN :dtIni1 AND :dtFim1
+            AND NF.CODFILIAL IN ({0})
+           AND ( (nvl(esp.mostra_dre,'S') = 'S') or (NF.CONDVENDA in (5)) ) 
+            AND nvl(PR.codsec,0) <> 1601 
+         UNION ALL 
+         SELECT 0 as VLCUSTOCONT, 0 as VLVENDA, 0 as VLVENDA_Total, 0 as VLTABELA, 
+                SUM( round( NVL(nvl(MV.QT,mv.QTCONT),0)*NVL(nvl(MV.punit,mv.punitcont),0) ,2)) as VLDEVOLUCAO, 
+                SUM( round( NVL(nvl(MV.QT,mv.QTCONT),0)*NVL(nvl(MV.punit,mv.punitcont),0) ,2)) as VLDEVOLUCAO_total, 
+                SUM( NVL(MV.QT,0) * (NVL(decode(MV.custofin,0,MV.custofinest,MV.custofin),0)-nvl(MV.st,0)-nvl(MVC.vlfecp,0))  ) VLCMVDEVOL, 
+                0 as VLST,     SUM( (nvl(MV.st,0)+nvl(MVC.vlfecp,0)) * MV.qt) as VLST_DEV, 
+                0 AS VLPIS,    SUM( ( mv.VLPIS - (mv.custocont * mv.PERPIS/100) ) * MV.qt ) AS VLPIS_dev, 
+                0 AS vlcofins, SUM( ( mv.vlcofins - (mv.custocont * mv.PERCOFINS/100) ) * MV.qt ) AS vlcofins_dev 
+           FROM PCNFENT NFE, PCMOV MV, PCMOVCOMPLE MVC, PCPEDC PED, PCPRODUT PR, 
+                (select clie.codcli, ce.codfil, ce.mostra_dre from cliente_especial ce, pcclient clie where clie.codcliprinc = ce.codcli) esp 
+          WHERE NFE.numnota       = MV.numnota      (+) 
+            AND NFE.numtransent   = MV.numtransent  (+) 
+            AND mv.numtransitem   = mvc.numtransitem (+) 
+            AND NFE.codfornec     = esp.codcli      (+) 
+            AND NFE.CODFILIAL     = esp.codfil      (+) 
+            AND MV.numped         = PED.numped      (+) 
+            AND MV.CODPROD        = PR.CODPROD 
+            AND nvl(PED.CONDVENDA,1) IN ('1','3','5','6','8') 
+            AND NFE.CODFILIAL IN ({1})
+            AND NFE.TIPODESCARGA IN ('6','7')
+            AND MV.DTCANCEL IS NULL AND (NVL(NFE.OBS,'X') <> 'NF CANCELADA') 
+            AND NFE.DTENT BETWEEN :dtIni2 AND :dtFim2
+            AND MV.CODFISCAL IN (1202,1411,1949,2202,2411,2949) 
+          AND MV.CODSEC <> 1601 
+         )
+        """;
 }

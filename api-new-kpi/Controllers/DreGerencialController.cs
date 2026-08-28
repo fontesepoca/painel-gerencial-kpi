@@ -74,4 +74,23 @@ public sealed class DreGerencialController : ControllerBase
 
         return Ok(ApiResponse<IReadOnlyList<DespesaDto>>.Ok(resultado.Valor!));
     }
+
+    /// <summary>
+    /// Cabeçalho do DRE: faturamento, CMV e impostos. Etapa intermediária, para conferência
+    /// contra a 9815 antes da montagem completa.
+    /// </summary>
+    [HttpPost("faturamento")]
+    public async Task<IActionResult> ObterFaturamento(
+        [FromBody] DespesasFiltroDto filtro,
+        CancellationToken cancellationToken)
+    {
+        var resultado = await _servico.ObterFaturamentoAsync(filtro, cancellationToken);
+
+        if (resultado.Falha)
+        {
+            return BadRequest(ApiResponse<object>.Falha(resultado.Erro!));
+        }
+
+        return Ok(ApiResponse<FaturamentoDto>.Ok(resultado.Valor!));
+    }
 }

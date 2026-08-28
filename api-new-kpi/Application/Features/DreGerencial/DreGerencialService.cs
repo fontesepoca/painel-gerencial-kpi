@@ -133,4 +133,53 @@ public sealed class DreGerencialService
 
         return Result<IReadOnlyList<DespesaDto>>.Ok(dtos);
     }
+
+    /// <summary>
+    /// Cabeçalho do DRE. Não recebe regime — receita e CMV são iguais nos dois.
+    /// </summary>
+    public async Task<Result<FaturamentoDto>> ObterFaturamentoAsync(
+        DespesasFiltroDto filtro,
+        CancellationToken cancellationToken = default)
+    {
+        var erro = ValidarPeriodoEFiliais(filtro);
+        if (erro is not null)
+        {
+            return Result<FaturamentoDto>.Invalido(erro);
+        }
+
+        var f = await _repositorio.ObterFaturamentoAsync(
+            filtro.Filiais, filtro.DataInicio, filtro.DataFim, cancellationToken);
+
+        return Result<FaturamentoDto>.Ok(new FaturamentoDto(
+            ReceitaBruta: f.ReceitaBruta,
+            AbatDesc: f.AbatDesc,
+            Devolucao: f.Devolucao,
+            ReceitaLiquida: f.ReceitaLiquida,
+            CmvLiq: f.CmvLiq,
+            LucroBruto: f.LucroBruto,
+            StLiq: f.StLiq,
+            PisLiq: f.PisLiq,
+            CofinsLiq: f.CofinsLiq));
+    }
+
+    /// <summary>Validações comuns a período e filiais. Devolve a mensagem, ou null.</summary>
+    private static string? ValidarPeriodoEFiliais(DespesasFiltroDto filtro)
+    {
+        if (filtro.Filiais.Count == 0)
+        {
+            return "Selecione ao menos uma filial.";
+        }
+
+        if (filtro.DataFim < filtro.DataInicio)
+        {
+            return "A data final não pode ser anterior à inicial.";
+        }
+
+        if (filtro.DataInicio.AddMonths(12) < filtro.DataFim)
+        {
+            return "O período não pode passar de 12 meses.";
+        }
+
+        return null;
+    }
 }

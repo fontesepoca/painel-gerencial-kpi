@@ -46,3 +46,18 @@ public record DespesaDto(
     bool AntesLucroFinal,
     decimal Valor,
     int QuantidadeLancamentos);
+
+/// <summary>
+/// Cabeçalho do DRE. `StLiq`, `PisLiq` e `CofinsLiq` são informativas — não entram no
+/// cálculo das Receitas Líquidas (ver `docs/ROTINA_9815.md` §5).
+/// </summary>
+public record FaturamentoDto(
+    decimal ReceitaBruta,
+    decimal AbatDesc,
+    decimal Devolucao,
+    decimal ReceitaLiquida,
+    decimal CmvLiq,
+    decimal LucroBruto,
+    decimal StLiq,
+    decimal PisLiq,
+    decimal CofinsLiq);

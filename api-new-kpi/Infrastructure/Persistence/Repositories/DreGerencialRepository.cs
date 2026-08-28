@@ -106,4 +106,55 @@ public sealed class DreGerencialRepository : IDreGerencialRepository
 
         return despesas.ToList();
     }
+
+    public async Task<FaturamentoDre> ObterFaturamentoAsync(
+        IReadOnlyList<string> filiais,
+        DateOnly dataInicio,
+        DateOnly dataFim,
+        CancellationToken cancellationToken = default)
+    {
+        if (filiais.Count == 0)
+        {
+            return new FaturamentoDre();
+        }
+
+        var placeholdersA = string.Join(", ", filiais.Select((_, i) => $":filialA{i}"));
+        var placeholdersB = string.Join(", ", filiais.Select((_, i) => $":filialB{i}"));
+
+        var sql = string.Format(DreGerencialQueries.Faturamento, placeholdersA, placeholdersB);
+
+        var inicio = dataInicio.ToDateTime(TimeOnly.MinValue);
+        var fim = dataFim.ToDateTime(TimeOnly.MinValue);
+
+        // Ordem obrigatória: datas das vendas, filiais de PCNFSAID, filiais de PCNFENT,
+        // datas das devoluções. É a ordem em que os binds aparecem no SQL.
+        var parametros = new DynamicParameters();
+        parametros.Add("dtIni1", inicio);
+        parametros.Add("dtFim1", fim);
+        for (var i = 0; i < filiais.Count; i++)
+        {
+            parametros.Add($"filialA{i}", filiais[i]);
+        }
+        for (var i = 0; i < filiais.Count; i++)
+        {
+            parametros.Add($"filialB{i}", filiais[i]);
+        }
+        parametros.Add("dtIni2", inicio);
+        parametros.Add("dtFim2", fim);
+
+        using var conexao = await _conexoes.CriarConexaoAsync(cancellationToken);
+
+        // A consulta mais cara da rotina: 16,9 s por mês no trace de 1 mês e 115 s no de
+        // 2 meses. 600 s cobre 4 meses com folga.
+        var faturamento = await conexao.QuerySingleOrDefaultAsync<FaturamentoDre>(
+            new CommandDefinition(
+                sql,
+                parametros,
+                commandTimeout: 600,
+                cancellationToken: cancellationToken));
+
+        // Período sem movimento devolve uma linha de zeros, não null — mas o
+        // QuerySingleOrDefault protege contra o caso degenerado.
+        return faturamento ?? new FaturamentoDre();
+    }
 }
