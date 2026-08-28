@@ -52,6 +52,14 @@ Leia [CLAUDE.md](CLAUDE.md) para o contexto. Aqui estão as regras. São imperat
 
 ## Skills disponíveis
 
-Ainda nenhuma — são a Fase 3. Previstas: `new-rotina` (scaffold completo de uma rotina,
-back e front), `new-query` (consulta Oracle/ODP.NET), `new-page`, `connect-api`,
-`new-component`.
+Em `.claude/skills/{nome}/SKILL.md`.
+
+| Skill | Quando usar |
+|---|---|
+| **`new-rotina`** | criar uma rotina nova do Winthor, do módulo ao controller, com o front delegado a `new-page` |
+| **`new-query`** | acrescentar uma consulta Oracle a uma rotina existente |
+| **`new-page`** | criar uma rota do App Router já conectada à API |
+| **`conferir-dre`** | validar números contra as planilhas exportadas da 9815 — o ciclo da Fase 4 |
+
+`new-component` fica para quando a tela da 9815 existir e as convenções de componente
+estiverem provadas na prática.

@@ -16,7 +16,7 @@ literal** da tela antiga.
 | 0 | Levantamento da 9815 | ✅ [docs/ROTINA_9815_LEVANTAMENTO.md](docs/ROTINA_9815_LEVANTAMENTO.md) |
 | 1 | Arquitetura e scaffold | ✅ API e front sobem, health check ok |
 | 2 | Documentação | ✅ este arquivo e `docs/` |
-| 3 | Skills do projeto | ⬜ |
+| 3 | Skills do projeto | ✅ 4 skills em `.claude/skills/` |
 | 4 | Implementação da 9815 | ⬜ **nenhuma regra de negócio escrita ainda** |
 
 ## Stack
