@@ -194,12 +194,23 @@ Replicadas do Delphi. Cada uma tem origem rastreável no trace.
 
 ### Cabeçalho — aritmética verificada
 
-Conferida contra 4 cenários exportados; bate ao centavo.
+Conferida contra 4 cenários exportados.
 
 ```
 RECEITAS LIQUIDAS = RECEITA BRUTA − ABAT./DESC. − DEVOLUCAO
 LUCRO BRUTO       = RECEITAS LIQUIDAS − CMV LIQ.
 ```
+
+> **A identidade descreve a origem, não a subtração dos valores exibidos.** As quatro linhas
+> vêm da consulta de faturamento como colunas próprias — `RECEITAS LIQUIDAS` é
+> `SUM(VLVENDA) − SUM(VLDEVOLUCAO)`, arredondada **uma vez**. Subtrair os valores já
+> arredondados na tela pode dar um centavo de diferença.
+>
+> Observado em 31/08/2026, julho, filiais 7/12/25: `58.925.173,30 − 4.033.440,49 −
+> 1.350.947,10` dá `53.540.785,71`, e as duas telas mostram `53.540.785,70`. O mesmo em
+> `LUCRO BRUTO`. **Não é divergência**: a exportação da 9815 traz exatamente os mesmos
+> valores, porque ela lê as mesmas colunas. Conferir a identidade somando o que está na
+> tela leva a um falso positivo.
 
 **ST, PIS e COFINS não entram no cálculo** — são informativas, e recebem o marcador
 `NÃO SOMA` na tela. Deduzi-las erra o resultado em milhões.

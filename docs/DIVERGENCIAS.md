@@ -462,3 +462,29 @@ não muda. Só a conferência com quem conhece a operação pega isso.
 
 Por isso a situação desta divergência continua **validação manual pendente**, e o aviso
 segue na tela.
+
+### Centro de Custo apurada pela API — 31/08/2026
+
+Cenário: 01/07 a 31/07/2026, competência, filiais 7/12/25. **256 segundos**, sem erro —
+nem `ORA-00923` nem `ORA-01722`.
+
+O que foi possível conferir sem referência da 9815:
+
+| Verificação | Resultado |
+|---|---|
+| As 9 linhas de cabeçalho contra a exportação de Conta Gerencial (mesmo período e filiais) | **batem ao centavo** |
+| `RESULTADO OPERACIONAL` = LUCRO BRUTO + Sub-Total | 14.342.336,00 + (−16.425.449,27) = −2.083.113,27 ✓ |
+| `LUCRO LIQUIDO` = LUCRO BRUTO + Total das Despesas | 14.342.336,00 + (−14.022.581,44) = 319.754,56 ✓ |
+| Bloco pós-operacional: as 6 linhas somam `Total das Despesas − Sub-Total` | 2.402.867,83 ✓ exato |
+| Soma dos centros de custo = linha do principal ([inc9j](validacao/inc9j_centro_custo_soma_no_principal.sql)) | zero divergências |
+
+O cabeçalho não depende da dimensão, então a coluna de julho da exportação de Conta
+Gerencial — já conferida contra a 9815 — serve de referência direta. Não é dedução.
+
+**O que continua sem validação:** se o lançamento certo caiu no centro de custo certo.
+Nenhuma dessas checagens pega uma troca entre dois centros de custo do mesmo principal.
+
+Um ponto para quem conhece a operação olhar: dezenas de linhas se chamam `VENDIDO ...`,
+`INATIVO`, `SUCATA`, `DISPONIVEL` — centros de custo de veículos já baixados. Quase todas
+vêm zeradas, mas `2201.002 GTK7007 F27 FOI P/ 2201.017` indica migração de código em algum
+momento, e só quem opera sabe se o histórico ficou correto.
