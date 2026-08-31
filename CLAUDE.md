@@ -17,7 +17,7 @@ literal** da tela antiga.
 | 1 | Arquitetura e scaffold | ✅ API e front sobem, health check ok |
 | 2 | Documentação | ✅ este arquivo e `docs/` |
 | 3 | Skills do projeto | ✅ 4 skills em `.claude/skills/` |
-| 4 | Implementação da 9815 | 🔄 incrementos 1 a 7 conferidos; faltam 8 (multi-mês) e 9 (Centro de Custo) |
+| 4 | Implementação da 9815 | ✅ as 4 dimensões implementadas e conferidas — [docs/DIVERGENCIAS.md](docs/DIVERGENCIAS.md) |
 | 5 | Homologação — matriz de cenários | ⬜ [docs/HOMOLOGACAO.md](docs/HOMOLOGACAO.md) |
 
 ## Stack

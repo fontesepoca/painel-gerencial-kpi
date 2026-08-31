@@ -81,3 +81,19 @@ SELECT NVL(cc.PRINCIPAL, pp.PRINCIPAL)          AS PRINCIPAL,
     OR pp.PRINCIPAL IS NULL
     OR ABS(NVL(cc.VALOR,0) - NVL(pp.VALOR,0)) > 0.005
  ORDER BY 1
+
+-- ============================================================================
+-- RESULTADO - 31/08/2026: ZERO LINHAS.
+--
+-- A soma dos centros de custo fecha exatamente com a linha do principal em
+-- todos os principais do periodo. Como C. Custo Principal ja esta validada ao
+-- centavo contra a 9815, os valores de Centro de Custo ficam ancorados numa
+-- referencia conferida.
+--
+-- O QUE ISSO PROVA: nao ha perda, duplicacao nem erro de agrupamento entre as
+-- duas granularidades; as sentinelas 9998/9999 sao tratadas igual nas duas.
+--
+-- O QUE NAO PROVA: se o lancamento certo caiu no centro de custo certo. Uma
+-- troca entre dois centros de custo do MESMO principal passa por este teste
+-- sem deixar rastro. Isso so a conferencia com o negocio pega.
+-- ============================================================================

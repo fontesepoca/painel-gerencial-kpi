@@ -446,3 +446,19 @@ O filtro mostra, sempre que Centro de Custo está escolhido:
 > Confira com quem conhece os centros de custo antes de usar para decidir.
 
 E, com mais de uma filial marcada, um segundo aviso sobre a divergência nº 2.
+
+### A âncora fechou — 31/08/2026
+
+A [inc9j](validacao/inc9j_centro_custo_soma_no_principal.sql) voltou com **zero linhas**:
+a soma dos centros de custo bate exatamente com a linha do principal, em todos os principais
+do período (01/07 a 31/07/2026, competência, filiais 7/12/25).
+
+**O que isso prova:** não há perda, duplicação nem erro de agrupamento entre as duas
+granularidades, e as sentinelas `9998`/`9999` são tratadas igual nas duas.
+
+**O que não prova:** se o lançamento certo caiu no centro de custo certo. Uma troca entre
+dois centros de custo do **mesmo principal** passa por este teste sem deixar rastro — a soma
+não muda. Só a conferência com quem conhece a operação pega isso.
+
+Por isso a situação desta divergência continua **validação manual pendente**, e o aviso
+segue na tela.
