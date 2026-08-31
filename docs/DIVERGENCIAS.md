@@ -383,3 +383,29 @@ quando duas regras de desempate decidem cada empate de forma independente.
 
 Isso explica a diferença de taxa entre dimensões: 6% em Grupo de Contas contra 24% aqui.
 Não é a dimensão, é quantos totais caem em centavo ímpar naquele conjunto de linhas.
+
+### A coluna `% AH`, e uma demonstração acidental da armadilha 2
+
+Uma segunda exportação do mesmo cenário, agora **com análise horizontal marcada**, foi tirada
+minutos depois da primeira. Ela acrescenta as duas colunas `% AH` — 266 células — e todas
+batem, exceto nas seis linhas abaixo.
+
+Entre a chamada da API e essa segunda exportação, **dois lançamentos entraram no banco**:
+
+| Linha | Junho | Julho |
+|---|---:|---:|
+| Pensao Alimenticia | 0,00 | −1.134,70 |
+| CREDITO FORNECEDORES | 0,00 | −599,90 |
+
+Os quatro totalizadores moveram **exatamente −1.134,70**, nem um centavo a mais:
+`Sub-Total`, `RESULTADO OPERACIONAL`, `Total das Despesas` e `LUCRO LIQUIDO`.
+
+`CREDITO FORNECEDORES` mudou R$ 599,90 e **não moveu totalizador nenhum**, porque está
+depois do LUCRO LIQUIDO, no bloco `NÃO SOMA`. A aritmética dos totalizadores
+([ROTINA_9815.md §10](ROTINA_9815.md)) se confirmou sozinha, por acidente.
+
+Junho não mudou em nada — lançamento novo cai na competência corrente.
+
+**A comparação válida é a primeira**, tirada junto da API: 931 células, 32 divergências,
+todas de um centavo na MÉDIA. Esta segunda serve para validar `% AH` e como lembrete de
+que exportação e chamada da API têm que ser coletadas em sequência imediata.
