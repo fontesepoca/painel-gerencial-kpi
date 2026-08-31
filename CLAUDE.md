@@ -17,7 +17,8 @@ literal** da tela antiga.
 | 1 | Arquitetura e scaffold | ✅ API e front sobem, health check ok |
 | 2 | Documentação | ✅ este arquivo e `docs/` |
 | 3 | Skills do projeto | ✅ 4 skills em `.claude/skills/` |
-| 4 | Implementação da 9815 | ⬜ **nenhuma regra de negócio escrita ainda** |
+| 4 | Implementação da 9815 | 🔄 incrementos 1 a 7 conferidos; faltam 8 (multi-mês) e 9 (Centro de Custo) |
+| 5 | Homologação — matriz de cenários | ⬜ [docs/HOMOLOGACAO.md](docs/HOMOLOGACAO.md) |
 
 ## Stack
 
@@ -123,3 +124,4 @@ no `.gitignore`.
 | [docs/ROTINA_9815_LEVANTAMENTO.md](docs/ROTINA_9815_LEVANTAMENTO.md) | o que a 9815 **é hoje** no Winthor |
 | [docs/SCHEMA_BANCO.md](docs/SCHEMA_BANCO.md) | tabelas, colunas, leitura vs. escrita |
 | [docs/CONVENCOES_ORACLE.md](docs/CONVENCOES_ORACLE.md) | ODP.NET, Dapper, armadilhas reais |
+| [docs/HOMOLOGACAO.md](docs/HOMOLOGACAO.md) | matriz de cenários a conferir contra a 9815 |
