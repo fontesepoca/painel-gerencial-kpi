@@ -101,7 +101,7 @@ export const ANALISES: ReadonlyArray<{
   divergencia?: string;
 }> = [
   { valor: "grupo-contas", rotulo: "Grupo de Contas", pronta: true },
-  { valor: "conta-gerencial", rotulo: "Conta Gerencial", pronta: false },
+  { valor: "conta-gerencial", rotulo: "Conta Gerencial", pronta: true },
   {
     valor: "ccusto-principal",
     rotulo: "C. Custo Principal",

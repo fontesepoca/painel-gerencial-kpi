@@ -45,12 +45,15 @@ public sealed record AnaliseDre(
         SqlDespesas: DreGerencialQueries.DespesasCCustoPrincipal,
         EstruturaTemDoisBlocosDeFilial: true);
 
-    /// <summary>Ainda não implementada — precisa de `TIPOCONTA`, de `PCCONTA.FIXAVARIAVEL`.</summary>
+    /// <summary>
+    /// Desce ao nível da conta. É a mais simples das quatro: a chave é a conta do começo ao
+    /// fim, sem trocar depois do LUCRO LIQUIDO. Não diverge da 9815 em nada.
+    /// </summary>
     public static readonly AnaliseDre ContaGerencial = new(
         Codigo: "conta-gerencial",
         Rotulo: "Conta Gerencial",
-        SqlEstrutura: null,
-        SqlDespesas: null,
+        SqlEstrutura: DreGerencialQueries.EstruturaContaGerencial,
+        SqlDespesas: DreGerencialQueries.DespesasContaGerencial,
         EstruturaTemDoisBlocosDeFilial: false);
 
     /// <summary>

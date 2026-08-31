@@ -232,6 +232,171 @@ public static class DreGerencialQueries
         """;
 
     /// <summary>
+    /// Estrutura de linhas do DRE para a análise **Conta Gerencial**.
+    ///
+    /// <para>É a irmã mais próxima de <see cref="EstruturaGrupoDeContas"/> — mesmo bloco de
+    /// órfãs, mesma forma de binds. Três diferenças, todas no primeiro bloco:</para>
+    /// <list type="number">
+    ///   <item>a chave é sempre `PAR.CODGRUCONTA`, e não o grupo da conta. É isso que faz a
+    ///         dimensão descer ao nível da conta;</item>
+    ///   <item>o rótulo é `NVL(CO.CONTA, PAR.GRUPO)` quando a chave é positiva — o nome da
+    ///         conta, com o do parâmetro como reserva;</item>
+    ///   <item>aparecem `TIPOCONTA` (`PCCONTA.FIXAVARIAVEL`, com `'F'` como padrão) e
+    ///         `RESPONSAVEL`.</item>
+    /// </list>
+    ///
+    /// <para><b>As duas colunas novas entram no `GROUP BY` externo</b>, então não são
+    /// decoração: duas linhas com mesma chave e rótulo mas `TIPOCONTA` diferente seriam
+    /// linhas distintas. Por isso ficam no SQL mesmo sem aparecer na tela — a exportação da
+    /// 9815 tem só Descrição, Valor e `%AV`.</para>
+    ///
+    /// <para><b>O `codfil = 25` do `RESPONSAVEL` é do original e fica.</b> É constante no
+    /// Delphi, não vem da seleção de filiais — diferente do defeito de C. Custo Principal,
+    /// aqui não há lista sendo sobrescrita, é um valor fixo. Como só influi no agrupamento
+    /// de uma coluna que não exibimos, replicar é gratuito.</para>
+    ///
+    /// <para>Binds: {0} placeholders das filiais, depois `:dtIni` e `:dtFim`. {1} é a
+    /// expressão de data do regime.</para>
+    /// </summary>
+    public const string EstruturaContaGerencial = """
+          SELECT min(ID) as ID, CODGRUCONTA, GRUPO, max(INFCONTAS) as INFCONTAS, max(cor) as COR, AntesRO, AntesLL, AntesLF, TIPOCONTA, RESPONSAVEL
+           FROM (
+                 select PAR.ID,
+                        to_char(PAR.CODGRUCONTA) as CODGRUCONTA, CASE WHEN PAR.CODGRUCONTA > 0 THEN NVL(CO.CONTA,PAR.GRUPO) ELSE PAR.GRUPO END AS GRUPO, PAR.INFCONTAS, PAR.COR,
+                        nvl(co.fixavariavel,'F') as TIPOCONTA,
+                        (SELECT usu.nome from epcpardre_resp re, pcempr usu
+                         where re.matricula = usu.matricula and re.codconta = PAR.CODGRUCONTA and re.codfil = 25) as RESPONSAVEL,
+                          case when PAR.ID < (select ID from EPCPARDRE where upper(grupo) like 'RESULTADO OPERACIONAL')  then 'S' else 'N' end as AntesRO,
+                          case when PAR.ID < (select ID from EPCPARDRE where upper(grupo) like 'LUCRO LIQUIDO')  then 'S' else 'N' end as AntesLL,
+                          case when PAR.ID < (select ID from EPCPARDRE where upper(grupo) like 'LUCRO LIQUIDO')  then 'S' else 'N' end as AntesLF
+                     from EPCPARDRE PAR, PCCONTA CO, PCGRUPO GR
+                    WHERE PAR.CODGRUCONTA = CO.codconta (+)
+                      AND CO.GRUPOCONTA = gr.codgrupo (+)
+                 union all
+                 SELECT ROWNUM+(select max(ID) from EPCPARDRE) as ID, to_char(codgrupo) as CODGRUCONTA, GRUPO, 'N' as INFCONTAS,  NULL as COR, '' as TIPOCONTA, '' as RESPONSAVEL, 'N' as AntesRO, 'N' as AntesLL, 'N' as AntesLF
+                   FROM (
+                        SELECT CODGRUPO, GRUPO, SUM(VPAGO) AS VPAGO, count(*) as qdeReg
+                        FROM (
+         SELECT CT.CodConta as codgrupo, CT.conta as GRUPO,
+                  DECODE(RC.valor,NULL,NVL(FIN.VPAGO,0)*(-1),NVL(RC.valor,FIN.VPAGO)*(-1)) as VPAGO
+            FROM  PCLANC FIN, PCCONTA CT, PCGRUPO GR, PCRATEIOCENTROCUSTO RC, PCCENTROCUSTO CC,
+                  ( select '99' as codccprinc, 'NÃO USA/NÃO INFORMADO' as DescCCPrinc FROM DUAL
+                    union
+                    select codccprinc, (select descricao from PCCENTROCUSTO where CodigoCentroCusto = CCP.CodPrinc) as DescCCPrinc
+                    FROM (select SUBSTR(CodigoCentroCusto,1,2) as CODCCPRINC, min(CodigoCentroCusto) as CodPrinc
+                    from PCCENTROCUSTO where CodigoCentroCusto not like '%.%' group by SUBSTR(CodigoCentroCusto,1,2)) CCP) CCPrinc
+           WHERE  FIN.CODCONTA = CT.CODCONTA
+             AND  CT.GRUPOCONTA >= 200
+             AND  FIN.CODFILIAL IN ({0})
+             AND  FIN.RECNUM = RC.RECNUM (+)
+             AND  FIN.CODCONTA = RC.CODCONTA (+)
+             AND  CT.grupoconta = GR.codgrupo (+)
+             AND  RC.CodigoCentroCusto = cc.CodigoCentroCusto (+)
+             AND  SUBSTR(cc.CodigoCentroCusto,1,2) = CCPrinc.codccprinc (+)
+             AND  (CT.CodConta,nvl(RC.CodigoCentroCusto,99)) not in (select p.CODGRUCONTA, nvl(ccc.codigocentrocusto,99) from EPCPARDRE p, PCCONTACENTROCUSTO ccc where p.CODGRUCONTA = ccc.codconta (+) )
+            AND {1} BETWEEN :dtIni AND :dtFim
+                         ) GROUP BY CODGRUPO, GRUPO
+                     ORDER BY 1
+                     )
+                      where VPAGO <> 0  or qdereg <> 0
+               )
+            group by CODGRUCONTA, GRUPO, AntesRO, AntesLL, AntesLF, TIPOCONTA, RESPONSAVEL
+            order By ID
+        """;
+
+    /// <summary>
+    /// Despesas do período para a análise **Conta Gerencial**.
+    ///
+    /// <para>É a mais simples das quatro: a chave é a conta, sempre, sem o
+    /// `decode(AntesLF, ...)` que as outras usam para mudar de chave depois do LUCRO
+    /// LIQUIDO. Aqui o relatório já é por conta do começo ao fim.</para>
+    ///
+    /// <para>A chave da linha injetada de `PCPREST` é `'4000004'` — `'400'` em Grupo de
+    /// Contas, `'85'` em C. Custo Principal. Cada dimensão joga essa receita na sua
+    /// própria linha.</para>
+    ///
+    /// <para>`TO_NUMBER(CODCONTA)` do original virou `TO_CHAR`, como nas demais.</para>
+    ///
+    /// <para>Ordem dos binds, igual à de Grupo de Contas: {0} filiais de `PCLANC`,
+    /// :dtIni1/:dtFim1, :dtIni2/:dtFim2, {3} filiais de `PCNFSAID`.</para>
+    /// </summary>
+    public const string DespesasContaGerencial = """
+         SELECT  GRUPOCONTA AS GRUPOCONTA, AntesRO AS ANTESRO, AntesLL AS ANTESLL, AntesLF AS ANTESLF, MES_ANO AS MESANO, MES AS MES, ANO AS ANO, sum(VLREALIZADO) AS VLREALIZADO, sum(VPAGO_EXCLUSIVO_FORNEC) AS VPAGOEXCLUSIVOFORNEC, sum(QdeReg) AS QDEREG
+         FROM (
+         SELECT  to_char(CODCONTA) as GRUPOCONTA, AntesRO, AntesLL, AntesLF, MES_ANO, MES, ANO, SUM(VPAGO) AS VLREALIZADO, sum(VPAGO_EXCLUSIVO_FORNEC) as VPAGO_EXCLUSIVO_FORNEC, count(*) as QdeReg
+                        FROM (
+          SELECT  FIN.RECNUM, FIN.CODFILIAL, CCPrinc.codccprinc, CCPrinc.DescCCPrinc,
+                  case
+                        when FIN.CODCONTA in (select codgruconta from EPCPARDRE where codgruconta > 0
+                        and id < (select ID from EPCPARDRE where upper(grupo) like 'RESULTADO OPERACIONAL'))  then 'S' else 'N' end as AntesRO,
+                  case
+                        when FIN.CODCONTA in (select codgruconta from EPCPARDRE where codgruconta > 0
+                        and id < (select ID from EPCPARDRE where upper(grupo) like 'LUCRO LIQUIDO'))  then 'S' else 'N' end as AntesLL,
+                  case
+                        when FIN.CODCONTA in (select codgruconta from EPCPARDRE where codgruconta > 0
+                        and id < (select ID from EPCPARDRE where upper(grupo) like 'LUCRO LIQUIDO'))  then 'S' else 'N' end as AntesLF,
+                  DECODE(RC.valor,NULL, DECODE(CT.usarateiocentrocusto,'S',NVL(CC.CodigoCentroCusto,9998),9999) , NVL(CC.CodigoCentroCusto,9998)) as CODCENTROCUSTO,
+                  DECODE(RC.valor,NULL, DECODE(CT.usarateiocentrocusto,'S',NVL(CC.DESCRICAO,'NÃO INFORMADO'),'NÃO USA CENTRO DE CUSTO') ,NVL(CC.DESCRICAO,'NÃO INFORMADO')) as DESCCENTROCUSTO,
+                  GR.codgrupo, GR.GRUPO, FIN.CODCONTA, CT.CONTA,
+                  FIN.numtrans, FIN.NUMNOTA, FIN.Duplic, FIN.codprojeto, FIN.dtcompetencia,
+                  TO_CHAR({1},'mm/yyyy') as MES_ANO,
+                  TO_CHAR({1},'mm') as MES,
+                  extract(YEAR FROM {1}) as ANO,
+                  SUBSTR(CONCAT(CONCAT(TRIM(FIN.HISTORICO), '. '), TRIM(FIN.HISTORICO2)),0,200) HISTORICO,
+                  DECODE(RC.valor,NULL,NVL(FIN.VPAGO,0)*(-1),NVL(RC.valor,FIN.VPAGO)*(-1)) as VPAGO,
+                  0 as VPAGO_EXCLUSIVO_FORNEC,
+                  FIN.DTPAGTO, FIN.NUMBANCO,FIN.NumCheque,FIN.numbordero,FIN.numseqbordero, FIN.NUMCHEQUE2,
+                  FIN.LOCALIZACAO, FIN.NOMEFUNC,
+                  DECODE(FIN.TIPOPARCEIRO,
+                    'F', (SELECT FORNECEDOR FROM PCFORNEC WHERE CODFORNEC = FIN.CODFORNEC),
+                    'R', (SELECT NOME FROM PCUSUARI WHERE CODUSUR = FIN.CODFORNEC),
+                    'C', (SELECT CLIENTE FROM PCCLIENT WHERE CODCLI = FIN.CODFORNEC),
+                    'OUTROS') AS  FORNECEDOR,
+                  FIN.DTRECLASSIFIC, FIN.CODFUNCRECLASSIFIC,
+                  (SELECT NOME FROM PCEMPR WHERE MATRICULA = FIN.CODFUNCBAIXA) NOMEFUNCBAIXA
+            FROM  PCCONTA CT, PCGRUPO GR, PCCENTROCUSTO CC,
+        PCRATEIOCENTROCUSTO RC,
+                  (select RECNUM, CODFILIAL, numtrans, NUMNOTA, Duplic, codprojeto, dtcompetencia, DTVENC, DTPAGTO, nvl(VPAGO,VALOR) as VPAGO, INDICE,
+         codconta,
+                          TIPOPARCEIRO, DTRECLASSIFIC, CODFUNCRECLASSIFIC, historico, HISTORICO2,
+                          NUMBANCO, NumCheque, numbordero, numseqbordero, NUMCHEQUE2, LOCALIZACAO, NOMEFUNC, CODFORNEC, CODFUNCBAIXA
+                     from PCLANC
+                    WHERE DTPAGTO IS NOT NULL
+                  ) FIN,
+                  ( select '99' as codccprinc, 'NÃO USA/NÃO INFORMADO' as DescCCPrinc FROM DUAL
+                    union
+                    select codccprinc, (select descricao from PCCENTROCUSTO where CodigoCentroCusto = CCP.CodPrinc) as DescCCPrinc
+                    FROM (select SUBSTR(CodigoCentroCusto,1,2) as CODCCPRINC, min(CodigoCentroCusto) as CodPrinc
+                    from PCCENTROCUSTO where CodigoCentroCusto not like '%.%' group by SUBSTR(CodigoCentroCusto,1,2)) CCP) CCPrinc
+           WHERE  FIN.CODCONTA = CT.CODCONTA
+             AND  CT.GRUPOCONTA >= 200
+             AND  FIN.CODFILIAL IN ({0})
+             AND  FIN.RECNUM = RC.RECNUM (+)
+             AND  FIN.CODCONTA = RC.CODCONTA (+)
+             AND  CT.grupoconta = GR.codgrupo (+)
+             AND  RC.CodigoCentroCusto = cc.CodigoCentroCusto (+)
+             AND  SUBSTR(cc.CodigoCentroCusto,1,2) = CCPrinc.codccprinc (+)
+             AND  FIN.historico not like 'REF.CANCEL.BORDERO JA BAIXADO'
+             AND not exists (select recnumadiantamento from pclancadiantfornec where recnumpagto is not null and dtestorno is null and recnumadiantamento = fin.recnum)
+            AND {2} BETWEEN :dtIni1 AND :dtFim1
+         AND FIN.CODCONTA NOT IN ( SELECT codconta FROM EPCPARDRE_NAOEXIBIR)
+                         ) GROUP BY codconta, AntesRO, AntesLL, AntesLF, MES_ANO, MES, ANO
+         union all
+         select '4000004' as GRUPOCONTA,
+                'N' as AntesRO, 'S' as AntesLL,  'S' as AntesLF, TO_CHAR(FIN.dtpag,'mm/yyyy') as MES_ANO,
+                TO_CHAR(FIN.dtpag,'mm') as MES,
+                extract(YEAR FROM FIN.dtpag) as ANO, fin.valor as VLREALIZADO, 0 as VPAGO_EXCLUSIVO_FORNEC, 0 as QdeReg
+           from pcnfsaid nf, pcprest fin
+          where nf.numnota = fin.duplic
+            and nf.numtransvenda  = fin.numtransvenda
+            and condvenda = 0 and nf.vltotal > 0 and nvl(nf.obs,'X') not like '%CANCELADA%' and nf.dthoracancelamentosefaz is null
+            and fin.codcob <> 'DESD' and fin.dtcancel is null
+            and fin.dtpag BETWEEN :dtIni2 AND :dtFim2
+            and nf.codfilial IN ({3})
+        ) GROUP BY GRUPOCONTA, AntesRO, AntesLL, AntesLF, MES_ANO, MES, ANO
+        """;
+
+    /// <summary>
     /// Estrutura de linhas do DRE para a análise **C. Custo Principal**. Três blocos:
     /// as linhas calculadas do cadastro, os centros de custo principais, e as contas órfãs.
     ///
