@@ -545,3 +545,22 @@ referência, mas usa as mesmas três expressões de data das outras.
 
 Em toda célula conferida, a única diferença é a divergência nº 1 — coluna derivada, um
 centavo, mecanismo medido.
+
+### Fase 5 — período de um dia · 31/08/2026
+
+Cenário: **15/07/2026 a 15/07/2026**, competência, filial 7, Grupo de Contas.
+
+| | |
+|---|---|
+| Linhas comparadas | 19 |
+| Células (valor e `% AV`) | 38 |
+| **Divergências** | **0** |
+| Linhas visíveis na API | 19 — a mesma contagem da exportação |
+| Rótulo do período | `Julho/2026` nos dois |
+
+O `BETWEEN` com as duas pontas iguais funciona porque `DTCOMPETENCIA` não guarda hora —
+medido antes do teste em [fase5b](validacao/fase5b_horas_em_dtcompetencia.sql), justamente
+porque num período de um dia a hora custaria tudo em vez de um dia.
+
+`PeriodoDre.Entre` deriva o mês do período **pedido**, não dos dados, e um recorte parcial
+de mês continua rendendo um bucket só — igual à 9815.
