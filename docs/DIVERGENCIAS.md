@@ -291,3 +291,25 @@ Ambas já produziram conclusão errada neste projeto. Detalhe em
    sequência imediata. Uma comparação já acusou R$ 24 mil de diferença que eram apenas
    lançamentos feitos entre as duas coletas — e a medição da divergência nº 2 tem
    0,16% de folga não explicada, provavelmente pela mesma causa.
+
+---
+
+## Validação de C. Custo Principal — 31/08/2026
+
+Cenário: **01/07 a 31/07/2026, competência, filial 7 sozinha** — escolhido de propósito,
+porque com uma filial só a divergência nº 2 não existe e os números têm que bater ao centavo.
+
+| | |
+|---|---|
+| Linhas comparadas | 57 |
+| Células comparadas | 114 (valor e `%AV`) |
+| **Divergências** | **0** |
+
+Cobre a consulta de estrutura, a de despesas, o faturamento, os quatro totalizadores, as
+duas bases de `%AV` e a célula vazia de `%AV` na RECEITA BRUTA.
+
+Um mês só **não exercita** `%AH`, `MÉDIA` nem o bloco TOTAL — a divergência nº 1 continua
+valendo para períodos de mais de um mês.
+
+Antes disso, a [inc9g](validacao/inc9g_comparacao_estrutura_ccusto.sql) já havia provado no
+banco que a consulta de estrutura adaptada é equivalente à original nesse mesmo recorte.
