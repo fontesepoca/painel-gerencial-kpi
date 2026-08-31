@@ -164,3 +164,25 @@
          ORDER BY SUBSTR(MESANO,4,4), SUBSTR(MESANO,1,2)
 
 ;
+
+-- ============================================================================
+-- RESULTADO - 31/08/2026: HINT REJEITADO
+--
+--   consulta atual .................  94,0 s
+--   com USE_HASH(MVC) .............. 135,4 s   (+44%)
+--
+-- As dez colunas vieram identicas ate a ultima casa. O hint nao muda numero -
+-- muda tempo, e para pior.
+--
+-- A LICAO: custo estimado nao e tempo. O plano dizia que o NESTED LOOPS OUTER
+-- do PCMOVCOMPLE valia 68.000 dos 102.000. Forcar HASH JOIN piorou 44%.
+-- O PCMOVCOMPLE e acessado por INDEX UNIQUE SCAN: 34 mil buscas pontuais numa
+-- tabela cacheada custam pouco de verdade, enquanto construir a hash table
+-- inteira custa muito. O otimizador acertou a escolha e errou a estimativa.
+--
+-- RUIDO DE MEDICAO: a consulta de faturamento sozinha levou 94s, mas a
+-- apuracao INTEIRA - que a inclui, mais estrutura e despesas - levou 78s na
+-- medicao de C. Custo Principal em caixa, mesma filial e mesmo mes. A parte
+-- maior que o todo so pode ser variacao de carga do banco. Medicao de uma
+-- passada so tem ruido grande; nao tirar conclusao fina de numero isolado.
+-- ============================================================================
