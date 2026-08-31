@@ -61,3 +61,31 @@ public record FaturamentoDto(
     decimal StLiq,
     decimal PisLiq,
     decimal CofinsLiq);
+
+/// <summary>Uma linha do DRE montado.</summary>
+public record LinhaDreDto(
+    int? Id,
+    string Chave,
+    string Descricao,
+    decimal Valor,
+    /// <summary>Base: RECEITA BRUTA nas cinco deduções, RECEITAS LIQUIDAS no resto.</summary>
+    decimal? PercentualAv,
+    bool Totalizadora,
+    bool Calculada,
+    /// <summary>Não entra em totalizador nenhum: as 3 informativas e o bloco pós-LUCRO LIQUIDO.</summary>
+    bool NaoSoma,
+    /// <summary>Valor zero. A 9815 esconde estas quando `Mostrar Contas Zeradas` está desmarcado.</summary>
+    bool Zerada,
+    string? Cor);
+
+/// <summary>DRE apurado.</summary>
+public record ApuracaoDto(
+    string Regime,
+    string Analise,
+    DateOnly DataInicio,
+    DateOnly DataFim,
+    IReadOnlyList<string> Filiais,
+    IReadOnlyList<LinhaDreDto> Linhas,
+    IReadOnlyList<string> Avisos,
+    DateTimeOffset ApuradoEm,
+    long DuracaoMs);

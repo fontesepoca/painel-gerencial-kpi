@@ -94,4 +94,23 @@ public sealed class DreGerencialController : ControllerBase
 
         return Ok(ApiResponse<FaturamentoDto>.Ok(resultado.Valor!));
     }
+
+    /// <summary>
+    /// Apura o DRE completo. É a rotina 9815 ponta a ponta.
+    /// Pode levar minutos — a consulta de faturamento sozinha leva de 17 s a 2 min por mês.
+    /// </summary>
+    [HttpPost("apuracao")]
+    public async Task<IActionResult> Apurar(
+        [FromBody] DespesasFiltroDto filtro,
+        CancellationToken cancellationToken)
+    {
+        var resultado = await _servico.ApurarAsync(filtro, cancellationToken);
+
+        if (resultado.Falha)
+        {
+            return BadRequest(ApiResponse<object>.Falha(resultado.Erro!));
+        }
+
+        return Ok(ApiResponse<ApuracaoDto>.Ok(resultado.Valor!));
+    }
 }

@@ -197,4 +197,62 @@ public sealed class DreGerencialService
 
         return null;
     }
+
+    /// <summary>
+    /// Apura o DRE completo: estrutura, despesas e faturamento, montados pelo
+    /// <see cref="MontadorDre"/>.
+    ///
+    /// <para>As três consultas rodam <b>em sequência</b>, não em paralelo. Elas competem
+    /// pelas mesmas tabelas e pelo mesmo pool; paralelizar aumenta a contenção sem reduzir
+    /// o tempo de parede de forma previsível. Se virar gargalo, medir antes de mudar.</para>
+    /// </summary>
+    public async Task<Result<ApuracaoDto>> ApurarAsync(
+        DespesasFiltroDto filtro,
+        CancellationToken cancellationToken = default)
+    {
+        var erro = ValidarPeriodoEFiliais(filtro);
+        if (erro is not null)
+        {
+            return Result<ApuracaoDto>.Invalido(erro);
+        }
+
+        var regime = RegimeDre.Resolver(filtro.Regime);
+        if (regime is null)
+        {
+            return Result<ApuracaoDto>.Invalido(
+                $"Regime '{filtro.Regime}' não existe. Valores aceitos: " +
+                $"{string.Join(", ", RegimeDre.Todos.Select(r => r.Codigo))}.");
+        }
+
+        if (!AnalisesConhecidas.Contains(filtro.Analise))
+        {
+            return Result<ApuracaoDto>.Invalido(
+                $"Análise '{filtro.Analise}' não existe. Valores aceitos: " +
+                $"{string.Join(", ", AnalisesConhecidas)}.");
+        }
+
+        if (filtro.Analise != AnaliseGrupoDeContas)
+        {
+            return Result<ApuracaoDto>.Invalido(
+                $"A análise '{filtro.Analise}' ainda não foi implementada.");
+        }
+
+        var cronometro = System.Diagnostics.Stopwatch.StartNew();
+
+        var estrutura = await _repositorio.ObterEstruturaGrupoDeContasAsync(
+            filtro.Filiais, filtro.DataInicio, filtro.DataFim, regime, cancellationToken);
+
+        var despesas = await _repositorio.ObterDespesasGrupoDeContasAsync(
+            filtro.Filiais, filtro.DataInicio, filtro.DataFim, regime, cancellationToken);
+
+        var faturamento = await _repositorio.ObterFaturamentoAsync(
+            filtro.Filiais, filtro.DataInicio, filtro.DataFim, cancellationToken);
+
+        cronometro.Stop();
+
+        var apuracao = MontadorDre.Montar(
+            estrutura, despesas, faturamento, filtro, cronometro.ElapsedMilliseconds);
+
+        return Result<ApuracaoDto>.Ok(apuracao);
+    }
 }
