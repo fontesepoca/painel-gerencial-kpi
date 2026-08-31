@@ -328,7 +328,7 @@ Em incrementos revisáveis, um por vez:
 | 5b | Montagem do DRE completo | ✅ **conferido em 28/08/2026** — 123 linhas, zero divergência de valor e de %AV, contra exportação com parâmetros e horário conhecidos |
 | 6 | Filtros na tela | — |
 | 7 | Tabela | comparação visual com o print |
-| 8 | Multi-mês, `AV` e `AH` | 🔄 implementado; conferir o cenário de 2 meses |
+| 8 | Multi-mês, `AV` e `AH` | ✅ **conferido em 28/08/2026** — 145 linhas; valores, `%AV` e `%AH` exatos; MÉDIA com divergência aceita (§14) |
 | 9 | Centro de Custo | validação manual com o negócio |
 
 Cada incremento pronto: eu escrevo a query, **você executa no banco**, e comparamos com a
@@ -525,3 +525,47 @@ mês. Vazio fica reservado para outra situação:
 Nas colunas mensais, `ABAT./DESC.`, `DEVOLUCAO`, `ST`, `PIS` e `COFINS` têm `%AV` sobre a
 RECEITA BRUTA. **No bloco TOTAL, essas cinco vêm vazias** — o preenchimento começa em
 `RECEITAS LIQUIDAS`, junto com `RECEITA BRUTA`, que nunca exibe percentual.
+
+---
+
+## 14. Divergência aceita: a coluna MÉDIA, em um centavo
+
+Conferido em 28/08/2026, cenário de dois meses (01/06 a 31/07/2026, competência, Grupo de
+Contas, filiais 7/12/25), 145 linhas × 9 campos = 1305 células comparadas.
+
+| Campo | Divergências |
+|---|---|
+| Valor de cada mês | 0 |
+| `%AV` de cada mês | 0 |
+| `%AH` de cada mês | 0 |
+| Valor do TOTAL | 0 |
+| `%AV` do TOTAL | 0 |
+| **`MÉDIA` do TOTAL** | **9, todas de um centavo** |
+
+### Por que não fecha
+
+O arredondamento da 9815 nessas nove linhas não segue modo nenhum: sete sobem em módulo,
+duas descem. Três hipóteses testadas:
+
+| Hipótese | Falhas em 145 |
+|---|---|
+| Soma dos arredondados ÷ n, half-to-even — o que fazemos | 9 |
+| Aritmética em `double` | 2 |
+| Soma crua ÷ n | 7 |
+
+O padrão é assinatura do tipo de ponto flutuante interno do Delphi, provavelmente `Extended`
+de 80 bits. O .NET não tem equivalente, e as nove linhas caem todas em ponto médio exato
+(`x,xx5`), onde a menor diferença de representação decide o arredondamento.
+
+### Por que é aceitável
+
+`MÉDIA` é coluna derivada — `TOTAL ÷ número de meses`. Não entra em identidade contábil
+nenhuma: não afeta receita, deduções, CMV, despesas, os totalizadores nem os percentuais.
+Um leitor que precise da média exata tem o TOTAL e o número de meses na tela.
+
+Reproduzir o comportamento exigiria trocar `decimal` por `double` em cálculo financeiro — e
+mesmo assim erraria em 2 linhas. Um centavo documentado numa coluna auxiliar é troca melhor
+que ponto flutuante em valores de dinheiro.
+
+> **Se um dia isso importar**, o caminho é medir em qual coluna o negócio realmente confia.
+> Se a MÉDIA for lida para decisão, vale reabrir; se for enfeite de relatório, fica como está.

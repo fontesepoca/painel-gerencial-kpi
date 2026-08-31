@@ -61,7 +61,7 @@ competência contra 129 em caixa.
 |---|---|---|
 | 1 mês, mês corrente parcial | ✅ | validado nos dois regimes |
 | 1 mês fechado (01/07 a 31/07) | ⬜ | sem lançamentos novos entrando |
-| 2 meses (01/06 a 31/07) | ⬜ | incremento 8 implementado — pronto para conferir |
+| 2 meses (01/06 a 31/07) | ✅ 28/08/2026 | 145 linhas; valores, `%AV` e `%AH` exatos. Única divergência: MÉDIA, 1 centavo em 9 linhas (§14) |
 | 4 meses | ⬜ | limite de uso citado pelo negócio; mede o custo real |
 | Virada de mês (25/07 a 05/08) | ⬜ | testa o bucket `MES_ANO` |
 | Período sem movimento | ⬜ | tudo zerado, sem erro |
@@ -104,4 +104,4 @@ Divergência **não** é motivo para ajustar o número até bater. O caminho é:
 | O quê | Decisão |
 |---|---|
 | Resíduo de grade da 9815 entre apurações | **Não replicar.** É estado de tela, não regra |
-| Colunas por mês somadas numa só | Limite do incremento 5b; some no 8 |
+| MÉDIA do bloco TOTAL, 1 centavo em 9 de 145 linhas | **Aceita.** Ponto flutuante interno do Delphi; coluna derivada, sem efeito em identidade contábil (`ROTINA_9815.md` §14) |
