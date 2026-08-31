@@ -332,3 +332,54 @@ Nenhuma sobra.
 A web usava valor zero como critério e escondia as duas primeiras. Corrigido: a linha do
 DRE carrega `semMovimento`, somando os lançamentos do período, e é esse campo que o
 filtro "Mostrar contas zeradas" usa. Linha calculada aparece sempre.
+
+---
+
+## Validação de Conta Gerencial — 31/08/2026
+
+Cenário: **01/06 a 31/07/2026, competência, filiais 7, 12 e 25.** Dois meses, escolhidos
+para exercitar `MÉDIA` e o bloco TOTAL, que a validação de C. Custo Principal não cobriu.
+
+| Coluna | Células | Divergências |
+|---|---:|---:|
+| Junho — Valor | 133 | 0 |
+| Junho — `% AV` | 133 | 0 |
+| Julho — Valor | 133 | 0 |
+| Julho — `% AV` | 133 | 0 |
+| TOTAL — Valor | 133 | 0 |
+| TOTAL — `% AV` | 133 | 0 |
+| **TOTAL — `MÉDIA`** | 133 | **32** |
+| | **931** | **32** |
+
+Todas de um centavo, todas na MÉDIA — a divergência nº 1, já aceita. Nenhuma outra coluna
+diverge.
+
+Esta exportação não tem `% AH` (foi tirada sem análise horizontal), então essa coluna
+continua sem conferência em Conta Gerencial. Ela foi conferida em Grupo de Contas.
+
+### A contagem de linhas fechou exata
+
+**133 linhas na exportação, 133 visíveis na API**, na mesma ordem. A apuração devolveu 354
+linhas no total e o campo `semMovimento` escondeu exatamente as 221 certas.
+
+É a validação da correção do critério de visibilidade contra um caso grande: a regra antiga,
+que escondia por valor zero, teria deixado linhas sobrando.
+
+### O mecanismo da MÉDIA, agora medido
+
+Ver [ROTINA_9815.md §14](ROTINA_9815.md) para o detalhamento. Em resumo: com dois meses,
+`MÉDIA = TOTAL ÷ 2`, e um TOTAL de centavo ímpar cai exatamente em `x,xx5` — o ponto médio,
+onde só a regra de desempate decide.
+
+| | |
+|---|---:|
+| Linhas com TOTAL de centavo ímpar | 60 |
+| Linhas com TOTAL de centavo par | 73 |
+| Divergências em linha ímpar | 32 |
+| Divergências em linha par | **0** |
+
+Nenhuma linha de centavo par diverge. Das 60 ímpares, 32 divergem — metade, o esperado
+quando duas regras de desempate decidem cada empate de forma independente.
+
+Isso explica a diferença de taxa entre dimensões: 6% em Grupo de Contas contra 24% aqui.
+Não é a dimensão, é quantos totais caem em centavo ímpar naquele conjunto de linhas.

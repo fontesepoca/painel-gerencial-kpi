@@ -560,6 +560,26 @@ O padrão é assinatura do tipo de ponto flutuante interno do Delphi, provavelme
 de 80 bits. O .NET não tem equivalente, e as nove linhas caem todas em ponto médio exato
 (`x,xx5`), onde a menor diferença de representação decide o arredondamento.
 
+### O mecanismo, medido em 31/08/2026
+
+Com dois meses, `MÉDIA = TOTAL ÷ 2`. Um TOTAL com número **ímpar** de centavos cai exatamente
+em `x,xx5` — o ponto médio, onde só a regra de desempate decide. Conferido em Conta
+Gerencial, 133 linhas:
+
+| | |
+|---|---:|
+| Linhas com TOTAL de centavo **ímpar** | 60 |
+| Linhas com TOTAL de centavo **par** | 73 |
+| Divergências em linha ímpar | **32** |
+| Divergências em linha par | **0** |
+
+Nenhuma linha de centavo par diverge: ali a divisão é exata e não há empate. Das 60 ímpares,
+32 divergem — praticamente metade, o esperado quando duas regras de desempate diferentes
+decidem cada empate de forma independente.
+
+Isso explica a diferença de taxa entre as dimensões (6% em Grupo de Contas, 24% em Conta
+Gerencial): não é a dimensão, é quantos totais caem em centavo ímpar naquele conjunto.
+
 ### Por que é aceitável
 
 `MÉDIA` é coluna derivada — `TOTAL ÷ número de meses`. Não entra em identidade contábil
