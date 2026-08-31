@@ -598,3 +598,35 @@ tinham sido tocados.
 
 Metade de 13 é 6,5; observadas 6. A explicação medida em Conta Gerencial se sustenta num
 recorte completamente diferente.
+
+### Fase 5 — filial parada e filial meio-vazia · 31/08/2026
+
+Julho/2026, competência, Grupo de Contas.
+
+| Cenário | Linhas | Células | Divergências |
+|---|---:|---:|---:|
+| Filiais **7 e 35** — a 35 sem despesa e sem nota | 32 | 64 | **0** |
+| Filial **1** (ALFALOG) — 53 lançamentos, zero notas | 18 | 36 | **0** |
+
+A filial parada não contamina nada: entra no `IN (...)`, não contribui com linha nenhuma, e
+o resultado é idêntico ao da filial ativa sozinha.
+
+#### A pergunta em aberto do `%AV` foi respondida
+
+A [primeira rodada](validacao/fase5a_PREVISAO_periodo_sem_movimento.md) só mostrou o
+comportamento de base zero **quando o valor também era zero**. ALFALOG deu o outro caso —
+cabeçalho zerado, despesas valendo:
+
+| Linha | Valor | `% AV` nos dois |
+|---|---:|---|
+| (-) ABAT./DESC. e as outras quatro deduções | 0,00 | `0,000` |
+| Despesas Adm e Vendas | (238.088,55) | **vazio** |
+| FECH-RESULTADO | 917.873,00 | **vazio** |
+| Sub-Total, RESULTADO OPER., LUCRO LIQUIDO | (238.213,04) e outros | **vazio** |
+
+**Com base zero, só as cinco deduções escrevem `0,000`. Todo o resto fica vazio, tenha
+valor ou não.** O `CalcularAv` já fazia isso, e agora é observação em vez de palpite.
+
+Confirma também a aritmética no caso degenerado: `LUCRO BRUTO` zero faz
+`RESULTADO OPERACIONAL` igualar o `Sub-Total`, e `LUCRO LIQUIDO` igualar o
+`Total das Despesas`.
