@@ -88,3 +88,31 @@ EXPLAIN PLAN SET STATEMENT_ID = 'dre_faturamento' FOR
 ;
 
 SELECT * FROM TABLE(DBMS_XPLAN.DISPLAY(NULL, 'dre_faturamento', 'ALL'));
+
+-- ============================================================================
+-- RESULTADO - 31/08/2026
+--
+-- Custo total 102K, em dois blocos:
+--   vendas    (PCNFSAID)  94.738   92%
+--   devolucao (PCNFENT)    8.073    8%
+--
+-- Dentro do bloco de vendas:
+--   ate o HASH JOIN (id 7) ......................... 26.494
+--   TABLE ACCESS FULL PCNFSAID (id 26) .............  8.726
+--   NESTED LOOPS OUTER com PCMOVCOMPLE (id 6) ...... 94.736
+--
+-- O nested loop do PCMOVCOMPLE acrescenta ~68.000 sozinho - 67% da consulta
+-- inteira. Oracle busca a tabela linha a linha, 34.179 vezes, para ler UMA
+-- coluna: mvc.vlfecp.
+--
+-- O PCNFSAID e lido por TABLE ACCESS FULL, mas com pruning: PARTITION RANGE
+-- SINGLE 201/201, PARTITION HASH ALL 1-32. Le uma particao de data so.
+--
+-- HIPOTESE DERRUBADA: o PCPRODUT, que eu suspeitava por ser juntado apenas
+-- para filtrar codsec, custa 544 e e resolvido por juncao de dois indices
+-- (index$_join$_005) sem tocar a tabela. Tira-lo economizaria menos de 1% e
+-- teria risco de mudar resultado. Bom ter olhado o plano antes de propor.
+--
+-- Nota do Oracle: "'PLAN_TABLE' is old version" - o plano saiu legivel, mas
+-- pode faltar informacao acessoria.
+-- ============================================================================
