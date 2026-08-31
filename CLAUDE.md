@@ -125,3 +125,4 @@ no `.gitignore`.
 | [docs/SCHEMA_BANCO.md](docs/SCHEMA_BANCO.md) | tabelas, colunas, leitura vs. escrita |
 | [docs/CONVENCOES_ORACLE.md](docs/CONVENCOES_ORACLE.md) | ODP.NET, Dapper, armadilhas reais |
 | [docs/HOMOLOGACAO.md](docs/HOMOLOGACAO.md) | matriz de cenários a conferir contra a 9815 |
+| [docs/DIVERGENCIAS.md](docs/DIVERGENCIAS.md) | **toda** diferença numérica entre a web e a 9815 |

@@ -530,6 +530,9 @@ RECEITA BRUTA. **No bloco TOTAL, essas cinco vêm vazias** — o preenchimento c
 
 ## 14. Divergência aceita: a coluna MÉDIA, em um centavo
 
+> O catálogo completo de divergências está em [DIVERGENCIAS.md](DIVERGENCIAS.md).
+> Esta seção é o detalhamento de uma delas.
+
 Conferido em 28/08/2026, cenário de dois meses (01/06 a 31/07/2026, competência, Grupo de
 Contas, filiais 7/12/25), 145 linhas × 9 campos = 1305 células comparadas.
 
