@@ -497,12 +497,29 @@ Verificado em 28/08/2026, em duas frentes:
 | Hora nas colunas de data, no período (`docs/validacao/inc8_horas_nas_datas.sql`) | `DTSAIDA` 70.435 linhas · `DTENT` 13.245 · `DTPAGTO` 30.922 — **zero com hora** |
 | Duas execuções mensais somadas vs. uma única (`inc8_mensal_vs_periodo.sql`) | **zero divergências** |
 
-Como as colunas guardam sempre meia-noite, o recorte mensal é exato e a passada única é
-equivalente. A otimização está liberada, e com 4 meses o faturamento deixa de custar 4×.
+Como **essas três** colunas guardam sempre meia-noite, o recorte mensal é exato e a passada
+única é equivalente. A otimização está liberada, e com 4 meses o faturamento deixa de custar 4×.
 
-> **Se um dia essas colunas passarem a gravar hora**, essa equivalência cai — e a 9815
-> passaria a perder movimento na virada de cada mês. Vale reexecutar
-> `inc8_horas_nas_datas.sql` antes de confiar nesta seção em outra base ou outro período.
+### Nem toda coluna de data guarda meia-noite
+
+Medição de 31/08/2026, `docs/validacao/fase5b_horas_em_dtcompetencia.sql`, junho a agosto:
+
+| Coluna | Onde entra | Linhas | Com hora |
+|---|---|---:|---:|
+| `PCLANC.DTCOMPETENCIA` | filtro em competência | 56.023 | 0 |
+| `PCLANC.DTVENC` | fallback do bucket | 54.070 | 0 |
+| **`PCPREST.DTPAG`** | **linha injetada de receita** | 214.800 | **5** |
+
+A generalização anterior — "as colunas guardam sempre meia-noite" — era falsa: valia para as
+três que a `inc8` mediu, e ninguém tinha olhado as outras.
+
+Consequência prática das cinco linhas: uma prestação com hora só é perdida quando **o dia
+dela é o último do período**, porque nos demais dias `data com hora <= fim` continua
+verdadeiro. **Não é divergência** — a 9815 usa o mesmo `To_Date` nas duas pontas e perde as
+mesmas cinco. Mas é falso dizer que o recorte é exato para toda coluna.
+
+> Ao levar isto para outra base ou outro período, reexecute **as duas** medições. E prefira
+> medir a coluna que a consulta realmente usa, em vez de generalizar a partir das vizinhas.
 
 ---
 

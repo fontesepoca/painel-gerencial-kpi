@@ -45,3 +45,19 @@ SELECT 'PCPREST.DTPAG',
   FROM PCPREST P
  WHERE P.DTPAG >= TO_DATE('01/06/2026','dd/mm/yyyy')
    AND P.DTPAG <  TO_DATE('01/09/2026','dd/mm/yyyy')
+
+-- ============================================================================
+-- RESULTADO - 31/08/2026
+--
+--   PCLANC.DTCOMPETENCIA   56.023 linhas   0 com hora
+--   PCLANC.DTVENC          54.070 linhas   0 com hora
+--   PCPREST.DTPAG         214.800 linhas   5 com hora   <<<
+--
+-- O teste de UM DIA e valido: o filtro de competencia e o bucket usam colunas
+-- sem hora, entao o recorte por dia e exato para as despesas.
+--
+-- As cinco linhas de DTPAG so somem quando o DIA delas e o ULTIMO do periodo -
+-- nos demais dias, "data com hora <= fim" continua verdadeiro. E a 9815 perde
+-- as mesmas cinco, porque usa o mesmo To_Date nas duas pontas. Nao e
+-- divergencia; e a correcao de uma afirmacao generalizada demais na secao 12.
+-- ============================================================================
