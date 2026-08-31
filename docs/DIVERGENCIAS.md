@@ -409,3 +409,40 @@ Junho não mudou em nada — lançamento novo cai na competência corrente.
 **A comparação válida é a primeira**, tirada junto da API: 931 células, 32 divergências,
 todas de um centavo na MÉDIA. Esta segunda serve para validar `% AH` e como lembrete de
 que exportação e chamada da API têm que ser coletadas em sequência imediata.
+
+---
+
+## Atualização da nº 3 — Centro de Custo implementada em 31/08/2026
+
+Os dois erros da 9815 somem por construção:
+
+| Erro | Causa | Na web |
+|---|---|---|
+| `ORA-00923` | parêntese sobrando no SQL montado pelo Delphi — `decode(...)))`, dois abertos e três fechados, nas três cópias por filial | não reproduzido |
+| `ORA-01722` | `TO_NUMBER` sobre código com ponto (`9701.001`); 1.666 dos 1.757 centros de custo têm | chave é texto em todo o caminho |
+
+**Isso não valida os números.** Ninguém nunca viu este relatório funcionando, e não há
+exportação para comparar. O que dá para fazer é ancorar em algo já conferido.
+
+### A âncora: identidade contábil com C. Custo Principal
+
+O centro de custo principal é, por definição, os dois primeiros dígitos do centro de custo.
+Então a soma dos centros de custo que começam em `NN` **tem que dar exatamente** a linha do
+principal `NN` — e essa linha já está validada ao centavo contra a 9815.
+
+A [inc9j](validacao/inc9j_centro_custo_soma_no_principal.sql) mede isso.
+
+O que a âncora **pega**: erro de agrupamento, perda ou duplicação de valor, sentinelas
+(`9998`/`9999`) tratadas de forma diferente entre as duas dimensões.
+
+O que ela **não pega**: se o lançamento certo caiu no centro de custo certo. Isso continua
+dependendo de quem conhece a operação.
+
+### Aviso na tela
+
+O filtro mostra, sempre que Centro de Custo está escolhido:
+
+> Esta análise nunca funcionou na 9815, então não há números antigos para comparar.
+> Confira com quem conhece os centros de custo antes de usar para decidir.
+
+E, com mais de uma filial marcada, um segundo aviso sobre a divergência nº 2.

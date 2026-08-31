@@ -57,15 +57,20 @@ public sealed record AnaliseDre(
         EstruturaTemDoisBlocosDeFilial: false);
 
     /// <summary>
-    /// Ainda não implementada. É a dimensão que **nunca funcionou** na 9815, e por isso a
-    /// única sem resultado antigo para comparar. Ver `docs/DIVERGENCIAS.md` nº 3.
+    /// Desce ao centro de custo inteiro. É a dimensão que **nunca funcionou** na 9815 — falha
+    /// sempre com `ORA-00923`, um parêntese sobrando escondendo um `ORA-01722` —, e por isso
+    /// a única sem resultado antigo para comparar. Ver `docs/DIVERGENCIAS.md` nº 3.
+    ///
+    /// <para>Os dois erros somem por construção, porque a chave é texto em todo o caminho.
+    /// Mas <b>os números nunca foram vistos por ninguém</b>: só ficam confiáveis depois da
+    /// conferência com o negócio.</para>
     /// </summary>
     public static readonly AnaliseDre CentroCusto = new(
         Codigo: "centro-custo",
         Rotulo: "Centro de Custo",
-        SqlEstrutura: null,
-        SqlDespesas: null,
-        EstruturaTemDoisBlocosDeFilial: false);
+        SqlEstrutura: DreGerencialQueries.EstruturaCentroCusto,
+        SqlDespesas: DreGerencialQueries.DespesasCentroCusto,
+        EstruturaTemDoisBlocosDeFilial: true);
 
     /// <summary>Na ordem do combo da 9815.</summary>
     public static readonly IReadOnlyList<AnaliseDre> Todas =

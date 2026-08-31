@@ -35,12 +35,14 @@ export function FiltrosDre({
 }) {
   const podeApurar = filtro.filiais.length > 0 && !apurando;
 
-  // Só avisa quando a divergência pode de fato aparecer: com uma filial só, a lista
-  // completa e a última filial são a mesma coisa, e os números batem com a 9815.
-  const divergencia =
-    filtro.filiais.length > 1
-      ? ANALISES.find((a) => a.valor === filtro.analise)?.divergencia
-      : undefined;
+  // Dois avisos com gatilhos diferentes. O da filial única só faz sentido com mais de uma
+  // marcada: com uma só, a lista completa e a última filial são a mesma coisa, e os
+  // números batem com a 9815.
+  const analise = ANALISES.find((a) => a.valor === filtro.analise);
+  const avisos = [
+    analise?.aviso,
+    filtro.filiais.length > 1 ? analise?.avisoMultiFilial : undefined,
+  ].filter((a): a is string => Boolean(a));
 
   return (
     <section className="grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1.2fr)_minmax(0,1.4fr)_auto]">
@@ -77,9 +79,11 @@ export function FiltrosDre({
 
         {/* Quem confere contra a 9815 precisa saber disso ANTES de estranhar o número,
             não depois. A nota some quando a dimensão escolhida não diverge. */}
-        {divergencia && (
-          <p className="mt-1.5 text-xs leading-snug text-[var(--warning)]">{divergencia}</p>
-        )}
+        {avisos.map((aviso) => (
+          <p key={aviso} className="mt-1.5 text-xs leading-snug text-[var(--warning)]">
+            {aviso}
+          </p>
+        ))}
       </Campo>
 
       <Campo rotulo="Período">

@@ -90,15 +90,20 @@ export const REGIMES: ReadonlyArray<{ valor: Regime; rotulo: string }> = [
  * Espelha `AnaliseDre` da API. `pronta` reflete `Implementada` lá — se divergir, o filtro
  * oferece uma dimensão que a API recusa.
  *
- * `divergencia` marca a dimensão que **não bate com a 9815 de propósito**: a rotina antiga
- * descobre os centros de custo olhando uma filial só e com isso apaga linhas do relatório.
- * Ver `docs/DIVERGENCIAS.md` nº 2.
+ * Dois avisos distintos, porque valem em momentos diferentes:
+ *
+ * - `aviso` aparece **sempre** que a dimensão está escolhida;
+ * - `avisoMultiFilial` só com mais de uma filial marcada, porque é o defeito da filial
+ *   única da 9815 — com uma filial só não há divergência possível.
+ *
+ * Ver `docs/DIVERGENCIAS.md`.
  */
 export const ANALISES: ReadonlyArray<{
   valor: Analise;
   rotulo: string;
   pronta: boolean;
-  divergencia?: string;
+  aviso?: string;
+  avisoMultiFilial?: string;
 }> = [
   { valor: "grupo-contas", rotulo: "Grupo de Contas", pronta: true },
   { valor: "conta-gerencial", rotulo: "Conta Gerencial", pronta: true },
@@ -106,9 +111,18 @@ export const ANALISES: ReadonlyArray<{
     valor: "ccusto-principal",
     rotulo: "C. Custo Principal",
     pronta: true,
-    divergencia:
+    avisoMultiFilial:
       "Com mais de uma filial, mostra centros de custo que a 9815 deixa de fora. " +
       "Com uma filial só, os números são idênticos.",
   },
-  { valor: "centro-custo", rotulo: "Centro de Custo", pronta: false },
+  {
+    valor: "centro-custo",
+    rotulo: "Centro de Custo",
+    pronta: true,
+    aviso:
+      "Esta análise nunca funcionou na 9815, então não há números antigos para comparar. " +
+      "Confira com quem conhece os centros de custo antes de usar para decidir.",
+    avisoMultiFilial:
+      "Com mais de uma filial, mostra centros de custo que a 9815 deixaria de fora.",
+  },
 ];
