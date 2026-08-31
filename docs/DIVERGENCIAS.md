@@ -564,3 +564,37 @@ porque num período de um dia a hora custaria tudo em vez de um dia.
 
 `PeriodoDre.Entre` deriva o mês do período **pedido**, não dos dados, e um recorte parcial
 de mês continua rendendo um bucket só — igual à 9815.
+
+### Fase 5 — virada de mês · 31/08/2026
+
+Cenário: **15/06 a 15/07/2026**, competência, filial 7, Grupo de Contas. Dois meses
+**parciais** — junho de 15 a 30, julho de 1 a 15.
+
+| Coluna | Células | Divergências |
+|---|---:|---:|
+| jun: Valor, `% AV`, `% AH` | 96 | 0 |
+| jul: Valor, `% AV`, `% AH` | 96 | 0 |
+| TOTAL: Valor, `% AV` | 64 | 0 |
+| TOTAL: `MÉDIA` | 32 | **6** |
+| | **288** | **6** |
+
+Todas de um centavo — a divergência nº 1. Contagem de linhas exata: 32 na exportação, 32
+visíveis na API, e os rótulos `Junho/2026` e `Julho/2026` idênticos.
+
+**O que este cenário exercitou pela primeira vez:** o recorte da consulta de faturamento em
+meses **parciais**. A otimização da [§12](ROTINA_9815.md) fatia o período por mês usando o
+maior entre o início do mês e a `dataInicio`, e o menor entre o fim do mês e a `dataFim`.
+Todos os testes de dois meses anteriores usaram meses inteiros — os dois limites nunca
+tinham sido tocados.
+
+**O mecanismo da MÉDIA, terceira medição independente:**
+
+| | |
+|---|---:|
+| Linhas com TOTAL de centavo ímpar | 13 |
+| Linhas com TOTAL de centavo par | 19 |
+| Divergências em linha ímpar | 6 |
+| Divergências em linha par | **0** |
+
+Metade de 13 é 6,5; observadas 6. A explicação medida em Conta Gerencial se sustenta num
+recorte completamente diferente.
