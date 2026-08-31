@@ -321,7 +321,8 @@ Em incrementos revisáveis, um por vez:
 | # | Entrega | Como valido |
 |---|---|---|
 | 1 | `GET /filiais` | ✅ **conferido em 28/08/2026** — 18 filiais, de EPC-MAT (0) a EPC-TRANSP (31) |
-| 2 | Estrutura do DRE a partir de `EPCPARDRE` | ✅ **conferido em 28/08/2026** — Grupo de Contas bate com o print: ordem, rótulos e cores. As linhas a mais são as zeradas, que o print esconde. As outras 3 dimensões têm SQL próprio (§4.4.1 do levantamento) |
+| 2 | Estrutura do DRE a partir de `EPCPARDRE` | ✅ **conferido em 28/08/2026** — ordem, rótulos e cores batem. As outras 3 dimensões têm SQL próprio (§4.4.1 do levantamento) |
+| 5a | Contas órfãs na estrutura | ✅ **conferido em 28/08/2026** — zero divergências contra o SQL original, e 123 linhas contra as 123 da exportação limpa (§11) |
 | 3 | Despesas (`GetValorGrupo`) | ✅ **conferido em 28/08/2026** — as 15 linhas batem ao centavo, incluindo o bloco de contas órfãs |
 | 4 | Faturamento e CMV | ✅ **conferido em 28/08/2026** — as 9 colunas batem ao centavo |
 | 5 | Montagem do DRE completo | os 6 cenários batem linha a linha |
@@ -412,3 +413,48 @@ totalizador nenhum** — é o que a tela marca como `NÃO SOMA`.
 `CONTRATO DE MUTUO` aparece com `0,00` mesmo na exportação **sem** contas zeradas, enquanto
 linhas zeradas do corpo (`VERBAS P&G`, `% SALDO FINAL`, …) somem. O filtro de zeradas vale
 para as linhas parametrizadas, não para as órfãs.
+
+---
+
+## 11. Duas armadilhas da validação contra a 9815
+
+Descobertas em 28/08/2026, ao conferir o incremento 5a. Nenhuma é defeito nosso, mas as duas
+invalidam uma comparação se ignoradas.
+
+### A grade da 9815 não é limpa entre apurações
+
+A primeira exportação com contas zeradas trouxe **124 linhas**; a segunda, feita depois de
+fechar e reabrir a rotina, trouxe **123** — as mesmas 123 da nossa estrutura. A linha a mais
+era `Verba Ind Merc Vencida e Avaria` (conta `3000165`), resíduo de uma execução anterior.
+
+Que não veio daquela apuração é demonstrável: a conta está parametrizada em `EPCPARDRE` e tem
+vínculo em `PCCONTACENTROCUSTO`, então o `NOT IN` do par a exclui da estrutura; e como está
+antes do `LUCRO LIQUIDO`, o `GetValorGrupo` a agrupa no grupo `300` em vez de emiti-la. As
+duas consultas a excluem.
+
+> **Decisão: não replicar.** A regra de fidelidade cobre regra de negócio, não estado sujo de
+> tela. Linha remanescente de execução anterior não é reproduzível de forma determinística
+> numa API sem sessão, e reproduzi-la seria copiar um defeito de interface.
+>
+> **Protocolo de conferência:** feche e reabra a 9815 antes de exportar uma referência.
+
+### A base é produção viva
+
+Duas exportações dos **mesmos parâmetros**, com cerca de uma hora de intervalo:
+
+| Linha | Antes | Depois | Δ |
+|---|---|---|---|
+| `(-) DEVOLUCAO` | 1.178.713,60 | 1.178.684,15 | −29,45 |
+| `(=) RECEITAS LIQUIDAS` | 37.017.463,39 | 37.017.492,84 | +29,45 |
+| `(=) CMV LIQ.` | 27.169.880,12 | 27.169.901,73 | +21,61 |
+| `Despesas Adm e Vendas` | 7.808.400,86 | 7.832.168,86 | +23.768,00 |
+
+Uma devolução foi ajustada e quase 24 mil em despesas foram lançados no intervalo.
+
+> **Protocolo de conferência:** exportação da 9815 e chamada da API têm que ser feitas
+> **em sequência, com minutos de diferença**. Comparar uma exportação da manhã com uma
+> chamada da tarde produz divergência que não é erro de código — e a caçada ao "bug"
+> inexistente custa horas.
+>
+> Os incrementos 3 e 4 bateram ao centavo justamente porque a chamada veio logo após a
+> exportação.

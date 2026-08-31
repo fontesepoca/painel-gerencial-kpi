@@ -24,3 +24,19 @@ conclusão foi que os parâmetros da exportação antiga eram desconhecidos, nã
 estivesse errado. Com esta exportação, tudo bateu ao centavo.
 
 **Lição:** planilha de referência sem parâmetro registrado não serve para validar.
+
+## Atualização de 28/08/2026 — use a exportação LIMPA
+
+`grupo-contas-competencia-com-zeradas-LIMPA.xlsx` foi gerada **depois de fechar e reabrir a
+9815**, e é a referência correta.
+
+A primeira exportação com zeradas trazia **uma linha a mais** — `Verba Ind Merc Vencida e
+Avaria`, resíduo de uma execução anterior que ficou na grade. Sem ela, são 123 linhas de
+dado, exatamente as 123 que a nossa consulta de estrutura devolve.
+
+E os **valores mudaram** entre as duas exportações, com os mesmos parâmetros: uma devolução
+foi ajustada (−29,45) e quase 24 mil em despesas foram lançados no intervalo de cerca de uma
+hora. A base é produção viva.
+
+**Protocolo daqui em diante:** feche e reabra a 9815 antes de exportar, e faça a chamada da
+API logo em seguida. Ver `docs/ROTINA_9815.md` §11.
