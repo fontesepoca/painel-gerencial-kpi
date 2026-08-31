@@ -148,3 +148,18 @@ SELECT 'so na ORIGINAL' AS ONDE, o.* FROM (SELECT * FROM original MINUS SELECT *
  UNION ALL
 SELECT 'so na ADAPTADA' AS ONDE, a.* FROM (SELECT * FROM adaptada MINUS SELECT * FROM original) a
  ORDER BY 1, 2, 3
+
+-- ============================================================================
+-- RESULTADO - 31/08/2026: ZERO LINHAS.
+--
+-- A unica adaptacao - os tres blocos de orfas unificados em CODFILIAL IN -
+-- e equivalente a original. Rodou com as tres filiais, entao o teste e mais
+-- forte que o da inc9g: nesta dimensao nao ha divergencia deliberada que
+-- pudesse mascarar erro meu.
+--
+-- O QUE ISSO PROVA: a consulta de ESTRUTURA, filiais 7/12/25, competencia,
+-- 01/07 a 31/07/2026. Inclui TIPOCONTA e RESPONSAVEL, que entram no GROUP BY.
+--
+-- O QUE NAO PROVA: a consulta de DESPESAS, o regime de caixa, e a montagem
+-- da tela. Isso fecha comparando a apuracao inteira contra a exportacao.
+-- ============================================================================
