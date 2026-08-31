@@ -512,3 +512,36 @@ O regime muda **três** expressões de data, e as três foram exercitadas de uma
 
 A terceira é a mais fácil de errar, porque difere da segunda. Era a única das três que ainda
 não tinha sido exercitada fora de Grupo de Contas.
+
+### Regime de caixa validado em Conta Gerencial — 31/08/2026
+
+Mesmo recorte da validação anterior — 01/07 a 31/07/2026, caixa, filial 7 sozinha —,
+trocando só a dimensão.
+
+| | |
+|---|---|
+| Linhas comparadas | 111 |
+| Células (valor e `% AV`) | 222 |
+| **Divergências** | **0** |
+| Linhas visíveis na API | 111 — a mesma contagem da exportação |
+
+Com isso o regime de caixa está conferido em **três** dimensões: Grupo de Contas (na
+validação original), C. Custo Principal e Conta Gerencial. Centro de Custo não tem
+referência, mas usa as mesmas três expressões de data das outras.
+
+---
+
+## Placar da validação — 31/08/2026
+
+| Cenário | Células | Divergências |
+|---|---:|---|
+| Grupo de Contas · competência · 2 meses · 3 filiais | 1305 | 9 centavos na MÉDIA |
+| Conta Gerencial · competência · 2 meses · 3 filiais | 1197 | 32 centavos na MÉDIA |
+| C. Custo Principal · competência · 1 mês · 1 filial | 114 | nenhuma |
+| C. Custo Principal · **caixa** · 1 mês · 1 filial | 114 | nenhuma |
+| Conta Gerencial · **caixa** · 1 mês · 1 filial | 222 | nenhuma |
+| Centro de Custo · competência · 1 mês · 3 filiais | cabeçalho, totalizadores e âncora | nenhuma |
+| | **2.952** | **41, todas de um centavo na MÉDIA** |
+
+Em toda célula conferida, a única diferença é a divergência nº 1 — coluna derivada, um
+centavo, mecanismo medido.
