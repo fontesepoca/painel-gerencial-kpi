@@ -697,3 +697,40 @@ O critério da 9815 **não é o database link**: ela também não oferece as qua
 não é movimento — a filial 35 está parada em julho e aparece na lista dela. Existe outro
 filtro na tela de pré-seleção que não mapeamos, provavelmente uma configuração própria.
 Não afeta a apuração; afeta só quais filiais cada tela oferece.
+
+### Fase 5 — quatro meses · 31/08/2026
+
+Cenário: **01/04 a 31/07/2026**, competência, filial 7, Grupo de Contas. Quatro meses, com
+análise horizontal marcada. **436 segundos.**
+
+| Colunas | Células | Divergências |
+|---|---:|---:|
+| abr, mai, jun, jul — Valor, `% AV`, `% AH` | 456 | 0 |
+| TOTAL — Valor, `% AV` | 76 | 0 |
+| TOTAL — `MÉDIA` | 38 | **2** |
+| | **570** | **2** |
+
+Contagem de linhas exata: 38 na exportação, 38 visíveis. As quatro colunas de `% AH`
+bateram, inclusive o `0,00` de abril, que não tem mês anterior — foi a primeira vez que
+testamos comparação horizontal encadeada por mais de um mês.
+
+#### A condição de empate da MÉDIA, refinada
+
+Com divisor 4, `MÉDIA = TOTAL ÷ 4` cai exatamente em `x,xx5` quando o total em centavos
+satisfaz **`T mod 4 = 2`** — não é "múltiplo ímpar de 0,25", como estimei antes de medir.
+
+| `T mod 4` | Linhas | Na MÉDIA |
+|---|---:|---|
+| 0 | 14 | divisão exata |
+| 1 e 3 | 17 | sobra além do meio-centavo — não empata |
+| **2** | **7** | **empate exato** |
+
+**As 2 divergências caíram nas 7 de empate; zero nas outras 31.** Foram
+`(=) RECEITAS LIQUIDAS` e `Acerto De Estoque`.
+
+A parte **estrutural** do mecanismo — divergência só em empate — se sustentou pela quarta
+medição independente. A parte **estatística** é mais frouxa: esperava-se metade dos empates,
+3,5, e vieram 2. Com sete casos isso é variação de moeda, não contradição.
+
+A taxa geral caiu como a previsão dizia: de ~20% com dois meses para **5,3%** com quatro.
+Quanto maior o divisor, mais raro o empate.
