@@ -64,8 +64,14 @@ public static class MontadorDre
         {
             var valores = periodos.Select((p, i) =>
             {
-                var valor = valoresPorMes[p.MesAno][indice];
-                var anterior = i == 0 ? (decimal?)null : valoresPorMes[periodos[i - 1].MesAno][indice];
+                // ARREDONDA AQUI, antes de somar. A 9815 leva cada mes para duas casas e
+                // depois totaliza; somar a precisao cheia e arredondar no fim da um centavo
+                // a mais em ABAT./DESC., por exemplo. Half-to-even e o padrao do .NET e e o
+                // que a rotina faz: media -1.477.974,065 vira ,06 e -110.608,085 vira ,08.
+                var valor = Arredondar(valoresPorMes[p.MesAno][indice]);
+                var anterior = i == 0
+                    ? (decimal?)null
+                    : Arredondar(valoresPorMes[periodos[i - 1].MesAno][indice]);
 
                 return new ValorMesDto(
                     MesAno: p.MesAno,
@@ -83,7 +89,7 @@ public static class MontadorDre
                 Valores: valores,
                 Total: new TotalLinhaDto(
                     Valor: somaPeriodo,
-                    Media: periodos.Count == 0 ? 0m : somaPeriodo / periodos.Count,
+                    Media: periodos.Count == 0 ? 0m : Arredondar(somaPeriodo / periodos.Count),
                     PercentualAv: CalcularAvTotal(l, somaPeriodo, faturamentoPorMes)),
                 Totalizadora: l.Estrutura.InfContas == "S",
                 Calculada: l.Calculada,
@@ -189,31 +195,55 @@ public static class MontadorDre
         return baseCalculo == 0m ? null : valor / baseCalculo * 100m;
     }
 
+    /// <summary>
+    /// `%AV` do bloco TOTAL.
+    ///
+    /// <para><b>As cinco deduções não têm `%AV` no total</b> — a 9815 deixa a célula em
+    /// branco ali, embora as preencha nas colunas de cada mês. Verificado na exportação de
+    /// dois meses: RECEITA BRUTA, ABAT./DESC., DEVOLUCAO, ST, PIS e COFINS vêm todas vazias
+    /// na coluna `% AV` do TOTAL, e o preenchimento começa em RECEITAS LIQUIDAS.</para>
+    /// </summary>
     private static decimal? CalcularAvTotal(
         LinhaEmMontagem l, decimal valor, IReadOnlyList<FaturamentoDre> meses)
     {
-        if (l.Rotulo == ReceitaBruta || meses.Count == 0) return null;
+        if (l.Rotulo == ReceitaBruta || BaseReceitaBruta.Contains(l.Rotulo) || meses.Count == 0)
+        {
+            return null;
+        }
 
-        var baseCalculo = BaseReceitaBruta.Contains(l.Rotulo)
-            ? meses.Sum(m => m.ReceitaBruta)
-            : meses.Sum(m => m.ReceitaLiquida);
-
+        var baseCalculo = meses.Sum(m => m.ReceitaLiquida);
         return baseCalculo == 0m ? null : valor / baseCalculo * 100m;
     }
 
     /// <summary>
-    /// Variação sobre o mês anterior. <c>null</c> no primeiro mês e quando o anterior é
-    /// zero — a 9815 deixa a célula em branco nesse caso, em vez de exibir infinito.
+    /// Variação sobre o mês anterior. Duas exceções, ambas conferidas na exportação de
+    /// dois meses:
+    ///
+    /// <list type="bullet">
+    ///   <item><b>Primeiro mês do período: zero</b>, não vazio. Não há com o que comparar,
+    ///         e a 9815 escreve `0,00` na coluna inteira.</item>
+    ///   <item><b>Mês anterior igual a zero: vazio.</b> `AJUSTE ESTOQUE ALMOXARIFADO` sai de
+    ///         0,00 para 43.490,64 e a célula fica em branco — divisão por zero vira
+    ///         ausência, não infinito. Já o caminho inverso tem valor: `Receitas
+    ///         Financeiras` cai de 477.269,87 para 0,00 e mostra (100,000).</item>
+    /// </list>
     /// </summary>
     private static decimal? CalcularAh(decimal valor, decimal? anterior)
     {
-        if (anterior is null || anterior.Value == 0m) return null;
+        if (anterior is null) return 0m;
+        if (anterior.Value == 0m) return null;
         return (valor / anterior.Value - 1m) * 100m;
     }
 
     private static bool EhNaoSoma(LinhaEmMontagem l) =>
         NaoSomamNoCabecalho.Contains(l.Rotulo) ||
         (!l.Calculada && l.Estrutura.AntesLl == "N");
+
+    /// <summary>
+    /// Duas casas, half-to-even — o padrao do .NET e o comportamento observado na 9815.
+    /// Aplicado ao valor de cada mes ANTES da soma, e a media depois da divisao.
+    /// </summary>
+    private static decimal Arredondar(decimal valor) => Math.Round(valor, 2);
 
     private static string Normalizar(string descricao) => descricao.Trim().ToUpperInvariant();
 

@@ -483,3 +483,45 @@ equivalente. A otimização está liberada, e com 4 meses o faturamento deixa de
 > **Se um dia essas colunas passarem a gravar hora**, essa equivalência cai — e a 9815
 > passaria a perder movimento na virada de cada mês. Vale reexecutar
 > `inc8_horas_nas_datas.sql` antes de confiar nesta seção em outra base ou outro período.
+
+---
+
+## 13. Arredondamento, `%AH` do primeiro mês e `%AV` do total
+
+Três comportamentos descobertos ao conferir o cenário de dois meses (01/06 a 31/07/2026)
+contra a exportação da 9815. Nenhum aparecia com um mês só.
+
+### O total soma os meses já arredondados
+
+A rotina leva **cada mês para duas casas antes de totalizar**. Somar a precisão cheia e
+arredondar no fim produz um centavo a mais:
+
+```
+ABAT./DESC.   mês 1  -3.485.531,6636  →  a 9815 usa  -3.485.531,66
+              mês 2  -4.033.440,4935  →              -4.033.440,49
+                                          soma dos arredondados = -7.518.972,15  ← a planilha
+              soma da precisão cheia = -7.518.972,1571 → arredonda para -7.518.972,16  ✗
+```
+
+O arredondamento é **half-to-even**, o padrão do `Math.Round` do .NET: a média
+`-1.477.974,065` vira `-1.477.974,06`, e `-110.608,085` vira `-110.608,08`. Meio-para-cima
+daria `,07` e `,09`.
+
+A média é `total ÷ nº de meses`, arredondada depois da divisão.
+
+### `%AH` do primeiro mês é zero, não vazio
+
+Não há mês anterior para comparar, mas a 9815 escreve `0,00` na coluna inteira do primeiro
+mês. Vazio fica reservado para outra situação:
+
+| Caso | `%AH` |
+|---|---|
+| Primeiro mês do período | `0,00` |
+| Mês anterior igual a zero | **vazio** — `AJUSTE ESTOQUE ALMOXARIFADO` sai de `0,00` para `43.490,64` e a célula fica em branco |
+| Mês atual zero, anterior não | `(100,000)` — `Receitas Financeiras` cai de `477.269,87` para `0,00` |
+
+### O bloco TOTAL não tem `%AV` nas deduções
+
+Nas colunas mensais, `ABAT./DESC.`, `DEVOLUCAO`, `ST`, `PIS` e `COFINS` têm `%AV` sobre a
+RECEITA BRUTA. **No bloco TOTAL, essas cinco vêm vazias** — o preenchimento começa em
+`RECEITAS LIQUIDAS`, junto com `RECEITA BRUTA`, que nunca exibe percentual.
