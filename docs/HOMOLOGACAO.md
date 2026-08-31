@@ -61,7 +61,7 @@ competência contra 129 em caixa.
 |---|---|---|
 | 1 mês, mês corrente parcial | ✅ | validado nos dois regimes |
 | 1 mês fechado (01/07 a 31/07) | ⬜ | sem lançamentos novos entrando |
-| 2 meses (01/06 a 31/07) | ⛔ | incremento 8 — colunas por mês e `%AH` |
+| 2 meses (01/06 a 31/07) | 🔄 | incremento 8 em andamento |
 | 4 meses | ⛔ | incremento 8; é o limite de uso citado pelo negócio |
 | Virada de mês (25/07 a 05/08) | ⛔ | incremento 8; testa o bucket `MES_ANO` |
 | Período sem movimento | ⬜ | tudo zerado, sem erro |

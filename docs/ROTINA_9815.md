@@ -458,3 +458,28 @@ Uma devolução foi ajustada e quase 24 mil em despesas foram lançados no inter
 >
 > Os incrementos 3 e 4 bateram ao centavo justamente porque a chamada veio logo após a
 > exportação.
+
+---
+
+## 12. A execução mensal do faturamento é otimizável — provado
+
+A 9815 roda a consulta de faturamento **uma vez por mês** do período. Trocar isso por uma
+passada única sobre o intervalo inteiro parecia otimização óbvia, mas havia motivo concreto
+para desconfiar: `DATE` no Oracle carrega hora, e o recorte mensal da rotina vai de
+`01/06 00:00` a `30/06 00:00` e de `01/07 00:00` a `31/07 00:00`. Uma venda em 30/06 às 14h
+não cairia em nenhum dos dois, enquanto a passada única a incluiria — e a diferença não seria
+desempenho, seria **número diferente**.
+
+Verificado em 28/08/2026, em duas frentes:
+
+| Verificação | Resultado |
+|---|---|
+| Hora nas colunas de data, no período (`docs/validacao/inc8_horas_nas_datas.sql`) | `DTSAIDA` 70.435 linhas · `DTENT` 13.245 · `DTPAGTO` 30.922 — **zero com hora** |
+| Duas execuções mensais somadas vs. uma única (`inc8_mensal_vs_periodo.sql`) | **zero divergências** |
+
+Como as colunas guardam sempre meia-noite, o recorte mensal é exato e a passada única é
+equivalente. A otimização está liberada, e com 4 meses o faturamento deixa de custar 4×.
+
+> **Se um dia essas colunas passarem a gravar hora**, essa equivalência cai — e a 9815
+> passaria a perder movimento na virada de cada mês. Vale reexecutar
+> `inc8_horas_nas_datas.sql` antes de confiar nesta seção em outra base ou outro período.
