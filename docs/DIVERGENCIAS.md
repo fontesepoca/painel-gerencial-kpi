@@ -87,6 +87,86 @@ No cenário de 7/12/25, nove centros de custo principais somem do bloco operacio
 `CD UBERLANDIA` e `POTENCIAL`. `Sub-Total`, `RESULTADO OPERACIONAL`,
 `Total das Despesas` e `LUCRO LIQUIDO` saem todos subestimados nessa medida.
 
+### Quais valores divergem, linha por linha
+
+Medido pela [inc9d](validacao/inc9d_quanto_a_9815_deixa_de_somar.sql) em 31/08/2026.
+Cenário: **01/06 a 31/07/2026, competência, filiais 7/12/25** — o mesmo da exportação de
+dois meses. São as linhas do bloco operacional que a 9815 **não mostra** nesse recorte:
+
+| Principal | Grupo | Lançamentos | Valor no período |
+|---|---|---:|---:|
+| 28 | TRANSPORTE T - (28) | 1.251 | **(1.575.853,48)** |
+| 41 | MANUTENÇÕES E CARRETAS | 267 | (494.687,18) |
+| 31 | DEPARTAMENTO PESSOAL - RAT | 106 | (150.867,42) |
+| 40 | CD MONTES CLAROS | 244 | (117.407,17) |
+| 27 | EQUIPE PASTA MISTA / ATACADO | 54 | (91.092,55) |
+| 39 | CD 3 CORAÇOES | 173 | (87.124,57) |
+| 30 | ECOMMERCE | 54 | (31.342,71) |
+| 37 | CD UBERLANDIA | 87 | (11.382,32) |
+| 34 | POTENCIAL | 33 | (4.305,97) |
+| | **Fora da 9815** | **2.269** | **(2.564.063,37)** |
+| | Bloco operacional que a 9815 mostra | 12.187 | (27.777.487,94) |
+| | Total real | 14.456 | (30.341.551,31) |
+
+`Sub-Total → Despesas Operacionais` exportado pela 9815 nesse cenário:
+**(27.823.344,79)**. A medição do que ela mostra deu (27.777.487,94) — **0,16% de folga
+não explicada**, provavelmente lançamentos posteriores ao retrato (ver armadilha 2 no
+fim deste arquivo). Não altera a ordem de grandeza: **8,4% da despesa operacional**.
+
+Nove linhas também somem do bloco depois do LUCRO LIQUIDO (`DIRETORIA`,
+`FINANCEIRO - RAT`, `SEGURANÇA`, `EQUIPE P&G`, `CD GOV VALADARES` e outras), mas ali
+**não há dinheiro envolvido**: a consulta de valores agrupa por conta depois do LUCRO
+LIQUIDO, não por centro de custo, então essas linhas sairiam zeradas de qualquer jeito.
+
+### O valor confirmado nas duas exportações
+
+`TRANSPORTE T - (28)`, o maior deles, foi conferido diretamente nos dois xlsx:
+
+| Filiais selecionadas | jun/2026 | jul/2026 | Total |
+|---|---:|---:|---:|
+| **7 e 12** | (664.912,50) | (910.940,98) | **(1.575.853,48)** |
+| **7, 12 e 25** | — | — | **linha não existe** |
+
+O total bate ao centavo com a medição independente das três filiais, o que prova que a
+filial 25 não contribui com nada nesse centro de custo. Marcar uma filial a mais apagou
+R$ 1,57 milhão.
+
+### O tamanho da divergência depende de qual filial sobra
+
+Da [inc9e](validacao/inc9e_previsao_por_filial.sql), mesmo período. Quais centros de
+custo principais **entram na estrutura** conforme a filial que sobrou na variável:
+
+| Principal | Grupo | com `'7'` | com `'12'` | com `'25'` |
+|---|---|:---:|:---:|:---:|
+| 27 | EQUIPE PASTA MISTA / ATACADO | ✅ | — | — |
+| 28 | TRANSPORTE T - (28) | ✅ | ✅ | — |
+| 30 | ECOMMERCE | ✅ | — | — |
+| 31 | DEPARTAMENTO PESSOAL - RAT | ✅ | — | — |
+| 33 | MERCHANDISING | — | — | ✅ |
+| 34 | POTENCIAL | ✅ | — | — |
+| 37 | CD UBERLANDIA | ✅ | — | — |
+| 38 | CD GOV VALADARES | ✅ | — | ✅ |
+| 39 | CD 3 CORAÇOES | ✅ | — | — |
+| 40 | CD MONTES CLAROS | ✅ | — | — |
+| 41 | MANUTENÇÕES E CARRETAS | ✅ | — | — |
+
+Os demais principais (10, 11, 12, 14 a 25, 29, 32, 36, 80 a 99) entram nos três casos.
+
+**Nenhuma das três filiais produz o conjunto completo.** Com `'7'` falta só
+`MERCHANDISING`; com `'25'` faltam nove; com `'12'`, dez. O relatório que o usuário vê
+depende de qual filial o Delphi guardou por último — não de quais ele marcou.
+
+### O que ainda não está medido
+
+Para não confundir o que foi conferido com o que foi deduzido:
+
+- Os valores da tabela acima são do recorte de **três filiais**. Não medimos, linha por
+  linha, quanto cada uma dessas nove linhas vale no recorte de 7 e 12 — só
+  `TRANSPORTE T - (28)`, que veio da exportação.
+- Não medimos o efeito nas dimensões de **Centro de Custo simples**, onde a granularidade
+  é o centro de custo inteiro e o defeito é muito maior. Falta referência (divergência nº 3).
+- A folga de 0,16% na conferência do Sub-Total continua sem explicação fechada.
+
 ### Por que não foi replicado
 
 Diferente dos outros defeitos da 9815, este **não é uma função**: o resultado depende
