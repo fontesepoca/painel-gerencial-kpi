@@ -452,3 +452,6 @@ Thumbs.db
 
 # Claude Code — configuracao local da maquina
 .claude/settings.local.json
+
+# Saida de conferencia da Fase 4 — gerada por curl, nao versionar
+apuracao.json

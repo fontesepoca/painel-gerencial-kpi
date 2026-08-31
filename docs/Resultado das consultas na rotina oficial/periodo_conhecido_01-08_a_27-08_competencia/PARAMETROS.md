@@ -40,3 +40,12 @@ hora. A base é produção viva.
 
 **Protocolo daqui em diante:** feche e reabra a 9815 antes de exportar, e faça a chamada da
 API logo em seguida. Ver `docs/ROTINA_9815.md` §11.
+
+## Referência do incremento 5b — 28/08/2026
+
+`REFERENCIA-inc5b-com-zeradas.xlsx` — exportada com a 9815 recém-reaberta, **com** contas
+zeradas, e comparada contra `POST /api/dre-gerencial/apuracao` chamado minutos depois.
+
+**Resultado: 123 linhas, zero divergência de valor e zero de `%AV`.**
+
+Cobre os quatro totalizadores, as duas bases do `%AV`, o bloco informativo e as contas órfãs.

@@ -325,7 +325,7 @@ Em incrementos revisáveis, um por vez:
 | 5a | Contas órfãs na estrutura | ✅ **conferido em 28/08/2026** — zero divergências contra o SQL original, e 123 linhas contra as 123 da exportação limpa (§11) |
 | 3 | Despesas (`GetValorGrupo`) | ✅ **conferido em 28/08/2026** — as 15 linhas batem ao centavo, incluindo o bloco de contas órfãs |
 | 4 | Faturamento e CMV | ✅ **conferido em 28/08/2026** — as 9 colunas batem ao centavo |
-| 5 | Montagem do DRE completo | os 6 cenários batem linha a linha |
+| 5b | Montagem do DRE completo | ✅ **conferido em 28/08/2026** — 123 linhas, zero divergência de valor e de %AV, contra exportação com parâmetros e horário conhecidos |
 | 6 | Filtros na tela | — |
 | 7 | Tabela | comparação visual com o print |
 | 8 | Multi-mês, `AV` e `AH` | cenário de 2 meses bate |
