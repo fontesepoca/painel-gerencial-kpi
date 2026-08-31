@@ -488,3 +488,27 @@ Um ponto para quem conhece a operação olhar: dezenas de linhas se chamam `VEND
 `INATIVO`, `SUCATA`, `DISPONIVEL` — centros de custo de veículos já baixados. Quase todas
 vêm zeradas, mas `2201.002 GTK7007 F27 FOI P/ 2201.017` indica migração de código em algum
 momento, e só quem opera sabe se o histórico ficou correto.
+
+### Regime de caixa validado em C. Custo Principal — 31/08/2026
+
+Cenário: 01/07 a 31/07/2026, **caixa**, filial 7 sozinha. Escolhido para isolar a variável:
+com uma filial não existe a divergência nº 2, e com um mês não existe a nº 1. Qualquer
+diferença aqui só poderia vir do regime.
+
+| | |
+|---|---|
+| Linhas comparadas | 57 |
+| Células (valor e `% AV`) | 114 |
+| **Divergências** | **0** |
+| Linhas visíveis na API | 57 — a mesma contagem da exportação |
+
+O regime muda **três** expressões de data, e as três foram exercitadas de uma vez:
+
+| Expressão | Onde | Em caixa |
+|---|---|---|
+| `ExpressaoBucket` | mês da coluna | `nvl(DTPAGTO, DTVENC)` |
+| `ExpressaoFiltro` | período das despesas | `nvl(DTPAGTO, DTVENC)` |
+| `ExpressaoFiltroEstrutura` | órfãs e o subselect `CCC` | `DTPAGTO` **puro, sem o nvl** |
+
+A terceira é a mais fácil de errar, porque difere da segunda. Era a única das três que ainda
+não tinha sido exercitada fora de Grupo de Contas.
