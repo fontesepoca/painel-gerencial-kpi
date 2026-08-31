@@ -14,25 +14,31 @@ public interface IDreGerencialRepository
     Task<IReadOnlyList<Filial>> ObterFiliaisAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Estrutura de linhas do DRE para a análise Grupo de Contas, incluindo as contas
-    /// órfãs do período — as que dão rótulo ao bloco final do relatório.
+    /// Estrutura de linhas do DRE na dimensão pedida, incluindo as contas órfãs do
+    /// período — as que dão rótulo ao bloco final do relatório.
     /// </summary>
-    Task<IReadOnlyList<LinhaEstruturaDre>> ObterEstruturaGrupoDeContasAsync(
+    /// <param name="analise">
+    /// Precisa estar implementada. Cada dimensão tem um SQL próprio na 9815, não é um
+    /// parâmetro do mesmo SQL.
+    /// </param>
+    Task<IReadOnlyList<LinhaEstruturaDre>> ObterEstruturaAsync(
         IReadOnlyList<string> filiais,
         DateOnly dataInicio,
         DateOnly dataFim,
         RegimeDre regime,
+        AnaliseDre analise,
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Despesas do período agregadas por grupo e mês, para a análise Grupo de Contas.
-    /// Replica o `GetValorGrupo` da 9815 — SQL validado contra o original.
+    /// Despesas do período agregadas pela chave da dimensão e por mês. Replica o
+    /// `GetValorGrupo` da 9815 — SQL validado contra o original.
     /// </summary>
-    Task<IReadOnlyList<DespesaDre>> ObterDespesasGrupoDeContasAsync(
+    Task<IReadOnlyList<DespesaDre>> ObterDespesasAsync(
         IReadOnlyList<string> filiais,
         DateOnly dataInicio,
         DateOnly dataFim,
         RegimeDre regime,
+        AnaliseDre analise,
         CancellationToken cancellationToken = default);
 
     /// <summary>

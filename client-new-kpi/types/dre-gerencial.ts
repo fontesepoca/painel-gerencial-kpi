@@ -80,9 +80,29 @@ export const REGIMES: ReadonlyArray<{ valor: Regime; rotulo: string }> = [
   { valor: "caixa", rotulo: "Caixa" },
 ];
 
-export const ANALISES: ReadonlyArray<{ valor: Analise; rotulo: string; pronta: boolean }> = [
+/**
+ * Espelha `AnaliseDre` da API. `pronta` reflete `Implementada` lá — se divergir, o filtro
+ * oferece uma dimensão que a API recusa.
+ *
+ * `divergencia` marca a dimensão que **não bate com a 9815 de propósito**: a rotina antiga
+ * descobre os centros de custo olhando uma filial só e com isso apaga linhas do relatório.
+ * Ver `docs/DIVERGENCIAS.md` nº 2.
+ */
+export const ANALISES: ReadonlyArray<{
+  valor: Analise;
+  rotulo: string;
+  pronta: boolean;
+  divergencia?: string;
+}> = [
   { valor: "grupo-contas", rotulo: "Grupo de Contas", pronta: true },
   { valor: "conta-gerencial", rotulo: "Conta Gerencial", pronta: false },
-  { valor: "ccusto-principal", rotulo: "C. Custo Principal", pronta: false },
+  {
+    valor: "ccusto-principal",
+    rotulo: "C. Custo Principal",
+    pronta: true,
+    divergencia:
+      "Com mais de uma filial, mostra centros de custo que a 9815 deixa de fora. " +
+      "Com uma filial só, os números são idênticos.",
+  },
   { valor: "centro-custo", rotulo: "Centro de Custo", pronta: false },
 ];

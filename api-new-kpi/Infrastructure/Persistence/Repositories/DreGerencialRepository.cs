@@ -31,11 +31,12 @@ public sealed class DreGerencialRepository : IDreGerencialRepository
         return filiais.ToList();
     }
 
-    public async Task<IReadOnlyList<LinhaEstruturaDre>> ObterEstruturaGrupoDeContasAsync(
+    public async Task<IReadOnlyList<LinhaEstruturaDre>> ObterEstruturaAsync(
         IReadOnlyList<string> filiais,
         DateOnly dataInicio,
         DateOnly dataFim,
         RegimeDre regime,
+        AnaliseDre analise,
         CancellationToken cancellationToken = default)
     {
         if (filiais.Count == 0)
@@ -43,26 +44,65 @@ public sealed class DreGerencialRepository : IDreGerencialRepository
             return [];
         }
 
-        var placeholders = string.Join(", ", filiais.Select((_, i) => $":filial{i}"));
-
-        // ExpressaoFiltroEstrutura, nao ExpressaoFiltro: o bloco de orfas usa
-        // FIN.DTPAGTO puro em caixa, enquanto o GetValorGrupo usa nvl(DTPAGTO,DTVENC).
-        var sql = string.Format(
-            DreGerencialQueries.EstruturaGrupoDeContas,
-            placeholders,
-            regime.ExpressaoFiltroEstrutura);
+        if (analise.SqlEstrutura is null)
+        {
+            throw new InvalidOperationException(
+                $"A análise '{analise.Codigo}' não tem consulta de estrutura. " +
+                "O serviço deve barrar dimensões não implementadas antes de chegar aqui.");
+        }
 
         var inicio = dataInicio.ToDateTime(TimeOnly.MinValue);
         var fim = dataFim.ToDateTime(TimeOnly.MinValue);
-
-        // Filiais primeiro, depois as datas — a ordem em que os binds aparecem no SQL.
         var parametros = new DynamicParameters();
-        for (var i = 0; i < filiais.Count; i++)
+        string sql;
+
+        // ExpressaoFiltroEstrutura, nao ExpressaoFiltro: o bloco de orfas usa
+        // FIN.DTPAGTO puro em caixa, enquanto o GetValorGrupo usa nvl(DTPAGTO,DTVENC).
+        if (analise.EstruturaTemDoisBlocosDeFilial)
         {
-            parametros.Add($"filial{i}", filiais[i]);
+            // Dimensoes de centro de custo: a lista de filiais aparece duas vezes — no
+            // subselect que descobre os centros de custo e no bloco de orfas. Com bind
+            // posicional, reusar os mesmos nomes daria um parametro so para duas posicoes.
+            var placeholdersA = string.Join(", ", filiais.Select((_, i) => $":filialA{i}"));
+            var placeholdersB = string.Join(", ", filiais.Select((_, i) => $":filialB{i}"));
+
+            sql = string.Format(
+                analise.SqlEstrutura,
+                placeholdersA,
+                regime.ExpressaoFiltroEstrutura,
+                placeholdersB);
+
+            // A ORDEM DOS Add TEM QUE SER ESTA — e a ordem dos binds no SQL.
+            for (var i = 0; i < filiais.Count; i++)
+            {
+                parametros.Add($"filialA{i}", filiais[i]);
+            }
+            parametros.Add("dtIniA", inicio);
+            parametros.Add("dtFimA", fim);
+            for (var i = 0; i < filiais.Count; i++)
+            {
+                parametros.Add($"filialB{i}", filiais[i]);
+            }
+            parametros.Add("dtIniB", inicio);
+            parametros.Add("dtFimB", fim);
         }
-        parametros.Add("dtIni", inicio);
-        parametros.Add("dtFim", fim);
+        else
+        {
+            var placeholders = string.Join(", ", filiais.Select((_, i) => $":filial{i}"));
+
+            sql = string.Format(
+                analise.SqlEstrutura,
+                placeholders,
+                regime.ExpressaoFiltroEstrutura);
+
+            // Filiais primeiro, depois as datas — a ordem em que os binds aparecem no SQL.
+            for (var i = 0; i < filiais.Count; i++)
+            {
+                parametros.Add($"filial{i}", filiais[i]);
+            }
+            parametros.Add("dtIni", inicio);
+            parametros.Add("dtFim", fim);
+        }
 
         using var conexao = await _conexoes.CriarConexaoAsync(cancellationToken);
 
@@ -78,16 +118,24 @@ public sealed class DreGerencialRepository : IDreGerencialRepository
         return linhas.ToList();
     }
 
-    public async Task<IReadOnlyList<DespesaDre>> ObterDespesasGrupoDeContasAsync(
+    public async Task<IReadOnlyList<DespesaDre>> ObterDespesasAsync(
         IReadOnlyList<string> filiais,
         DateOnly dataInicio,
         DateOnly dataFim,
         RegimeDre regime,
+        AnaliseDre analise,
         CancellationToken cancellationToken = default)
     {
         if (filiais.Count == 0)
         {
             return [];
+        }
+
+        if (analise.SqlDespesas is null)
+        {
+            throw new InvalidOperationException(
+                $"A análise '{analise.Codigo}' não tem consulta de despesas. " +
+                "O serviço deve barrar dimensões não implementadas antes de chegar aqui.");
         }
 
         // Dois conjuntos de placeholders porque a lista de filiais aparece duas vezes no
@@ -97,7 +145,7 @@ public sealed class DreGerencialRepository : IDreGerencialRepository
         var placeholdersB = string.Join(", ", filiais.Select((_, i) => $":filialB{i}"));
 
         var sql = string.Format(
-            DreGerencialQueries.DespesasGrupoDeContas,
+            analise.SqlDespesas,
             placeholdersA,
             regime.ExpressaoBucket,
             regime.ExpressaoFiltro,

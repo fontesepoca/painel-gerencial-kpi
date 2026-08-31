@@ -9,12 +9,6 @@ namespace Epoca.Kpi.Api.Application.Features.DreGerencial;
 /// </summary>
 public sealed class DreGerencialService
 {
-    /// <summary>Dimensões do combo "Análise" da 9815.</summary>
-    public const string AnaliseGrupoDeContas = "grupo-contas";
-
-    private static readonly string[] AnalisesConhecidas =
-        [AnaliseGrupoDeContas, "conta-gerencial", "ccusto-principal", "centro-custo"];
-
     private readonly IDreGerencialRepository _repositorio;
 
     public DreGerencialService(IDreGerencialRepository repositorio) => _repositorio = repositorio;
@@ -39,7 +33,7 @@ public sealed class DreGerencialService
     /// <summary>
     /// Estrutura de linhas do DRE, já com as contas órfãs do período. Precisa de filiais,
     /// período e regime porque o bloco de órfãs varre `PCLANC`.
-    /// Cada dimensão tem seu próprio SQL na 9815; só Grupo de Contas está implementada.
+    /// Cada dimensão tem seu próprio SQL na 9815 — ver <see cref="AnaliseDre"/>.
     /// </summary>
     public async Task<Result<IReadOnlyList<LinhaEstruturaDto>>> ObterEstruturaAsync(
         DespesasFiltroDto filtro,
@@ -58,21 +52,21 @@ public sealed class DreGerencialService
                 $"Regime '{filtro.Regime}' não existe.");
         }
 
-        if (!AnalisesConhecidas.Contains(filtro.Analise))
+        var analise = AnaliseDre.Resolver(filtro.Analise);
+        if (analise is null)
         {
             return Result<IReadOnlyList<LinhaEstruturaDto>>.Invalido(
-                $"Análise '{filtro.Analise}' não existe. Valores aceitos: {string.Join(", ", AnalisesConhecidas)}.");
+                MensagemAnaliseInexistente(filtro.Analise));
         }
 
-        if (filtro.Analise != AnaliseGrupoDeContas)
+        if (!analise.Implementada)
         {
             return Result<IReadOnlyList<LinhaEstruturaDto>>.Invalido(
-                $"A análise '{filtro.Analise}' ainda não foi implementada. " +
-                "Na 9815 cada dimensão tem uma consulta de estrutura própria.");
+                MensagemAnaliseNaoImplementada(analise));
         }
 
-        var linhas = await _repositorio.ObterEstruturaGrupoDeContasAsync(
-            filtro.Filiais, filtro.DataInicio, filtro.DataFim, regime, cancellationToken);
+        var linhas = await _repositorio.ObterEstruturaAsync(
+            filtro.Filiais, filtro.DataInicio, filtro.DataFim, regime, analise, cancellationToken);
 
         var dtos = linhas
             .Select(l => new LinhaEstruturaDto(
@@ -93,8 +87,8 @@ public sealed class DreGerencialService
     }
 
     /// <summary>
-    /// Despesas do período. Só Grupo de Contas por enquanto — cada dimensão tem sua
-    /// própria expressão de agrupamento na 9815.
+    /// Despesas do período. Cada dimensão tem sua própria expressão de agrupamento
+    /// na 9815 — ver <see cref="AnaliseDre"/>.
     /// </summary>
     public async Task<Result<IReadOnlyList<DespesaDto>>> ObterDespesasAsync(
         DespesasFiltroDto filtro,
@@ -126,14 +120,21 @@ public sealed class DreGerencialService
                 $"{string.Join(", ", RegimeDre.Todos.Select(r => r.Codigo))}.");
         }
 
-        if (filtro.Analise != AnaliseGrupoDeContas)
+        var analise = AnaliseDre.Resolver(filtro.Analise);
+        if (analise is null)
         {
             return Result<IReadOnlyList<DespesaDto>>.Invalido(
-                $"A análise '{filtro.Analise}' ainda não foi implementada.");
+                MensagemAnaliseInexistente(filtro.Analise));
         }
 
-        var despesas = await _repositorio.ObterDespesasGrupoDeContasAsync(
-            filtro.Filiais, filtro.DataInicio, filtro.DataFim, regime, cancellationToken);
+        if (!analise.Implementada)
+        {
+            return Result<IReadOnlyList<DespesaDto>>.Invalido(
+                MensagemAnaliseNaoImplementada(analise));
+        }
+
+        var despesas = await _repositorio.ObterDespesasAsync(
+            filtro.Filiais, filtro.DataInicio, filtro.DataFim, regime, analise, cancellationToken);
 
         var dtos = despesas
             .Select(d => new DespesaDto(
@@ -182,6 +183,13 @@ public sealed class DreGerencialService
         return Result<IReadOnlyList<FaturamentoDto>>.Ok(dtos);
     }
 
+    private static string MensagemAnaliseInexistente(string? codigo) =>
+        $"Análise '{codigo}' não existe. Valores aceitos: {AnaliseDre.CodigosAceitos}.";
+
+    private static string MensagemAnaliseNaoImplementada(AnaliseDre analise) =>
+        $"A análise '{analise.Rotulo}' ainda não foi implementada. " +
+        "Na 9815 cada dimensão tem consultas próprias de estrutura e de despesas.";
+
     /// <summary>Validações comuns a período e filiais. Devolve a mensagem, ou null.</summary>
     private static string? ValidarPeriodoEFiliais(DespesasFiltroDto filtro)
     {
@@ -229,26 +237,24 @@ public sealed class DreGerencialService
                 $"{string.Join(", ", RegimeDre.Todos.Select(r => r.Codigo))}.");
         }
 
-        if (!AnalisesConhecidas.Contains(filtro.Analise))
+        var analise = AnaliseDre.Resolver(filtro.Analise);
+        if (analise is null)
         {
-            return Result<ApuracaoDto>.Invalido(
-                $"Análise '{filtro.Analise}' não existe. Valores aceitos: " +
-                $"{string.Join(", ", AnalisesConhecidas)}.");
+            return Result<ApuracaoDto>.Invalido(MensagemAnaliseInexistente(filtro.Analise));
         }
 
-        if (filtro.Analise != AnaliseGrupoDeContas)
+        if (!analise.Implementada)
         {
-            return Result<ApuracaoDto>.Invalido(
-                $"A análise '{filtro.Analise}' ainda não foi implementada.");
+            return Result<ApuracaoDto>.Invalido(MensagemAnaliseNaoImplementada(analise));
         }
 
         var cronometro = System.Diagnostics.Stopwatch.StartNew();
 
-        var estrutura = await _repositorio.ObterEstruturaGrupoDeContasAsync(
-            filtro.Filiais, filtro.DataInicio, filtro.DataFim, regime, cancellationToken);
+        var estrutura = await _repositorio.ObterEstruturaAsync(
+            filtro.Filiais, filtro.DataInicio, filtro.DataFim, regime, analise, cancellationToken);
 
-        var despesas = await _repositorio.ObterDespesasGrupoDeContasAsync(
-            filtro.Filiais, filtro.DataInicio, filtro.DataFim, regime, cancellationToken);
+        var despesas = await _repositorio.ObterDespesasAsync(
+            filtro.Filiais, filtro.DataInicio, filtro.DataFim, regime, analise, cancellationToken);
 
         var faturamento = await _repositorio.ObterFaturamentoPorMesAsync(
             filtro.Filiais, filtro.DataInicio, filtro.DataFim, cancellationToken);

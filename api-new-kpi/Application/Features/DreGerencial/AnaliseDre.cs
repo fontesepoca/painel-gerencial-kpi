@@ -1,0 +1,77 @@
+using Epoca.Kpi.Api.Infrastructure.Persistence.Queries;
+
+namespace Epoca.Kpi.Api.Application.Features.DreGerencial;
+
+/// <summary>
+/// Dimensão do combo "Análise" da 9815. Cada uma tem **suas próprias consultas** de
+/// estrutura e de despesas — não é um parâmetro do mesmo SQL, são SQLs diferentes.
+///
+/// <para>
+/// Os dois templates são <b>trechos de SQL constantes desta classe</b>, nunca entrada do
+/// usuário: o código da análise é resolvido contra <see cref="Todas"/> antes de chegar aqui.
+/// </para>
+/// </summary>
+public sealed record AnaliseDre(
+    string Codigo,
+    string Rotulo,
+    string? SqlEstrutura,
+    string? SqlDespesas,
+    bool EstruturaTemDoisBlocosDeFilial)
+{
+    /// <summary>Dimensão pronta e validada contra a 9815.</summary>
+    public bool Implementada => SqlEstrutura is not null && SqlDespesas is not null;
+
+    /// <summary>
+    /// A dimensão-molde: validada ao centavo em 28/08/2026, 1305 células comparadas.
+    /// </summary>
+    public static readonly AnaliseDre GrupoDeContas = new(
+        Codigo: "grupo-contas",
+        Rotulo: "Grupo de Contas",
+        SqlEstrutura: DreGerencialQueries.EstruturaGrupoDeContas,
+        SqlDespesas: DreGerencialQueries.DespesasGrupoDeContas,
+        EstruturaTemDoisBlocosDeFilial: false);
+
+    /// <summary>
+    /// Agrupa pelos dois primeiros dígitos do centro de custo.
+    ///
+    /// <para><b>Diverge da 9815 de propósito</b> — a rotina descobre os centros de custo
+    /// olhando uma filial só, e com isso apaga linhas do relatório. Aqui a lista é completa.
+    /// Ver `docs/DIVERGENCIAS.md` nº 2.</para>
+    /// </summary>
+    public static readonly AnaliseDre CCustoPrincipal = new(
+        Codigo: "ccusto-principal",
+        Rotulo: "C. Custo Principal",
+        SqlEstrutura: DreGerencialQueries.EstruturaCCustoPrincipal,
+        SqlDespesas: DreGerencialQueries.DespesasCCustoPrincipal,
+        EstruturaTemDoisBlocosDeFilial: true);
+
+    /// <summary>Ainda não implementada — precisa de `TIPOCONTA`, de `PCCONTA.FIXAVARIAVEL`.</summary>
+    public static readonly AnaliseDre ContaGerencial = new(
+        Codigo: "conta-gerencial",
+        Rotulo: "Conta Gerencial",
+        SqlEstrutura: null,
+        SqlDespesas: null,
+        EstruturaTemDoisBlocosDeFilial: false);
+
+    /// <summary>
+    /// Ainda não implementada. É a dimensão que **nunca funcionou** na 9815, e por isso a
+    /// única sem resultado antigo para comparar. Ver `docs/DIVERGENCIAS.md` nº 3.
+    /// </summary>
+    public static readonly AnaliseDre CentroCusto = new(
+        Codigo: "centro-custo",
+        Rotulo: "Centro de Custo",
+        SqlEstrutura: null,
+        SqlDespesas: null,
+        EstruturaTemDoisBlocosDeFilial: false);
+
+    /// <summary>Na ordem do combo da 9815.</summary>
+    public static readonly IReadOnlyList<AnaliseDre> Todas =
+        [GrupoDeContas, ContaGerencial, CCustoPrincipal, CentroCusto];
+
+    /// <summary>Resolve o código vindo da API. Devolve <c>null</c> se não existir.</summary>
+    public static AnaliseDre? Resolver(string? codigo) =>
+        Todas.FirstOrDefault(a => string.Equals(a.Codigo, codigo, StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>Os códigos aceitos, para mensagem de erro.</summary>
+    public static string CodigosAceitos => string.Join(", ", Todas.Select(a => a.Codigo));
+}
