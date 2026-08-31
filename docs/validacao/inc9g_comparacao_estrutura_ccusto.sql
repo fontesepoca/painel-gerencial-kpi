@@ -193,3 +193,19 @@ SELECT 'so na ORIGINAL' AS ONDE, o.* FROM (SELECT * FROM original MINUS SELECT *
  UNION ALL
 SELECT 'so na ADAPTADA' AS ONDE, a.* FROM (SELECT * FROM adaptada MINUS SELECT * FROM original) a
  ORDER BY 1, 2, 3
+
+-- ============================================================================
+-- RESULTADO - 31/08/2026: ZERO LINHAS.
+--
+-- As quatro adaptacoes sao equivalentes a original: os blocos de orfas
+-- unificados, o NVL(...,'99') no lugar de NVL(...,99), a remocao da coluna
+-- morta AntesRA e o ID fora da comparacao.
+--
+-- O QUE ISSO PROVA: a consulta de ESTRUTURA, com filial 7, competencia,
+-- 01/06 a 31/07/2026.
+--
+-- O QUE NAO PROVA: a consulta de DESPESAS, o regime de caixa, e a montagem
+-- da tela. Isso so fecha comparando a apuracao inteira contra uma exportacao
+-- da 9815 no mesmo cenario de UMA FILIAL - onde a divergencia aprovada nao
+-- existe e os numeros tem que bater ao centavo.
+-- ============================================================================
