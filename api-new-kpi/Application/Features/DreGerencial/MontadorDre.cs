@@ -48,6 +48,13 @@ public static class MontadorDre
             .GroupBy(d => (d.GrupoConta, d.AntesRo, d.AntesLl, d.AntesLf, d.MesAno))
             .ToDictionary(g => g.Key, g => g.Sum(d => d.VlRealizado));
 
+        // Quantos lancamentos cada linha tem no periodo inteiro. E o que decide se a linha
+        // aparece com "Mostrar Contas Zeradas" desmarcada — a 9815 esconde por AUSENCIA DE
+        // MOVIMENTO, nao por valor zero. Sem o mes na chave: a visibilidade e da linha.
+        var qtdDespesa = despesas
+            .GroupBy(d => (d.GrupoConta, d.AntesRo, d.AntesLl, d.AntesLf))
+            .ToDictionary(g => g.Key, g => g.Sum(d => d.QdeReg));
+
         var faturamento = faturamentoPorMes.ToDictionary(f => f.MesAno);
 
         var linhas = estrutura
@@ -94,6 +101,10 @@ public static class MontadorDre
                 Totalizadora: l.Estrutura.InfContas == "S",
                 Calculada: l.Calculada,
                 NaoSoma: EhNaoSoma(l),
+                // Calculada aparece sempre: cabecalho e totalizadores nao dependem de movimento.
+                SemMovimento: !l.Calculada && qtdDespesa.GetValueOrDefault(
+                    (l.Estrutura.CodGruConta, l.Estrutura.AntesRo,
+                     l.Estrutura.AntesLl, l.Estrutura.AntesLf)) == 0,
                 Zerada: valores.All(v => v.Valor == 0m),
                 Cor: CorDelphi.ParaCss(l.Estrutura.Cor));
         }).ToList();

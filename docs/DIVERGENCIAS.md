@@ -313,3 +313,22 @@ valendo para períodos de mais de um mês.
 
 Antes disso, a [inc9g](validacao/inc9g_comparacao_estrutura_ccusto.sql) já havia provado no
 banco que a consulta de estrutura adaptada é equivalente à original nesse mesmo recorte.
+
+### O critério de esconder linha é movimento, não valor
+
+Conferido em 31/08/2026, no mesmo cenário. A 9815 **não** esconde linha por valor zero —
+esconde por **não ter lançamento no período**:
+
+| Linha | Valor | Lançamentos | A 9815 |
+|---|---:|---:|---|
+| DESCONTO FUNCIONÁRIOS | 0,00 | 16 | **mostra** |
+| CONTRATO DE MUTUO | 0,00 | 18 | **mostra** |
+| ALFALOG, VENDAS UNILEVER, RECEITAS NÃO OPERACIONAIS, RECEITA COM VERBAS | 0,00 | 0 | esconde |
+
+Fecha na contagem: a consulta de despesas devolve **44 linhas com movimento**, e a
+exportação tem **57** — as 44 mais as 13 calculadas (9 de cabeçalho, 4 totalizadores).
+Nenhuma sobra.
+
+A web usava valor zero como critério e escondia as duas primeiras. Corrigido: a linha do
+DRE carrega `semMovimento`, somando os lançamentos do período, e é esse campo que o
+filtro "Mostrar contas zeradas" usa. Linha calculada aparece sempre.

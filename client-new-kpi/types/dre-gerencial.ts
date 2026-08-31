@@ -57,6 +57,12 @@ export interface LinhaDre {
   calculada: boolean;
   /** Não entra em totalizador: as 3 informativas e o bloco pós-LUCRO LIQUIDO. */
   naoSoma: boolean;
+  /**
+   * Nenhum lançamento no período — é isto que a 9815 esconde, e **não** valor zero.
+   * `DESCONTO FUNCIONÁRIOS` sai com 0,00 e 16 lançamentos, e ela mostra.
+   */
+  semMovimento: boolean;
+  /** Zero em todos os meses. Não decide visibilidade. */
   zerada: boolean;
   /** `#RRGGBB` vindo do `TColor` do Delphi, já convertido. */
   cor: string | null;

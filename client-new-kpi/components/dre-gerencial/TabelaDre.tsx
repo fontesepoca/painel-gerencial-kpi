@@ -13,7 +13,9 @@ export function TabelaDre({
   linhas: LinhaDre[];
   mostrarZeradas: boolean;
 }) {
-  const visiveis = mostrarZeradas ? linhas : linhas.filter((l) => !l.zerada);
+  // Esconde por AUSÊNCIA DE MOVIMENTO, não por valor zero — é o critério da 9815.
+  // `DESCONTO FUNCIONÁRIOS` fecha em 0,00 com 16 lançamentos e continua na tela.
+  const visiveis = mostrarZeradas ? linhas : linhas.filter((l) => !l.semMovimento);
 
   if (visiveis.length === 0) {
     return (

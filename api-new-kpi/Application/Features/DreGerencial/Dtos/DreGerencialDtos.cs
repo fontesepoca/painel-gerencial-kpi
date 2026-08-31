@@ -89,7 +89,19 @@ public record LinhaDreDto(
     bool Calculada,
     /// <summary>Não entra em totalizador: as 3 informativas e o bloco pós-LUCRO LIQUIDO.</summary>
     bool NaoSoma,
-    /// <summary>Zero em todos os meses. A 9815 esconde estas sem `Mostrar Contas Zeradas`.</summary>
+    /// <summary>
+    /// Nenhum lançamento no período. É este o critério que a 9815 usa para esconder linha
+    /// sem "Mostrar Contas Zeradas" — <b>não</b> é valor zero.
+    ///
+    /// <para>Conferido em 31/08/2026: `DESCONTO FUNCIONÁRIOS` sai com 0,00 e 16 lançamentos,
+    /// `CONTRATO DE MUTUO` com 0,00 e 18, e a 9815 mostra as duas. `ALFALOG` e
+    /// `VENDAS UNILEVER`, sem lançamento nenhum, ela esconde. As 44 linhas com movimento
+    /// mais as 13 calculadas dão exatamente as 57 da exportação.</para>
+    ///
+    /// <para>Linha calculada nunca é escondida: cabeçalho e totalizadores aparecem sempre.</para>
+    /// </summary>
+    bool SemMovimento,
+    /// <summary>Zero em todos os meses. Não decide visibilidade — ver <see cref="SemMovimento"/>.</summary>
     bool Zerada,
     string? Cor);
 
