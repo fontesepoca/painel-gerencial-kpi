@@ -62,7 +62,7 @@ Rota **`/dre-gerencial`**. Sem login, a raiz redireciona direto para ela.
 
 | Filtro | Controle | Origem dos valores |
 |---|---|---|
-| **Filial** | multisseleção | `GET /api/dre-gerencial/filiais` — **as 18**, ordenadas por `ORDEM_PROCESSA` |
+| **Filial** | multisseleção | `GET /api/dre-gerencial/filiais` — **as 13 apuráveis**, ordenadas por `ORDEM_PROCESSA` |
 | **Regime** | seleção única | Competência (padrão) · Caixa |
 | **Tipo de Análise** | seleção única | Grupo de Contas (padrão) · Conta Gerencial · C.Custo Principal · Centro de Custo |
 | **Período** | intervalo de datas | com atalhos: Ontem · Mês Passado · Últimos 3 Meses · Ano Passado |
@@ -137,6 +137,10 @@ Popula o filtro Filial. Sem parâmetros.
 `empresa` é `EMPRESA.DESCRICAO` — o nome exibido no filtro. `empresaCodigo` é a chave
 numérica, útil para agrupar sem depender do texto. ✅ **Implementado e conferido em
 28/08/2026: 18 filiais, de `EPC-MAT` (ordem 0) a `EPC-TRANSP` (ordem 31).**
+
+> **Desde 31/08/2026 são 13.** Cinco têm os dados em outra base — `DBLEPCTI` preenchido,
+> que é database link — e apurá-las aqui devolveria zero falso. Ver `docs/DIVERGENCIAS.md`,
+> seção do filtro de filiais, com o motivo e como reverter.
 
 **`codFilial` é `string`, não número.** Em todo o trace da 9815 o código aparece entre aspas
 (`CODFILIAL IN ('7','12','25')`) e no Winthor a coluna é `VARCHAR2`. Converter para inteiro
@@ -321,7 +325,7 @@ Nenhuma dessas mexe em regra de cálculo. Qualquer uma que altere um centavo é 
 
 | Winthor | Web |
 |---|---|
-| Tela de pré-seleção de filiais antes de abrir | seleção no próprio filtro, com as 18 |
+| Tela de pré-seleção de filiais antes de abrir | seleção no próprio filtro, com as 13 apuráveis |
 | Grade estilo planilha | tabela responsiva, tema escuro |
 | Sem atalhos de período | Ontem · Mês Passado · Últimos 3 Meses · Ano Passado |
 | Linhas soltas após o LUCRO LIQUIDO | mesmas linhas, marcadas com `NÃO SOMA` |
@@ -340,7 +344,7 @@ Em incrementos revisáveis, um por vez:
 
 | # | Entrega | Como valido |
 |---|---|---|
-| 1 | `GET /filiais` | ✅ **conferido em 28/08/2026** — 18 filiais, de EPC-MAT (0) a EPC-TRANSP (31) |
+| 1 | `GET /filiais` | ✅ **conferido em 28/08/2026** — 18 filiais; **13 desde 31/08/2026**, ver DIVERGENCIAS.md |
 | 2 | Estrutura do DRE a partir de `EPCPARDRE` | ✅ **conferido em 28/08/2026** — ordem, rótulos e cores batem. As outras 3 dimensões têm SQL próprio (§4.4.1 do levantamento) |
 | 5a | Contas órfãs na estrutura | ✅ **conferido em 28/08/2026** — zero divergências contra o SQL original, e 123 linhas contra as 123 da exportação limpa (§11) |
 | 3 | Despesas (`GetValorGrupo`) | ✅ **conferido em 28/08/2026** — as 15 linhas batem ao centavo, incluindo o bloco de contas órfãs |

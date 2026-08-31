@@ -630,3 +630,70 @@ valor ou não.** O `CalcularAv` já fazia isso, e agora é observação em vez d
 Confirma também a aritmética no caso degenerado: `LUCRO BRUTO` zero faz
 `RESULTADO OPERACIONAL` igualar o `Sub-Total`, e `LUCRO LIQUIDO` igualar o
 `Total das Despesas`.
+
+---
+
+## O filtro de filiais — 18, depois 13
+
+**Decisão de 31/08/2026.** Reversível numa linha; o histórico está aqui para que a reversão
+seja informada, e não uma volta atrás no escuro.
+
+### O que mudou
+
+A consulta de filiais ganhou `AND F.DBLEPCTI IS NULL`. O filtro passa de **18 para 13**.
+
+### Por quê
+
+A tela de pré-seleção da 9815 oferece **nove** filiais; a nossa oferecia **18**. Isso foi
+decisão consciente de 27/08/2026 — a web não tem essa tela, então o filtro nascia com o
+cadastro inteiro.
+
+O que ninguém sabia naquele momento: **cinco das nove a mais têm os dados em outro banco.**
+
+| Filial | Label | Empresa | `DBLEPCTI` |
+|---|---|---|---|
+| 13 | MR::BH - BELO HORIZONTE | MRURAL | `@DBLEPCTICF` |
+| 16 | SUP-NP | SUP | `@DBLEPCTISUP` |
+| 17 | SUP-PL | SUP | `@DBLEPCTISUP` |
+| 18 | SUP-SM | SUP | `@DBLEPCTISUP` |
+| 19 | FUT-2013- | FUT | `@DBLEPCTIFUT` |
+
+O `@` é sintaxe de **database link** do Oracle. Nosso `PCLANC` local não tem o movimento
+delas — e foi por isso que apareceram com zero na
+[fase5c](validacao/fase5c_movimento_por_filial.sql). **Não estão paradas: estão em outro
+lugar.**
+
+Selecionar uma delas na web devolveria um DRE inteiramente zerado, que parece um relatório
+legítimo de operação sem movimento. **Um zero falso é pior que um erro, porque não parece
+erro** — ninguém abre chamado por um relatório que "funcionou".
+
+### O que NÃO mudou
+
+As outras quatro que a 9815 não oferece continuam na lista:
+
+| Filial | Label |
+|---|---|
+| 20 | EPC-CEASA |
+| 22 | EPC-RJ |
+| 31 | CeM-ES |
+| 91 | CeM-MG |
+
+Não têm link, os dados estão nesta base, e o zero delas é verdadeiro. São filiais
+**inativas**, não ausentes — e apurar uma delas devolve um zero honesto, que confere com o
+que a 9815 devolveria se as oferecesse.
+
+### Como reverter
+
+Apagar `AND F.DBLEPCTI IS NULL` de `DreGerencialQueries.Filiais`. Uma linha.
+
+**Quando isso faria sentido:** se a API passar a consultar as bases remotas via database
+link, ou se alguém precisar do relatório zerado dessas filiais por algum motivo que não
+antecipamos. Enquanto a apuração ler só a base local, mostrar as cinco é oferecer um número
+que não é o número delas.
+
+### O que continua sem resposta
+
+O critério da 9815 **não é o database link**: ela também não oferece as quatro sem link. E
+não é movimento — a filial 35 está parada em julho e aparece na lista dela. Existe outro
+filtro na tela de pré-seleção que não mapeamos, provavelmente uma configuração própria.
+Não afeta a apuração; afeta só quais filiais cada tela oferece.

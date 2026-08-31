@@ -30,6 +30,27 @@ public static class DreGerencialQueries
     /// O outer join `(+)` é o do original e fica como está: `PCFILIAL` só fornece a UF,
     /// e filial sem registro lá não pode sumir da lista.
     ///
+    /// <para><b>3. `AND F.DBLEPCTI IS NULL` — acrescentado em 31/08/2026.</b> Aquele `@` em
+    /// valores como `@DBLEPCTISUP` é sintaxe de <b>database link</b>: essas filiais têm os
+    /// dados em <b>outra base</b>. Nosso `PCLANC` local não tem o movimento delas, então
+    /// apurar uma dessas aqui devolve tudo zerado — um relatório que parece legítimo, de uma
+    /// operação sem movimento, quando na verdade é uma consulta no banco errado. Um zero
+    /// falso é pior que um erro, porque não parece erro.</para>
+    ///
+    /// <para>São cinco: <c>13 MR::BH</c>, <c>16 SUP-NP</c>, <c>17 SUP-PL</c>,
+    /// <c>18 SUP-SM</c> e <c>19 FUT-2013-</c>. A 9815 também não as oferece — ela consulta
+    /// só a base local. Medido em `docs/validacao/fase5d_filiais_que_a_9815_oferece.sql`.</para>
+    ///
+    /// <para><b>Como reverter:</b> apagar a linha `AND F.DBLEPCTI IS NULL`. É só isso — o
+    /// filtro volta às 18, e as cinco voltam a aparecer zeradas. Ver `docs/DIVERGENCIAS.md`,
+    /// seção do filtro de filiais, para o histórico da decisão: a instrução original, de
+    /// 27/08/2026, era mostrar as 18, e foi tomada antes de sabermos que cinco delas apontam
+    /// para outro banco.</para>
+    ///
+    /// <para>As outras quatro que a 9815 não oferece — <c>20 EPC-CEASA</c>, <c>22 EPC-RJ</c>,
+    /// <c>31 CeM-ES</c> e <c>91 CeM-MG</c> — <b>continuam na lista</b>: não têm link, os
+    /// dados estão aqui, e o zero delas é verdadeiro. São filiais inativas, não ausentes.</para>
+    ///
     /// Sem parâmetros.
     /// </summary>
     public const string Filiais = """
@@ -43,6 +64,7 @@ public static class DreGerencialQueries
           FROM FILIAIS F, EMPRESA E, PCFILIAL FW
          WHERE F.EMPRESA = E.EMPRESA
            AND F.CODFIL  = FW.CODIGO (+)
+           AND F.DBLEPCTI IS NULL
          ORDER BY F.ORDEM_PROCESSA, LPAD(F.CODFIL, 10, '0')
         """;
 
