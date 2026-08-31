@@ -7,12 +7,11 @@ namespace Epoca.Kpi.Api.Application.Features.DreGerencial;
 /// Monta o DRE a partir das três consultas já validadas: estrutura, despesas e faturamento.
 /// Não toca no banco — é lógica pura, e é aqui que mora a aritmética da rotina.
 ///
-/// <para>Todas as regras abaixo foram verificadas contra a exportação de parâmetros
-/// conhecidos (`docs/ROTINA_9815.md` §5, §9 e §10).</para>
+/// <para>Todas as regras foram verificadas contra exportações de parâmetros conhecidos
+/// (`docs/ROTINA_9815.md` §5, §9, §10 e §12).</para>
 /// </summary>
 public static class MontadorDre
 {
-    /// <summary>Rótulos das linhas calculadas, normalizados (sem espaço nas pontas, maiúsculas).</summary>
     private const string ReceitaBruta = "(+) RECEITA BRUTA";
     private const string AbatDesc = "(-) ABAT./DESC.";
     private const string Devolucao = "(-) DEVOLUCAO";
@@ -27,105 +26,71 @@ public static class MontadorDre
     private const string TotalDespesas = "TOTAL DAS DESPESAS";
     private const string LucroLiquido = "LUCRO LIQUIDO";
 
-    /// <summary>
-    /// As cinco deduções têm `%AV` sobre a <b>RECEITA BRUTA</b>; todo o resto, sobre as
-    /// <b>RECEITAS LIQUIDAS</b>. Usar uma base só erra cinco linhas.
-    /// </summary>
+    /// <summary>As cinco deduções têm `%AV` sobre a RECEITA BRUTA; o resto, sobre a LÍQUIDA.</summary>
     private static readonly HashSet<string> BaseReceitaBruta =
         [AbatDesc, Devolucao, St, Pis, Cofins];
 
-    /// <summary>Informativas do cabeçalho: não entram no cálculo das Receitas Líquidas.</summary>
     private static readonly HashSet<string> NaoSomamNoCabecalho = [St, Pis, Cofins];
 
     public static ApuracaoDto Montar(
         IReadOnlyList<LinhaEstruturaDre> estrutura,
         IReadOnlyList<DespesaDre> despesas,
-        FaturamentoDre faturamento,
+        IReadOnlyList<FaturamentoDre> faturamentoPorMes,
         DespesasFiltroDto filtro,
         long duracaoMs)
     {
-        // Índice pela TUPLA, não pela chave: o mesmo grupo aparece mais de uma vez no DRE
-        // com flags diferentes, e indexar só por chave daria o mesmo valor às duas linhas.
-        // Os meses são somados aqui — a quebra por mês é o incremento 8.
-        var valorPorTupla = despesas
-            .GroupBy(d => (d.GrupoConta, d.AntesRo, d.AntesLl, d.AntesLf))
-            .ToDictionary(g => g.Key, g => g.Sum(d => d.VlRealizado));
-
+        var periodos = PeriodoDre.Entre(filtro.DataInicio, filtro.DataFim);
         var avisos = new List<string>();
 
-        // ---------------------------------------------------------------------
-        // Passo 1 — valor de cada linha de conta. As calculadas ficam para depois.
-        // ---------------------------------------------------------------------
-        var linhas = estrutura.Select(e =>
+        // Índice pela TUPLA COMPLETA, com o mês: o mesmo grupo aparece mais de uma vez no
+        // DRE com flags diferentes, e cada ocorrência tem um valor por mês.
+        var valorDespesa = despesas
+            .GroupBy(d => (d.GrupoConta, d.AntesRo, d.AntesLl, d.AntesLf, d.MesAno))
+            .ToDictionary(g => g.Key, g => g.Sum(d => d.VlRealizado));
+
+        var faturamento = faturamentoPorMes.ToDictionary(f => f.MesAno);
+
+        var linhas = estrutura
+            .Select(e => new LinhaEmMontagem(e, Normalizar(e.Grupo), e.CodGruConta.StartsWith('-')))
+            .ToList();
+
+        // Cada mês é montado por inteiro, de forma independente — inclusive os
+        // totalizadores, que dependem só das linhas daquele mês.
+        var valoresPorMes = periodos.ToDictionary(
+            p => p.MesAno,
+            p => MontarMes(linhas, valorDespesa, faturamento.GetValueOrDefault(p.MesAno), p.MesAno, avisos));
+
+        var resultado = linhas.Select((l, indice) =>
         {
-            var rotulo = Normalizar(e.Grupo);
-            var calculada = e.CodGruConta.StartsWith('-');
-
-            decimal? valor = calculada
-                ? null
-                : valorPorTupla.GetValueOrDefault((e.CodGruConta, e.AntesRo, e.AntesLl, e.AntesLf));
-
-            return new LinhaEmMontagem(e, rotulo, calculada, valor ?? 0m, ValorDefinido: !calculada);
-        }).ToList();
-
-        // ---------------------------------------------------------------------
-        // Passo 2 — totais, a partir das linhas de conta
-        // ---------------------------------------------------------------------
-        var somaOperacional = linhas
-            .Where(l => l is { Calculada: false, Estrutura.AntesRo: "S" })
-            .Sum(l => l.Valor);
-
-        var somaPosOperacional = linhas
-            .Where(l => l is { Calculada: false, Estrutura.AntesRo: "N", Estrutura.AntesLl: "S" })
-            .Sum(l => l.Valor);
-
-        var lucroBruto = faturamento.LucroBruto;
-        var resultadoOperacional = lucroBruto + somaOperacional;
-        var totalDespesas = somaOperacional + somaPosOperacional;
-        var lucroLiquido = lucroBruto + totalDespesas;
-
-        // ---------------------------------------------------------------------
-        // Passo 3 — preenche as calculadas e monta o DTO
-        // ---------------------------------------------------------------------
-        var resultado = new List<LinhaDreDto>(linhas.Count);
-
-        foreach (var l in linhas)
-        {
-            var valor = l.Valor;
-
-            if (l.Calculada)
+            var valores = periodos.Select((p, i) =>
             {
-                valor = l.Rotulo switch
-                {
-                    ReceitaBruta => faturamento.ReceitaBruta,
-                    AbatDesc => -faturamento.AbatDesc,
-                    Devolucao => -faturamento.Devolucao,
-                    St => -faturamento.StLiq,
-                    Pis => -faturamento.PisLiq,
-                    Cofins => -faturamento.CofinsLiq,
-                    ReceitaLiquida => faturamento.ReceitaLiquida,
-                    CmvLiq => -faturamento.CmvLiq,
-                    LucroBruto => lucroBruto,
-                    SubTotal => somaOperacional,
-                    ResultadoOperacional => resultadoOperacional,
-                    TotalDespesas => totalDespesas,
-                    LucroLiquido => lucroLiquido,
-                    _ => Desconhecida(l, avisos)
-                };
-            }
+                var valor = valoresPorMes[p.MesAno][indice];
+                var anterior = i == 0 ? (decimal?)null : valoresPorMes[periodos[i - 1].MesAno][indice];
 
-            resultado.Add(new LinhaDreDto(
+                return new ValorMesDto(
+                    MesAno: p.MesAno,
+                    Valor: valor,
+                    PercentualAv: CalcularAv(l, valor, faturamento.GetValueOrDefault(p.MesAno)),
+                    PercentualAh: CalcularAh(valor, anterior));
+            }).ToList();
+
+            var somaPeriodo = valores.Sum(v => v.Valor);
+
+            return new LinhaDreDto(
                 Id: l.Estrutura.Id,
                 Chave: l.Estrutura.CodGruConta,
                 Descricao: l.Estrutura.Grupo,
-                Valor: valor,
-                PercentualAv: CalcularAv(l, valor, faturamento),
+                Valores: valores,
+                Total: new TotalLinhaDto(
+                    Valor: somaPeriodo,
+                    Media: periodos.Count == 0 ? 0m : somaPeriodo / periodos.Count,
+                    PercentualAv: CalcularAvTotal(l, somaPeriodo, faturamentoPorMes)),
                 Totalizadora: l.Estrutura.InfContas == "S",
                 Calculada: l.Calculada,
                 NaoSoma: EhNaoSoma(l),
-                Zerada: valor == 0m,
-                Cor: CorDelphi.ParaCss(l.Estrutura.Cor)));
-        }
+                Zerada: valores.All(v => v.Valor == 0m),
+                Cor: CorDelphi.ParaCss(l.Estrutura.Cor));
+        }).ToList();
 
         return new ApuracaoDto(
             Regime: filtro.Regime,
@@ -133,54 +98,124 @@ public static class MontadorDre
             DataInicio: filtro.DataInicio,
             DataFim: filtro.DataFim,
             Filiais: filtro.Filiais,
+            Periodos: periodos.Select(p => new PeriodoDto(p.MesAno, p.Rotulo)).ToList(),
             Linhas: resultado,
             Avisos: avisos,
             ApuradoEm: DateTimeOffset.Now,
             DuracaoMs: duracaoMs);
     }
 
-    /// <summary>
-    /// Linha calculada cujo rótulo não é conhecido. Devolve 0 e registra aviso — melhor
-    /// uma linha zerada visível do que um número inventado passando por bom.
-    /// </summary>
-    private static decimal Desconhecida(LinhaEmMontagem l, List<string> avisos)
+    /// <summary>Valores de todas as linhas em um mês, na ordem da estrutura.</summary>
+    private static decimal[] MontarMes(
+        List<LinhaEmMontagem> linhas,
+        Dictionary<(string, string, string, string, string), decimal> valorDespesa,
+        FaturamentoDre? f,
+        string mesAno,
+        List<string> avisos)
     {
-        avisos.Add(
-            $"Linha calculada não reconhecida: '{l.Estrutura.Grupo}' (chave {l.Estrutura.CodGruConta}). " +
-            "Exibida com valor zero.");
-        return 0m;
+        var valores = new decimal[linhas.Count];
+
+        for (var i = 0; i < linhas.Count; i++)
+        {
+            var l = linhas[i];
+            valores[i] = l.Calculada
+                ? 0m
+                : valorDespesa.GetValueOrDefault(
+                    (l.Estrutura.CodGruConta, l.Estrutura.AntesRo, l.Estrutura.AntesLl,
+                     l.Estrutura.AntesLf, mesAno));
+        }
+
+        var somaOperacional = 0m;
+        var somaPosOperacional = 0m;
+        for (var i = 0; i < linhas.Count; i++)
+        {
+            if (linhas[i].Calculada) continue;
+            if (linhas[i].Estrutura.AntesRo == "S") somaOperacional += valores[i];
+            else if (linhas[i].Estrutura.AntesLl == "S") somaPosOperacional += valores[i];
+        }
+
+        var lucroBruto = f?.LucroBruto ?? 0m;
+        var totalDespesas = somaOperacional + somaPosOperacional;
+
+        for (var i = 0; i < linhas.Count; i++)
+        {
+            if (!linhas[i].Calculada) continue;
+
+            valores[i] = linhas[i].Rotulo switch
+            {
+                ReceitaBruta => f?.ReceitaBruta ?? 0m,
+                AbatDesc => -(f?.AbatDesc ?? 0m),
+                Devolucao => -(f?.Devolucao ?? 0m),
+                St => -(f?.StLiq ?? 0m),
+                Pis => -(f?.PisLiq ?? 0m),
+                Cofins => -(f?.CofinsLiq ?? 0m),
+                ReceitaLiquida => f?.ReceitaLiquida ?? 0m,
+                CmvLiq => -(f?.CmvLiq ?? 0m),
+                LucroBruto => lucroBruto,
+                SubTotal => somaOperacional,
+                ResultadoOperacional => lucroBruto + somaOperacional,
+                TotalDespesas => totalDespesas,
+                LucroLiquido => lucroBruto + totalDespesas,
+                _ => Desconhecida(linhas[i], avisos),
+            };
+        }
+
+        return valores;
     }
 
     /// <summary>
-    /// `%AV` com a base correta. Devolve <c>null</c> para a RECEITA BRUTA, que não exibe
-    /// percentual, e quando a base é zero.
+    /// Linha calculada com rótulo não reconhecido: zero e aviso, nunca número inventado.
+    /// O aviso sai uma vez só, não por mês.
     /// </summary>
-    private static decimal? CalcularAv(LinhaEmMontagem l, decimal valor, FaturamentoDre f)
+    private static decimal Desconhecida(LinhaEmMontagem l, List<string> avisos)
     {
-        if (l.Rotulo == ReceitaBruta)
+        var aviso =
+            $"Linha calculada não reconhecida: '{l.Estrutura.Grupo}' " +
+            $"(chave {l.Estrutura.CodGruConta}). Exibida com valor zero.";
+
+        if (!avisos.Contains(aviso))
         {
-            return null;
+            avisos.Add(aviso);
         }
 
+        return 0m;
+    }
+
+    private static decimal? CalcularAv(LinhaEmMontagem l, decimal valor, FaturamentoDre? f)
+    {
+        if (l.Rotulo == ReceitaBruta || f is null) return null;
+
         var baseCalculo = BaseReceitaBruta.Contains(l.Rotulo) ? f.ReceitaBruta : f.ReceitaLiquida;
+        return baseCalculo == 0m ? null : valor / baseCalculo * 100m;
+    }
+
+    private static decimal? CalcularAvTotal(
+        LinhaEmMontagem l, decimal valor, IReadOnlyList<FaturamentoDre> meses)
+    {
+        if (l.Rotulo == ReceitaBruta || meses.Count == 0) return null;
+
+        var baseCalculo = BaseReceitaBruta.Contains(l.Rotulo)
+            ? meses.Sum(m => m.ReceitaBruta)
+            : meses.Sum(m => m.ReceitaLiquida);
 
         return baseCalculo == 0m ? null : valor / baseCalculo * 100m;
     }
 
     /// <summary>
-    /// `NÃO SOMA`: as três informativas do cabeçalho, e tudo que vem depois do LUCRO LIQUIDO.
+    /// Variação sobre o mês anterior. <c>null</c> no primeiro mês e quando o anterior é
+    /// zero — a 9815 deixa a célula em branco nesse caso, em vez de exibir infinito.
     /// </summary>
+    private static decimal? CalcularAh(decimal valor, decimal? anterior)
+    {
+        if (anterior is null || anterior.Value == 0m) return null;
+        return (valor / anterior.Value - 1m) * 100m;
+    }
+
     private static bool EhNaoSoma(LinhaEmMontagem l) =>
         NaoSomamNoCabecalho.Contains(l.Rotulo) ||
         (!l.Calculada && l.Estrutura.AntesLl == "N");
 
-    private static string Normalizar(string descricao) =>
-        descricao.Trim().ToUpperInvariant();
+    private static string Normalizar(string descricao) => descricao.Trim().ToUpperInvariant();
 
-    private sealed record LinhaEmMontagem(
-        LinhaEstruturaDre Estrutura,
-        string Rotulo,
-        bool Calculada,
-        decimal Valor,
-        bool ValorDefinido);
+    private sealed record LinhaEmMontagem(LinhaEstruturaDre Estrutura, string Rotulo, bool Calculada);
 }

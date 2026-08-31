@@ -92,7 +92,7 @@ public sealed class DreGerencialController : ControllerBase
             return BadRequest(ApiResponse<object>.Falha(resultado.Erro!));
         }
 
-        return Ok(ApiResponse<FaturamentoDto>.Ok(resultado.Valor!));
+        return Ok(ApiResponse<IReadOnlyList<FaturamentoDto>>.Ok(resultado.Valor!));
     }
 
     /// <summary>

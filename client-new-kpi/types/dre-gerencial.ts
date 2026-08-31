@@ -27,13 +27,32 @@ export interface FiltroApuracao {
   analise: Analise;
 }
 
+export interface PeriodoDre {
+  mesAno: string;
+  rotulo: string;
+}
+
+export interface ValorMes {
+  mesAno: string;
+  valor: number;
+  /** Base: RECEITA BRUTA nas cinco deduções, RECEITAS LIQUIDAS no resto. */
+  percentualAv: number | null;
+  /** Variação sobre o mês anterior. Nulo no primeiro mês e quando o anterior é zero. */
+  percentualAh: number | null;
+}
+
+export interface TotalLinha {
+  valor: number;
+  media: number;
+  percentualAv: number | null;
+}
+
 export interface LinhaDre {
   id: number | null;
   chave: string;
   descricao: string;
-  valor: number;
-  /** Base: RECEITA BRUTA nas cinco deduções, RECEITAS LIQUIDAS no resto. */
-  percentualAv: number | null;
+  valores: ValorMes[];
+  total: TotalLinha;
   totalizadora: boolean;
   calculada: boolean;
   /** Não entra em totalizador: as 3 informativas e o bloco pós-LUCRO LIQUIDO. */
@@ -49,6 +68,7 @@ export interface Apuracao {
   dataInicio: string;
   dataFim: string;
   filiais: string[];
+  periodos: PeriodoDre[];
   linhas: LinhaDre[];
   avisos: string[];
   apuradoEm: string;

@@ -36,10 +36,10 @@ public interface IDreGerencialRepository
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Faturamento, CMV e impostos do período. Não recebe regime: caixa e competência
-    /// produzem os mesmos valores aqui.
+    /// Faturamento, CMV e impostos, uma linha por mês do período. Não recebe regime:
+    /// caixa e competência produzem os mesmos valores aqui.
     /// </summary>
-    Task<FaturamentoDre> ObterFaturamentoAsync(
+    Task<IReadOnlyList<FaturamentoDre>> ObterFaturamentoPorMesAsync(
         IReadOnlyList<string> filiais,
         DateOnly dataInicio,
         DateOnly dataFim,

@@ -1,7 +1,8 @@
 namespace Epoca.Kpi.Api.Domain.Entities;
 
 /// <summary>
-/// Cabeçalho do DRE: faturamento, CMV e impostos do período. Uma linha só.
+/// Cabeçalho do DRE de **um mês**: faturamento, CMV e impostos.
+/// A consulta devolve uma linha por mês do período.
 ///
 /// <para>
 /// <b>Não depende do regime.</b> Caixa e competência produzem exatamente os mesmos valores
@@ -10,6 +11,9 @@ namespace Epoca.Kpi.Api.Domain.Entities;
 /// </summary>
 public class FaturamentoDre
 {
+    /// <summary>Mês da coluna, no formato `mm/yyyy`.</summary>
+    public string MesAno { get; init; } = string.Empty;
+
     /// <summary>`(+) RECEITA BRUTA` — soma de preço de tabela × quantidade.</summary>
     public decimal ReceitaBruta { get; init; }
 

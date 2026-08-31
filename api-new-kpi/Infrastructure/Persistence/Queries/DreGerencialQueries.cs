@@ -232,43 +232,46 @@ public static class DreGerencialQueries
         """;
 
     /// <summary>
-    /// Faturamento, CMV e impostos do período — a consulta mais cara da 9815
-    /// (16,9 s por mês em 1 mês; 115 s por mês no cenário de 2 meses).
+    /// Faturamento, CMV e impostos, **agrupados por mês** — a consulta mais cara da 9815.
     ///
-    /// <para><b>Validada contra o original</b> em 28/08/2026 por
-    /// `docs/validacao/inc4_comparacao_faturamento.sql`: zero divergências nas 9 colunas.
-    /// A mudança é uma só — os **seis** blocos do original (3 filiais × vendas e
-    /// devoluções) viraram **dois**, com `CODFILIAL IN (...)`. Com as 18 filiais marcadas,
-    /// a rotina antiga geraria 36 blocos.</para>
+    /// <para><b>Duas diferenças em relação ao original, ambas provadas equivalentes</b>
+    /// em 28/08/2026:</para>
+    /// <list type="number">
+    ///   <item>Os <b>seis</b> blocos (3 filiais × vendas e devoluções) viraram <b>dois</b>,
+    ///         com `CODFILIAL IN (...)` — `inc4_comparacao_faturamento.sql`.</item>
+    ///   <item>As <b>N execuções mensais</b> viraram <b>uma</b>, com `GROUP BY` do mês —
+    ///         `inc8_mensal_vs_periodo.sql` e `inc8_faturamento_por_mes.sql`.</item>
+    /// </list>
     ///
-    /// <para>A projeção externa já aplica a aritmética do cabeçalho, verificada contra a
-    /// planilha de parâmetros conhecidos (`docs/ROTINA_9815.md` §5):</para>
-    /// <code>
-    /// RECEITA BRUTA     = VLTABELA
-    /// ABAT./DESC.       = VLTABELA − VLVENDA
-    /// DEVOLUCAO         = VLDEVOLUCAO
-    /// RECEITAS LIQUIDAS = VLVENDA − VLDEVOLUCAO
-    /// CMV LIQ.          = VLCUSTOFIN − VLCMVDEVOL
-    /// </code>
+    /// <para>A segunda só é válida porque as colunas de data <b>não carregam hora</b>: os
+    /// meses da 9815 vão de `00:00` a `00:00`, e uma venda em 30/06 às 14h não cairia em
+    /// nenhum dos dois. Verificado — 70.435 linhas de `DTSAIDA`, 13.245 de `DTENT` e 30.922
+    /// de `DTPAGTO`, nenhuma com hora. Ver `docs/ROTINA_9815.md` §12: se isso mudar, a
+    /// equivalência cai.</para>
     ///
-    /// <para><b>Não depende do regime.</b> Receita, deduções e CMV são idênticos em caixa e
-    /// competência — verificado byte a byte nos dois traces.</para>
+    /// <para>Cada bloco agrupa pela <b>sua própria</b> data — vendas por `DTSAIDA`,
+    /// devoluções por `DTENT` —, que é o que a execução mensal do original fazia ao
+    /// restringir os dois ao mesmo mês.</para>
     ///
-    /// <para><b>Ordem dos binds</b> (ODP.NET é posicional): :dtIni1, :dtFim1 (DTSAIDA das
-    /// vendas), {0} filiais de `PCNFSAID`, {1} filiais de `PCNFENT`, :dtIni2, :dtFim2
-    /// (DTENT das devoluções).</para>
+    /// <para><b>Não depende do regime.</b> Receita e CMV são idênticos em caixa e
+    /// competência.</para>
+    ///
+    /// <para>Binds: :dtIni1, :dtFim1 (vendas), {0} filiais de `PCNFSAID`, {1} filiais de
+    /// `PCNFENT`, :dtIni2, :dtFim2 (devoluções).</para>
     /// </summary>
-    public const string Faturamento = """
-        SELECT Sum(NVL(VLTABELA,0))                            AS RECEITABRUTA,
-               Sum(NVL(VLTABELA,0)) - Sum(NVL(VLVENDA,0))      AS ABATDESC,
-               Sum(NVL(VLDEVOLUCAO,0))                         AS DEVOLUCAO,
-               Sum(NVL(VLVENDA,0)) - Sum(NVL(VLDEVOLUCAO,0))   AS RECEITALIQUIDA,
-               Sum(NVL(VLCUSTOFIN,0)) - Sum(NVL(VLCMVDEVOL,0)) AS CMVLIQ,
-               Sum(NVL(VLST,0))     - Sum(NVL(VLST_DEV,0))     AS STLIQ,
-               Sum(NVL(VLPIS,0))    - Sum(NVL(VLPIS_DEV,0))    AS PISLIQ,
-               Sum(NVL(VLCOFINS,0)) - Sum(NVL(VLCOFINS_DEV,0)) AS COFINSLIQ
-         FROM (
-          SELECT SUM(  decode(MV.custofin,0,MV.custofinest-nvl(MV.st,0)-nvl(MVC.vlfecp,0), (MV.custofin-nvl(MV.st,0)-nvl(MVC.vlfecp,0)) ) * MV.qt) as VLCUSTOFIN, 
+    public const string FaturamentoPorMes = """
+        SELECT MESANO                                              AS MESANO,
+               Sum(NVL(VLCUSTOFIN,0))                              AS VLCUSTOFIN,
+               Sum(NVL(VLTABELA,0))                                AS RECEITABRUTA,
+               Sum(NVL(VLTABELA,0)) - Sum(NVL(VLVENDA,0))          AS ABATDESC,
+               Sum(NVL(VLDEVOLUCAO,0))                             AS DEVOLUCAO,
+               Sum(NVL(VLVENDA,0)) - Sum(NVL(VLDEVOLUCAO,0))       AS RECEITALIQUIDA,
+               Sum(NVL(VLCUSTOFIN,0)) - Sum(NVL(VLCMVDEVOL,0))     AS CMVLIQ,
+               sum(nvl(VLST,0))     - sum(nvl(VLST_DEV,0))         AS STLIQ,
+               sum(nvl(VLPIS,0))    - sum(nvl(VLPIS_DEV,0))        AS PISLIQ,
+               sum(nvl(VLCOFINS,0)) - sum(nvl(VLCOFINS_DEV,0))     AS COFINSLIQ
+          FROM (
+          SELECT TO_CHAR(NF.DTSAIDA,'mm/yyyy') AS MESANO, SUM(  decode(MV.custofin,0,MV.custofinest-nvl(MV.st,0)-nvl(MVC.vlfecp,0), (MV.custofin-nvl(MV.st,0)-nvl(MVC.vlfecp,0)) ) * MV.qt) as VLCUSTOFIN, 
                  SUM(  MV.punit * MV.qt) as VLVENDA,  
                  SUM(  MV.punit * MV.qt) VLVENDA_Total,   
                  SUM(  MV.ptabela * MV.qt) as VLTABELA, 0 as VLDEVOLUCAO,  0 as VLDEVOLUCAO_total, 0 as VLCMVDEVOL, 
@@ -291,8 +294,9 @@ public static class DreGerencialQueries
             AND NF.CODFILIAL IN ({0})
            AND ( (nvl(esp.mostra_dre,'S') = 'S') or (NF.CONDVENDA in (5)) ) 
             AND nvl(PR.codsec,0) <> 1601 
+          GROUP BY TO_CHAR(NF.DTSAIDA,'mm/yyyy') 
          UNION ALL 
-         SELECT 0 as VLCUSTOCONT, 0 as VLVENDA, 0 as VLVENDA_Total, 0 as VLTABELA, 
+         SELECT TO_CHAR(NFE.DTENT,'mm/yyyy') AS MESANO, 0 as VLCUSTOCONT, 0 as VLVENDA, 0 as VLVENDA_Total, 0 as VLTABELA, 
                 SUM( round( NVL(nvl(MV.QT,mv.QTCONT),0)*NVL(nvl(MV.punit,mv.punitcont),0) ,2)) as VLDEVOLUCAO, 
                 SUM( round( NVL(nvl(MV.QT,mv.QTCONT),0)*NVL(nvl(MV.punit,mv.punitcont),0) ,2)) as VLDEVOLUCAO_total, 
                 SUM( NVL(MV.QT,0) * (NVL(decode(MV.custofin,0,MV.custofinest,MV.custofin),0)-nvl(MV.st,0)-nvl(MVC.vlfecp,0))  ) VLCMVDEVOL, 
@@ -315,6 +319,9 @@ public static class DreGerencialQueries
             AND NFE.DTENT BETWEEN :dtIni2 AND :dtFim2
             AND MV.CODFISCAL IN (1202,1411,1949,2202,2411,2949) 
           AND MV.CODSEC <> 1601 
-         )
+          GROUP BY TO_CHAR(NFE.DTENT,'mm/yyyy') 
+            )
+         GROUP BY MESANO
+         ORDER BY SUBSTR(MESANO,4,4), SUBSTR(MESANO,1,2)
         """;
 }

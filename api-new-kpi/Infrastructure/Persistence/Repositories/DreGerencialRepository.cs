@@ -138,7 +138,7 @@ public sealed class DreGerencialRepository : IDreGerencialRepository
         return despesas.ToList();
     }
 
-    public async Task<FaturamentoDre> ObterFaturamentoAsync(
+    public async Task<IReadOnlyList<FaturamentoDre>> ObterFaturamentoPorMesAsync(
         IReadOnlyList<string> filiais,
         DateOnly dataInicio,
         DateOnly dataFim,
@@ -146,13 +146,13 @@ public sealed class DreGerencialRepository : IDreGerencialRepository
     {
         if (filiais.Count == 0)
         {
-            return new FaturamentoDre();
+            return [];
         }
 
         var placeholdersA = string.Join(", ", filiais.Select((_, i) => $":filialA{i}"));
         var placeholdersB = string.Join(", ", filiais.Select((_, i) => $":filialB{i}"));
 
-        var sql = string.Format(DreGerencialQueries.Faturamento, placeholdersA, placeholdersB);
+        var sql = string.Format(DreGerencialQueries.FaturamentoPorMes, placeholdersA, placeholdersB);
 
         var inicio = dataInicio.ToDateTime(TimeOnly.MinValue);
         var fim = dataFim.ToDateTime(TimeOnly.MinValue);
@@ -177,15 +177,15 @@ public sealed class DreGerencialRepository : IDreGerencialRepository
 
         // A consulta mais cara da rotina: 16,9 s por mês no trace de 1 mês e 115 s no de
         // 2 meses. 600 s cobre 4 meses com folga.
-        var faturamento = await conexao.QuerySingleOrDefaultAsync<FaturamentoDre>(
+        var faturamento = await conexao.QueryAsync<FaturamentoDre>(
             new CommandDefinition(
                 sql,
                 parametros,
                 commandTimeout: 600,
                 cancellationToken: cancellationToken));
 
-        // Período sem movimento devolve uma linha de zeros, não null — mas o
-        // QuerySingleOrDefault protege contra o caso degenerado.
-        return faturamento ?? new FaturamentoDre();
+        // Mês sem movimento simplesmente não aparece. Quem monta o DRE gera a lista de
+        // meses a partir do período pedido, não do que voltou — senão uma coluna some.
+        return faturamento.ToList();
     }
 }

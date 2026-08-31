@@ -152,29 +152,34 @@ public sealed class DreGerencialService
     /// <summary>
     /// Cabeçalho do DRE. Não recebe regime — receita e CMV são iguais nos dois.
     /// </summary>
-    public async Task<Result<FaturamentoDto>> ObterFaturamentoAsync(
+    public async Task<Result<IReadOnlyList<FaturamentoDto>>> ObterFaturamentoAsync(
         DespesasFiltroDto filtro,
         CancellationToken cancellationToken = default)
     {
         var erro = ValidarPeriodoEFiliais(filtro);
         if (erro is not null)
         {
-            return Result<FaturamentoDto>.Invalido(erro);
+            return Result<IReadOnlyList<FaturamentoDto>>.Invalido(erro);
         }
 
-        var f = await _repositorio.ObterFaturamentoAsync(
+        var meses = await _repositorio.ObterFaturamentoPorMesAsync(
             filtro.Filiais, filtro.DataInicio, filtro.DataFim, cancellationToken);
 
-        return Result<FaturamentoDto>.Ok(new FaturamentoDto(
-            ReceitaBruta: f.ReceitaBruta,
-            AbatDesc: f.AbatDesc,
-            Devolucao: f.Devolucao,
-            ReceitaLiquida: f.ReceitaLiquida,
-            CmvLiq: f.CmvLiq,
-            LucroBruto: f.LucroBruto,
-            StLiq: f.StLiq,
-            PisLiq: f.PisLiq,
-            CofinsLiq: f.CofinsLiq));
+        var dtos = meses
+            .Select(f => new FaturamentoDto(
+                MesAno: f.MesAno,
+                ReceitaBruta: f.ReceitaBruta,
+                AbatDesc: f.AbatDesc,
+                Devolucao: f.Devolucao,
+                ReceitaLiquida: f.ReceitaLiquida,
+                CmvLiq: f.CmvLiq,
+                LucroBruto: f.LucroBruto,
+                StLiq: f.StLiq,
+                PisLiq: f.PisLiq,
+                CofinsLiq: f.CofinsLiq))
+            .ToList();
+
+        return Result<IReadOnlyList<FaturamentoDto>>.Ok(dtos);
     }
 
     /// <summary>Validações comuns a período e filiais. Devolve a mensagem, ou null.</summary>
@@ -245,7 +250,7 @@ public sealed class DreGerencialService
         var despesas = await _repositorio.ObterDespesasGrupoDeContasAsync(
             filtro.Filiais, filtro.DataInicio, filtro.DataFim, regime, cancellationToken);
 
-        var faturamento = await _repositorio.ObterFaturamentoAsync(
+        var faturamento = await _repositorio.ObterFaturamentoPorMesAsync(
             filtro.Filiais, filtro.DataInicio, filtro.DataFim, cancellationToken);
 
         cronometro.Stop();

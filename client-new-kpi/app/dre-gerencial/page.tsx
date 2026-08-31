@@ -82,7 +82,8 @@ export default function DreGerencialPage() {
                 <p className="mt-1 text-xs text-[var(--text-muted)]">
                   {formatarDataIso(dados.dataInicio)} a {formatarDataIso(dados.dataFim)} ·{" "}
                   {dados.regime === "caixa" ? "Caixa" : "Competência"} ·{" "}
-                  {dados.filiais.length} {dados.filiais.length === 1 ? "filial" : "filiais"} ·
+                  {dados.filiais.length} {dados.filiais.length === 1 ? "filial" : "filiais"} ·{" "}
+                  {dados.periodos.length} {dados.periodos.length === 1 ? "mês" : "meses"} ·
                   apurado em {formatarDuracao(dados.duracaoMs)}
                 </p>
               </div>
@@ -108,7 +109,11 @@ export default function DreGerencialPage() {
               </div>
             )}
 
-            <TabelaDre linhas={dados.linhas} mostrarZeradas={mostrarZeradas} />
+            <TabelaDre
+              periodos={dados.periodos}
+              linhas={dados.linhas}
+              mostrarZeradas={mostrarZeradas}
+            />
           </section>
         )}
 

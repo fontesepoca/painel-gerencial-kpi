@@ -328,7 +328,7 @@ Em incrementos revisáveis, um por vez:
 | 5b | Montagem do DRE completo | ✅ **conferido em 28/08/2026** — 123 linhas, zero divergência de valor e de %AV, contra exportação com parâmetros e horário conhecidos |
 | 6 | Filtros na tela | — |
 | 7 | Tabela | comparação visual com o print |
-| 8 | Multi-mês, `AV` e `AH` | cenário de 2 meses bate |
+| 8 | Multi-mês, `AV` e `AH` | 🔄 implementado; conferir o cenário de 2 meses |
 | 9 | Centro de Custo | validação manual com o negócio |
 
 Cada incremento pronto: eu escrevo a query, **você executa no banco**, e comparamos com a

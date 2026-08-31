@@ -52,6 +52,7 @@ public record DespesaDto(
 /// cálculo das Receitas Líquidas (ver `docs/ROTINA_9815.md` §5).
 /// </summary>
 public record FaturamentoDto(
+    string MesAno,
     decimal ReceitaBruta,
     decimal AbatDesc,
     decimal Devolucao,
@@ -62,19 +63,33 @@ public record FaturamentoDto(
     decimal PisLiq,
     decimal CofinsLiq);
 
-/// <summary>Uma linha do DRE montado.</summary>
+/// <summary>Um mês do período apurado.</summary>
+public record PeriodoDto(string MesAno, string Rotulo);
+
+/// <summary>Valor de uma linha em um mês.</summary>
+public record ValorMesDto(
+    string MesAno,
+    decimal Valor,
+    /// <summary>Base: RECEITA BRUTA nas cinco deduções, RECEITAS LIQUIDAS no resto.</summary>
+    decimal? PercentualAv,
+    /// <summary>Variação sobre o mês anterior. Nulo no primeiro mês e quando o anterior é zero.</summary>
+    decimal? PercentualAh);
+
+/// <summary>Bloco TOTAL da linha, somando os meses do período.</summary>
+public record TotalLinhaDto(decimal Valor, decimal Media, decimal? PercentualAv);
+
+/// <summary>Uma linha do DRE montado, com um valor por mês e o total.</summary>
 public record LinhaDreDto(
     int? Id,
     string Chave,
     string Descricao,
-    decimal Valor,
-    /// <summary>Base: RECEITA BRUTA nas cinco deduções, RECEITAS LIQUIDAS no resto.</summary>
-    decimal? PercentualAv,
+    IReadOnlyList<ValorMesDto> Valores,
+    TotalLinhaDto Total,
     bool Totalizadora,
     bool Calculada,
-    /// <summary>Não entra em totalizador nenhum: as 3 informativas e o bloco pós-LUCRO LIQUIDO.</summary>
+    /// <summary>Não entra em totalizador: as 3 informativas e o bloco pós-LUCRO LIQUIDO.</summary>
     bool NaoSoma,
-    /// <summary>Valor zero. A 9815 esconde estas quando `Mostrar Contas Zeradas` está desmarcado.</summary>
+    /// <summary>Zero em todos os meses. A 9815 esconde estas sem `Mostrar Contas Zeradas`.</summary>
     bool Zerada,
     string? Cor);
 
@@ -85,6 +100,7 @@ public record ApuracaoDto(
     DateOnly DataInicio,
     DateOnly DataFim,
     IReadOnlyList<string> Filiais,
+    IReadOnlyList<PeriodoDto> Periodos,
     IReadOnlyList<LinhaDreDto> Linhas,
     IReadOnlyList<string> Avisos,
     DateTimeOffset ApuradoEm,
