@@ -198,12 +198,37 @@ public static class MontadorDre
         return 0m;
     }
 
+    /// <summary>
+    /// `%AV` de um mês. RECEITA BRUTA nunca tem — é a própria base.
+    ///
+    /// <para><b>Com base zero, os dois grupos se comportam diferente</b>, e não é capricho
+    /// nosso: é o que a 9815 faz. Conferido em 31/08/2026 num mês sem movimento nenhum
+    /// (dezembro/2026, filial 7), onde as 13 linhas saem zeradas nas duas telas:</para>
+    ///
+    /// <list type="bullet">
+    ///   <item>as <b>cinco deduções</b> — base RECEITA BRUTA — mostram <c>0,000</c>;</item>
+    ///   <item>de RECEITAS LIQUIDAS para baixo — base RECEITAS LIQUIDAS — a célula fica
+    ///         <b>vazia</b>.</item>
+    /// </list>
+    ///
+    /// <para>Os dois grupos já usam bases diferentes, então têm caminhos distintos no
+    /// Delphi; um devolve zero quando não consegue dividir, o outro não escreve nada.</para>
+    ///
+    /// <para><b>Só sabemos o comportamento quando o valor também é zero.</b> Um mês com
+    /// RECEITA BRUTA zerada mas com abatimento lançado seria outro caso, e não foi observado.
+    /// Ver `docs/DIVERGENCIAS.md`.</para>
+    /// </summary>
     private static decimal? CalcularAv(LinhaEmMontagem l, decimal valor, FaturamentoDre? f)
     {
-        if (l.Rotulo == ReceitaBruta || f is null) return null;
+        if (l.Rotulo == ReceitaBruta) return null;
 
-        var baseCalculo = BaseReceitaBruta.Contains(l.Rotulo) ? f.ReceitaBruta : f.ReceitaLiquida;
-        return baseCalculo == 0m ? null : valor / baseCalculo * 100m;
+        var ehDeducao = BaseReceitaBruta.Contains(l.Rotulo);
+        if (f is null) return ehDeducao ? 0m : null;
+
+        var baseCalculo = ehDeducao ? f.ReceitaBruta : f.ReceitaLiquida;
+        if (baseCalculo != 0m) return valor / baseCalculo * 100m;
+
+        return ehDeducao ? 0m : null;
     }
 
     /// <summary>

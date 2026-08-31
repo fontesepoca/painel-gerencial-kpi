@@ -106,7 +106,16 @@ Usar a receita líquida nas cinco deduções daria 8,659 no lugar de 7,742 em AB
 | Inicial | filtros preenchidos com o padrão, tabela vazia, convite a aplicar |
 | Apurando | indicador de progresso **com aviso de que pode levar minutos** |
 | Erro | mensagem do `ApiResponse.mensagem`, filtros preservados |
-| Vazio | "nenhum lançamento no período", não uma tabela em branco |
+| Sem movimento | **o esqueleto zerado**, como na 9815 — ver abaixo |
+
+**Não existe estado "vazio".** A especificação prometia a mensagem *"nenhum lançamento no
+período"*; a 9815 não faz isso. Conferido em 31/08/2026 com dezembro/2026 na filial 7, um
+mês inteiramente sem movimento: a rotina exporta **as 13 linhas calculadas, todas zeradas** —
+as nove do cabeçalho e os quatro totalizadores. Nossa tela mostra exatamente as mesmas 13.
+
+A promessa foi escrita antes de alguém observar o comportamento, e replicá-la seria divergir
+sem motivo. O `if (visiveis.length === 0)` do `TabelaDre` fica como defesa para o caso de a
+API não devolver linha nenhuma, mas na prática não dispara: linha calculada nunca é escondida.
 
 ---
 

@@ -59,3 +59,41 @@ Depois de rodar a rotina no mesmo cenário:
    outra trava que não mapeamos.
 2. A grade fica com o esqueleto zerado ou aparece alguma mensagem?
 3. Quantas linhas a exportação traz?
+
+---
+
+# RESULTADO — 31/08/2026
+
+## Previsão 1 — confirmada
+
+A API respondeu `200` em 12 segundos. Nenhuma guarda de divisão por zero falhou.
+
+## Previsão 2 — confirmada
+
+41 linhas ao todo: as parametrizadas do `EPCPARDRE`, nenhuma órfã. Todas com valor zero.
+13 com `semMovimento = false` (as calculadas), 28 escondidas.
+
+## Previsão 3 — confirmada, e a especificação é que estava errada
+
+A 9815 exporta **as mesmas 13 linhas zeradas** — nove de cabeçalho e quatro totalizadores.
+Não mostra mensagem nenhuma. Nossa tela faz o mesmo.
+
+A promessa da §3.3 foi apagada. Replicá-la seria divergir sem motivo.
+
+## O que a previsão NÃO antecipou — 5 células de `% AV`
+
+| Linha | 9815 | API (antes) |
+|---|---|---|
+| (+) RECEITA BRUTA | vazio | `null` ✓ |
+| (-) ABAT./DESC. · DEVOLUCAO · ST · PIS · COFINS | **0,000** | `null` ✗ |
+| de RECEITAS LIQUIDAS a LUCRO LIQUIDO | vazio | `null` ✓ |
+
+O recorte é exatamente o conjunto das cinco deduções — o mesmo que já usa RECEITA BRUTA
+como base. Com base zero, um grupo devolve `0` e o outro deixa em branco.
+
+Corrigido no `MontadorDre.CalcularAv`. Não afeta nenhum cenário já validado, porque lá a
+base nunca é zero.
+
+**O que continua desconhecido:** um mês com RECEITA BRUTA zerada mas com abatimento
+lançado. Aí o valor não seria zero, e não sabemos se a 9815 mostraria `0,000` ou outra
+coisa. Não foi observado.
