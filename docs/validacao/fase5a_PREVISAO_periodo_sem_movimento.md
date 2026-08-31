@@ -97,3 +97,40 @@ base nunca é zero.
 **O que continua desconhecido:** um mês com RECEITA BRUTA zerada mas com abatimento
 lançado. Aí o valor não seria zero, e não sabemos se a 9815 mostraria `0,000` ou outra
 coisa. Não foi observado.
+
+---
+
+# Segunda rodada — a pergunta em aberto tem cenário
+
+**Gravado em 31/08/2026, antes de rodar.**
+
+A [fase5c](fase5c_movimento_por_filial.sql) mediu movimento por filial em julho/2026 e
+achou o caso que faltava:
+
+| Filial | Label | Lançamentos de despesa | Notas de saída |
+|---|---|---:|---:|
+| 1 | ALFALOG | 53 | **0** |
+| 24 | POTENCIAL CONTAGEM | 29 | **0** |
+
+Dez outras estão completamente paradas: 13, 16, 17, 18, 19, 20, 22, 31, 35 e 91.
+
+## Cenário — filial 1 sozinha, julho/2026, competência, Grupo de Contas
+
+Cabeçalho inteiramente zerado, mas com linhas de despesa valendo alguma coisa. É a situação
+que a primeira rodada deixou como desconhecida.
+
+### Previsão
+
+| Linha | `% AV` previsto | Por quê |
+|---|---|---|
+| (+) RECEITA BRUTA | vazio | nunca tem |
+| as cinco deduções | `0,000` | valor zero e base zero — igual à primeira rodada |
+| **linhas de despesa, com valor ≠ 0** | **vazio** | base RECEITAS LIQUIDAS = 0, e o código devolve `null` |
+
+**A terceira linha é o palpite.** A primeira rodada só mostrou o comportamento quando o
+valor também era zero. Se a 9815 mostrar `0,000` ali, ou qualquer outra coisa, o
+`CalcularAv` precisa de mais um ajuste — e desta vez para um caso em que o número exibido
+teria significado, não um zero decorativo.
+
+Também previsto: `LUCRO BRUTO` zero, `Sub-Total` negativo, `RESULTADO OPERACIONAL` igual ao
+`Sub-Total` — porque somar zero de lucro bruto não muda nada.
