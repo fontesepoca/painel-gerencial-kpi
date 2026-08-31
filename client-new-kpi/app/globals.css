@@ -158,3 +158,20 @@ body {
   background: var(--primary-ring);
   color: var(--text-primary);
 }
+
+/* Indicador de apuração em andamento: a barra atravessa a trilha e volta.
+   Não é progresso real — a consulta não reporta avanço —, então o movimento
+   comunica "trabalhando", nunca "faltam 40%". */
+@keyframes deslizar {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(300%); }
+}
+
+/* Quem pediu menos movimento não perde a informação: a barra fica parada e cheia. */
+@media (prefers-reduced-motion: reduce) {
+  .animate-\[deslizar_1\.4s_ease-in-out_infinite\] {
+    animation: none;
+    width: 100%;
+    opacity: 0.5;
+  }
+}
