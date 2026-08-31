@@ -131,6 +131,27 @@ O total bate ao centavo com a medição independente das três filiais, o que pr
 filial 25 não contribui com nada nesse centro de custo. Marcar uma filial a mais apagou
 R$ 1,57 milhão.
 
+A [inc9h](validacao/inc9h_transporte_t_por_filial.sql) quebrou esse valor por filial e
+por mês — **e cada mês bate ao centavo com a exportação da 9815**:
+
+| Filial | jun/2026 | jul/2026 | Subtotal | Lançamentos |
+|---|---:|---:|---:|---:|
+| 7 | (661.735,77) | (877.431,30) | **(1.539.167,07)** | 1.170 |
+| 12 | (3.176,73) | (33.509,68) | (36.686,41) | 81 |
+| 25 | — | — | **sem lançamento** | 0 |
+| **Total** | **(664.912,50)** | **(910.940,98)** | **(1.575.853,48)** | **1.251** |
+
+A linha `Total` desta tabela é idêntica à linha `TRANSPORTE T - (28)` da exportação de
+7 e 12, mês a mês. A contagem de 1.251 lançamentos também bate com a inc9d.
+
+Duas consequências:
+
+1. **A filial 25 não tem um único lançamento** nesse centro de custo, confirmando de forma
+   independente o que a inc9e já dizia pela estrutura. Ela não some por falta de dado —
+   some porque foi marcada.
+2. **97,7% do valor é da filial 7.** Marcar a 25 apaga do relatório, quase inteira, a
+   despesa de transporte da filial 7 — que continuou selecionada o tempo todo.
+
 ### O tamanho da divergência depende de qual filial sobra
 
 Da [inc9e](validacao/inc9e_previsao_por_filial.sql), mesmo período. Quais centros de
@@ -160,9 +181,9 @@ depende de qual filial o Delphi guardou por último — não de quais ele marcou
 
 Para não confundir o que foi conferido com o que foi deduzido:
 
-- Os valores da tabela acima são do recorte de **três filiais**. Não medimos, linha por
-  linha, quanto cada uma dessas nove linhas vale no recorte de 7 e 12 — só
-  `TRANSPORTE T - (28)`, que veio da exportação.
+- Os valores da tabela acima são do recorte de **três filiais**. Das nove linhas, só
+  `TRANSPORTE T - (28)` foi quebrada por filial e por mês (inc9h) — e essa fechou ao
+  centavo contra a exportação. As outras oito não têm essa quebra.
 - Não medimos o efeito nas dimensões de **Centro de Custo simples**, onde a granularidade
   é o centro de custo inteiro e o defeito é muito maior. Falta referência (divergência nº 3).
 - A folga de 0,16% na conferência do Sub-Total continua sem explicação fechada.
