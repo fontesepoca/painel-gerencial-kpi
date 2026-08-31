@@ -45,16 +45,21 @@ Legenda: ✅ confere · ❌ diverge · ⬜ não testado · ⛔ bloqueado por inc
 
 ### Eixo 1 — Regime (dimensão Grupo de Contas, 1 mês, filiais 7/12/25)
 
+O cabeçalho sai **idêntico** nos dois regimes — receita, deduções e CMV não dependem dele.
+A diferença está nas despesas e, por tabela, no conjunto de contas órfãs: 123 linhas em
+competência contra 129 em caixa.
+
+
 | Cenário | Competência | Caixa |
 |---|---|---|
-| 01/08 a 27/08/2026 | ✅ 28/08/2026 | ⬜ **próximo** |
+| 01/08 a 27/08/2026 | ✅ 28/08/2026 — 123 linhas | ✅ 28/08/2026 — 129 linhas |
 | Mês fechado (julho/2026 inteiro) | ⬜ | ⬜ |
 
 ### Eixo 2 — Período
 
 | Cenário | Estado | Observação |
 |---|---|---|
-| 1 mês, mês corrente parcial | ✅ | o cenário já validado |
+| 1 mês, mês corrente parcial | ✅ | validado nos dois regimes |
 | 1 mês fechado (01/07 a 31/07) | ⬜ | sem lançamentos novos entrando |
 | 2 meses (01/06 a 31/07) | ⛔ | incremento 8 — colunas por mês e `%AH` |
 | 4 meses | ⛔ | incremento 8; é o limite de uso citado pelo negócio |
