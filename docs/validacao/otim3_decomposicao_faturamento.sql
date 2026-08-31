@@ -127,3 +127,47 @@ SELECT COUNT(*) AS PASSO_5_COMPLETO
                       AND To_Date('31/07/2026','dd/mm/yyyy')
    AND NF.CODFILIAL IN ('7')
 ;
+
+-- ============================================================================
+-- RESULTADO - 31/08/2026
+--
+--   passo 1  PCNFSAID .............   2,6 s    28.583 linhas
+--   passo 2  + PCMOV ..............  39,9 s   333.804
+--   passo 3  + PCMOVCOMPLE ........  26,9 s   333.804
+--   passo 4  + PCPRODUT ...........   1,2 s   333.472
+--   passo 5  + cliente especial ...   1,5 s   333.472
+--
+-- DEFEITO DO MEU DESENHO: os passos 4 e 5 juntam cinco tabelas e 333 mil
+-- linhas em pouco mais de um segundo. Isso e leitura de cache, nao trabalho.
+-- Rodar cada consulta duas vezes resolvia o ruido DENTRO de um passo, mas nao
+-- a contaminacao ENTRE passos: em sequencia, cada um herda o cache do
+-- anterior. O script nao media o que eu disse que mediria.
+--
+-- O QUE AINDA SE CONCLUI, lendo os tres primeiros passos como leitura fria
+-- de cada tabela nova:
+--
+--   PCNFSAID .......  2,6 s
+--   PCMOV ..........  ~37 s
+--   PCMOVCOMPLE ....  ~27 s
+--   PCPRODUT e esp .  desprezivel
+--
+-- Soma ~67s, contra 94s da consulta inteira - que ainda tem o bloco de
+-- devolucoes e as somas. Bate.
+--
+-- O plano estava CERTO sobre o PCMOVCOMPLE: 27s para ler o complemento de
+-- 333 mil itens, por uma coluna so (vlfecp). Errada estava a minha conclusao
+-- de que dava para melhorar trocando o metodo de juncao - hash faz ler MAIS.
+--
+-- AS CONTAGENS PROVARAM CORRECAO: PCMOVCOMPLE e outer join e a contagem NAO
+-- mudou (333.804 antes e depois). Se houvesse mais de uma linha de
+-- complemento por item, a consulta estaria multiplicando valores em silencio -
+-- problema de correcao, pior que lentidao. Nao esta.
+--
+-- PCPRODUT tira 332 de 333.804 - 0,1%. O filtro de cliente especial nao tira
+-- nenhuma neste cenario.
+--
+-- CONCLUSAO: a consulta e limitada por I/O de 333 mil itens. Nao ha rearranjo
+-- de SQL que evite ler o que precisa ser somado. O tempo cresce com o numero
+-- de itens do periodo vezes filiais - e por isso 13 filiais seriam
+-- proporcionalmente piores. A saida, se for necessaria, e arquitetural.
+-- ============================================================================
