@@ -78,3 +78,61 @@ Duas evidências de que a leitura está certa, tiradas da exportação de 7/12/2
 - `ALFALOG`, `VENDAS UNILEVER`, `RECEITAS NÃO OPERACIONAIS` e
   `RECEITA COM VERBAS` estão nos três conjuntos e **não** aparecem na
   exportação: são as zeradas que o relatório esconde.
+
+---
+
+# RESULTADO — 31/08/2026, 12:04 às 12:07
+
+Execução registrada em `tab_log_exec_rotina`, codlog 885086,
+`4-DRE / C.Custo Principal`, matrícula 4893.
+
+## Previsão 1 — confirmada
+
+O trace mostra, na consulta de estrutura:
+
+```sql
+AND  FIN.CODFILIAL IN ('12')
+```
+
+Na mesma consulta, o bloco de contas órfãs faz `UNION ALL` com `('7')` e
+`('12')`, e a consulta de valores também roda as duas. Um único ponto usa
+uma filial só — a última da lista, não a de clique.
+
+## Previsão 2 — confirmada, item por item
+
+| Previsto | Observado |
+|---|---|
+| `TRANSPORTE T - (28)` **presente** | presente, linha 26 do bloco operacional |
+| `MERCHANDISING` **ausente** | ausente |
+| `CD GOV VALADARES` **ausente** | ausente |
+| `EQUIPE PASTA MISTA`, `ECOMMERCE`, `DEPARTAMENTO PESSOAL - RAT`, `POTENCIAL`, `CD UBERLANDIA`, `CD 3 CORAÇOES`, `CD MONTES CLAROS`, `MANUTENÇÕES E CARRETAS` **ausentes** | todas ausentes |
+
+Nenhum desvio.
+
+## A prova de não monotonicidade
+
+`TRANSPORTE T - (28)` na exportação de **7 e 12**:
+
+| jun/2026 | jul/2026 | Total |
+|---|---|---|
+| (664.912,50) | (910.940,98) | **(1.575.853,48)** |
+
+O total bate **ao centavo** com o que a inc9d mediu somando as três filiais.
+A despesa inteira está em 7 e 12; a filial 25 não contribui com nada.
+
+E ainda assim, na exportação de **7, 12 e 25**, essa linha não existe.
+
+> **Marcar uma filial a mais faz R$ 1,57 milhão de despesa sumir do
+> relatório.** Não é interpretação de SQL — são duas exportações da própria
+> 9815, lado a lado.
+
+## Efeito nos totalizadores
+
+| | 7 e 12 | 7, 12 e 25 |
+|---|---|---|
+| Sub-Total → Despesas Operacionais | (24.786.607,60) | (27.823.344,79) |
+| LUCRO LIQUIDO | 4.217.672,27 | — |
+
+Os dois recortes não são comparáveis direto, porque o de três filiais tem
+mais movimento. O que se compara é o conjunto de linhas, e ele muda de forma
+que não é subconjunto nem superconjunto.
