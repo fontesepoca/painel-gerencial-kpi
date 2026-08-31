@@ -1,0 +1,449 @@
+<title>Validação da DRE Gerencial</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap">
+
+<style>
+  /* ── Escuro por padrão: é a identidade do Época Analytics, o mesmo
+     sistema visual da tela que está sendo validada. ─────────────────── */
+  :root {
+    --ground:      #080d1a;
+    --surface:     #0c1220;
+    --surface-alt: #101828;
+    --line:        rgb(255 255 255 / 0.09);
+    --line-soft:   rgb(255 255 255 / 0.05);
+    --ink:         #f1f5f9;
+    --ink-soft:    #9aa8bd;
+    --ink-faint:   #5c6b83;
+    --accent:      #4d8ef7;
+    --accent-soft: rgb(77 142 247 / 0.14);
+    --ok:          #34d399;
+    --warn:        #f0b429;
+    --warn-soft:   rgb(240 180 41 / 0.12);
+  }
+
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      --ground:      #f7f8fb;
+      --surface:     #ffffff;
+      --surface-alt: #f0f3f8;
+      --line:        rgb(12 18 32 / 0.13);
+      --line-soft:   rgb(12 18 32 / 0.07);
+      --ink:         #0c1220;
+      --ink-soft:    #48566d;
+      --ink-faint:   #7b89a0;
+      --accent:      #1f5fd0;
+      --accent-soft: rgb(31 95 208 / 0.10);
+      --ok:          #0f8a5f;
+      --warn:        #9a6a00;
+      --warn-soft:   rgb(154 106 0 / 0.10);
+    }
+  }
+
+  :root[data-theme="light"] {
+    --ground:      #f7f8fb;
+    --surface:     #ffffff;
+    --surface-alt: #f0f3f8;
+    --line:        rgb(12 18 32 / 0.13);
+    --line-soft:   rgb(12 18 32 / 0.07);
+    --ink:         #0c1220;
+    --ink-soft:    #48566d;
+    --ink-faint:   #7b89a0;
+    --accent:      #1f5fd0;
+    --accent-soft: rgb(31 95 208 / 0.10);
+    --ok:          #0f8a5f;
+    --warn:        #9a6a00;
+    --warn-soft:   rgb(154 106 0 / 0.10);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--ground);
+    color: var(--ink);
+    font-family: "Source Serif 4", Georgia, "Times New Roman", serif;
+    font-size: 17px;
+    line-height: 1.65;
+    margin: 0;
+    padding: clamp(2rem, 6vw, 5rem) clamp(1.25rem, 5vw, 3rem) 6rem;
+  }
+
+  .pagina { display: flex; flex-direction: column; gap: 3.5rem; max-width: 60rem; margin: 0 auto; }
+  .prosa  { display: flex; flex-direction: column; gap: 1rem; max-width: 38rem; }
+
+  h1, h2, h3, .rotulo, th, .numero, .chip {
+    font-family: Archivo, "Helvetica Neue", Arial, sans-serif;
+  }
+
+  h1 {
+    font-size: clamp(2rem, 5.5vw, 3rem);
+    font-weight: 700;
+    letter-spacing: -0.022em;
+    line-height: 1.1;
+    text-wrap: balance;
+    margin: 0;
+  }
+
+  h2 {
+    font-size: 1.3rem;
+    font-weight: 600;
+    letter-spacing: -0.012em;
+    text-wrap: balance;
+    margin: 0;
+  }
+
+  h3 { font-size: 1rem; font-weight: 600; margin: 0; }
+  p  { margin: 0; }
+
+  .rotulo {
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+  }
+
+  .secao { display: flex; flex-direction: column; gap: 1.5rem; }
+  .divisor { border: 0; border-top: 1px solid var(--line-soft); margin: 0; }
+
+  /* ── O veredito: três números que respondem a pergunta da página ── */
+  .veredito {
+    display: grid;
+    gap: 1px;
+    grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+    background: var(--line);
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+
+  .veredito > div {
+    background: var(--surface);
+    padding: 1.4rem 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+
+  .numero {
+    font-size: 2.1rem;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+  }
+
+  .numero.destaque { color: var(--warn); }
+  .numero.bom      { color: var(--ok); }
+  .legenda         { font-size: 0.9rem; color: var(--ink-soft); line-height: 1.4; }
+
+  .rolagem { overflow-x: auto; border: 1px solid var(--line); border-radius: 3px; }
+
+  table { border-collapse: collapse; width: 100%; font-size: 0.94rem; }
+
+  th {
+    background: var(--surface-alt);
+    text-align: left;
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    padding: 0.7rem 1rem;
+    white-space: nowrap;
+  }
+
+  td {
+    padding: 0.68rem 1rem;
+    border-top: 1px solid var(--line-soft);
+    background: var(--surface);
+    vertical-align: top;
+  }
+
+  td.num, th.num {
+    text-align: right;
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  tr.somatorio td { background: var(--surface-alt); font-weight: 600; border-top: 1px solid var(--line); }
+
+  .chip {
+    display: inline-block;
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 0.15rem 0.5rem;
+    border-radius: 2px;
+    white-space: nowrap;
+  }
+
+  .chip.ok    { color: var(--ok);   background: rgb(52 211 153 / 0.13); }
+  .chip.alvo  { color: var(--warn); background: var(--warn-soft); }
+  .chip.falta { color: var(--ink-faint); background: var(--line-soft); }
+
+  .destaque-bloco {
+    border-left: 2px solid var(--warn);
+    background: var(--warn-soft);
+    padding: 1.1rem 1.4rem;
+    border-radius: 0 3px 3px 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    max-width: 42rem;
+  }
+
+  .nota {
+    color: var(--ink-soft);
+    font-size: 0.92rem;
+    max-width: 38rem;
+  }
+
+  code {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 0.88em;
+    background: var(--accent-soft);
+    color: var(--accent);
+    padding: 0.08em 0.36em;
+    border-radius: 2px;
+  }
+
+  .lista { display: flex; flex-direction: column; gap: 0.9rem; max-width: 40rem; }
+
+  .item {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0.9rem;
+    align-items: baseline;
+  }
+
+  footer {
+    color: var(--ink-faint);
+    font-size: 0.85rem;
+    border-top: 1px solid var(--line-soft);
+    padding-top: 1.5rem;
+  }
+
+  a { color: var(--accent); }
+  a:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+</style>
+
+<div class="pagina">
+
+  <header class="prosa" style="max-width: 44rem;">
+    <p class="rotulo">Rotina 9815 &middot; Época Distribuição</p>
+    <h1>A DRE Gerencial na web produz os mesmos números da rotina atual</h1>
+    <p style="color: var(--ink-soft);">
+      A rotina foi reescrita para o navegador. O critério de aceite foi um só: bater com a
+      9815 ao centavo, inclusive nos pontos em que ela parece errada. Esta página mostra
+      como isso foi verificado e onde há uma diferença.
+    </p>
+  </header>
+
+  <section class="veredito">
+    <div>
+      <span class="numero bom">1.809</span>
+      <span class="legenda">valores conferidos contra a rotina rodando em produção</span>
+    </div>
+    <div>
+      <span class="numero bom">397</span>
+      <span class="legenda">linhas, todas na mesma ordem e com os mesmos rótulos</span>
+    </div>
+    <div>
+      <span class="numero destaque">9</span>
+      <span class="legenda">diferenças, todas de um centavo, todas na mesma coluna auxiliar</span>
+    </div>
+  </section>
+
+  <hr class="divisor">
+
+  <section class="secao">
+    <div class="prosa">
+      <p class="rotulo">Como foi verificado</p>
+      <h2>Nenhum número foi aceito por parecer certo</h2>
+      <p>
+        Cada consulta da rotina antiga foi comparada com a nova <em>dentro do próprio
+        banco</em>, lado a lado, antes de virar código. Só depois o resultado montado foi
+        conferido linha a linha contra planilhas exportadas da 9815.
+      </p>
+      <p>
+        As exportações registram os parâmetros usados, e a consulta na versão web é feita
+        logo em seguida. Esse cuidado não é formalidade:
+      </p>
+    </div>
+
+    <div class="destaque-bloco">
+      <p>
+        Numa das conferências, quase <strong>R$ 24 mil</strong> em despesas foram lançados
+        no intervalo entre exportar a planilha e consultar o sistema novo. Os números
+        deixaram de bater por uma hora de diferença, não por erro.
+      </p>
+      <p class="nota" style="color: inherit; opacity: 0.85;">
+        Sem o protocolo de coleta em sequência, teríamos passado horas caçando um problema
+        que não existia.
+      </p>
+    </div>
+
+    <div class="rolagem">
+      <table>
+        <thead>
+          <tr>
+            <th>Cenário conferido</th>
+            <th class="num">Linhas</th>
+            <th class="num">Valores</th>
+            <th>Resultado</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Agosto/2026, competência, 3 filiais</td>
+            <td class="num">123</td>
+            <td class="num">246</td>
+            <td><span class="chip ok">Idêntico</span></td>
+          </tr>
+          <tr>
+            <td>Agosto/2026, caixa, 3 filiais</td>
+            <td class="num">129</td>
+            <td class="num">258</td>
+            <td><span class="chip ok">Idêntico</span></td>
+          </tr>
+          <tr>
+            <td>Junho e julho/2026, competência, com variação mensal</td>
+            <td class="num">145</td>
+            <td class="num">1.305</td>
+            <td><span class="chip alvo">9 diferenças</span></td>
+          </tr>
+          <tr class="somatorio">
+            <td>Total</td>
+            <td class="num">397</td>
+            <td class="num">1.809</td>
+            <td><span class="chip alvo">9 de 1.809</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p class="nota">
+      Receita, abatimentos, devoluções, CMV, lucro bruto, todas as linhas de despesa, os
+      quatro totalizadores, os percentuais de análise vertical e a variação mês a mês:
+      <strong>zero diferenças</strong>.
+    </p>
+  </section>
+
+  <hr class="divisor">
+
+  <section class="secao">
+    <div class="prosa">
+      <p class="rotulo">A única diferença</p>
+      <h2>Um centavo na coluna Média</h2>
+      <p>
+        A coluna <strong>Média</strong> — total dividido pelo número de meses — difere em um
+        centavo em 9 das 145 linhas do relatório de dois meses.
+      </p>
+      <p>
+        A causa é o formato numérico interno do Delphi, em que a rotina atual foi escrita.
+        Nessas nove linhas o resultado da divisão cai exatamente na metade de um centavo, e
+        cada sistema resolve o empate de um jeito. Não é um arredondamento para cima ou para
+        baixo: sete sobem e duas descem.
+      </p>
+    </div>
+
+    <div class="rolagem">
+      <table>
+        <thead>
+          <tr>
+            <th>Forma de reproduzir que testamos</th>
+            <th class="num">Linhas que ainda erram</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>Somar os meses já arredondados e dividir</td><td class="num">9</td></tr>
+          <tr><td>Usar o mesmo tipo de número aproximado</td><td class="num">2</td></tr>
+          <tr><td>Dividir a soma sem arredondar antes</td><td class="num">7</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="prosa">
+      <h3>Por que aceitamos</h3>
+      <p>
+        <strong>Média é coluna derivada.</strong> Não entra em receita, despesa, lucro nem em
+        percentual nenhum — nada no relatório depende dela. Quem precisar do valor exato tem
+        o total e o número de meses na mesma tela.
+      </p>
+      <p>
+        Reproduzir o comportamento exigiria abandonar o tipo numérico exato que usamos para
+        dinheiro e adotar um aproximado. Trocaríamos precisão em todos os valores por um
+        centavo numa coluna auxiliar — e mesmo assim erraríamos em duas linhas.
+      </p>
+      <p class="nota">
+        <strong>Quando reabrir:</strong> se descobrirmos que alguém usa a coluna Média para
+        decidir alguma coisa. Aí a conversa muda de peso.
+      </p>
+    </div>
+  </section>
+
+  <hr class="divisor">
+
+  <section class="secao">
+    <div class="prosa">
+      <p class="rotulo">O que a versão web muda</p>
+      <h2>Além de sair do desktop</h2>
+    </div>
+
+    <div class="lista">
+      <div class="item">
+        <span class="chip alvo">Corrige</span>
+        <p>
+          <strong>A análise por Centro de Custo volta a existir.</strong> Na 9815 ela para
+          com erro em qualquer filtro, e é assim há tempos. Encontramos a causa — um defeito
+          de programação que escondia um segundo — e a versão nova foi desenhada para não
+          ter o problema. É a última entrega pendente.
+        </p>
+      </div>
+      <div class="item">
+        <span class="chip ok">Ganha</span>
+        <p>
+          <strong>Acesso pelo navegador</strong>, sem instalação, com as 18 filiais
+          disponíveis no próprio filtro em vez de uma tela de seleção antes de abrir.
+        </p>
+      </div>
+      <div class="item">
+        <span class="chip falta">Ainda não</span>
+        <p>
+          <strong>Tempo de apuração.</strong> No mesmo cenário de dois meses, 4 min 17 s
+          contra 4 min 59 s da rotina atual. O custo está na leitura do banco, não no formato
+          da consulta; reduzir isso de verdade é um trabalho à parte, ainda não feito.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <hr class="divisor">
+
+  <section class="secao">
+    <div class="prosa">
+      <p class="rotulo">O que falta</p>
+      <h2>Duas frentes antes de liberar para uso</h2>
+      <p>
+        <strong>Centro de Custo.</strong> É a única das quatro análises sem referência para
+        comparar, justamente porque nunca funcionou. Vai precisar de conferência com alguém
+        que conheça os centros de custo da operação.
+      </p>
+      <p>
+        <strong>Ampliar os cenários.</strong> Mais períodos, filiais isoladas, todas as 18
+        juntas, e as outras duas análises. Cada combinação é uma conferência contra a rotina
+        atual, no mesmo protocolo.
+      </p>
+    </div>
+  </section>
+
+  <footer>
+    Conferências realizadas em 27 e 28 de agosto de 2026, contra a rotina 9815 em produção.
+    Cada cenário tem os parâmetros, o horário das coletas e o resultado registrados na
+    documentação técnica do projeto.
+  </footer>
+
+</div>
