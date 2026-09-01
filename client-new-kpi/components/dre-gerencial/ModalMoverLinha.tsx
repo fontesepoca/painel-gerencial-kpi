@@ -142,7 +142,7 @@ export function ModalMoverLinha({
               onClick={onConfirmar}
               // Não é o botão preferido: quem chegou aqui está fazendo algo que a tela
               // acabou de desaconselhar. Confirmar tem que ser deliberado.
-              className="h-[var(--altura-controle)] rounded-[var(--radius-md)] bg-[var(--warning)] px-5 text-[length:var(--fs-base)] font-semibold text-[#1a1200] transition-opacity hover:opacity-90"
+              className="h-[var(--altura-controle)] rounded-[var(--radius-md)] bg-[var(--warning)] px-5 text-[length:var(--fs-base)] font-semibold text-[var(--sobre-warning)] transition-opacity hover:opacity-90"
             >
               Mover assim mesmo
             </button>

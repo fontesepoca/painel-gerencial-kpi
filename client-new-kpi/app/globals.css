@@ -37,6 +37,7 @@
   --warning:       #f59e0b;
   --warning-glow:  rgb(245 158 11 / 0.10);
   --info:          #0ea5e9;
+  --sobre-warning: #1a1200;
 
   /* ── Texto ──
      `--text-muted` era #475569, que dá contraste 2,47 sobre a superfície 1 —
@@ -98,9 +99,18 @@
   color-scheme: dark;
 }
 
-/* Tema claro. Ativado por html.light — o seletor fica pronto desde já
-   para não ter que reescrever token nenhum quando o toggle entrar. */
-html.light {
+/* ═══════════════════════════════════════════════════════════════
+   TEMA CLARO
+
+   Não é o tema escuro com as superfícies trocadas. Cor que enxerga bem sobre
+   fundo escuro costuma sumir sobre branco: #f59e0b mede 2,15 de contraste no
+   branco, e é a cor de um selo de aviso. Por isso as semânticas e o acento
+   também descem de tom aqui — todos medidos, nenhum escolhido no olho.
+
+   As sombras idem: uma sombra calibrada para preto vira mancha suja no claro.
+   ═══════════════════════════════════════════════════════════════ */
+
+html[data-tema="claro"] {
   --bg:            #f8fafc;
   --surface-0:     #ffffff;
   --surface-1:     #ffffff;
@@ -116,6 +126,22 @@ html.light {
   --text-primary:   #0f172a;
   --text-secondary: #334155;
   --text-muted:     #64748b;
+
+  /* Acento: #3b82f6 dá 3,68 no branco, abaixo do AA para texto pequeno — e ele é
+     a cor de link do "Restaurar ordem do cadastro". #2563eb mede 5,17, e continua
+     servindo de fundo com texto branco por cima. */
+  --primary: #2563eb;
+
+  /* Verde, vermelho e âmbar do escuro no branco: 2,48, 3,50 e 2,15. Estes medem
+     5,42, 5,93 e 4,84 — e são a cor dos números do DRE. */
+  --positive: #047857;
+  --negative: #be123c;
+  --warning:  #b45309;
+
+  --shadow-card:  0 1px 2px rgb(15 23 42 / 0.06), 0 4px 12px rgb(15 23 42 / 0.08);
+  --shadow-float: 0 1px 3px rgb(15 23 42 / 0.08), 0 4px 20px rgb(15 23 42 / 0.12);
+  --shadow-modal: 0 8px 24px rgb(15 23 42 / 0.12), 0 24px 60px rgb(15 23 42 / 0.18);
+  --sobre-warning: #ffffff;
 
   color-scheme: light;
 }
@@ -167,13 +193,18 @@ html[data-leitura="ampliada"] {
 
 /* Precisa vir depois do bloco acima: senão o ampliado devolveria os cinzas
    do tema escuro para uma tela clara, e o contraste inverteria. */
-html.light[data-leitura="ampliada"] {
+html[data-tema="claro"][data-leitura="ampliada"] {
   --zebra:          rgb(15 23 42 / 0.03);
   --text-secondary: #1e293b;
   --text-muted:     #475569;
   --border:         rgb(15 23 42 / 0.14);
   --border-strong:  rgb(15 23 42 / 0.24);
 
+  /* Repetidas de propósito, apesar de o bloco do tema claro já as definir. O bloco
+     `[data-leitura="ampliada"]` acima clareia estas três para o fundo escuro, tem a
+     mesma especificidade do bloco do tema claro e vem depois dele — sem repetir aqui,
+     os números do DRE saem em rosa e verde-claro sobre branco. Medido: 2,46 de
+     contraste, contra os 5,93 destes. */
   --positive: #047857;
   --negative: #be123c;
   --warning:  #b45309;

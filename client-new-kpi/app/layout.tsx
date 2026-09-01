@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { QueryProvider } from "@/context/QueryProvider";
 import { LeituraProvider, SCRIPT_LEITURA_INICIAL } from "@/context/LeituraProvider";
+import { TemaProvider, SCRIPT_TEMA_INICIAL } from "@/context/TemaProvider";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -34,15 +35,19 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <head>
-        {/* Roda antes da primeira pintura. Sem ele a página nasceria no modo
-            padrão e saltaria para o ampliado na hidratação — um pulo de tamanho
-            de fonte justamente para quem precisa de fonte grande. */}
+        {/* Rodam antes da primeira pintura. Sem eles a página nasceria no modo
+            padrão e escura, e saltaria na hidratação — um pulo de tamanho de fonte
+            justamente para quem precisa de fonte grande, e um flash branco para
+            quem escolheu o tema escuro. */}
         <script dangerouslySetInnerHTML={{ __html: SCRIPT_LEITURA_INICIAL }} />
+        <script dangerouslySetInnerHTML={{ __html: SCRIPT_TEMA_INICIAL }} />
       </head>
       <body className="min-h-full">
-        <LeituraProvider>
-          <QueryProvider>{children}</QueryProvider>
-        </LeituraProvider>
+        <TemaProvider>
+          <LeituraProvider>
+            <QueryProvider>{children}</QueryProvider>
+          </LeituraProvider>
+        </TemaProvider>
       </body>
     </html>
   );
