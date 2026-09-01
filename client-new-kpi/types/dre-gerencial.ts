@@ -72,6 +72,109 @@ export interface LinhaDre {
   zerada: boolean;
   /** `#RRGGBB` vindo do `TColor` do Delphi, já convertido. */
   cor: string | null;
+  /**
+   * Destino do duplo clique, ou `null` se a linha não abre detalhamento.
+   * Quem decide é o servidor — o front devolve o que recebeu.
+   */
+  detalhe: DetalheDisponivel | null;
+}
+
+export type TipoDetalhe =
+  | "receita-por-cliente"
+  | "devolucao-por-motivo"
+  | "lancamentos";
+
+/** Espelha `DetalheDisponivelDto`. */
+export interface DetalheDisponivel {
+  tipo: TipoDetalhe;
+  /** Só em `lancamentos`. */
+  bloco: string | null;
+  /** Só em `lancamentos`: o `GRUPOCONTA` da linha. */
+  chave: string | null;
+}
+
+/**
+ * Filtro do detalhamento. As datas são as do **mês clicado recortado pelo período**, não
+ * as da apuração inteira — ver `recorteDoMes` em `lib/periodos.ts`.
+ */
+export interface FiltroDetalhe extends FiltroApuracao {
+  tipo: TipoDetalhe;
+  bloco: string | null;
+  chave: string | null;
+}
+
+export interface DetalheCliente {
+  codCli: number;
+  cliente: string;
+  cidade: string;
+  qdeNf: number;
+  receitaBruta: number;
+  desconto: number;
+  devolucao: number;
+  receitaLiquida: number;
+  custoLiq: number;
+}
+
+export interface DetalheMotivo {
+  /** Nulo em devolução sem motivo cadastrado — a junção é externa de propósito. */
+  codMotivo: number | null;
+  motivo: string | null;
+  culpaRca: string | null;
+  qdeNf: number;
+  vlDevolucao: number;
+  pPart: number;
+}
+
+export interface DetalheLancamento {
+  recNum: number;
+  codFilial: string | null;
+  codCcPrinc: string | null;
+  descCcPrinc: string | null;
+  codCentroCusto: string | null;
+  descCentroCusto: string | null;
+  codGrupo: number | null;
+  grupo: string | null;
+  codConta: number | null;
+  conta: string | null;
+  /** Já vem negativo nas despesas, como na apuração. */
+  vPago: number;
+  historico: string | null;
+  dtLanc: string | null;
+  dtCompetencia: string | null;
+  dtCompensacao: string | null;
+  dtPagto: string | null;
+  numTrans: number | null;
+  numNota: number | null;
+  duplic: string | null;
+  indice: string | null;
+  codProjeto: number | null;
+  codFornec: number | null;
+  fornecedor: string | null;
+  numBanco: number | null;
+  numCheque: string | null;
+  numBordero: number | null;
+  numSeqBordero: number | null;
+  numCheque2: string | null;
+  numCar: number | null;
+  localizacao: string | null;
+  nomeFunc: string | null;
+  nomeFuncBaixa: string | null;
+  dtReclassific: string | null;
+  codFuncReclassific: number | null;
+}
+
+/**
+ * Resposta do detalhamento. **Uma coleção preenchida por vez**, conforme `tipo` — as três
+ * telas têm formatos de linha diferentes e não há como unificá-las sem perder coluna.
+ */
+export interface Detalhamento {
+  tipo: TipoDetalhe;
+  dataInicio: string;
+  dataFim: string;
+  clientes: DetalheCliente[] | null;
+  motivos: DetalheMotivo[] | null;
+  lancamentos: DetalheLancamento[] | null;
+  duracaoMs: number;
 }
 
 export interface Apuracao {

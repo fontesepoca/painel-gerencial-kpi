@@ -106,7 +106,17 @@ export default function DreGerencialPage() {
               periodos={dados.periodos}
               linhas={dados.linhas}
               mostrarZeradas={mostrarZeradas}
-              analise={dados.analise}
+              // Deliberadamente `dados`, e não `filtro`: o detalhamento tem que usar os
+              // parâmetros que produziram os números na tela. Mexer no formulário depois
+              // de apurar e só então clicar duplo devolveria outro recorte, e o total não
+              // fecharia com a célula clicada.
+              filtro={{
+                filiais: dados.filiais,
+                dataInicio: dados.dataInicio,
+                dataFim: dados.dataFim,
+                regime: dados.regime,
+                analise: dados.analise,
+              }}
             />
           </section>
         )}

@@ -2,6 +2,9 @@
 
 import { useCallback, useMemo, useState } from "react";
 import { ModalMoverLinha, type MovimentoPendente } from "./ModalMoverLinha";
+import { ModalDetalhe } from "./ModalDetalhe";
+import { useDetalhe } from "@/hooks/useDreGerencial";
+import { recorteDoMes } from "@/lib/periodos";
 import { useOrdemSalva } from "@/hooks/useOrdemSalva";
 import { cn } from "@/lib/cn";
 import { formatarPercentual, formatarValor } from "@/lib/formato";
@@ -14,7 +17,7 @@ import {
   ordemPersonalizada,
   saiuDoBloco,
 } from "@/lib/ordemLinhas";
-import type { Analise, LinhaDre, PeriodoDre } from "@/types/dre-gerencial";
+import type { FiltroApuracao, LinhaDre, PeriodoDre } from "@/types/dre-gerencial";
 
 /**
  * Tamanhos, espaçamento e contraste vêm de tokens definidos em `globals.css`.
@@ -33,14 +36,15 @@ export function TabelaDre({
   periodos,
   linhas,
   mostrarZeradas,
-  analise,
+  filtro,
 }: {
   periodos: PeriodoDre[];
   linhas: LinhaDre[];
   mostrarZeradas: boolean;
-  analise: Analise;
+  /** Filiais, período, regime e dimensão da apuração — o detalhamento repete todos. */
+  filtro: FiltroApuracao;
 }) {
-  const { ordem, salvar, limpar } = useOrdemSalva(analise);
+  const { ordem, salvar, limpar } = useOrdemSalva(filtro.analise);
 
   // `linhas` é sempre a ordem do cadastro, como veio da API — é a referência contra a
   // qual tudo aqui é medido. `ordenadas` é o que a pessoa vê.
@@ -53,6 +57,12 @@ export function TabelaDre({
   >(null);
   const [arrastarBloco, setArrastarBloco] = useState(true);
   const [anuncio, setAnuncio] = useState("");
+
+  const consultaDetalhe = useDetalhe();
+  const [detalhe, setDetalhe] = useState<{
+    titulo: string;
+    periodo: { dataInicio: string; dataFim: string };
+  } | null>(null);
 
   const deslocadas = useMemo(
     () =>
@@ -193,6 +203,45 @@ export function TabelaDre({
     setPendente(null);
   }, [pendente, salvar]);
 
+  /**
+   * Duplo clique numa celula de valor.
+   *
+   * O periodo NAO e o da apuracao inteira: e o mes da coluna clicada, recortado pelo
+   * periodo. Com 01/08 a 27/08, agosto detalha 01/08 a 27/08 — detalhar o mes calendario
+   * mostraria lancamentos que nao entraram na celula, e o total deixaria de bater com ela.
+   * No bloco TOTAL, `mesAno` vem nulo e o recorte e o periodo todo.
+   */
+  const abrirDetalhe = useCallback(
+    (linha: LinhaDre, mesAno: string | null) => {
+      if (!linha.detalhe) return;
+
+      const periodo = mesAno
+        ? recorteDoMes(mesAno, filtro.dataInicio, filtro.dataFim)
+        : { dataInicio: filtro.dataInicio, dataFim: filtro.dataFim };
+
+      if (!periodo) return;
+
+      const coluna = mesAno
+        ? (periodos.find((pp) => pp.mesAno === mesAno)?.rotulo ?? mesAno)
+        : "Total do periodo";
+
+      setDetalhe({ titulo: `${linha.descricao.trim()} · ${coluna}`, periodo });
+      consultaDetalhe.mutate({
+        ...filtro,
+        ...periodo,
+        tipo: linha.detalhe.tipo,
+        bloco: linha.detalhe.bloco,
+        chave: linha.detalhe.chave,
+      });
+    },
+    [filtro, periodos, consultaDetalhe],
+  );
+
+  const fecharDetalhe = useCallback(() => {
+    setDetalhe(null);
+    consultaDetalhe.reset();
+  }, [consultaDetalhe]);
+
   const restaurar = useCallback(() => {
     limpar();
     setAnuncio("Ordem do cadastro restaurada.");
@@ -328,6 +377,9 @@ export function TabelaDre({
                     setAlvo(null);
                   }}
                   onTeclado={(direcao) => moverPorTeclado(indice, direcao)}
+                  onDetalhe={
+                    linha.detalhe ? (mesAno) => abrirDetalhe(linha, mesAno) : null
+                  }
                 />
               );
             })}
@@ -343,6 +395,18 @@ export function TabelaDre({
         pendente={pendente}
         onConfirmar={confirmar}
         onCancelar={() => setPendente(null)}
+      />
+
+      <ModalDetalhe
+        aberto={detalhe !== null}
+        titulo={detalhe?.titulo ?? ""}
+        periodo={detalhe?.periodo ?? null}
+        dados={consultaDetalhe.data}
+        carregando={consultaDetalhe.isPending}
+        erro={
+          consultaDetalhe.error instanceof Error ? consultaDetalhe.error.message : null
+        }
+        onFechar={fecharDetalhe}
       />
     </>
   );
@@ -394,6 +458,7 @@ function Linha({
   onSoltar,
   onArrastarFim,
   onTeclado,
+  onDetalhe,
 }: {
   linha: LinhaDre;
   indice: number;
@@ -409,6 +474,8 @@ function Linha({
   onSoltar: (destino: number) => void;
   onArrastarFim: () => void;
   onTeclado: (direcao: -1 | 1) => void;
+  /** `null` no bloco TOTAL: detalha o periodo inteiro. */
+  onDetalhe: ((mesAno: string | null) => void) | null;
 }) {
   // Metade de cima da linha solta antes dela; metade de baixo, depois.
   const destinoDoPonteiro = (e: React.DragEvent<HTMLTableRowElement>) => {
@@ -516,6 +583,7 @@ function Linha({
           mostrarAh={multiMes}
           maiorAv={maiorAv}
           destaque={linha.totalizadora}
+          onDetalhe={onDetalhe ? () => onDetalhe(v.mesAno) : null}
         />
       ))}
 
@@ -526,6 +594,7 @@ function Linha({
           media={linha.total.media}
           maiorAv={maiorAv}
           destaque={linha.totalizadora}
+          onDetalhe={onDetalhe ? () => onDetalhe(null) : null}
           total
         />
       )}
@@ -542,6 +611,7 @@ function BlocoMes({
   maiorAv,
   destaque,
   total,
+  onDetalhe,
 }: {
   valor: number;
   av: number | null;
@@ -551,6 +621,7 @@ function BlocoMes({
   maiorAv: number;
   destaque: boolean;
   total?: boolean;
+  onDetalhe: (() => void) | null;
 }) {
   const celula = cn(CELULA, "whitespace-nowrap tabular", destaque && "font-semibold");
   const corValor = (v: number) =>
@@ -562,15 +633,32 @@ function BlocoMes({
 
   return (
     <>
+      {/* Duplo clique, como na 9815. Só nas linhas que abrem detalhamento — o servidor
+          é quem diz quais, no campo `detalhe` da linha. */}
       <td
+        onDoubleClick={onDetalhe ?? undefined}
         className={cn(
           celula,
           "text-right",
           corValor(valor),
           total && "border-l border-[var(--border-strong)] bg-[var(--surface-2)]",
+          onDetalhe && "tem-detalhe",
         )}
       >
-        {formatarValor(valor)}
+        {onDetalhe ? (
+          // O botão existe para o teclado: duplo clique não tem equivalente sem mouse, e
+          // sem ele a tela inteira ficaria fora de alcance de quem navega por tabulação.
+          <button
+            type="button"
+            onClick={onDetalhe}
+            title="Ver de onde vem este valor"
+            className="valor-clicavel"
+          >
+            {formatarValor(valor)}
+          </button>
+        ) : (
+          formatarValor(valor)
+        )}
       </td>
 
       <td className={cn(CELULA, total && "bg-[var(--surface-2)]")}>

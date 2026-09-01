@@ -534,3 +534,34 @@ tbody tr:hover > .celula-descricao,
 tbody tr.linha-totalizadora > .celula-descricao {
   background-color: var(--surface-2);
 }
+
+/* Detalhamento do duplo clique. Bem maior que o aviso de mover linha: mostra até
+   15 mil clientes, e a rolagem é interna para o cabeçalho e a linha de totais
+   ficarem colados enquanto se percorre a lista. */
+.dialogo-detalhe {
+  margin: auto;
+  width: min(84rem, calc(100vw - 3rem));
+  height: min(46rem, calc(100vh - 4rem));
+  padding: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--surface-1);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-modal);
+}
+
+.dialogo-detalhe::backdrop {
+  background: rgb(0 0 0 / 0.6);
+}
+
+/* A célula que abre detalhamento avisa que é clicável. O cursor sozinho não basta
+   em tela de toque, então o sublinhado pontilhado aparece no hover e no foco. */
+.tem-detalhe {
+  cursor: pointer;
+}
+
+.tem-detalhe:hover .valor-clicavel,
+tr:focus-within .tem-detalhe .valor-clicavel {
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+}
