@@ -25,19 +25,13 @@ export default function DreGerencialPage() {
   const dados = apuracao.data;
 
   return (
-    <AppShell trilha={["Época Analytics", "Inteligência Financeira"]}>
+    // O nome da rotina vive só na trilha do cabeçalho. Um `h1` repetindo "DRE
+    // Gerencial" logo abaixo dela custava duas linhas de altura para dizer o que já
+    // estava dito — e altura é o recurso escasso desta tela.
+    <AppShell trilha={["Época Analytics", "DRE Gerencial"]}>
       {/* Com a leitura ampliada a tabela precisa de mais largura útil antes de
           começar a rolar na horizontal. */}
-      <div className="mx-auto flex max-w-[110rem] flex-col gap-6">
-        <header>
-          <h1 className="font-[family-name:var(--font-display)] text-[length:var(--fs-titulo)] font-semibold tracking-tight">
-            DRE Gerencial
-          </h1>
-          <p className="mt-1 text-[length:var(--fs-base)] text-[var(--text-secondary)]">
-            Rateios · Provisões · Margem de Contribuição
-          </p>
-        </header>
-
+      <div className="mx-auto flex max-w-[110rem] flex-col gap-4">
         <div className="rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface-1)] p-5 shadow-[var(--shadow-card)]">
           <FiltrosDre
             filtro={filtro}

@@ -37,24 +37,34 @@ export function AppShell({
             aria-label="Trilha de navegação"
             className="hidden min-w-0 items-center gap-2 text-[length:var(--fs-base)] sm:flex"
           >
-            {trilha.map((item, indice) => (
-              <span key={item} className="flex min-w-0 items-center gap-2">
-                {indice > 0 && (
-                  <span aria-hidden className="text-[var(--text-muted)]">
-                    /
-                  </span>
-                )}
-                <span
-                  className={
-                    indice === trilha.length - 1
-                      ? "truncate text-[var(--text-secondary)]"
-                      : "truncate font-semibold text-[var(--text-primary)]"
-                  }
-                >
-                  {item}
+            {trilha.map((item, indice) => {
+              // O último item da trilha É o título da página, então ele carrega o `h1`.
+              // A tela não tem outro: um cabeçalho repetindo o nome da rotina logo abaixo
+              // custava duas linhas de altura, e altura é o recurso escasso aqui. Sem este
+              // `h1` o documento ficaria sem cabeçalho de nível 1, e quem navega por
+              // cabeçalhos perderia o ponto de entrada da página.
+              const ultimo = indice === trilha.length - 1;
+              const Rotulo = ultimo ? "h1" : "span";
+
+              return (
+                <span key={item} className="flex min-w-0 items-center gap-2">
+                  {indice > 0 && (
+                    <span aria-hidden className="text-[var(--text-muted)]">
+                      /
+                    </span>
+                  )}
+                  <Rotulo
+                    className={
+                      ultimo
+                        ? "truncate text-[length:inherit] font-normal text-[var(--text-secondary)]"
+                        : "truncate font-semibold text-[var(--text-primary)]"
+                    }
+                  >
+                    {item}
+                  </Rotulo>
                 </span>
-              </span>
-            ))}
+              );
+            })}
           </nav>
 
           <div className="ml-auto flex items-center gap-2 py-2">

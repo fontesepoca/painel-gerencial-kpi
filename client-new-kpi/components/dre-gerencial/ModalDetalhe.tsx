@@ -150,7 +150,7 @@ function Vazio() {
 }
 
 const TH =
-  "px-3 py-2.5 text-[length:var(--fs-rotulo)] font-medium tracking-[0.14em] text-[var(--text-muted)] uppercase whitespace-nowrap";
+  "px-3 py-[var(--celula-y)] text-[length:var(--fs-rotulo)] font-medium tracking-[0.14em] text-[var(--text-muted)] uppercase whitespace-nowrap";
 const TD = "px-3 py-[var(--celula-y)] whitespace-nowrap";
 const NUM = `${TD} tabular text-right`;
 

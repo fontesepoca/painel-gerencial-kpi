@@ -66,8 +66,11 @@
   --fs-base:     0.875rem;   /* 14px — tabela e campos de formulário */
   --fs-titulo:   1.5rem;     /* 24px — título da página */
   --altura-controle: 2.5rem;
-  --celula-y:    0.5rem;
-  --celula-x:    1rem;
+  /* Respiro das celulas da tabela. Comprimido de proposito: altura e o recurso
+     escasso aqui, e cada 4px a menos por linha devolve uma linha inteira a cada
+     doze na tela. O limite de baixo e o alvo de toque, nao a estetica. */
+  --celula-y:    0.25rem;
+  --celula-x:    0.75rem;
   --barra-av-h:  2px;
   --zebra:       transparent;
   --peso-numero: 400;
@@ -175,8 +178,11 @@ html[data-leitura="ampliada"] {
   --fs-base:     1.125rem;   /* 18px */
   --fs-titulo:   1.875rem;   /* 30px */
   --altura-controle: 3rem;
-  --celula-y:    0.875rem;
-  --celula-x:    1.25rem;
+  /* O ampliado segue com mais respiro que o padrao, so que menos generoso: o
+     dobro em vez do triplo. Quem liga o ampliado quer ler numero grande, nao
+     ver metade das linhas. */
+  --celula-y:    0.5rem;
+  --celula-x:    1rem;
   --barra-av-h:  4px;
   --zebra:       rgb(255 255 255 / 0.022);
   --peso-numero: 500;
@@ -385,8 +391,11 @@ html[data-leitura="ampliada"] :focus-visible {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 1.75rem;
-  height: 1.75rem;
+  /* 24px e o alvo de toque minimo do WCAG. Nao encolhe mais: o punho era o que
+     ditava a altura da linha, e cortar altura as custas de quem tem tremor nas
+     maos trocaria um problema por outro pior. */
+  width: 1.5rem;
+  height: 1.5rem;
   border-radius: var(--radius-sm);
   color: var(--text-muted);
   cursor: grab;
@@ -404,9 +413,9 @@ html[data-leitura="ampliada"] :focus-visible {
 }
 
 html[data-leitura="ampliada"] .puxador {
-  width: 2.25rem;
-  height: 2.25rem;
-  font-size: 1.25rem;
+  width: 1.75rem;
+  height: 1.75rem;
+  font-size: 1.1rem;
   color: var(--text-secondary);
 }
 
@@ -618,4 +627,23 @@ tr:focus-within .tem-detalhe .valor-clicavel {
 
 .dialogo-detalhe tbody tr:hover > .col-identidade {
   background-color: var(--surface-2);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   COMPRESSÃO DAS LINHAS
+
+   Altura é o recurso escasso: quanto mais linhas do DRE cabem sem rolar, menos
+   a pessoa perde o fio ao comparar contas. Três coisas ditavam a altura, e o
+   padding era só a terceira — medido antes de mexer:
+
+     punho 36px  >  célula de %AV 29px  >  padding 16px
+
+   Por isso o punho encolheu até o alvo mínimo de toque, o %AV perdeu o vão
+   entre número e barra, e a entrelinha caiu. Nenhuma célula da tabela quebra em
+   duas linhas, então entrelinha aqui é padding disfarçado.
+   ═══════════════════════════════════════════════════════════════ */
+
+.tabela-rolagem table,
+.dialogo-detalhe table {
+  line-height: 1.25;
 }

@@ -434,7 +434,7 @@ function Th({ className, children }: { className?: string; children?: React.Reac
   return (
     <th
       className={cn(
-        "px-[var(--celula-x)] py-2.5 text-[length:var(--fs-rotulo)] font-medium tracking-[0.14em] text-[var(--text-muted)] uppercase",
+        "px-[var(--celula-x)] py-[var(--celula-y)] text-[length:var(--fs-rotulo)] font-medium tracking-[0.14em] text-[var(--text-muted)] uppercase",
         className,
       )}
     >
@@ -697,7 +697,7 @@ function BarraAv({ percentual, maior }: { percentual: number | null; maior: numb
   const largura = Math.min(100, (magnitude / base) * 100);
 
   return (
-    <div className="flex flex-col items-end gap-1">
+    <div className="flex flex-col items-end gap-0.5">
       <span className="tabular text-[length:var(--fs-apoio)] text-[var(--text-secondary)]">
         {formatarPercentual(percentual)}
       </span>
