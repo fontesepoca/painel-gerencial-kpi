@@ -796,6 +796,33 @@ seria escolher preservar a contradição, e a contradição é justamente o que 
 existe para resolver: quem clica está perguntando "de onde vem este valor". Uma resposta
 que não soma o valor perguntado não responde nada.
 
+### A correção foi medida — 01/09/2026
+
+[dc2](validacao/dc2_receita_por_cliente_corrigida.sql) registrou as cinco previsões antes
+de rodar, e as cinco bateram:
+
+| Coluna | Antes | Previsto | Medido |
+|---|---|---|---|
+| `REC_BRUTA` | 52.193.509,49 | 55.753.802,35 | 55.753.802,354557 |
+| `DESCONTO` | 4.663.258,65 | 4.663.258,65 | 4.663.258,65342 |
+| `DEVOLUCAO` | 1.370.523,10 | 1.256.167,12 | 1.256.167,12 |
+| `REC_LIQUIDA` | 46.159.727,74 | 49.834.376,58 | 49.834.376,581137 |
+| `CUSTO_LIQ` | 36.960.829,81 | 37.039.545,89 | 37.039.545,88513 |
+
+**A contagem de clientes caiu de 15.444 para 15.443** — exatamente um. A diferença da
+devolução, 114.355,98, é ao centavo o valor de `POTENCIAL COMERCIO E DIST. LTDA`
+(codcli 174297), que aparecia na lista antiga com receita bruta zero: existia ali só por
+causa de uma devolução que não passa no critério da apuração. Com o critério corrigido o
+cliente some inteiro, e a linha some junto.
+
+Isso é coerente com a aritmética, mas não foi provado diretamente — quem quiser fechar,
+roda o bloco de devolução de dc2 com `AND cli.codcli = 174297` e confere que volta vazio.
+
+**Custo:** a consulta levou **116,9 s**. A da 9815 levava 30,3 s — a diferença vem das
+junções que o critério da apuração exige (`PCPEDC`, `PCMOVCOMPLE`, `PCPRODUT` na
+devolução). Fechar os números veio primeiro; a otimização é assunto à parte, e dois
+minutos é tempo demais para uma tela que abre com duplo clique.
+
 ### Como reverter
 
 Em `DreGerencialQueries`, nas consultas de detalhamento:
