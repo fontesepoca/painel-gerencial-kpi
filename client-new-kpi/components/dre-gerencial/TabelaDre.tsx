@@ -204,12 +204,12 @@ export function TabelaDre({
   }, [pendente, salvar]);
 
   /**
-   * Duplo clique numa celula de valor.
+   * Duplo clique numa célula de valor.
    *
-   * O periodo NAO e o da apuracao inteira: e o mes da coluna clicada, recortado pelo
-   * periodo. Com 01/08 a 27/08, agosto detalha 01/08 a 27/08 — detalhar o mes calendario
-   * mostraria lancamentos que nao entraram na celula, e o total deixaria de bater com ela.
-   * No bloco TOTAL, `mesAno` vem nulo e o recorte e o periodo todo.
+   * O período NÃO é o da apuração inteira: é o mês da coluna clicada, recortado pelo
+   * período. Com 01/08 a 27/08, agosto detalha 01/08 a 27/08 — detalhar o mês calendário
+   * mostraria lançamentos que não entraram na célula, e o total deixaria de bater com ela.
+   * No bloco TOTAL, `mesAno` vem nulo e o recorte é o período todo.
    */
   const abrirDetalhe = useCallback(
     (linha: LinhaDre, mesAno: string | null) => {
@@ -223,7 +223,7 @@ export function TabelaDre({
 
       const coluna = mesAno
         ? (periodos.find((pp) => pp.mesAno === mesAno)?.rotulo ?? mesAno)
-        : "Total do periodo";
+        : "Total do período";
 
       setDetalhe({ titulo: `${linha.descricao.trim()} · ${coluna}`, periodo });
       consultaDetalhe.mutate({

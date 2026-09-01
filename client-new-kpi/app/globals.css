@@ -565,3 +565,57 @@ tr:focus-within .tem-detalhe .valor-clicavel {
   text-decoration: underline dotted;
   text-underline-offset: 3px;
 }
+
+/* Coluna que identifica a linha no modal de detalhamento: fica parada enquanto o
+   resto rola para o lado. Rolando doze colunas de números para a direita, um valor
+   sem o nome do cliente ao lado não diz nada.
+
+   UMA coluna, com código e nome na mesma célula. Duas colunas fixas teriam que
+   concordar até o pixel sobre onde a primeira termina, e não concordam: o
+   algoritmo de tabela dimensiona pelo conteúdo e trata a largura da folha como
+   sugestão. Foi assim que a tabela principal abriu uma fresta de 4px por onde os
+   valores passavam por baixo. */
+.col-identidade {
+  position: sticky;
+  left: 0;
+  z-index: 10;
+  background: var(--surface-1);
+  border-right: 1px solid var(--border);
+}
+
+/* O z-index das fixações horizontais mora AQUI, no thead e no tfoot, não nas
+   células deles.
+
+   Um elemento `sticky` com `z-index` abre contexto de empilhamento, e o z-index
+   das células fica preso dentro dele — no nível de cima vale o do thead. Com
+   thead e células do corpo ambos em 10, o corpo ganhava por vir depois no
+   documento, e as linhas roladas passavam por cima do cabeçalho E do rodapé.
+   Foi o mesmo mecanismo que fez o cabeçalho da tabela principal furar o menu de
+   atalhos de período. */
+.dialogo-detalhe thead {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: var(--surface-1);
+}
+
+.dialogo-detalhe tfoot {
+  position: sticky;
+  bottom: 0;
+  z-index: 20;
+  background: var(--surface-2);
+}
+
+.dialogo-detalhe tfoot .col-identidade {
+  background: var(--surface-2);
+}
+
+/* Zebra e realce vivem na linha, que rola junto; a célula fixa repete os dois por
+   conta própria, senão a coluna sai lisa enquanto o resto da linha está zebrado. */
+.dialogo-detalhe tbody tr:nth-child(odd) > .col-identidade {
+  background-image: linear-gradient(var(--zebra), var(--zebra));
+}
+
+.dialogo-detalhe tbody tr:hover > .col-identidade {
+  background-color: var(--surface-2);
+}

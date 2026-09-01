@@ -157,7 +157,7 @@ const NUM = `${TD} tabular text-right`;
 /** Cabeçalho da tabela do modal, colado no topo da própria área de rolagem. */
 function Cabecalho({ children }: { children: React.ReactNode }) {
   return (
-    <thead className="sticky top-0 z-10 bg-[var(--surface-1)]">
+    <thead>
       <tr className="border-b border-[var(--border-strong)]">{children}</tr>
     </thead>
   );
@@ -169,7 +169,7 @@ function Cabecalho({ children }: { children: React.ReactNode }) {
  */
 function Total({ children }: { children: React.ReactNode }) {
   return (
-    <tfoot className="sticky bottom-0 bg-[var(--surface-2)]">
+    <tfoot>
       <tr className="border-t border-[var(--border-strong)] font-semibold">{children}</tr>
     </tfoot>
   );
@@ -178,14 +178,36 @@ function Total({ children }: { children: React.ReactNode }) {
 const soma = <T,>(linhas: readonly T[], campo: (l: T) => number) =>
   linhas.reduce((s, l) => s + campo(l), 0);
 
+/**
+ * Célula que identifica a linha, e a única que fica parada na rolagem lateral.
+ *
+ * Código e nome moram **na mesma célula**, não em duas colunas fixas lado a lado. Duas
+ * teriam que concordar até o pixel sobre onde a primeira termina, e o algoritmo de tabela
+ * não garante isso — foi assim que a tabela principal abriu uma fresta por onde os valores
+ * passavam por baixo. Uma coluna não tem com o que discordar.
+ */
+function Identidade({ codigo, nome }: { codigo: React.ReactNode; nome: string }) {
+  return (
+    <td className={cn(TD, "col-identidade max-w-[24rem]")}>
+      <div className="flex items-baseline gap-2">
+        <span className="tabular shrink-0 text-[length:var(--fs-apoio)] text-[var(--text-muted)]">
+          {codigo}
+        </span>
+        <span className="truncate" title={nome}>
+          {nome}
+        </span>
+      </div>
+    </td>
+  );
+}
+
 function TabelaClientes({ linhas }: { linhas: readonly DetalheCliente[] }) {
   if (linhas.length === 0) return <Vazio />;
 
   return (
     <table className="w-full border-collapse text-[length:var(--fs-base)]">
       <Cabecalho>
-        <th className={cn(TH, "text-left")}>Código</th>
-        <th className={cn(TH, "text-left")}>Cliente</th>
+        <th className={cn(TH, "col-identidade text-left")}>Cliente</th>
         <th className={cn(TH, "text-left")}>Cidade</th>
         <th className={cn(TH, "text-right")}>Notas</th>
         <th className={cn(TH, "text-right")}>Receita bruta</th>
@@ -197,8 +219,7 @@ function TabelaClientes({ linhas }: { linhas: readonly DetalheCliente[] }) {
       <tbody>
         {linhas.map((c) => (
           <tr key={c.codCli} className="border-b border-[var(--border)] odd:bg-[var(--zebra)] hover:bg-[var(--surface-2)]">
-            <td className={cn(TD, "tabular")}>{c.codCli}</td>
-            <td className={cn(TD, "max-w-[22rem] truncate")} title={c.cliente}>{c.cliente}</td>
+            <Identidade codigo={c.codCli} nome={c.cliente} />
             <td className={cn(TD, "max-w-[12rem] truncate")} title={c.cidade}>{c.cidade}</td>
             <td className={NUM}>{c.qdeNf}</td>
             <td className={NUM}>{formatarValor(c.receitaBruta)}</td>
@@ -210,7 +231,8 @@ function TabelaClientes({ linhas }: { linhas: readonly DetalheCliente[] }) {
         ))}
       </tbody>
       <Total>
-        <td className={TD} colSpan={3}>{linhas.length} clientes</td>
+        <td className={cn(TD, "col-identidade")}>{linhas.length} clientes</td>
+        <td className={TD} />
         <td className={NUM}>{soma(linhas, (c) => c.qdeNf)}</td>
         <td className={NUM}>{formatarValor(soma(linhas, (c) => c.receitaBruta))}</td>
         <td className={NUM}>{formatarValor(soma(linhas, (c) => c.desconto))}</td>
@@ -228,8 +250,7 @@ function TabelaMotivos({ linhas }: { linhas: readonly DetalheMotivo[] }) {
   return (
     <table className="w-full border-collapse text-[length:var(--fs-base)]">
       <Cabecalho>
-        <th className={cn(TH, "text-left")}>Código</th>
-        <th className={cn(TH, "text-left")}>Motivo</th>
+        <th className={cn(TH, "col-identidade text-left")}>Motivo</th>
         <th className={cn(TH, "text-left")}>Culpa RCA</th>
         <th className={cn(TH, "text-right")}>Notas</th>
         <th className={cn(TH, "text-right")}>Devolução</th>
@@ -241,10 +262,12 @@ function TabelaMotivos({ linhas }: { linhas: readonly DetalheMotivo[] }) {
             key={m.codMotivo ?? "sem-motivo"}
             className="border-b border-[var(--border)] odd:bg-[var(--zebra)] hover:bg-[var(--surface-2)]"
           >
-            <td className={cn(TD, "tabular")}>{m.codMotivo ?? "—"}</td>
             {/* Devolução sem motivo cadastrado entra no total mesmo assim: a junção com
                 PCTABDEV é externa de propósito, aqui e na 9815. */}
-            <td className={TD}>{m.motivo ?? "Sem motivo cadastrado"}</td>
+            <Identidade
+              codigo={m.codMotivo ?? "—"}
+              nome={m.motivo ?? "Sem motivo cadastrado"}
+            />
             <td className={TD}>{m.culpaRca === "S" ? "Sim" : m.culpaRca === "N" ? "Não" : "—"}</td>
             <td className={NUM}>{m.qdeNf}</td>
             <td className={NUM}>{formatarValor(m.vlDevolucao)}</td>
@@ -253,7 +276,8 @@ function TabelaMotivos({ linhas }: { linhas: readonly DetalheMotivo[] }) {
         ))}
       </tbody>
       <Total>
-        <td className={TD} colSpan={3}>{linhas.length} motivos</td>
+        <td className={cn(TD, "col-identidade")}>{linhas.length} motivos</td>
+        <td className={TD} />
         <td className={NUM}>{soma(linhas, (m) => m.qdeNf)}</td>
         <td className={NUM}>{formatarValor(soma(linhas, (m) => m.vlDevolucao))}</td>
         <td className={NUM}>{formatarPercentual(soma(linhas, (m) => m.pPart))}</td>
@@ -274,7 +298,7 @@ function TabelaLancamentos({
   return (
     <table className="w-full border-collapse text-[length:var(--fs-base)]">
       <Cabecalho>
-        <th className={cn(TH, "text-left")}>Conta</th>
+        <th className={cn(TH, "col-identidade text-left")}>Conta</th>
         <th className={cn(TH, "text-left")}>Centro de custo</th>
         <th className={cn(TH, "text-left")}>Histórico</th>
         <th className={cn(TH, "text-left")}>Fornecedor</th>
@@ -293,7 +317,12 @@ function TabelaLancamentos({
             key={`${l.recNum}-${l.codCentroCusto ?? ""}-${i}`}
             className="border-b border-[var(--border)] odd:bg-[var(--zebra)] hover:bg-[var(--surface-2)]"
           >
-            <td className={cn(TD, "max-w-[16rem] truncate")} title={l.conta ?? ""}>{l.conta ?? "—"}</td>
+            <td
+              className={cn(TD, "col-identidade max-w-[18rem] truncate")}
+              title={l.conta ?? ""}
+            >
+              {l.conta ?? "—"}
+            </td>
             <td className={cn(TD, "max-w-[14rem] truncate")} title={l.descCentroCusto ?? ""}>
               {l.descCentroCusto ?? "—"}
             </td>
@@ -311,7 +340,8 @@ function TabelaLancamentos({
         ))}
       </tbody>
       <Total>
-        <td className={TD} colSpan={4}>{linhas.length} lançamentos</td>
+        <td className={cn(TD, "col-identidade")}>{linhas.length} lançamentos</td>
+        <td className={TD} colSpan={3} />
         <td className={NUM}>{formatarValor(soma(linhas, (l) => l.vPago))}</td>
         <td className={TD} colSpan={5} />
       </Total>
