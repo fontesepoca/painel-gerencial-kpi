@@ -264,13 +264,12 @@ export function TabelaDre({
         </div>
       </div>
 
-      <div className="overflow-x-auto">
+      <div className="tabela-rolagem">
         <table className="w-full border-collapse text-[length:var(--fs-base)]">
           <thead>
             {multiMes && (
               <tr className="border-b border-[var(--border)]">
-                <th />
-                <th />
+                <th className="celula-descricao" />
                 {periodos.map((p) => (
                   <th
                     key={p.mesAno}
@@ -289,14 +288,11 @@ export function TabelaDre({
               </tr>
             )}
             <tr className="border-b border-[var(--border-strong)]">
-              <th className="w-9">
-                <span className="sr-only">Ordenar</span>
-              </th>
               {/* Largura suficiente para o maior nome do cadastro MAIS um selo ao lado.
                   Sem isto, só as linhas com selo truncam — e truncar justamente a linha
                   que a tela está sinalizando esconde o que ela quer mostrar. A tabela já
                   rola na horizontal, então a folga aqui não custa nada. */}
-              <Th className="min-w-[32rem] text-left">Descrição</Th>
+              <Th className="celula-descricao min-w-[32rem] text-left">Descrição</Th>
               {periodos.map((p) => (
                 <ColunasCabecalho key={p.mesAno} mostrarAh={multiMes} />
               ))}
@@ -439,49 +435,51 @@ function Linha({
         // o olho não pular de linha ao atravessar uma tabela larga.
         "odd:bg-[var(--zebra)]",
         "hover:bg-[var(--surface-2)]",
-        linha.totalizadora && "bg-[var(--surface-2)]",
+        linha.totalizadora && "linha-totalizadora bg-[var(--surface-2)]",
         arrastando && "linha-arrastando",
         indicadorAcima && "alvo-acima",
         indicadorAbaixo && "alvo-abaixo",
       )}
     >
-      <td className="px-1 align-middle">
-        <button
-          type="button"
-          draggable
-          onDragStart={(e) => {
-            e.dataTransfer.effectAllowed = "move";
-            // Firefox só inicia o arraste se houver dado no `dataTransfer`.
-            e.dataTransfer.setData("text/plain", linha.chaveOrdem);
-            const tr = e.currentTarget.closest("tr");
-            if (tr) e.dataTransfer.setDragImage(tr, 24, 12);
-            onArrastarInicio();
-          }}
-          onDragEnd={onArrastarFim}
-          onKeyDown={(e) => {
-            if (!e.altKey) return;
-            if (e.key === "ArrowUp") {
-              e.preventDefault();
-              onTeclado(-1);
-            }
-            if (e.key === "ArrowDown") {
-              e.preventDefault();
-              onTeclado(1);
-            }
-          }}
-          aria-label={
-            tamanhoDaFatia > 1
-              ? `Mover o bloco de ${nome}, com ${tamanhoDaFatia} linhas. Alt com seta para cima ou para baixo.`
-              : `Mover ${nome}. Alt com seta para cima ou para baixo.`
-          }
-          className="puxador"
-        >
-          <span aria-hidden>⠿</span>
-        </button>
-      </td>
-
-      <td className={CELULA}>
+      {/* Punho, marcador, nome e selos na MESMA célula: ela é a única coluna fixa.
+          Duas colunas fixas teriam que concordar até o pixel sobre onde uma termina
+          e a outra começa, e não concordavam. Ver o bloco TABELA COM CABEÇALHO E
+          DESCRIÇÃO FIXOS em globals.css. */}
+      <td className={cn(CELULA, "celula-descricao pl-2")}>
         <div className="flex items-center gap-2">
+            <button
+            type="button"
+            draggable
+            onDragStart={(e) => {
+              e.dataTransfer.effectAllowed = "move";
+              // Firefox só inicia o arraste se houver dado no `dataTransfer`.
+              e.dataTransfer.setData("text/plain", linha.chaveOrdem);
+              const tr = e.currentTarget.closest("tr");
+              if (tr) e.dataTransfer.setDragImage(tr, 24, 12);
+              onArrastarInicio();
+            }}
+            onDragEnd={onArrastarFim}
+            onKeyDown={(e) => {
+              if (!e.altKey) return;
+              if (e.key === "ArrowUp") {
+                e.preventDefault();
+                onTeclado(-1);
+              }
+              if (e.key === "ArrowDown") {
+                e.preventDefault();
+                onTeclado(1);
+              }
+            }}
+            aria-label={
+              tamanhoDaFatia > 1
+                ? `Mover o bloco de ${nome}, com ${tamanhoDaFatia} linhas. Alt com seta para cima ou para baixo.`
+                : `Mover ${nome}. Alt com seta para cima ou para baixo.`
+            }
+            className="puxador shrink-0"
+          >
+            <span aria-hidden>⠿</span>
+          </button>
+
           {/* A cor do EPCPARDRE é informação que o contador já reconhece: vira marcador
               fino, não fundo colorido que brigaria com o tema escuro. */}
           <span

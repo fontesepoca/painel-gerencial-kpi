@@ -454,3 +454,83 @@ html[data-leitura="ampliada"] .puxador {
 .dialogo-mover::backdrop {
   background: rgb(0 0 0 / 0.6);
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   TABELA COM CABEÇALHO E DESCRIÇÃO FIXOS
+
+   Com três meses são doze colunas de números. Rolar para a direita perdia a
+   descrição, rolar para baixo perdia o mês e o AV/AH — e um número sem os dois
+   não diz nada.
+
+   A rolagem VERTICAL mora aqui dentro, não na página. Não é preferência: uma
+   caixa com `overflow-x: auto` ganha `overflow-y: auto` por regra do CSS, e
+   isso já a torna o contêiner de rolagem do `sticky`. Um cabeçalho com
+   `top: 0` grudaria no topo desta caixa, que sem altura limitada nunca rola —
+   ou seja, ele nunca apareceria. Ou a altura é limitada aqui, ou o cabeçalho
+   não gruda em lugar nenhum.
+   ═══════════════════════════════════════════════════════════════ */
+
+.tabela-rolagem {
+  /* Abre contexto de empilhamento próprio, e é isto que prende os `z-index` das
+     células fixas aqui dentro. Sem esta linha eles competem com a página inteira:
+     o cabeçalho fixo (20) e o canto dele (30) passavam por cima do menu de
+     atalhos de período, que é 20 e vem antes no documento — o menu aparecia com
+     um buraco no meio, com TOTAL e VALOR atravessando por cima dele. */
+  position: relative;
+  z-index: 0;
+
+  overflow: auto;
+  /* Sobra para o cabeçalho da aplicação, o título e a barra de reordenação. */
+  max-height: calc(100vh - 9rem);
+  /* Chegando ao fim da tabela, a rolagem para de vazar para a página. */
+  overscroll-behavior: contain;
+}
+
+/* Uma coluna fixa só, com o punho dentro dela.
+   A primeira versão fixava duas colunas — punho e descrição — e a segunda tinha
+   que grudar exatamente onde a primeira terminava. Nunca terminava onde eu
+   mandava: o algoritmo de tabela dimensiona a coluna pelo conteúdo e trata a
+   largura da folha como sugestão. Pedi 3rem, saiu 44px em leitura ampliada e
+   36px na padrão, e os valores rolavam por dentro da fresta. Medir em tempo de
+   execução resolvia o caso, mas manteria duas medidas obrigadas a concordar até
+   o pixel para sempre. Uma coluna só não tem com o que discordar. */
+
+.tabela-rolagem thead {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+
+/* Célula fixa é pintada por cima do conteúdo que rola: sem fundo opaco próprio,
+   os números apareceriam através dela. */
+.tabela-rolagem thead th {
+  background: var(--surface-1);
+}
+
+.celula-descricao {
+  position: sticky;
+  left: 0;
+  z-index: 10;
+  background: var(--surface-1);
+  border-right: 1px solid var(--border);
+}
+
+/* No cruzamento das duas fixações — canto do cabeçalho — a célula tem que ficar
+   acima tanto da coluna quanto do resto do cabeçalho. */
+.tabela-rolagem thead .celula-descricao {
+  z-index: 30;
+}
+
+/* A zebra e o realce da linha vivem na linha inteira, que rola junto com a
+   tabela. A célula fixa precisa repetir os dois por conta própria, senão a
+   coluna da descrição sai lisa enquanto o resto da linha está zebrado. A faixa
+   entra como imagem de fundo para poder se somar à cor opaca em vez de
+   substituí-la. */
+tbody tr:nth-child(odd) > .celula-descricao {
+  background-image: linear-gradient(var(--zebra), var(--zebra));
+}
+
+tbody tr:hover > .celula-descricao,
+tbody tr.linha-totalizadora > .celula-descricao {
+  background-color: var(--surface-2);
+}
