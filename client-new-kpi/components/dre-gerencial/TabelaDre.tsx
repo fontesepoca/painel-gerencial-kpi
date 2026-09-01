@@ -662,12 +662,17 @@ function SeloNaoSoma() {
  * A linha foi arrastada para fora do trecho onde o cadastro a colocou, e por isso passa
  * a parecer compor totais que não compõe. O selo é o que mantém isso visível depois que
  * o aviso do movimento já foi fechado e esquecido.
+ *
+ * **Deliberadamente discreto**, em cinza e sem borda. O alerta já foi dado no momento em
+ * que importava — o modal, antes de aplicar. Aqui ele é só uma nota de estado, e disputar
+ * atenção com `NÃO SOMA`, que é informação do cadastro, seria dar peso a mais para uma
+ * escolha que o próprio usuário fez.
  */
 function SeloForaDoBloco() {
   return (
     <span
       title="Movida: aparece fora do total que compõe. Os valores continuam corretos."
-      className="shrink-0 rounded-[var(--radius-sm)] border border-[var(--warning)] px-1.5 py-0.5 text-[length:var(--fs-rotulo)] font-semibold tracking-[0.1em] text-[var(--warning)] uppercase"
+      className="shrink-0 rounded-[var(--radius-sm)] bg-[var(--surface-3)] px-1.5 py-0.5 text-[length:var(--fs-rotulo)] font-medium tracking-[0.1em] text-[var(--text-muted)] uppercase"
     >
       Fora do bloco
     </span>
