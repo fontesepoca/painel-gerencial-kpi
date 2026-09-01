@@ -106,6 +106,7 @@ export default function DreGerencialPage() {
               periodos={dados.periodos}
               linhas={dados.linhas}
               mostrarZeradas={mostrarZeradas}
+              analise={dados.analise}
             />
           </section>
         )}

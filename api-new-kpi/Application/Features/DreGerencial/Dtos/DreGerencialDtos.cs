@@ -81,6 +81,22 @@ public record TotalLinhaDto(decimal Valor, decimal Media, decimal? PercentualAv)
 /// <summary>Uma linha do DRE montado, com um valor por mês e o total.</summary>
 public record LinhaDreDto(
     int? Id,
+    /// <summary>
+    /// Identidade estável da linha, para o front guardar a ordem que o usuário escolheu.
+    ///
+    /// <para>Nem <see cref="Id"/> nem <see cref="Chave"/> servem para isso. O `ID` é ordem de
+    /// exibição e é <b>anulável</b> — "Pneus e Câmaras" vem com nulo. E a chave se repete: o
+    /// mesmo grupo aparece mais de uma vez no DRE com flags diferentes, e são linhas distintas
+    /// com valores distintos.</para>
+    ///
+    /// <para>Por isso a chave aqui é a <b>mesma tupla que o montador usa</b> para achar o valor
+    /// de cada linha — se ela não distinguisse as linhas, os valores já viriam trocados hoje.
+    /// O sufixo `#n` cobre um empate hipotético, para a chave nunca colidir em silêncio.</para>
+    ///
+    /// <para>Índice de posição não serviria: linha sem movimento some da tela, e a ordem salva
+    /// passaria a apontar para outra linha.</para>
+    /// </summary>
+    string ChaveOrdem,
     string Chave,
     string Descricao,
     IReadOnlyList<ValorMesDto> Valores,

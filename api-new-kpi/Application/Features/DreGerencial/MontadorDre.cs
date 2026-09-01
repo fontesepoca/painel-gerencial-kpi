@@ -67,6 +67,8 @@ public static class MontadorDre
             p => p.MesAno,
             p => MontarMes(linhas, valorDespesa, faturamento.GetValueOrDefault(p.MesAno), p.MesAno, avisos));
 
+        var chavesOrdem = GerarChavesOrdem(linhas);
+
         var resultado = linhas.Select((l, indice) =>
         {
             var valores = periodos.Select((p, i) =>
@@ -91,6 +93,7 @@ public static class MontadorDre
 
             return new LinhaDreDto(
                 Id: l.Estrutura.Id,
+                ChaveOrdem: chavesOrdem[indice],
                 Chave: l.Estrutura.CodGruConta,
                 Descricao: l.Estrutura.Grupo,
                 Valores: valores,
@@ -120,6 +123,33 @@ public static class MontadorDre
             Avisos: avisos,
             ApuradoEm: DateTimeOffset.Now,
             DuracaoMs: duracaoMs);
+    }
+
+    /// <summary>
+    /// Chave estável de cada linha, na ordem da estrutura. Ver <see cref="LinhaDreDto.ChaveOrdem"/>.
+    ///
+    /// <para>A tupla é a mesma usada para indexar as despesas — se duas linhas a compartilhassem,
+    /// as duas receberiam o mesmo valor e o DRE já estaria errado hoje. O contador de repetição
+    /// existe para que, se isso um dia acontecer, a ordem salva não seja o lugar onde o problema
+    /// aparece.</para>
+    /// </summary>
+    private static string[] GerarChavesOrdem(List<LinhaEmMontagem> linhas)
+    {
+        var vistas = new Dictionary<string, int>();
+        var chaves = new string[linhas.Count];
+
+        for (var i = 0; i < linhas.Count; i++)
+        {
+            var e = linhas[i].Estrutura;
+            var chave = $"{e.CodGruConta}|{e.AntesRo}{e.AntesLl}{e.AntesLf}";
+
+            var repeticao = vistas.GetValueOrDefault(chave) + 1;
+            vistas[chave] = repeticao;
+
+            chaves[i] = repeticao == 1 ? chave : $"{chave}#{repeticao}";
+        }
+
+        return chaves;
     }
 
     /// <summary>Valores de todas as linhas em um mês, na ordem da estrutura.</summary>

@@ -49,6 +49,12 @@ export interface TotalLinha {
 
 export interface LinhaDre {
   id: number | null;
+  /**
+   * Identidade estável, para guardar a ordem escolhida pelo usuário. Nem `id` (ordem de
+   * exibição, e anulável) nem `chave` (repete entre linhas com flags diferentes) servem.
+   * Ver `LinhaDreDto.ChaveOrdem` na API.
+   */
+  chaveOrdem: string;
   chave: string;
   descricao: string;
   valores: ValorMes[];

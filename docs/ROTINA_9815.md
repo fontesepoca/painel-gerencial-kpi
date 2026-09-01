@@ -633,3 +633,44 @@ que ponto flutuante em valores de dinheiro.
 
 > **Se um dia isso importar**, o caminho é medir em qual coluna o negócio realmente confia.
 > Se a MÉDIA for lida para decisão, vale reabrir; se for enfeite de relatório, fica como está.
+
+## 15. Reordenar linhas — preferência de leitura, nunca de cálculo
+
+A tabela deixa arrastar linhas e blocos para a ordem que o usuário preferir. Três
+decisões estruturam isso, e a primeira é a que importa para a regra de fidelidade:
+
+**A ordem não entra em cálculo nenhum.** Os totalizadores somam pelas marcações do
+cadastro (`ANTESRO`, `ANTESLL`, `ANTESLF`), no `MontadorDre`, no servidor — muito antes
+de a ordem do usuário existir. Reordenar não altera um centavo, e não há caminho pelo
+qual pudesse alterar.
+
+**O que a ordem altera é a leitura.** Uma despesa operacional arrastada para baixo de
+`RESULTADO OPERACIONAL` continua compondo o subtotal, mas passa a *parecer* que está
+fora dele. Quem imprimir a tabela vê uma coisa e a conta faz outra. Por isso:
+
+- movimento que muda essa relação abre um aviso antes de aplicar, dizendo de onde a
+  linha sai, onde vai parar e quais despesas passam a aparecer fora do total que compõem;
+- a linha deslocada carrega o selo `FORA DO BLOCO` enquanto estiver assim;
+- o botão *Restaurar ordem do cadastro* desfaz tudo de uma vez.
+
+O critério do selo é o **conjunto de linhas calculadas abaixo da linha** — o que ela
+parece compor. Conjunto, não sequência: dois totalizadores trocando entre si não muda
+nada para quem está acima dos dois. A primeira versão comparava as duas âncoras
+imediatas e acendia o selo em 8 de 10 linhas ao mover um único totalizador; um aviso
+que acende em quase tudo não avisa nada.
+
+**A ordem é local e por dimensão.** Fica no `localStorage` do navegador, na chave
+`epoca:dre:ordem:v1:<analise>`, como lista de `chaveOrdem`. Não vai para o banco de
+propósito: é preferência de quem está lendo, não cadastro — duas pessoas conferindo o
+mesmo DRE não deveriam ver tabelas diferentes porque uma delas arrastou uma linha.
+
+Guardar **chaves**, e não posições, é o que faz a ordem sobreviver a um período novo:
+linha sem movimento não volta do banco, e uma linha que não existia quando a ordem foi
+salva é inserida logo depois da vizinha que ela seguia no cadastro. A chave é
+`LinhaDreDto.ChaveOrdem` — `CODGRUCONTA` mais as três flags, a mesma tupla que o
+montador usa para achar o valor da linha. Nem `ID` (é ordem de exibição, e é anulável)
+nem `CODGRUCONTA` sozinho (repete entre linhas com flags diferentes) serviriam.
+
+Arrastar tem par no teclado (`Alt` + `↑`/`↓` sobre o punho). Não é formalidade: arrastar
+é o gesto que quem tem tremor ou pouca mobilidade não consegue executar, e esta tela
+abre em leitura ampliada justamente por ser usada por quem costuma ter essa dificuldade.

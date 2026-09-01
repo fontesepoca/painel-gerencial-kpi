@@ -1,8 +1,20 @@
 "use client";
 
+import { useCallback, useMemo, useState } from "react";
+import { ModalMoverLinha, type MovimentoPendente } from "./ModalMoverLinha";
+import { useOrdemSalva } from "@/hooks/useOrdemSalva";
 import { cn } from "@/lib/cn";
 import { formatarPercentual, formatarValor } from "@/lib/formato";
-import type { LinhaDre, PeriodoDre } from "@/types/dre-gerencial";
+import {
+  aplicarOrdem,
+  blocoDe,
+  descreverPosicao,
+  linhasAfetadas,
+  moverIntervalo,
+  ordemPersonalizada,
+  saiuDoBloco,
+} from "@/lib/ordemLinhas";
+import type { Analise, LinhaDre, PeriodoDre } from "@/types/dre-gerencial";
 
 /**
  * Tamanhos, espaçamento e contraste vêm de tokens definidos em `globals.css`.
@@ -11,18 +23,191 @@ import type { LinhaDre, PeriodoDre } from "@/types/dre-gerencial";
  */
 const CELULA = "px-[var(--celula-x)] py-[var(--celula-y)]";
 
+/** Fatia da tabela sendo arrastada, em índices da lista completa. */
+interface Arrasto {
+  inicio: number;
+  fim: number;
+}
+
 export function TabelaDre({
   periodos,
   linhas,
   mostrarZeradas,
+  analise,
 }: {
   periodos: PeriodoDre[];
   linhas: LinhaDre[];
   mostrarZeradas: boolean;
+  analise: Analise;
 }) {
+  const { ordem, salvar, limpar } = useOrdemSalva(analise);
+
+  // `linhas` é sempre a ordem do cadastro, como veio da API — é a referência contra a
+  // qual tudo aqui é medido. `ordenadas` é o que a pessoa vê.
+  const ordenadas = useMemo(() => aplicarOrdem(linhas, ordem), [linhas, ordem]);
+
+  const [arrasto, setArrasto] = useState<Arrasto | null>(null);
+  const [alvo, setAlvo] = useState<number | null>(null);
+  const [pendente, setPendente] = useState<
+    (MovimentoPendente & { nova: LinhaDre[] }) | null
+  >(null);
+  const [arrastarBloco, setArrastarBloco] = useState(true);
+  const [anuncio, setAnuncio] = useState("");
+
+  const deslocadas = useMemo(
+    () =>
+      new Set(
+        ordenadas
+          .filter((l) => saiuDoBloco(linhas, ordenadas, l.chaveOrdem))
+          .map((l) => l.chaveOrdem),
+      ),
+    [linhas, ordenadas],
+  );
+
   // Esconde por AUSÊNCIA DE MOVIMENTO, não por valor zero — é o critério da 9815.
   // `DESCONTO FUNCIONÁRIOS` fecha em 0,00 com 16 lançamentos e continua na tela.
-  const visiveis = mostrarZeradas ? linhas : linhas.filter((l) => !l.semMovimento);
+  const visiveis = useMemo(
+    () => (mostrarZeradas ? ordenadas : ordenadas.filter((l) => !l.semMovimento)),
+    [ordenadas, mostrarZeradas],
+  );
+
+  /**
+   * Quantas linhas da fatia a pessoa realmente vê. Com as zeradas escondidas, uma fatia
+   * de 5 pode mostrar 4 — anunciar 5 mandaria conferir uma linha que não está na tela.
+   * A escondida viaja junto de qualquer forma; isso é comportamento, não aviso.
+   */
+  const tamanhoVisivel = useCallback(
+    (fatia: Arrasto) =>
+      visiveis.filter((v) => {
+        const i = ordenadas.findIndex((l) => l.chaveOrdem === v.chaveOrdem);
+        return i >= fatia.inicio && i < fatia.fim;
+      }).length,
+    [visiveis, ordenadas],
+  );
+
+  const indiceCompleto = useCallback(
+    (chaveOrdem: string) => ordenadas.findIndex((l) => l.chaveOrdem === chaveOrdem),
+    [ordenadas],
+  );
+
+  /**
+   * Aplica um movimento — ou segura no modal, se ele mudar a leitura de alguma linha.
+   * Movimento que não desloca ninguém não pergunta nada: avisar sobre o que não mudou
+   * é o caminho mais curto para a pessoa aprender a confirmar sem ler.
+   */
+  const aplicar = useCallback(
+    (fatia: Arrasto, destino: number) => {
+      const nova = moverIntervalo(ordenadas, fatia.inicio, fatia.fim, destino);
+      if (!ordemPersonalizada(ordenadas, nova)) return;
+
+      const cabeca = ordenadas[fatia.inicio];
+      if (!cabeca) return;
+
+      const tamanho = tamanhoVisivel(fatia);
+      const nomeCurto = cabeca.descricao.trim();
+      const oQue =
+        tamanho > 1
+          ? `o bloco de ${nomeCurto}, com ${tamanho} linhas`
+          : `a linha ${nomeCurto}`;
+
+      // Só o que a pessoa consegue ver. Citar uma linha escondida manda conferir algo
+      // que não está na tela; quando ela reaparecer, o selo dela já estará aceso.
+      const afetadas = linhasAfetadas(linhas, ordenadas, nova).filter((l) =>
+        visiveis.some((v) => v.chaveOrdem === l.chaveOrdem),
+      );
+
+      // Mexer num totalizador sempre pergunta, mesmo quando nenhuma despesa muda de
+      // leitura — é a linha que ancora o bloco, e foi o caso que o Gabriel pediu para
+      // nunca passar direto.
+      const mexeuEmCalculada = ordenadas
+        .slice(fatia.inicio, fatia.fim)
+        .some((l) => l.calculada);
+
+      if (afetadas.length === 0 && !mexeuEmCalculada) {
+        salvar(nova.map((l) => l.chaveOrdem));
+        setAnuncio(
+          `${nomeCurto} movida para a posição ${nova.findIndex((l) => l.chaveOrdem === cabeca.chaveOrdem) + 1}.`,
+        );
+        return;
+      }
+
+      setPendente({
+        nova,
+        oQue,
+        deOnde: descreverPosicao(ordenadas, fatia.inicio),
+        paraOnde: descreverPosicao(
+          nova,
+          nova.findIndex((l) => l.chaveOrdem === cabeca.chaveOrdem),
+        ),
+        afetadas: afetadas.map((l) => l.descricao.trim()),
+      });
+    },
+    [linhas, ordenadas, salvar, tamanhoVisivel, visiveis],
+  );
+
+  /** A fatia que sai junto quando o puxador da linha `indice` é usado. */
+  const fatiaDe = useCallback(
+    (indice: number): Arrasto => {
+      const linha = ordenadas[indice];
+      if (arrastarBloco && linha?.calculada) return blocoDe(ordenadas, indice);
+      return { inicio: indice, fim: indice + 1 };
+    },
+    [ordenadas, arrastarBloco],
+  );
+
+  /**
+   * `Alt+↑` e `Alt+↓`: o mesmo movimento sem arrastar.
+   *
+   * Não é enfeite de acessibilidade. Arrastar é justamente o gesto que quem tem tremor
+   * ou pouca mobilidade não consegue executar — e esta tela abre em leitura ampliada
+   * porque é usada por quem costuma ter essa dificuldade.
+   *
+   * Anda uma linha **visível** por vez: com as zeradas escondidas, pular para um índice
+   * da lista completa pareceria que a linha não se mexeu.
+   */
+  const moverPorTeclado = useCallback(
+    (indice: number, direcao: -1 | 1) => {
+      const fatia = fatiaDe(indice);
+
+      const fora = visiveis
+        .map((v) => indiceCompleto(v.chaveOrdem))
+        .filter((i) => i < fatia.inicio || i >= fatia.fim);
+
+      if (direcao === -1) {
+        const acima = fora.filter((i) => i < fatia.inicio).at(-1);
+        if (acima === undefined) return;
+        aplicar(fatia, acima);
+      } else {
+        const abaixo = fora.find((i) => i >= fatia.fim);
+        if (abaixo === undefined) return;
+        aplicar(fatia, abaixo + 1);
+      }
+    },
+    [fatiaDe, visiveis, indiceCompleto, aplicar],
+  );
+
+  const confirmar = useCallback(() => {
+    if (!pendente) return;
+    salvar(pendente.nova.map((l) => l.chaveOrdem));
+    setAnuncio(`Movimento aplicado. ${pendente.afetadas.length} linha(s) fora do bloco.`);
+    setPendente(null);
+  }, [pendente, salvar]);
+
+  const restaurar = useCallback(() => {
+    limpar();
+    setAnuncio("Ordem do cadastro restaurada.");
+  }, [limpar]);
+
+  // Onde desenhar a linha de destino. `alvo` é índice da lista completa, mas o traço
+  // aparece na tabela visível — se o destino cair numa linha escondida, ele sobe para
+  // a próxima visível, e `null` significa "depois da última".
+  const indicador = useMemo(() => {
+    if (alvo === null) return undefined;
+    const proxima = visiveis.find((v) => indiceCompleto(v.chaveOrdem) >= alvo);
+    return proxima ? proxima.chaveOrdem : null;
+  }, [alvo, visiveis, indiceCompleto]);
+
+  const personalizada = ordemPersonalizada(linhas, ordenadas);
 
   if (visiveis.length === 0) {
     return (
@@ -45,49 +230,125 @@ export function TabelaDre({
   );
 
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full border-collapse text-[length:var(--fs-base)]">
-        <thead>
-          {multiMes && (
-            <tr className="border-b border-[var(--border)]">
-              <th />
-              {periodos.map((p) => (
-                <th
-                  key={p.mesAno}
-                  colSpan={3}
-                  className="border-l border-[var(--border)] px-[var(--celula-x)] pt-3 pb-1 text-center text-[length:var(--fs-rotulo)] font-semibold tracking-[0.14em] text-[var(--text-secondary)] uppercase"
-                >
-                  {p.rotulo}
-                </th>
-              ))}
-              <th
-                colSpan={3}
-                className="border-l border-[var(--border-strong)] bg-[var(--surface-2)] px-[var(--celula-x)] pt-3 pb-1 text-center text-[length:var(--fs-rotulo)] font-semibold tracking-[0.14em] text-[var(--text-primary)] uppercase"
-              >
-                Total
-              </th>
-            </tr>
-          )}
-          <tr className="border-b border-[var(--border-strong)]">
-            <Th className="text-left">Descrição</Th>
-            {periodos.map((p) => (
-              <ColunasCabecalho key={p.mesAno} mostrarAh={multiMes} />
-            ))}
-            {multiMes && <ColunasCabecalho total />}
-          </tr>
-        </thead>
-        <tbody>
-          {visiveis.map((linha, indice) => (
-            <Linha
-              key={`${linha.id ?? "s"}-${linha.chave}-${indice}`}
-              linha={linha}
-              maiorAv={maiorAv}
-              multiMes={multiMes}
+    <>
+      <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-b border-[var(--border)] px-5 py-3">
+        <p className="text-[length:var(--fs-apoio)] text-[var(--text-muted)]">
+          Arraste pelo punho{" "}
+          <span aria-hidden className="text-[var(--text-secondary)]">
+            ⠿
+          </span>{" "}
+          para reordenar, ou use <kbd className="tecla">Alt</kbd> +{" "}
+          <kbd className="tecla">↑</kbd> <kbd className="tecla">↓</kbd>.
+        </p>
+
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+          <label className="flex cursor-pointer items-center gap-2.5 text-[length:var(--fs-apoio)] text-[var(--text-secondary)]">
+            <input
+              type="checkbox"
+              checked={arrastarBloco}
+              onChange={(e) => setArrastarBloco(e.target.checked)}
+              className="size-4 accent-[var(--primary)]"
             />
-          ))}
-        </tbody>
-      </table>
-    </div>
+            Totalizador arrasta o bloco inteiro
+          </label>
+
+          {personalizada && (
+            <button
+              type="button"
+              onClick={restaurar}
+              className="text-[length:var(--fs-apoio)] font-medium text-[var(--primary)] underline underline-offset-4 hover:opacity-80"
+            >
+              Restaurar ordem do cadastro
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="overflow-x-auto">
+        <table className="w-full border-collapse text-[length:var(--fs-base)]">
+          <thead>
+            {multiMes && (
+              <tr className="border-b border-[var(--border)]">
+                <th />
+                <th />
+                {periodos.map((p) => (
+                  <th
+                    key={p.mesAno}
+                    colSpan={3}
+                    className="border-l border-[var(--border)] px-[var(--celula-x)] pt-3 pb-1 text-center text-[length:var(--fs-rotulo)] font-semibold tracking-[0.14em] text-[var(--text-secondary)] uppercase"
+                  >
+                    {p.rotulo}
+                  </th>
+                ))}
+                <th
+                  colSpan={3}
+                  className="border-l border-[var(--border-strong)] bg-[var(--surface-2)] px-[var(--celula-x)] pt-3 pb-1 text-center text-[length:var(--fs-rotulo)] font-semibold tracking-[0.14em] text-[var(--text-primary)] uppercase"
+                >
+                  Total
+                </th>
+              </tr>
+            )}
+            <tr className="border-b border-[var(--border-strong)]">
+              <th className="w-9">
+                <span className="sr-only">Ordenar</span>
+              </th>
+              {/* Largura suficiente para o maior nome do cadastro MAIS um selo ao lado.
+                  Sem isto, só as linhas com selo truncam — e truncar justamente a linha
+                  que a tela está sinalizando esconde o que ela quer mostrar. A tabela já
+                  rola na horizontal, então a folga aqui não custa nada. */}
+              <Th className="min-w-[32rem] text-left">Descrição</Th>
+              {periodos.map((p) => (
+                <ColunasCabecalho key={p.mesAno} mostrarAh={multiMes} />
+              ))}
+              {multiMes && <ColunasCabecalho total />}
+            </tr>
+          </thead>
+          <tbody>
+            {visiveis.map((linha) => {
+              const indice = indiceCompleto(linha.chaveOrdem);
+              return (
+                <Linha
+                  key={linha.chaveOrdem}
+                  linha={linha}
+                  indice={indice}
+                  maiorAv={maiorAv}
+                  multiMes={multiMes}
+                  deslocada={deslocadas.has(linha.chaveOrdem)}
+                  arrastando={
+                    arrasto !== null && indice >= arrasto.inicio && indice < arrasto.fim
+                  }
+                  indicadorAcima={indicador === linha.chaveOrdem}
+                  indicadorAbaixo={indicador === null && linha === visiveis.at(-1)}
+                  tamanhoDaFatia={tamanhoVisivel(fatiaDe(indice))}
+                  onArrastarInicio={() => setArrasto(fatiaDe(indice))}
+                  onArrastarSobre={(destino) => setAlvo(destino)}
+                  onSoltar={(destino) => {
+                    if (arrasto) aplicar(arrasto, destino);
+                    setArrasto(null);
+                    setAlvo(null);
+                  }}
+                  onArrastarFim={() => {
+                    setArrasto(null);
+                    setAlvo(null);
+                  }}
+                  onTeclado={(direcao) => moverPorTeclado(indice, direcao)}
+                />
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      <p role="status" aria-live="polite" className="sr-only">
+        {anuncio}
+      </p>
+
+      <ModalMoverLinha
+        pendente={pendente}
+        onConfirmar={confirmar}
+        onCancelar={() => setPendente(null)}
+      />
+    </>
   );
 }
 
@@ -124,15 +385,54 @@ function Th({ className, children }: { className?: string; children?: React.Reac
 
 function Linha({
   linha,
+  indice,
   maiorAv,
   multiMes,
+  deslocada,
+  arrastando,
+  indicadorAcima,
+  indicadorAbaixo,
+  tamanhoDaFatia,
+  onArrastarInicio,
+  onArrastarSobre,
+  onSoltar,
+  onArrastarFim,
+  onTeclado,
 }: {
   linha: LinhaDre;
+  indice: number;
   maiorAv: number;
   multiMes: boolean;
+  deslocada: boolean;
+  arrastando: boolean;
+  indicadorAcima: boolean;
+  indicadorAbaixo: boolean;
+  tamanhoDaFatia: number;
+  onArrastarInicio: () => void;
+  onArrastarSobre: (destino: number) => void;
+  onSoltar: (destino: number) => void;
+  onArrastarFim: () => void;
+  onTeclado: (direcao: -1 | 1) => void;
 }) {
+  // Metade de cima da linha solta antes dela; metade de baixo, depois.
+  const destinoDoPonteiro = (e: React.DragEvent<HTMLTableRowElement>) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    return e.clientY - r.top > r.height / 2 ? indice + 1 : indice;
+  };
+
+  const nome = linha.descricao.trim();
+
   return (
     <tr
+      onDragOver={(e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "move";
+        onArrastarSobre(destinoDoPonteiro(e));
+      }}
+      onDrop={(e) => {
+        e.preventDefault();
+        onSoltar(destinoDoPonteiro(e));
+      }}
       className={cn(
         "border-b border-[var(--border)] transition-colors duration-[var(--dur-instant)]",
         // Faixa zebrada: transparente no modo padrão, sutil no ampliado. Serve para
@@ -140,8 +440,46 @@ function Linha({
         "odd:bg-[var(--zebra)]",
         "hover:bg-[var(--surface-2)]",
         linha.totalizadora && "bg-[var(--surface-2)]",
+        arrastando && "linha-arrastando",
+        indicadorAcima && "alvo-acima",
+        indicadorAbaixo && "alvo-abaixo",
       )}
     >
+      <td className="px-1 align-middle">
+        <button
+          type="button"
+          draggable
+          onDragStart={(e) => {
+            e.dataTransfer.effectAllowed = "move";
+            // Firefox só inicia o arraste se houver dado no `dataTransfer`.
+            e.dataTransfer.setData("text/plain", linha.chaveOrdem);
+            const tr = e.currentTarget.closest("tr");
+            if (tr) e.dataTransfer.setDragImage(tr, 24, 12);
+            onArrastarInicio();
+          }}
+          onDragEnd={onArrastarFim}
+          onKeyDown={(e) => {
+            if (!e.altKey) return;
+            if (e.key === "ArrowUp") {
+              e.preventDefault();
+              onTeclado(-1);
+            }
+            if (e.key === "ArrowDown") {
+              e.preventDefault();
+              onTeclado(1);
+            }
+          }}
+          aria-label={
+            tamanhoDaFatia > 1
+              ? `Mover o bloco de ${nome}, com ${tamanhoDaFatia} linhas. Alt com seta para cima ou para baixo.`
+              : `Mover ${nome}. Alt com seta para cima ou para baixo.`
+          }
+          className="puxador"
+        >
+          <span aria-hidden>⠿</span>
+        </button>
+      </td>
+
       <td className={CELULA}>
         <div className="flex items-center gap-2">
           {/* A cor do EPCPARDRE é informação que o contador já reconhece: vira marcador
@@ -164,9 +502,10 @@ function Linha({
             )}
             title={linha.descricao}
           >
-            {linha.descricao.trim()}
+            {nome}
           </span>
           {linha.naoSoma && <SeloNaoSoma />}
+          {deslocada && <SeloForaDoBloco />}
         </div>
       </td>
 
@@ -315,6 +654,22 @@ function SeloNaoSoma() {
   return (
     <span className="shrink-0 rounded-[var(--radius-sm)] bg-[var(--warning-glow)] px-1.5 py-0.5 text-[length:var(--fs-rotulo)] font-semibold tracking-[0.1em] text-[var(--warning)] uppercase">
       Não soma
+    </span>
+  );
+}
+
+/**
+ * A linha foi arrastada para fora do trecho onde o cadastro a colocou, e por isso passa
+ * a parecer compor totais que não compõe. O selo é o que mantém isso visível depois que
+ * o aviso do movimento já foi fechado e esquecido.
+ */
+function SeloForaDoBloco() {
+  return (
+    <span
+      title="Movida: aparece fora do total que compõe. Os valores continuam corretos."
+      className="shrink-0 rounded-[var(--radius-sm)] border border-[var(--warning)] px-1.5 py-0.5 text-[length:var(--fs-rotulo)] font-semibold tracking-[0.1em] text-[var(--warning)] uppercase"
+    >
+      Fora do bloco
     </span>
   );
 }
