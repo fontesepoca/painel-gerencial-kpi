@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { QueryProvider } from "@/context/QueryProvider";
+import { LeituraProvider, SCRIPT_LEITURA_INICIAL } from "@/context/LeituraProvider";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -32,8 +33,16 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full`}
       suppressHydrationWarning
     >
+      <head>
+        {/* Roda antes da primeira pintura. Sem ele a página nasceria no modo
+            padrão e saltaria para o ampliado na hidratação — um pulo de tamanho
+            de fonte justamente para quem precisa de fonte grande. */}
+        <script dangerouslySetInnerHTML={{ __html: SCRIPT_LEITURA_INICIAL }} />
+      </head>
       <body className="min-h-full">
-        <QueryProvider>{children}</QueryProvider>
+        <LeituraProvider>
+          <QueryProvider>{children}</QueryProvider>
+        </LeituraProvider>
       </body>
     </html>
   );

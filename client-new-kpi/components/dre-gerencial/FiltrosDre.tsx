@@ -11,11 +11,12 @@ import {
   type Regime,
 } from "@/types/dre-gerencial";
 
-const ROTULO = "text-[11px] font-medium uppercase tracking-[0.14em] text-[var(--text-muted)]";
+const ROTULO =
+  "text-[length:var(--fs-rotulo)] font-medium uppercase tracking-[0.14em] text-[var(--text-muted)]";
 
 const CAMPO =
-  "h-10 w-full rounded-[var(--radius-md)] border border-[var(--border-strong)] " +
-  "bg-[var(--surface-2)] px-3 text-sm text-[var(--text-primary)] " +
+  "h-[var(--altura-controle)] w-full min-w-0 rounded-[var(--radius-md)] border border-[var(--border-strong)] " +
+  "bg-[var(--surface-2)] px-3 text-[length:var(--fs-base)] text-[var(--text-primary)] " +
   "focus:border-[var(--primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary-ring)]";
 
 export function FiltrosDre({
@@ -45,7 +46,9 @@ export function FiltrosDre({
   ].filter((a): a is string => Boolean(a));
 
   return (
-    <section className="grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1.2fr)_minmax(0,1.4fr)_auto]">
+    // O gabarito da grade mora em `globals.css`, na classe `.grade-filtros` —
+    // os mínimos foram medidos e dependem do modo de leitura. Ver o comentário lá.
+    <section className="grade-filtros">
       <Campo rotulo="Filial">
         <SeletorFiliais
           filiais={filiais}
@@ -80,7 +83,10 @@ export function FiltrosDre({
         {/* Quem confere contra a 9815 precisa saber disso ANTES de estranhar o número,
             não depois. A nota some quando a dimensão escolhida não diverge. */}
         {avisos.map((aviso) => (
-          <p key={aviso} className="mt-1.5 text-xs leading-snug text-[var(--warning)]">
+          <p
+            key={aviso}
+            className="mt-1.5 text-[length:var(--fs-apoio)] leading-snug text-[var(--warning)]"
+          >
             {aviso}
           </p>
         ))}
@@ -112,7 +118,7 @@ export function FiltrosDre({
           onClick={onApurar}
           disabled={!podeApurar}
           className={cn(
-            "h-10 rounded-[var(--radius-md)] px-6 text-sm font-medium whitespace-nowrap",
+            "h-[var(--altura-controle)] w-full rounded-[var(--radius-md)] px-6 text-[length:var(--fs-base)] font-medium whitespace-nowrap xl:w-auto",
             "transition-colors duration-[var(--dur-fast)]",
             podeApurar
               ? "bg-[var(--primary)] text-white hover:brightness-110"
@@ -148,14 +154,14 @@ function Segmentado({
   onMudar: (valor: string) => void;
 }) {
   return (
-    <div className="flex h-10 rounded-[var(--radius-md)] border border-[var(--border-strong)] bg-[var(--surface-2)] p-1">
+    <div className="flex h-[var(--altura-controle)] rounded-[var(--radius-md)] border border-[var(--border-strong)] bg-[var(--surface-2)] p-1">
       {opcoes.map((o) => (
         <button
           key={o.valor}
           type="button"
           onClick={() => onMudar(o.valor)}
           className={cn(
-            "flex-1 rounded-[var(--radius-sm)] px-3 text-sm transition-colors duration-[var(--dur-fast)]",
+            "flex-1 rounded-[var(--radius-sm)] px-2 text-[length:var(--fs-base)] whitespace-nowrap transition-colors duration-[var(--dur-fast)]",
             o.valor === valor
               ? "bg-[var(--surface-hover)] text-[var(--text-primary)]"
               : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]",
@@ -169,8 +175,9 @@ function Segmentado({
 }
 
 /**
- * Multisseleção de filiais, agrupada por empresa. As 18 vêm do cadastro; no Winthor
- * essa escolha acontecia numa tela separada, antes de abrir a rotina.
+ * Multisseleção de filiais, agrupada por empresa. Vêm do cadastro, menos as que têm
+ * dados em outra base — ver `docs/DIVERGENCIAS.md`. No Winthor essa escolha acontecia
+ * numa tela separada, antes de abrir a rotina.
  */
 function SeletorFiliais({
   filiais,
@@ -245,7 +252,7 @@ function SeletorFiliais({
 
           {empresas.map((empresa) => (
             <div key={empresa} className="mb-1">
-              <p className="px-2 py-1 text-[10px] font-semibold tracking-[0.14em] text-[var(--text-muted)] uppercase">
+              <p className="px-2 py-1 text-[length:var(--fs-rotulo)] font-semibold tracking-[0.14em] text-[var(--text-muted)] uppercase">
                 {empresa}
               </p>
               {filiais
@@ -253,7 +260,7 @@ function SeletorFiliais({
                 .map((f) => (
                   <label
                     key={f.codFilial}
-                    className="flex cursor-pointer items-center gap-3 rounded-[var(--radius-sm)] px-2 py-1.5 text-sm hover:bg-[var(--surface-3)]"
+                    className="flex cursor-pointer items-center gap-3 rounded-[var(--radius-sm)] px-2 py-[var(--celula-y)] text-[length:var(--fs-base)] hover:bg-[var(--surface-3)]"
                   >
                     <input
                       type="checkbox"
@@ -262,7 +269,9 @@ function SeletorFiliais({
                       className="size-4 accent-[var(--primary)]"
                     />
                     <span className="flex-1 truncate">{f.label}</span>
-                    <span className="tabular text-xs text-[var(--text-muted)]">{f.codFilial}</span>
+                    <span className="tabular text-[length:var(--fs-apoio)] text-[var(--text-muted)]">
+                      {f.codFilial}
+                    </span>
                   </label>
                 ))}
             </div>
@@ -278,7 +287,7 @@ function AcaoRapida({ onClick, children }: { onClick: () => void; children: Reac
     <button
       type="button"
       onClick={onClick}
-      className="rounded-[var(--radius-sm)] px-2 py-1 text-xs text-[var(--text-secondary)] hover:bg-[var(--surface-3)] hover:text-[var(--text-primary)]"
+      className="rounded-[var(--radius-sm)] px-2 py-1.5 text-[length:var(--fs-apoio)] text-[var(--text-secondary)] hover:bg-[var(--surface-3)] hover:text-[var(--text-primary)]"
     >
       {children}
     </button>

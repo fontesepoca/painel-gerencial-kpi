@@ -4,6 +4,13 @@ import { cn } from "@/lib/cn";
 import { formatarPercentual, formatarValor } from "@/lib/formato";
 import type { LinhaDre, PeriodoDre } from "@/types/dre-gerencial";
 
+/**
+ * Tamanhos, espaçamento e contraste vêm de tokens definidos em `globals.css`.
+ * O modo de leitura ampliada troca os tokens; nenhum componente sabe em que
+ * modo está. Ver o bloco MODO DE LEITURA AMPLIADA lá.
+ */
+const CELULA = "px-[var(--celula-x)] py-[var(--celula-y)]";
+
 export function TabelaDre({
   periodos,
   linhas,
@@ -19,7 +26,7 @@ export function TabelaDre({
 
   if (visiveis.length === 0) {
     return (
-      <p className="py-16 text-center text-sm text-[var(--text-muted)]">
+      <p className="px-[var(--celula-x)] py-16 text-center text-[length:var(--fs-base)] text-[var(--text-muted)]">
         Nenhum lançamento no período selecionado.
       </p>
     );
@@ -39,7 +46,7 @@ export function TabelaDre({
 
   return (
     <div className="overflow-x-auto">
-      <table className="w-full border-collapse text-sm">
+      <table className="w-full border-collapse text-[length:var(--fs-base)]">
         <thead>
           {multiMes && (
             <tr className="border-b border-[var(--border)]">
@@ -48,14 +55,14 @@ export function TabelaDre({
                 <th
                   key={p.mesAno}
                   colSpan={3}
-                  className="border-l border-[var(--border)] px-4 pt-3 pb-1 text-center text-[11px] font-semibold tracking-[0.14em] text-[var(--text-secondary)] uppercase"
+                  className="border-l border-[var(--border)] px-[var(--celula-x)] pt-3 pb-1 text-center text-[length:var(--fs-rotulo)] font-semibold tracking-[0.14em] text-[var(--text-secondary)] uppercase"
                 >
                   {p.rotulo}
                 </th>
               ))}
               <th
                 colSpan={3}
-                className="border-l border-[var(--border-strong)] bg-[var(--surface-2)] px-4 pt-3 pb-1 text-center text-[11px] font-semibold tracking-[0.14em] text-[var(--text-primary)] uppercase"
+                className="border-l border-[var(--border-strong)] bg-[var(--surface-2)] px-[var(--celula-x)] pt-3 pb-1 text-center text-[length:var(--fs-rotulo)] font-semibold tracking-[0.14em] text-[var(--text-primary)] uppercase"
               >
                 Total
               </th>
@@ -88,10 +95,16 @@ function ColunasCabecalho({ mostrarAh, total }: { mostrarAh?: boolean; total?: b
   return (
     <>
       <Th className={cn("text-right", total && "border-l border-[var(--border-strong)]")}>
-        {total ? "Valor" : "Valor"}
+        Valor
       </Th>
       <Th className="w-[9rem] text-right">AV %</Th>
-      {total ? <Th className="text-right">Média</Th> : mostrarAh ? <Th className="text-right">AH %</Th> : <th />}
+      {total ? (
+        <Th className="text-right">Média</Th>
+      ) : mostrarAh ? (
+        <Th className="text-right">AH %</Th>
+      ) : (
+        <th />
+      )}
     </>
   );
 }
@@ -100,7 +113,7 @@ function Th({ className, children }: { className?: string; children?: React.Reac
   return (
     <th
       className={cn(
-        "px-4 py-2.5 text-[11px] font-medium tracking-[0.14em] text-[var(--text-muted)] uppercase",
+        "px-[var(--celula-x)] py-2.5 text-[length:var(--fs-rotulo)] font-medium tracking-[0.14em] text-[var(--text-muted)] uppercase",
         className,
       )}
     >
@@ -122,13 +135,14 @@ function Linha({
     <tr
       className={cn(
         "border-b border-[var(--border)] transition-colors duration-[var(--dur-instant)]",
+        // Faixa zebrada: transparente no modo padrão, sutil no ampliado. Serve para
+        // o olho não pular de linha ao atravessar uma tabela larga.
+        "odd:bg-[var(--zebra)]",
         "hover:bg-[var(--surface-2)]",
         linha.totalizadora && "bg-[var(--surface-2)]",
-        // O bloco informativo recua: está na tela para conferência, não para leitura.
-        linha.naoSoma && "opacity-60",
       )}
     >
-      <td className="px-4 py-2">
+      <td className={CELULA}>
         <div className="flex items-center gap-2">
           {/* A cor do EPCPARDRE é informação que o contador já reconhece: vira marcador
               fino, não fundo colorido que brigaria com o tema escuro. */}
@@ -143,6 +157,9 @@ function Linha({
               linha.totalizadora
                 ? "font-semibold text-[var(--text-primary)]"
                 : "text-[var(--text-secondary)]",
+              // Linha informativa recua em vez de desbotar. Reduzir opacidade seria
+              // reduzir contraste — o oposto do que a leitura ampliada existe para
+              // resolver. O recuo e o selo já distinguem.
               !linha.calculada && linha.naoSoma && "pl-3",
             )}
             title={linha.descricao}
@@ -198,9 +215,13 @@ function BlocoMes({
   destaque: boolean;
   total?: boolean;
 }) {
-  const celula = cn("px-4 py-2 whitespace-nowrap tabular", destaque && "font-semibold");
+  const celula = cn(CELULA, "whitespace-nowrap tabular", destaque && "font-semibold");
   const corValor = (v: number) =>
-    v < 0 ? "text-[var(--negative)]" : v === 0 ? "text-[var(--text-muted)]" : "text-[var(--text-primary)]";
+    v < 0
+      ? "text-[var(--negative)]"
+      : v === 0
+        ? "text-[var(--text-muted)]"
+        : "text-[var(--text-primary)]";
 
   return (
     <>
@@ -215,12 +236,12 @@ function BlocoMes({
         {formatarValor(valor)}
       </td>
 
-      <td className={cn("px-4 py-2", total && "bg-[var(--surface-2)]")}>
+      <td className={cn(CELULA, total && "bg-[var(--surface-2)]")}>
         <BarraAv percentual={av} maior={maiorAv} />
       </td>
 
       {total ? (
-        <td className={cn(celula, "text-right bg-[var(--surface-2)]", corValor(media ?? 0))}>
+        <td className={cn(celula, "bg-[var(--surface-2)] text-right", corValor(media ?? 0))}>
           {formatarValor(media ?? 0)}
         </td>
       ) : mostrarAh ? (
@@ -252,10 +273,14 @@ function BarraAv({ percentual, maior }: { percentual: number | null; maior: numb
 
   return (
     <div className="flex flex-col items-end gap-1">
-      <span className="tabular text-xs text-[var(--text-secondary)]">
+      <span className="tabular text-[length:var(--fs-apoio)] text-[var(--text-secondary)]">
         {formatarPercentual(percentual)}
       </span>
-      <span aria-hidden className="h-[2px] w-full overflow-hidden rounded-full bg-[var(--surface-3)]">
+      <span
+        aria-hidden
+        className="w-full overflow-hidden rounded-full bg-[var(--surface-3)]"
+        style={{ height: "var(--barra-av-h)" }}
+      >
         <span
           className="block h-full rounded-full transition-[width] duration-[var(--dur-normal)]"
           style={{
@@ -288,7 +313,7 @@ function Variacao({ percentual }: { percentual: number | null }) {
 
 function SeloNaoSoma() {
   return (
-    <span className="shrink-0 rounded-[var(--radius-sm)] bg-[var(--warning-glow)] px-1.5 py-0.5 text-[9px] font-semibold tracking-[0.1em] text-[var(--warning)] uppercase">
+    <span className="shrink-0 rounded-[var(--radius-sm)] bg-[var(--warning-glow)] px-1.5 py-0.5 text-[length:var(--fs-rotulo)] font-semibold tracking-[0.1em] text-[var(--warning)] uppercase">
       Não soma
     </span>
   );

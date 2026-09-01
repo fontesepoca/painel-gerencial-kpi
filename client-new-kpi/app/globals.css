@@ -38,10 +38,15 @@
   --warning-glow:  rgb(245 158 11 / 0.10);
   --info:          #0ea5e9;
 
-  /* ── Texto ── */
+  /* ── Texto ──
+     `--text-muted` era #475569, que dá contraste 2,47 sobre a superfície 1 —
+     abaixo do mínimo 4,5 do WCAG AA, e abaixo até dos 3,0 de texto grande. Não é
+     detalhe: é a cor dos cabeçalhos de coluna da tabela e dos traços de célula
+     vazia. #7c8da5 mede 5,53 e continua sendo um tom de apoio, distinto do
+     secundário. Medido no navegador, não escolhido no olho. */
   --text-primary:   #f1f5f9;
   --text-secondary: #94a3b8;
-  --text-muted:     #475569;
+  --text-muted:     #7c8da5;
 
   /* ── Tipografia ── */
   --font-ui:      var(--font-geist-sans), "Outfit", system-ui, -apple-system, sans-serif;
@@ -50,6 +55,21 @@
   /* Números de DRE em fonte monoespaçada: as colunas alinham na vírgula
      e a leitura vertical de valores fica possível. */
   --font-data:    var(--font-geist-mono), "JetBrains Mono", "Fira Code", monospace;
+
+  /* ── Escala de leitura — MODO PADRÃO ──
+     Todo tamanho que muda entre os dois modos mora aqui. Componente nenhum
+     escreve px ou rem de fonte: escreve o token, e o modo decide o valor.
+     Ver `html[data-leitura="ampliada"]` mais abaixo. */
+  --fs-rotulo:   0.6875rem;  /* 11px — rótulo de campo, cabeçalho de coluna */
+  --fs-apoio:    0.75rem;    /* 12px — legenda, %AV, selo */
+  --fs-base:     0.875rem;   /* 14px — tabela e campos de formulário */
+  --fs-titulo:   1.5rem;     /* 24px — título da página */
+  --altura-controle: 2.5rem;
+  --celula-y:    0.5rem;
+  --celula-x:    1rem;
+  --barra-av-h:  2px;
+  --zebra:       transparent;
+  --peso-numero: 400;
 
   /* ── Layout ── */
   --sidebar-w:    256px;
@@ -100,6 +120,65 @@ html.light {
   color-scheme: light;
 }
 
+/* ═══════════════════════════════════════════════════════════════
+   MODO DE LEITURA AMPLIADA — o padrão da aplicação
+
+   Quem abre o DRE é o dono da empresa, lendo números que decidem coisas.
+   A tela precisa ser legível antes de ser compacta; quem quiser mais linhas
+   por tela desliga no interruptor do cabeçalho.
+
+   Não é só fonte maior. Corpo pequeno é só um dos motivos de um número ficar
+   difícil de ler — os outros são contraste baixo, linhas coladas e a vista
+   perdendo a linha no meio de uma tabela larga. Por isso o modo mexe em cinco
+   coisas ao mesmo tempo:
+
+     1. tamanho da fonte, com ênfase na tabela;
+     2. contraste — os cinzas de apoio sobem vários degraus;
+     3. respiro vertical entre as linhas;
+     4. faixa zebrada, para o olho não pular de linha atravessando a largura;
+     5. vermelho e verde mais claros, que separam melhor de fundo escuro.
+
+   Também some a opacidade das linhas informativas: reduzir opacidade é
+   reduzir contraste, exatamente o que este modo existe para evitar. Elas
+   continuam recuadas e com o selo NÃO SOMA, que já distingue sem apagar.
+   ═══════════════════════════════════════════════════════════════ */
+
+html[data-leitura="ampliada"] {
+  --fs-rotulo:   0.8125rem;  /* 13px */
+  --fs-apoio:    0.9375rem;  /* 15px */
+  --fs-base:     1.125rem;   /* 18px */
+  --fs-titulo:   1.875rem;   /* 30px */
+  --altura-controle: 3rem;
+  --celula-y:    0.875rem;
+  --celula-x:    1.25rem;
+  --barra-av-h:  4px;
+  --zebra:       rgb(255 255 255 / 0.022);
+  --peso-numero: 500;
+
+  --text-secondary: #cbd5e1;
+  --text-muted:     #94a3b8;
+  --border:         rgb(255 255 255 / 0.10);
+  --border-strong:  rgb(255 255 255 / 0.20);
+
+  --positive: #34d399;
+  --negative: #fb7185;
+  --warning:  #fbbf24;
+}
+
+/* Precisa vir depois do bloco acima: senão o ampliado devolveria os cinzas
+   do tema escuro para uma tela clara, e o contraste inverteria. */
+html.light[data-leitura="ampliada"] {
+  --zebra:          rgb(15 23 42 / 0.03);
+  --text-secondary: #1e293b;
+  --text-muted:     #475569;
+  --border:         rgb(15 23 42 / 0.14);
+  --border-strong:  rgb(15 23 42 / 0.24);
+
+  --positive: #047857;
+  --negative: #be123c;
+  --warning:  #b45309;
+}
+
 /* Expõe os tokens ao Tailwind 4: habilita bg-surface-1, text-muted,
    font-data, rounded-lg etc. sem escrever CSS arbitrário nos componentes. */
 @theme inline {
@@ -147,11 +226,67 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* ── Grade da barra de filtros ──
+   Escrita aqui, e não como classe utilitária com valor arbitrário, por dois
+   motivos. O primeiro é que os mínimos são medidos, não escolhidos: com a fonte
+   ampliada, os dois campos de data em monoespaçada de 18px pedem 110px de texto
+   mais o ícone nativo de calendário, e a coluna do período não cabe em menos de
+   24rem — com 21rem a folga media exatamente zero.
+
+   O segundo é que a versão utilitária não funcionava: `xl:grid-cols-[minmax(...)]`
+   ficava no elemento, o media query casava, e o Tailwind não gerava a regra —
+   a folha de estilo saía sem nenhum `minmax`. Falha silenciosa, que só apareceu
+   ao medir `gridTemplateColumns` no navegador. Aqui não há extração a falhar. */
+.grade-filtros {
+  display: grid;
+  gap: 1rem;
+}
+
+@media (min-width: 640px) {
+  .grade-filtros {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* 1440px, e não os 1280px habituais: com a fonte ampliada as cinco colunas
+   somam 59,5rem de mínimo, e em 1280 sobravam 957px de área útil. O resultado
+   media era o controle de regime transbordando a própria caixa — scrollWidth
+   192 contra clientWidth 176 — com o botão "Caixa" terminando exatamente onde
+   o campo seguinte começava. Entre espremer cinco colunas e usar duas, duas
+   leem melhor. */
+@media (min-width: 1440px) {
+  .grade-filtros {
+    grid-template-columns:
+      minmax(11rem, 1fr) minmax(13rem, 0.9fr) minmax(12rem, 1fr)
+      minmax(23.5rem, 1.3fr) auto;
+  }
+}
+
 /* Números tabulares: dígitos de mesma largura, colunas alinhadas. */
 .tabular {
   font-family: var(--font-data);
   font-variant-numeric: tabular-nums;
   font-feature-settings: "tnum";
+  font-weight: var(--peso-numero);
+}
+
+/* Alvo de clique de no mínimo 44px em qualquer controle do modo ampliado —
+   a mesma medida que WCAG 2.5.5 recomenda. Vale para o dedo no tablet e para
+   a mão que treme no mouse. */
+html[data-leitura="ampliada"] input[type="checkbox"] {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+/* O foco do teclado precisa ser visível em qualquer modo, e mais grosso no
+   ampliado. Sem isto, navegar por Tab é adivinhação. */
+:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+html[data-leitura="ampliada"] :focus-visible {
+  outline-width: 3px;
 }
 
 ::selection {
