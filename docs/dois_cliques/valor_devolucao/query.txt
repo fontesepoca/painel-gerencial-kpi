@@ -1,0 +1,79 @@
+﻿--------------------------------------------------------------------------------
+Timestamp: 01/09/2026 14:52:34
+
+select codmotivo, motivo, culparca, qde_nf, vldevolucao, round((vldevolucao / sum(vldevolucao) over (partition by null))*100,2) as ppart
+  from (
+     SELECT MOTIVO.CODDEVOL as CODMOTIVO, motivo.motivo, motivo.crldevculparca as culparca, 
+            count(distinct NFE.numnota) as qde_nf, SUM( round( NVL(MV.QT,0)*NVL(MV.punit,0) ,2)) VLDEVOLUCAO
+       FROM PCNFENT NFE, PCMOV MV, PCTABDEV MOTIVO,
+            (select clie.codcli, ce.codfil, ce.mostra_dre from cliente_especial ce, pcclient clie where clie.codcliprinc = ce.codcli) esp 
+      WHERE NFE.numnota       = MV.numnota      (+) 
+        AND NFE.numtransent   = MV.numtransent  (+) 
+        AND NFE.codfornec     = esp.codcli (+) 
+        AND NFE.CODFILIAL     = esp.codfil (+) 
+        AND NFE.CODDEVOL      = MOTIVO.CODDEVOL (+)    
+        AND NFE.CODFILIAL IN ('7')
+        AND NFE.TIPODESCARGA IN ('6','7')
+        AND MV.DTCANCEL IS NULL AND (NVL(NFE.OBS,'X') <> 'NF CANCELADA') 
+        AND NFE.DTENT Between To_Date('01/04/2020','dd/mm/yyyy') AND To_Date('30/04/2020','dd/mm/yyyy')
+        AND MV.CODFISCAL IN (1202,1411,1949,2202,2411,2949) 
+        AND MV.CODSEC <> 1601 
+        AND nvl(esp.mostra_dre,'S') = 'S' 
+    group by MOTIVO.CODDEVOL, motivo.motivo, motivo.crldevculparca
+) order by vldevolucao desc
+
+
+Elapsed time: 0.344
+
+--------------------------------------------------------------------------------
+Timestamp: 01/09/2026 14:52:34
+
+ select e.empresa, f.codfil, f.label, e.descricao || ' - ' || f.descricao as UNIDADE, nvl(fw.UF,'MG') as UF, f.dblepcti
+  from filiais f, empresa e, pcfilial fw
+  where f.empresa = e.empresa
+    and f.codfil  = fw.codigo (+)
+ order by  f.ordem_processa
+
+
+Elapsed time: 0.000
+
+--------------------------------------------------------------------------------
+Timestamp: 01/09/2026 14:52:34
+
+ select e.empresa, f.codfil, f.label, e.descricao || ' - ' || f.descricao as UNIDADE, nvl(fw.UF,'MG') as UF, f.dblepcti  
+  from filiais f, empresa e, pcfilial fw 
+  where f.empresa = e.empresa 
+    and f.codfil  = fw.codigo (+) 
+    AND f.codfil IN ('7','12','25')
+ order by  f.ordem_processa 
+
+
+Elapsed time: 0.000
+
+--------------------------------------------------------------------------------
+Timestamp: 01/09/2026 14:52:35
+
+ select codmotivo, motivo, culparca, qde_nf, vldevolucao, round((vldevolucao / sum(vldevolucao) over (partition by null))*100,2) as ppart 
+ from ( 
+      SELECT MOTIVO.CODDEVOL as CODMOTIVO, motivo.motivo, motivo.crldevculparca as culparca, 
+             count(distinct NFE.numnota) as qde_nf, SUM( round( NVL(MV.QT,0)*NVL(MV.punit,0) ,4)) VLDEVOLUCAO 
+        FROM PCNFENT NFE, PCMOV MV, PCTABDEV MOTIVO, 
+             (select clie.codcli, ce.codfil, ce.mostra_dre from cliente_especial ce, pcclient clie where clie.codcliprinc = ce.codcli) esp 
+       WHERE NFE.numnota       = MV.numnota      (+) 
+         AND NFE.numtransent   = MV.numtransent  (+) 
+         AND NFE.codfornec     = esp.codcli (+) 
+         AND NFE.CODFILIAL     = esp.codfil (+) 
+         AND NFE.CODDEVOL      = MOTIVO.CODDEVOL (+) 
+         AND NFE.CODFILIAL IN ('7','12','25')
+         AND NFE.TIPODESCARGA IN ('6','7') 
+         AND MV.DTCANCEL IS NULL AND (NVL(NFE.OBS,'X') <> 'NF CANCELADA') 
+         AND NFE.DTENT Between To_Date('01/08/2026','dd/mm/yyyy')  AND  To_Date('31/08/2026','dd/mm/yyyy')
+         AND MV.CODFISCAL IN (1202,1411,1949,2202,2411,2949) 
+         AND MV.CODSEC <> 1601 
+         AND nvl(esp.mostra_dre,'S') = 'S' 
+ group by MOTIVO.CODDEVOL, motivo.motivo, motivo.crldevculparca 
+ ) order by vldevolucao desc 
+
+
+Elapsed time: 0.297
+

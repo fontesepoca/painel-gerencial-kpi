@@ -1,0 +1,101 @@
+﻿--------------------------------------------------------------------------------
+Timestamp: 01/09/2026 14:43:40
+
+ select case when count(*) > 0 then 'S' else 'N' end as EH_Responsavel from epcpardre_resp where codconta = 2342010001 and matricula = 4893
+
+
+Elapsed time: 0.000
+
+--------------------------------------------------------------------------------
+Timestamp: 01/09/2026 14:43:40
+
+ select e.empresa, f.codfil, f.label, e.descricao || ' - ' || f.descricao as UNIDADE, nvl(fw.UF,'MG') as UF, f.dblepcti  
+  from filiais f, empresa e, pcfilial fw 
+  where f.empresa = e.empresa 
+    and f.codfil  = fw.codigo (+) 
+    AND f.codfil IN ('7','12','25')
+ order by  f.ordem_processa 
+
+
+Elapsed time: 0.000
+
+--------------------------------------------------------------------------------
+Timestamp: 01/09/2026 14:43:40
+
+ select RECNUM, CODFILIAL, codccprinc, codccprinc || ' - ' || DescCCPrinc as DescCCPrinc,  
+        codigocentrocusto as CODCENTROCUSTO, CODIGOCENTROCUSTO || ' - ' ||  DESCCENTROCUSTO as DESCCENTROCUSTO,  
+        codgrupo, codgrupo || ' - ' || GRUPO as GRUPO, to_number(CODCONTA) as CODCONTA, CONTA || '  [' || CODCONTA || ']' as CONTA,  
+        numtrans, NUMNOTA, Duplic, INDICE, codprojeto, to_number(CODFORNEC) as  CODFORNEC, dtlanc, dtcompetencia, DTCOMPENSACAO, HISTORICO, VPAGO, DTPAGTO, 
+        NUMBANCO, NumCheque, numbordero, numseqbordero, NUMCHEQUE2, LOCALIZACAO, NOMEFUNC, 
+        FORNECEDOR, DTRECLASSIFIC, CODFUNCRECLASSIFIC, NOMEFUNCBAIXA, NumCar  
+from ( 
+  SELECT  FIN.RECNUM, FIN.INDICE,  FIN.CODFILIAL, CCPrinc.codccprinc, CCPrinc.DescCCPrinc,  
+          DECODE(RC.valor,NULL, DECODE(CT.usarateiocentrocusto,'S',NVL(CC.codigocentrocusto,9998),9999) ,NVL(CC.codigocentrocusto,9998)) as CODIGOCENTROCUSTO, 
+          DECODE(RC.valor,NULL, DECODE(CT.usarateiocentrocusto,'S',NVL(CC.DESCRICAO,'NÃO INFORMADO'),'NÃO USA CENTRO DE CUSTO') ,NVL(CC.DESCRICAO,'NÃO INFORMADO')) as DESCCENTROCUSTO,  
+          GR.codgrupo, GR.GRUPO, FIN.CODCONTA, CT.CONTA, 
+          (select max(numcarreg) from PCMOVCR where numlanc = FIN.RECNUM ) as NumCar, 
+          FIN.numtrans, FIN.NUMNOTA, FIN.Duplic, FIN.codprojeto, FIN.dtcompetencia, 
+          (SELECT PCMOVCR.DTCOMPENSACAO FROM PCMOVCR WHERE PCMOVCR.NUMTRANS = FIN.NUMTRANS AND ROWNUM = 1) AS DTCOMPENSACAO,   
+          SUBSTR(CONCAT(CONCAT(TRIM(FIN.HISTORICO), '. '), TRIM(FIN.HISTORICO2)),0,200) HISTORICO, 
+          DECODE(RC.valor,NULL,NVL(FIN.VPAGO,0)*(-1),NVL(RC.valor,FIN.VPAGO)*(-1)) as VPAGO,  
+          FIN.CODFORNEC, fin.dtlanc, FIN.DTPAGTO, FIN.NUMBANCO,FIN.NumCheque,FIN.numbordero,FIN.numseqbordero, FIN.NUMCHEQUE2, 
+          FIN.LOCALIZACAO, FIN.NOMEFUNC, 
+          DECODE(FIN.TIPOPARCEIRO, 
+            'F', (SELECT decode(cgc,'22078221000115',FANTASIA,FORNECEDOR) FROM PCFORNEC WHERE CODFORNEC = FIN.CODFORNEC), 
+            'R', (SELECT NOME FROM PCUSUARI WHERE CODUSUR = FIN.CODFORNEC), 
+            'C', (SELECT CLIENTE FROM PCCLIENT WHERE CODCLI = FIN.CODFORNEC), 
+            'M', (select nome from pcempr where matricula = FIN.CODFORNEC), 
+            'OUTROS') AS  FORNECEDOR, 
+          FIN.DTRECLASSIFIC, FIN.CODFUNCRECLASSIFIC, 
+          (SELECT NOME FROM PCEMPR WHERE MATRICULA = FIN.CODFUNCBAIXA) NOMEFUNCBAIXA 
+    FROM  PCCONTA CT, PCGRUPO GR, PCCENTROCUSTO CC, 
+PCRATEIOCENTROCUSTO RC, 
+          (select RECNUM, CODFILIAL, numtrans, NUMNOTA, Duplic, codprojeto, dtcompetencia, dtlanc, DTVENC, DTPAGTO, nvl(VPAGO,VALOR) as VPAGO, INDICE, 
+ codconta, 
+                  TIPOPARCEIRO, DTRECLASSIFIC, CODFUNCRECLASSIFIC, historico, HISTORICO2, 
+                  NUMBANCO, NumCheque, numbordero, numseqbordero, NUMCHEQUE2, LOCALIZACAO, NOMEFUNC, CODFORNEC, CODFUNCBAIXA, DTESTORNOBAIXA 
+             from PCLANC
+            WHERE DTPAGTO IS NOT NULL 
+          ) FIN, 
+          ( select '99' as codccprinc, 'NÃO USA/NÃO INFORMADO' as DescCCPrinc FROM DUAL 
+            union 
+            select codccprinc, (select descricao from PCCENTROCUSTO where codigocentrocusto = CCP.CodPrinc) as DescCCPrinc 
+            FROM (select SUBSTR(codigocentrocusto,1,2) as CODCCPRINC, min(codigocentrocusto) as CodPrinc 
+            from PCCENTROCUSTO group by SUBSTR(codigocentrocusto,1,2)) CCP) CCPrinc  
+   WHERE  FIN.CODCONTA = CT.CODCONTA 
+     AND  CT.GRUPOCONTA >= 200 
+        and FIN.codfilial in (-1,7,12,25)
+     AND  FIN.RECNUM = RC.RECNUM (+) 
+     AND  FIN.CODCONTA = RC.CODCONTA (+) 
+     AND  CT.grupoconta = GR.codgrupo (+) 
+     AND  RC.codigocentrocusto = cc.codigocentrocusto (+) 
+     AND  SUBSTR(NVL(cc.codigocentrocusto,99),1,2) = CCPrinc.codccprinc (+) 
+     AND  FIN.historico not like 'REF.CANCEL.BORDERO JA BAIXADO' 
+     AND not exists (select recnumadiantamento from pclancadiantfornec where recnumpagto is not null and dtestorno is null and recnumadiantamento = fin.recnum) 
+          AND FIN.DTESTORNOBAIXA IS NULL 
+    AND  FIN.CODCONTA not in (select codgruconta from EPCPARDRE where codgruconta > 0 and id < (select ID from EPCPARDRE where upper(grupo) like 'LUCRO LIQUIDO')) 
+    AND  FIN.CODCONTA not in (select codgruconta from EPCPARDRE where id < (select ID from EPCPARDRE where upper(grupo) like 'RESULTADO OPERACIONAL')) 
+    AND nvl(FIN.DTPAGTO,fin.DTVENC) Between To_Date('01/08/2026','dd/mm/yyyy')  AND  To_Date('31/08/2026','dd/mm/yyyy')
+    union all  
+     select 0 as recnum, 'A' as Indice, fin.codfilial, '85' as CodCCPrinc, 'RECEITA VENDA ATIVO' as descccprinc, 
+            '8501' as codcentrocusto, 'RECEITA VENDA ATIVO' as desccentrocusto, 
+            GR.codgrupo, GR.GRUPO, CT.CODCONTA, CT.CONTA, null as NumCar, 
+            fin.numtrans, nf.numnota as NUMNOTA, fin.prest as Duplic, null as codprojeto, nf.dtsaida as dtcompetencia, fin.dtpag as DTCOMPENSACAO, 
+            (SELECT max(PCPRODCIAP.DESCRICAO) FROM PCMOVCIAP, PCPRODCIAP WHERE  PCMOVCIAP.CODPROD = PCPRODCIAP.CODPROD AND PCMOVCIAP.NUMTRANSVENDA = nf.numtransvenda) as HISTORICO, 
+            fin.valor as VPAGO, nf.codcli as CODFORNEC, fin.dtemissao as dtlanc, fin.dtpag as DTPAGTO, fin.codbanco as NUMBANCO, null as NumCheque, null as numbordero, null as numseqbordero, null as NUMCHEQUE2, 
+            null as LOCALIZACAO, UPPER(fin.funclanc) as NOMEFUNC, nf.cliente as FORNECEDOR, null as DTRECLASSIFIC, null as CODFUNCRECLASSIFIC, null as NOMEFUNCBAIXA 
+       from pcnfsaid nf, pcprest fin, PCCONTA CT, PCGRUPO GR 
+      where nf.numnota = fin.duplic 
+        and nf.numtransvenda  = fin.numtransvenda 
+        and ct.codconta = 4000004 
+        AND CT.grupoconta = GR.codgrupo (+) 
+        and condvenda = 0 and nf.vltotal > 0 and nvl(nf.obs,'X') not like '%CANCELADA%' and nf.dthoracancelamentosefaz is null 
+        and fin.codcob <> 'DESD' and fin.dtcancel is null 
+        and fin.dtpag  Between To_Date('01/08/2026','dd/mm/yyyy')  AND  To_Date('31/08/2026','dd/mm/yyyy')
+        and nf.codfilial in (-1,7,12,25)
+) WHERE 1=1 
+ AND CODCONTA in (2342010001 )
+
+
+Elapsed time: 0.000
+

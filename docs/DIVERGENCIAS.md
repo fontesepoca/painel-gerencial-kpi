@@ -20,6 +20,7 @@ a aprovação do Gabriel.
 | [1](#1-a-coluna-média-em-um-centavo) | Coluna MÉDIA | todas | 1 centavo | aceita em 28/08/2026 |
 | [2](#2-a-filial-única-no-subselect-de-centro-de-custo) | Filial única no `CCC` | C. Custo Principal | R$ 2,56 mi em 2 meses | **corrigida** em 31/08/2026 |
 | [3](#3-centro-de-custo-simples-não-tem-referência) | Sem referência | Centro de Custo | não mensurável | validação manual pendente |
+| [4](#4-correção-deliberada-o-detalhamento-agora-fecha-com-a-linha-do-dre) | Detalhamento não fecha com a linha | Receita Bruta · Devolução · Receitas Líquidas | R$ 3,56 mi em 1 mês | **corrigida de propósito** em 01/09/2026 |
 
 ---
 
@@ -734,3 +735,86 @@ medição independente. A parte **estatística** é mais frouxa: esperava-se met
 
 A taxa geral caiu como a previsão dizia: de ~20% com dois meses para **5,3%** com quatro.
 Quanto maior o divisor, mais raro o empate.
+
+---
+
+## 4. Correção deliberada: o detalhamento agora fecha com a linha do DRE
+
+**Esta é a primeira vez que a web sai de propósito do que a 9815 faz.** Decisão do Gabriel
+em 01/09/2026, ao ver a medição abaixo. Instrução de reversão no fim da seção.
+
+### O que a 9815 faz
+
+Duas telas de detalhamento, abertas com duplo clique no valor, não somam o valor da linha
+que foi clicada. Medido no cenário do print de 01/09/2026 — C. Custo Principal, caixa,
+agosto/2026, filiais 7, 12 e 25:
+
+| Linha clicada | DRE | Detalhamento | Diferença |
+|---|---|---|---|
+| `(+) RECEITA BRUTA` | 55.753.802,35 | 52.193.509,49 | 3.560.292,86 |
+| `(-) ABAT./DESC.` | 4.663.258,65 | 4.663.258,6534 | — bate |
+| `(-) DEVOLUCAO` | 1.256.167,12 | 1.370.523,10 | 114.355,98 |
+| `(=) RECEITAS LIQUIDAS` | 49.834.376,58 | 46.159.727,74 | 3.674.648,84 |
+
+O total do detalhamento é a soma das **15.444** linhas do `resultado.xlsx`, não da tela
+carregada pela metade — a conferência não tem esse atalho.
+
+**A lista de lançamentos não tem o problema.** `DIRETORIA` fecha em −256.840,02 e
+`COMPRAS - RAT` em −278.024,83, ambas idênticas à linha do DRE. A correção abaixo não
+toca nela.
+
+### Por que não fecha
+
+As duas telas da própria 9815 consultam com critérios diferentes:
+
+| | Query do DRE | Query do detalhamento |
+|---|---|---|
+| Receita bruta | `SUM(ptabela * qt)` | `SUM((ptabela - nvl(st,0)) * qt)` |
+| Devolução | junta `PCPEDC` exigindo `CONDVENDA IN (1,3,5,6,8)`, e `PCPRODUT` por junção interna | não tem nenhum dos dois; em compensação aplica `mostra_dre = 'S'` |
+
+E as **duas telas de detalhamento discordam entre si** sobre a mesma devolução: a de
+receita por cliente arredonda o item em duas casas e a de motivos em quatro, dando
+1.370.523,10 contra 1.370.523,2318 para o mesmo conjunto de notas.
+
+### O que a web faz
+
+O detalhamento passa a usar **os critérios da linha do DRE**:
+
+- receita bruta soma `ptabela * qt`, sem subtrair ST;
+- devolução usa o mesmo recorte e o mesmo arredondamento da apuração, nas duas telas.
+
+O resultado é que o total do detalhamento fecha com o valor clicado.
+
+### Por que aqui a fidelidade cede
+
+A regra do projeto é reproduzir a 9815 inclusive no que parece defeito, e ela se sustenta
+porque o alvo é o **número**: se a web mostrasse outro valor, ninguém saberia qual acreditar.
+
+Aqui é o oposto. As duas telas da 9815 mostram números diferentes **para a mesma coisa**,
+e uma delas já contradiz a outra — não existe "o número da 9815" a preservar. Replicar
+seria escolher preservar a contradição, e a contradição é justamente o que o detalhamento
+existe para resolver: quem clica está perguntando "de onde vem este valor". Uma resposta
+que não soma o valor perguntado não responde nada.
+
+### Como reverter
+
+Em `DreGerencialQueries`, nas consultas de detalhamento:
+
+1. **Receita bruta** — trocar `MV.ptabela * MV.qt` por `(MV.ptabela - nvl(MV.st,0)) * MV.qt`
+   nos blocos de venda.
+2. **Devolução** — remover a junção com `PCPEDC` e o filtro `CONDVENDA`, remover a junção
+   interna com `PCPRODUT`, acrescentar `nvl(esp.mostra_dre,'S') = 'S'`, e voltar o
+   arredondamento da tela de motivos para `round(..., 4)`.
+
+**Quando isso faria sentido:** se a conferência contra a 9815 passar a ser feita tela a
+tela em vez de número a número, e alguém precisar que o detalhamento web reproduza a
+exportação antiga do detalhamento — inclusive a diferença. Enquanto a conferência for do
+DRE, fechar é o comportamento útil.
+
+### O que continua sem resposta
+
+Não sabemos **qual dos dois critérios a 9815 considera certo** — se a receita bruta deveria
+ou não descontar ST é uma pergunta contábil, não de código, e as duas telas dela respondem
+diferente. A web escolheu o critério da linha do DRE porque é o que já foi conferido ao
+centavo contra a rotina antiga em milhares de células. Se a área contábil disser que o
+certo é o outro, muda a linha do DRE também — e aí é outra conversa, bem maior.
