@@ -818,7 +818,25 @@ cliente some inteiro, e a linha some junto.
 Isso é coerente com a aritmética, mas não foi provado diretamente — quem quiser fechar,
 roda o bloco de devolução de dc2 com `AND cli.codcli = 174297` e confere que volta vazio.
 
-**Custo:** a consulta levou **116,9 s**. A da 9815 levava 30,3 s — a diferença vem das
+### A devolução por motivo também fechou — 01/09/2026
+
+[dc3](validacao/dc3_devolucao_por_motivo_corrigida.sql), previsão registrada antes de rodar:
+
+| | Antes (9815) | Previsto | Medido |
+|---|---|---|---|
+| Total | 1.370.523,2318 | 1.256.167,12 | **1.256.167,12** |
+| `PPART` somado | 100,02 | 100,00 ± 0,03 | 100,01 |
+| Motivos | 27 | — | 27 |
+
+**Nenhum motivo desapareceu.** A troca de critério mexeu nos valores — `DESACORDO COM O
+PEDIDO` sai de 307.239,3733 para 307.239,24, efeito das duas casas — mas as 27 linhas
+continuam lá, e a contagem de notas de cada motivo não mudou. É o esperado: a devolução
+que saiu na tela de receita era de um cliente, não de um motivo inteiro.
+
+Com isto **as três telas fecham com a linha clicada**: receita por cliente e devolução por
+motivo pela correção, e a lista de lançamentos porque já fechava.
+
+**Custo:** a consulta de receita levou **116,9 s**. A da 9815 levava 30,3 s — a diferença vem das
 junções que o critério da apuração exige (`PCPEDC`, `PCMOVCOMPLE`, `PCPRODUT` na
 devolução). Fechar os números veio primeiro; a otimização é assunto à parte, e dois
 minutos é tempo demais para uma tela que abre com duplo clique.
