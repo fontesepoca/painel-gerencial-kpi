@@ -1,23 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AppShell } from "@/components/layout/AppShell";
 import { FiltrosDre } from "@/components/dre-gerencial/FiltrosDre";
 import { TabelaDre } from "@/components/dre-gerencial/TabelaDre";
 import { useApuracao, useFiliais } from "@/hooks/useDreGerencial";
 import { cn } from "@/lib/cn";
 import { formatarDataIso, formatarDuracao } from "@/lib/formato";
+import { periodoPadrao } from "@/lib/periodos";
 import type { FiltroApuracao } from "@/types/dre-gerencial";
-
-/** Mês corrente do primeiro dia até hoje — o recorte que o dono abre primeiro. */
-function periodoPadrao(): { dataInicio: string; dataFim: string } {
-  const hoje = new Date();
-  const iso = (d: Date) => d.toISOString().slice(0, 10);
-  return {
-    dataInicio: iso(new Date(hoje.getFullYear(), hoje.getMonth(), 1)),
-    dataFim: iso(hoje),
-  };
-}
 
 export default function DreGerencialPage() {
   const filiais = useFiliais();
@@ -138,16 +129,61 @@ function Inicial() {
   );
 }
 
+/**
+ * Estado de apuração em andamento.
+ *
+ * A apuração leva de segundos a vários minutos, e nesse intervalo a única pergunta
+ * de quem espera é "travou?". Uma barra indeterminada sozinha não responde: depois
+ * de dois minutos, movimento repetitivo lê como tela congelada.
+ *
+ * Por isso o cronômetro. Ele é a única informação **verdadeira** que temos para
+ * mostrar — a consulta não reporta avanço, então qualquer porcentagem seria
+ * inventada. Um número que muda a cada segundo prova que a página está viva, e de
+ * quebra dá ao usuário a noção de quanto costuma demorar.
+ */
 function Apurando() {
+  const [segundos, setSegundos] = useState(0);
+
+  useEffect(() => {
+    const t = setInterval(() => setSegundos((s) => s + 1), 1000);
+    return () => clearInterval(t);
+  }, []);
+
+  const mm = Math.floor(segundos / 60);
+  const ss = `${segundos % 60}`.padStart(2, "0");
+
   return (
-    <div className="rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface-1)] px-6 py-16 text-center">
-      <div className="mx-auto mb-4 h-[2px] w-40 overflow-hidden rounded-full bg-[var(--surface-3)]">
-        <div className="h-full w-1/3 animate-[deslizar_1.4s_ease-in-out_infinite] rounded-full bg-[var(--primary)]" />
+    <div
+      role="status"
+      aria-live="polite"
+      className="rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface-1)] px-6 py-14 text-center"
+    >
+      {/* Três pontos em cascata: o movimento continua legível de longe e com pouca
+          visão, ao contrário de uma barra de 2px. */}
+      <div className="mb-6 flex justify-center gap-2.5" aria-hidden>
+        {[0, 1, 2].map((i) => (
+          <span
+            key={i}
+            className="pulsa size-3 rounded-full bg-[var(--primary)]"
+            style={{ animationDelay: `${i * 0.16}s` }}
+          />
+        ))}
       </div>
+
       <p className="text-[length:var(--fs-base)] text-[var(--text-primary)]">Apurando o DRE…</p>
-      <p className="mt-2 text-[length:var(--fs-apoio)] text-[var(--text-muted)]">
-        Pode levar alguns minutos. Não recarregue a página — isso dispararia uma segunda
-        apuração.
+
+      <p className="tabular mt-3 text-[length:var(--fs-titulo)] font-semibold text-[var(--text-primary)]">
+        {mm}:{ss}
+      </p>
+
+      <div className="mx-auto mt-5 h-[3px] w-56 overflow-hidden rounded-full bg-[var(--surface-3)]">
+        <div className="cometa h-full w-1/3 rounded-full bg-[var(--primary)]" />
+      </div>
+
+      <p className="mx-auto mt-5 max-w-md text-[length:var(--fs-apoio)] leading-relaxed text-[var(--text-muted)]">
+        A consulta percorre o período inteiro no banco e não reporta progresso — por isso
+        o relógio, e não uma porcentagem. Não recarregue a página: isso dispararia uma
+        segunda apuração.
       </p>
     </div>
   );

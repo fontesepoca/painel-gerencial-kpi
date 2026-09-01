@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { cn } from "@/lib/cn";
+import { atalhosPeriodo, paraBr } from "@/lib/periodos";
 import {
   ANALISES,
   REGIMES,
@@ -96,18 +97,25 @@ export function FiltrosDre({
         <div className="flex items-center gap-2">
           <input
             type="date"
+            aria-label="Data inicial"
             value={filtro.dataInicio}
             max={filtro.dataFim}
             onChange={(e) => onMudar({ ...filtro, dataInicio: e.target.value })}
             className={cn(CAMPO, "tabular")}
           />
-          <span className="text-[var(--text-muted)]">→</span>
+          <span aria-hidden className="text-[var(--text-muted)]">
+            →
+          </span>
           <input
             type="date"
+            aria-label="Data final"
             value={filtro.dataFim}
             min={filtro.dataInicio}
             onChange={(e) => onMudar({ ...filtro, dataFim: e.target.value })}
             className={cn(CAMPO, "tabular")}
+          />
+          <AtalhosDePeriodo
+            onEscolher={(dataInicio, dataFim) => onMudar({ ...filtro, dataInicio, dataFim })}
           />
         </div>
       </Campo>
@@ -132,15 +140,131 @@ export function FiltrosDre({
   );
 }
 
+/**
+ * Um campo do filtro: rótulo em cima, controle embaixo.
+ *
+ * É um grupo, não um `<label>`. Um rótulo só pode nomear **um** controle, e o campo
+ * Período tem dois inputs de data mais o botão de atalhos — envolvê-los num `<label>`
+ * deixaria os dois sem nome para o leitor de tela e, pior, devolveria o foco ao
+ * primeiro input a cada clique no botão do relógio.
+ */
 function Campo({ rotulo, children }: { rotulo?: string; children: React.ReactNode }) {
+  const id = useId();
   return (
-    <label className="flex min-w-0 flex-col gap-2">
+    <div
+      role={rotulo ? "group" : undefined}
+      aria-labelledby={rotulo ? id : undefined}
+      className="flex min-w-0 flex-col gap-2"
+    >
       {/* Sem rótulo o espaço é preservado, para o botão alinhar com os campos. */}
-      <span className={ROTULO} aria-hidden={rotulo === undefined}>
-        {rotulo ?? " "}
+      <span id={id} className={ROTULO} aria-hidden={rotulo === undefined}>
+        {rotulo ?? " "}
       </span>
       {children}
-    </label>
+    </div>
+  );
+}
+
+/**
+ * Atalhos de período, atrás de um relógio ao lado das datas.
+ *
+ * Cada opção **mostra o intervalo que vai aplicar**. "Últimos 3 meses" pode significar
+ * três meses completos ou os noventa dias anteriores, e nenhuma das duas leituras é
+ * óbvia — exibir `01/05/2026 a 31/07/2026` encerra a dúvida sem precisar de legenda.
+ *
+ * A lista é calculada a cada abertura, não uma vez na montagem: uma tela deixada
+ * aberta durante a virada da meia-noite ofereceria o "ontem" de ontem.
+ */
+function AtalhosDePeriodo({
+  onEscolher,
+}: {
+  onEscolher: (dataInicio: string, dataFim: string) => void;
+}) {
+  const [aberto, setAberto] = useState(false);
+  const caixa = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!aberto) return;
+    const fechar = (e: MouseEvent) => {
+      if (caixa.current && !caixa.current.contains(e.target as Node)) setAberto(false);
+    };
+    const esc = (e: KeyboardEvent) => e.key === "Escape" && setAberto(false);
+    document.addEventListener("mousedown", fechar);
+    document.addEventListener("keydown", esc);
+    return () => {
+      document.removeEventListener("mousedown", fechar);
+      document.removeEventListener("keydown", esc);
+    };
+  }, [aberto]);
+
+  return (
+    <div ref={caixa} className="relative shrink-0">
+      <button
+        type="button"
+        onClick={() => setAberto((a) => !a)}
+        aria-expanded={aberto}
+        aria-haspopup="menu"
+        aria-label="Atalhos de período"
+        title="Atalhos de período"
+        className={cn(
+          "grid aspect-square h-[var(--altura-controle)] place-items-center rounded-[var(--radius-md)]",
+          "border border-[var(--border-strong)] bg-[var(--surface-2)]",
+          "transition-colors duration-[var(--dur-fast)]",
+          aberto
+            ? "border-[var(--primary)] text-[var(--text-primary)]"
+            : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]",
+        )}
+      >
+        <Relogio />
+      </button>
+
+      {aberto && (
+        <div
+          role="menu"
+          className="absolute top-full right-0 z-20 mt-1 w-[min(20rem,90vw)] rounded-[var(--radius-lg)] border border-[var(--border-strong)] bg-[var(--surface-2)] p-2 shadow-[var(--shadow-float)]"
+        >
+          {atalhosPeriodo().map((a) => (
+            <button
+              key={a.id}
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                onEscolher(a.dataInicio, a.dataFim);
+                setAberto(false);
+              }}
+              className="flex w-full flex-col gap-0.5 rounded-[var(--radius-sm)] px-3 py-[var(--celula-y)] text-left hover:bg-[var(--surface-3)]"
+            >
+              <span className="text-[length:var(--fs-base)] text-[var(--text-primary)]">
+                {a.rotulo}
+              </span>
+              <span className="tabular text-[length:var(--fs-apoio)] text-[var(--text-muted)]">
+                {paraBr(a.dataInicio)}
+                {a.dataInicio !== a.dataFim && ` a ${paraBr(a.dataFim)}`}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Relógio em traço, herdando a cor e a espessura do botão. */
+function Relogio() {
+  return (
+    <svg
+      aria-hidden
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.75"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="size-[1.25em]"
+    >
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7v5l3 2" />
+    </svg>
   );
 }
 
