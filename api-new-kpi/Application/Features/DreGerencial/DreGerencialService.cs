@@ -266,4 +266,115 @@ public sealed class DreGerencialService
 
         return Result<ApuracaoDto>.Ok(apuracao);
     }
+
+    /// <summary>
+    /// Detalhamento de uma célula — o que a 9815 abre com duplo clique no valor.
+    ///
+    /// <para>São três telas com formatos diferentes, e o tipo vem pronto do
+    /// <see cref="DetalheDisponivelDto"/> que a apuração colocou na linha. O front não
+    /// escolhe: ele devolve o destino que recebeu.</para>
+    ///
+    /// <para><b>Nada aqui é concatenado a partir do que chega.</b> `Tipo` e `Bloco` passam
+    /// por listas fechadas antes de virar SQL, e a chave vai como bind.</para>
+    /// </summary>
+    public async Task<Result<DetalhamentoDto>> ObterDetalheAsync(
+        DetalheFiltroDto filtro,
+        CancellationToken cancellationToken = default)
+    {
+        var basico = new DespesasFiltroDto(
+            filtro.Filiais, filtro.DataInicio, filtro.DataFim, filtro.Regime, filtro.Analise);
+
+        var erro = ValidarPeriodoEFiliais(basico);
+        if (erro is not null)
+        {
+            return Result<DetalhamentoDto>.Invalido(erro);
+        }
+
+        var cronometro = System.Diagnostics.Stopwatch.StartNew();
+
+        switch (filtro.Tipo)
+        {
+            case "receita-por-cliente":
+            {
+                var linhas = await _repositorio.ObterDetalheReceitaPorClienteAsync(
+                    filtro.Filiais, filtro.DataInicio, filtro.DataFim, cancellationToken);
+
+                cronometro.Stop();
+                return Result<DetalhamentoDto>.Ok(new DetalhamentoDto(
+                    filtro.Tipo, filtro.DataInicio, filtro.DataFim,
+                    linhas.Select(c => new DetalheClienteDto(
+                        c.CodCli, c.Cliente, c.Cidade, c.QdeNf, c.ReceitaBruta,
+                        c.Desconto, c.Devolucao, c.ReceitaLiquida, c.CustoLiq)).ToList(),
+                    null, null, cronometro.ElapsedMilliseconds));
+            }
+
+            case "devolucao-por-motivo":
+            {
+                var linhas = await _repositorio.ObterDetalheDevolucaoPorMotivoAsync(
+                    filtro.Filiais, filtro.DataInicio, filtro.DataFim, cancellationToken);
+
+                cronometro.Stop();
+                return Result<DetalhamentoDto>.Ok(new DetalhamentoDto(
+                    filtro.Tipo, filtro.DataInicio, filtro.DataFim, null,
+                    linhas.Select(m => new DetalheMotivoDto(
+                        m.CodMotivo, m.Motivo, m.CulpaRca, m.QdeNf,
+                        m.VlDevolucao, m.PPart)).ToList(),
+                    null, cronometro.ElapsedMilliseconds));
+            }
+
+            case "lancamentos":
+            {
+                if (string.IsNullOrWhiteSpace(filtro.Chave))
+                {
+                    return Result<DetalhamentoDto>.Invalido(
+                        "O detalhamento de lançamentos precisa da chave da linha.");
+                }
+
+                if (filtro.Bloco is not ("operacional" or "pos-operacional" or "orfa"))
+                {
+                    return Result<DetalhamentoDto>.Invalido(
+                        $"Bloco '{filtro.Bloco}' não existe. Valores aceitos: " +
+                        "operacional, pos-operacional, orfa.");
+                }
+
+                var regime = RegimeDre.Resolver(filtro.Regime);
+                if (regime is null)
+                {
+                    return Result<DetalhamentoDto>.Invalido(
+                        $"Regime '{filtro.Regime}' não existe.");
+                }
+
+                var analise = AnaliseDre.Resolver(filtro.Analise);
+                if (analise is null || !analise.Implementada)
+                {
+                    return Result<DetalhamentoDto>.Invalido(
+                        $"Análise '{filtro.Analise}' não existe ou não está implementada.");
+                }
+
+                var linhas = await _repositorio.ObterDetalheLancamentosAsync(
+                    filtro.Filiais, filtro.DataInicio, filtro.DataFim, regime, analise,
+                    filtro.Bloco, filtro.Chave, cancellationToken);
+
+                cronometro.Stop();
+                return Result<DetalhamentoDto>.Ok(new DetalhamentoDto(
+                    filtro.Tipo, filtro.DataInicio, filtro.DataFim, null, null,
+                    linhas.Select(l => new DetalheLancamentoDto(
+                        l.RecNum, l.CodFilial, l.CodCcPrinc, l.DescCcPrinc,
+                        l.CodCentroCusto, l.DescCentroCusto, l.CodGrupo, l.Grupo,
+                        l.CodConta, l.Conta, l.VPago, l.Historico, l.DtLanc,
+                        l.DtCompetencia, l.DtCompensacao, l.DtPagto, l.NumTrans,
+                        l.NumNota, l.Duplic, l.Indice, l.CodProjeto, l.CodFornec,
+                        l.Fornecedor, l.NumBanco, l.NumCheque, l.NumBordero,
+                        l.NumSeqBordero, l.NumCheque2, l.NumCar, l.Localizacao,
+                        l.NomeFunc, l.NomeFuncBaixa, l.DtReclassific,
+                        l.CodFuncReclassific)).ToList(),
+                    cronometro.ElapsedMilliseconds));
+            }
+
+            default:
+                return Result<DetalhamentoDto>.Invalido(
+                    $"Detalhamento '{filtro.Tipo}' não existe. Valores aceitos: " +
+                    "receita-por-cliente, devolucao-por-motivo, lancamentos.");
+        }
+    }
 }

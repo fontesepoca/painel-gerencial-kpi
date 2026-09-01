@@ -236,4 +236,156 @@ public sealed class DreGerencialRepository : IDreGerencialRepository
         // meses a partir do período pedido, não do que voltou — senão uma coluna some.
         return faturamento.ToList();
     }
+
+    public async Task<IReadOnlyList<DetalheClienteDre>> ObterDetalheReceitaPorClienteAsync(
+        IReadOnlyList<string> filiais,
+        DateOnly dataInicio,
+        DateOnly dataFim,
+        CancellationToken cancellationToken = default)
+    {
+        if (filiais.Count == 0)
+        {
+            return [];
+        }
+
+        var placeholdersA = string.Join(", ", filiais.Select((_, i) => $":filialA{i}"));
+        var placeholdersB = string.Join(", ", filiais.Select((_, i) => $":filialB{i}"));
+
+        var sql = string.Format(DreDetalheQueries.ReceitaPorCliente, placeholdersA, placeholdersB);
+
+        var inicio = dataInicio.ToDateTime(TimeOnly.MinValue);
+        var fim = dataFim.ToDateTime(TimeOnly.MinValue);
+
+        // Ordem obrigatória: datas das vendas, filiais das vendas, datas das devoluções,
+        // filiais das devoluções. É a ordem em que os binds aparecem no SQL.
+        var parametros = new DynamicParameters();
+        parametros.Add("dtIni1", inicio);
+        parametros.Add("dtFim1", fim);
+        for (var i = 0; i < filiais.Count; i++)
+        {
+            parametros.Add($"filialA{i}", filiais[i]);
+        }
+        parametros.Add("dtIni2", inicio);
+        parametros.Add("dtFim2", fim);
+        for (var i = 0; i < filiais.Count; i++)
+        {
+            parametros.Add($"filialB{i}", filiais[i]);
+        }
+
+        using var conexao = await _conexoes.CriarConexaoAsync(cancellationToken);
+
+        // Cara pelo mesmo motivo que a apuração: varre as mesmas notas. Medida em 116,9 s
+        // para um mês e três filiais — ver docs/DIVERGENCIAS.md §4.
+        var linhas = await conexao.QueryAsync<DetalheClienteDre>(
+            new CommandDefinition(
+                sql,
+                parametros,
+                commandTimeout: 600,
+                cancellationToken: cancellationToken));
+
+        return linhas.ToList();
+    }
+
+    public async Task<IReadOnlyList<DetalheMotivoDre>> ObterDetalheDevolucaoPorMotivoAsync(
+        IReadOnlyList<string> filiais,
+        DateOnly dataInicio,
+        DateOnly dataFim,
+        CancellationToken cancellationToken = default)
+    {
+        if (filiais.Count == 0)
+        {
+            return [];
+        }
+
+        var placeholders = string.Join(", ", filiais.Select((_, i) => $":filial{i}"));
+        var sql = string.Format(DreDetalheQueries.DevolucaoPorMotivo, placeholders);
+
+        var parametros = new DynamicParameters();
+        parametros.Add("dtIni", dataInicio.ToDateTime(TimeOnly.MinValue));
+        parametros.Add("dtFim", dataFim.ToDateTime(TimeOnly.MinValue));
+        for (var i = 0; i < filiais.Count; i++)
+        {
+            parametros.Add($"filial{i}", filiais[i]);
+        }
+
+        using var conexao = await _conexoes.CriarConexaoAsync(cancellationToken);
+
+        var linhas = await conexao.QueryAsync<DetalheMotivoDre>(
+            new CommandDefinition(
+                sql,
+                parametros,
+                commandTimeout: 300,
+                cancellationToken: cancellationToken));
+
+        return linhas.ToList();
+    }
+
+    public async Task<IReadOnlyList<DetalheLancamentoDre>> ObterDetalheLancamentosAsync(
+        IReadOnlyList<string> filiais,
+        DateOnly dataInicio,
+        DateOnly dataFim,
+        RegimeDre regime,
+        AnaliseDre analise,
+        string bloco,
+        string chave,
+        CancellationToken cancellationToken = default)
+    {
+        if (filiais.Count == 0)
+        {
+            return [];
+        }
+
+        // O bloco chega validado do serviço; este switch fechado é a segunda barreira, e é
+        // o que garante que nada montado por concatenação venha de entrada do usuário.
+        var (antesRo, antesLl, orfa) = bloco switch
+        {
+            "operacional"     => (true, true, false),
+            "pos-operacional" => (false, true, false),
+            "orfa"            => (false, false, true),
+            _ => throw new ArgumentOutOfRangeException(nameof(bloco), bloco, "Bloco inválido."),
+        };
+
+        var placeholdersA = string.Join(", ", filiais.Select((_, i) => $":filialA{i}"));
+        var placeholdersB = string.Join(", ", filiais.Select((_, i) => $":filialB{i}"));
+
+        var sql = string.Format(
+            DreDetalheQueries.Lancamentos,
+            DreDetalheQueries.PredicadoDoBloco(antesRo, antesLl),
+            placeholdersA,
+            placeholdersB,
+            DreDetalheQueries.ColunaDoRecorte(analise.Codigo, orfa),
+            regime.ExpressaoFiltro);
+
+        var inicio = dataInicio.ToDateTime(TimeOnly.MinValue);
+        var fim = dataFim.ToDateTime(TimeOnly.MinValue);
+
+        // Ordem obrigatória: filiais do financeiro, datas do financeiro, datas da venda de
+        // ativo, filiais da venda de ativo, e a chave do recorte por último — é a ordem em
+        // que os binds ficam no SQL depois do string.Format.
+        var parametros = new DynamicParameters();
+        for (var i = 0; i < filiais.Count; i++)
+        {
+            parametros.Add($"filialA{i}", filiais[i]);
+        }
+        parametros.Add("dtIni1", inicio);
+        parametros.Add("dtFim1", fim);
+        parametros.Add("dtIni2", inicio);
+        parametros.Add("dtFim2", fim);
+        for (var i = 0; i < filiais.Count; i++)
+        {
+            parametros.Add($"filialB{i}", filiais[i]);
+        }
+        parametros.Add("chave", chave);
+
+        using var conexao = await _conexoes.CriarConexaoAsync(cancellationToken);
+
+        var linhas = await conexao.QueryAsync<DetalheLancamentoDre>(
+            new CommandDefinition(
+                sql,
+                parametros,
+                commandTimeout: 300,
+                cancellationToken: cancellationToken));
+
+        return linhas.ToList();
+    }
 }

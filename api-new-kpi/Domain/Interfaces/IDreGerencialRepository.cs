@@ -50,4 +50,44 @@ public interface IDreGerencialRepository
         DateOnly dataInicio,
         DateOnly dataFim,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Detalhamento de `(+) RECEITA BRUTA` e `(=) RECEITAS LIQUIDAS` — as duas abrem a
+    /// mesma tela na 9815, com a mesma consulta.
+    ///
+    /// <para>Não recebe regime: como o faturamento, caixa e competência dão o mesmo.</para>
+    /// </summary>
+    Task<IReadOnlyList<DetalheClienteDre>> ObterDetalheReceitaPorClienteAsync(
+        IReadOnlyList<string> filiais,
+        DateOnly dataInicio,
+        DateOnly dataFim,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Detalhamento de `(-) DEVOLUCAO`, agregado por motivo.</summary>
+    Task<IReadOnlyList<DetalheMotivoDre>> ObterDetalheDevolucaoPorMotivoAsync(
+        IReadOnlyList<string> filiais,
+        DateOnly dataInicio,
+        DateOnly dataFim,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Lançamentos de uma linha de grupo, um a um.
+    /// </summary>
+    /// <param name="bloco">
+    /// `operacional`, `pos-operacional` ou `orfa`. Define os operadores `in`/`not in` da
+    /// consulta e a coluna do recorte — é a mesma divisão em três que o `MontadorDre` faz
+    /// por `AntesRO`/`AntesLL`.
+    /// </param>
+    /// <param name="chave">
+    /// O `GRUPOCONTA` da linha clicada, o mesmo que a apuração usou para somá-la.
+    /// </param>
+    Task<IReadOnlyList<DetalheLancamentoDre>> ObterDetalheLancamentosAsync(
+        IReadOnlyList<string> filiais,
+        DateOnly dataInicio,
+        DateOnly dataFim,
+        RegimeDre regime,
+        AnaliseDre analise,
+        string bloco,
+        string chave,
+        CancellationToken cancellationToken = default);
 }

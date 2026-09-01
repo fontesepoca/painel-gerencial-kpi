@@ -109,7 +109,8 @@ public static class MontadorDre
                     (l.Estrutura.CodGruConta, l.Estrutura.AntesRo,
                      l.Estrutura.AntesLl, l.Estrutura.AntesLf)) == 0,
                 Zerada: valores.All(v => v.Valor == 0m),
-                Cor: CorDelphi.ParaCss(l.Estrutura.Cor));
+                Cor: CorDelphi.ParaCss(l.Estrutura.Cor),
+                Detalhe: ResolverDetalhe(l));
         }).ToList();
 
         return new ApuracaoDto(
@@ -123,6 +124,40 @@ public static class MontadorDre
             Avisos: avisos,
             ApuradoEm: DateTimeOffset.Now,
             DuracaoMs: duracaoMs);
+    }
+
+    /// <summary>
+    /// Qual detalhamento a linha abre com duplo clique — a lista que o Gabriel levantou na
+    /// 9815 em 01/09/2026.
+    ///
+    /// <para><b>As linhas de grupo saem das flags, não de uma lista de nomes.</b> A lista
+    /// original nomeava RECEITAS FINANCEIRAS, COMPENSAÇÃO DE IMPOSTOS, RATEIO DESP.
+    /// CORPORATIVAS e INDENIZACAO DE MERC. VENC., e essas quatro são exatamente as
+    /// não-calculadas com `AntesRO = 'N'` e `AntesLL = 'S'` — o bloco entre RESULTADO
+    /// OPERACIONAL e LUCRO LIQUIDO. Escrever os nomes aqui deixaria a tela mentir no dia em
+    /// que alguém cadastrar a quinta.</para>
+    ///
+    /// <para>Entre as calculadas só três abrem, e essas sim vão por rótulo: não há flag que
+    /// distinga RECEITA BRUTA de CMV LIQ.</para>
+    /// </summary>
+    private static DetalheDisponivelDto? ResolverDetalhe(LinhaEmMontagem l)
+    {
+        if (l.Calculada)
+        {
+            return l.Rotulo switch
+            {
+                // As duas abrem a MESMA tela na 9815, com a mesma consulta.
+                ReceitaBruta or ReceitaLiquida => new("receita-por-cliente", null, null),
+                Devolucao                      => new("devolucao-por-motivo", null, null),
+                _                              => null,
+            };
+        }
+
+        var bloco = l.Estrutura.AntesRo == "S" ? "operacional"
+                  : l.Estrutura.AntesLl == "S" ? "pos-operacional"
+                  : "orfa";
+
+        return new("lancamentos", bloco, l.Estrutura.CodGruConta);
     }
 
     /// <summary>

@@ -113,4 +113,32 @@ public sealed class DreGerencialController : ControllerBase
 
         return Ok(ApiResponse<ApuracaoDto>.Ok(resultado.Valor!));
     }
+
+    /// <summary>
+    /// Detalhamento de uma célula — o duplo clique da 9815.
+    ///
+    /// <para>São três telas: receita por cliente, devolução por motivo e a lista de
+    /// lançamentos. O destino vem pronto no campo `detalhe` de cada linha da apuração;
+    /// linha sem `detalhe` não abre nada.</para>
+    ///
+    /// <para><b>Período do mês clicado</b>, recortado pelo da apuração — não o mês
+    /// calendário inteiro.</para>
+    ///
+    /// <para>Pode demorar: a receita por cliente varre as mesmas notas da apuração e foi
+    /// medida em 116,9 s para um mês e três filiais.</para>
+    /// </summary>
+    [HttpPost("detalhe")]
+    public async Task<IActionResult> ObterDetalhe(
+        [FromBody] DetalheFiltroDto filtro,
+        CancellationToken cancellationToken)
+    {
+        var resultado = await _servico.ObterDetalheAsync(filtro, cancellationToken);
+
+        if (resultado.Falha)
+        {
+            return BadRequest(ApiResponse<object>.Falha(resultado.Erro!));
+        }
+
+        return Ok(ApiResponse<DetalhamentoDto>.Ok(resultado.Valor!));
+    }
 }

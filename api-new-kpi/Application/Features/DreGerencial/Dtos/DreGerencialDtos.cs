@@ -78,6 +78,26 @@ public record ValorMesDto(
 /// <summary>Bloco TOTAL da linha, somando os meses do período.</summary>
 public record TotalLinhaDto(decimal Valor, decimal Media, decimal? PercentualAv);
 
+/// <summary>
+/// O detalhamento que esta linha abre com duplo clique, ou `null` se ela não abre nenhum.
+///
+/// <para>Quem decide é o servidor. O front recebe um destino pronto e não precisa saber
+/// que `(+) RECEITA BRUTA` e `(=) RECEITAS LIQUIDAS` caem na mesma tela, nem em que bloco
+/// do DRE cada grupo está.</para>
+/// </summary>
+/// <param name="Tipo">
+/// `receita-por-cliente`, `devolucao-por-motivo` ou `lancamentos`.
+/// </param>
+/// <param name="Bloco">
+/// Só para `lancamentos`: `operacional`, `pos-operacional` ou `orfa`. É o que define os
+/// dois operadores `in`/`not in` da consulta e a coluna do recorte.
+/// </param>
+/// <param name="Chave">
+/// Só para `lancamentos`: o `GRUPOCONTA` da linha — o mesmo <see cref="LinhaDreDto.Chave"/>
+/// que a apuração usou para somá-la.
+/// </param>
+public record DetalheDisponivelDto(string Tipo, string? Bloco, string? Chave);
+
 /// <summary>Uma linha do DRE montado, com um valor por mês e o total.</summary>
 public record LinhaDreDto(
     int? Id,
@@ -119,7 +139,100 @@ public record LinhaDreDto(
     bool SemMovimento,
     /// <summary>Zero em todos os meses. Não decide visibilidade — ver <see cref="SemMovimento"/>.</summary>
     bool Zerada,
-    string? Cor);
+    string? Cor,
+    /// <summary>Destino do duplo clique, ou `null` se a linha não abre detalhamento.</summary>
+    DetalheDisponivelDto? Detalhe);
+
+/// <summary>
+/// Filtro do detalhamento — o duplo clique numa célula.
+///
+/// <para>Repete filiais, período, regime e análise da apuração, e acrescenta o destino que
+/// veio em <see cref="DetalheDisponivelDto"/>. <b>O período aqui é o do mês clicado</b>,
+/// recortado pelo período da apuração: se a apuração foi de 01/08 a 27/08, clicar em
+/// agosto detalha 01/08 a 27/08, não o mês calendário. Do contrário a tela mostraria mais
+/// do que a célula que a pessoa clicou.</para>
+/// </summary>
+public record DetalheFiltroDto(
+    IReadOnlyList<string> Filiais,
+    DateOnly DataInicio,
+    DateOnly DataFim,
+    string Regime,
+    string Analise,
+    string Tipo,
+    string? Bloco,
+    string? Chave);
+
+/// <summary>Uma linha da tela "Receita por Cliente".</summary>
+public record DetalheClienteDto(
+    int CodCli,
+    string Cliente,
+    string Cidade,
+    int QdeNf,
+    decimal ReceitaBruta,
+    decimal Desconto,
+    decimal Devolucao,
+    decimal ReceitaLiquida,
+    decimal CustoLiq);
+
+/// <summary>Uma linha da tela "Devolução por Motivo". `CodMotivo` nulo é devolução sem motivo cadastrado.</summary>
+public record DetalheMotivoDto(
+    int? CodMotivo,
+    string? Motivo,
+    string? CulpaRca,
+    int QdeNf,
+    decimal VlDevolucao,
+    decimal PPart);
+
+/// <summary>Um lançamento da tela de detalhamento das linhas de grupo.</summary>
+public record DetalheLancamentoDto(
+    decimal RecNum,
+    string? CodFilial,
+    string? CodCcPrinc,
+    string? DescCcPrinc,
+    string? CodCentroCusto,
+    string? DescCentroCusto,
+    decimal? CodGrupo,
+    string? Grupo,
+    decimal? CodConta,
+    string? Conta,
+    decimal VPago,
+    string? Historico,
+    DateTime? DtLanc,
+    DateTime? DtCompetencia,
+    DateTime? DtCompensacao,
+    DateTime? DtPagto,
+    decimal? NumTrans,
+    decimal? NumNota,
+    string? Duplic,
+    string? Indice,
+    decimal? CodProjeto,
+    decimal? CodFornec,
+    string? Fornecedor,
+    decimal? NumBanco,
+    string? NumCheque,
+    decimal? NumBordero,
+    decimal? NumSeqBordero,
+    string? NumCheque2,
+    decimal? NumCar,
+    string? Localizacao,
+    string? NomeFunc,
+    string? NomeFuncBaixa,
+    DateTime? DtReclassific,
+    decimal? CodFuncReclassific);
+
+/// <summary>
+/// Resposta do detalhamento. **Uma coleção preenchida por vez**, conforme
+/// <paramref name="Tipo"/> — as três telas têm formatos de linha diferentes e não há como
+/// unificá-las sem perder coluna.
+/// </summary>
+public record DetalhamentoDto(
+    string Tipo,
+    DateOnly DataInicio,
+    DateOnly DataFim,
+    IReadOnlyList<DetalheClienteDto>? Clientes,
+    IReadOnlyList<DetalheMotivoDto>? Motivos,
+    IReadOnlyList<DetalheLancamentoDto>? Lancamentos,
+    long DuracaoMs);
 
 /// <summary>DRE apurado.</summary>
 public record ApuracaoDto(

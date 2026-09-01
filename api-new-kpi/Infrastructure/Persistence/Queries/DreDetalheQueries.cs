@@ -186,15 +186,27 @@ public static class DreDetalheQueries
     ///         LUCRO LIQUIDO</description></item>
     /// </list>
     ///
-    /// <para><b>O recorte final é parametrizado e ainda não foi medido fora de C. Custo
-    /// Principal.</b> Nos exemplos da 9815 ele é `CODCCPRINC` nos dois primeiros blocos e
-    /// `CODCONTA` nas órfãs. Que em Grupo de Contas seja `CODGRUPO` e em Conta Gerencial
-    /// `CODCONTA` é analogia — a subconsulta projeta as quatro colunas, mas ninguém
-    /// capturou o trace das outras dimensões.</para>
+    /// <para><b>O recorte não é adivinhação: é a mesma expressão que a apuração usa para
+    /// formar a chave da linha.</b> Cada consulta de despesas monta
+    /// `decode(AntesLF,'N', CODCONTA, &lt;coluna da dimensão&gt;) as GRUPOCONTA` — `codgrupo`
+    /// em Grupo de Contas, `codccprinc` em C. Custo Principal, `CODCENTROCUSTO` em Centro
+    /// de Custo, e `CODCONTA` puro em Conta Gerencial. É exatamente o que os exemplos da
+    /// 9815 mostram: `CODCCPRINC` nas linhas com `AntesLF = 'S'` e `CODCONTA` nas órfãs.</para>
+    ///
+    /// <para>Como o bloco da linha clicada já diz o `AntesLF`, o valor do recorte é o
+    /// próprio `LinhaDreDto.Chave` — que é o `GRUPOCONTA` daquela linha. Só a coluna varia,
+    /// e ela vem de <see cref="ColunaDoRecorte"/>.</para>
+    ///
+    /// <para><b>A data do filtro acompanha o regime</b>, como na apuração: caixa usa
+    /// `nvl(DTPAGTO, DTVENC)` e competência usa `DTCOMPETENCIA` pura. O exemplo da 9815 é
+    /// em caixa; sem parametrizar, o detalhamento em competência listaria outro conjunto de
+    /// lançamentos e não fecharia com a linha. A expressão vem de
+    /// <see cref="Application.Features.DreGerencial.RegimeDre.ExpressaoFiltro"/>, a mesma
+    /// que as consultas de despesas usam.</para>
     ///
     /// <para>Binds: {0} predicado dos dois blocos, {1} filiais do financeiro,
-    /// :dtIni1/:dtFim1, {2} filiais da venda de ativo, :dtIni2/:dtFim2, {3} coluna do
-    /// recorte, {4} valores do recorte.</para>
+    /// {4} expressão de data com :dtIni1/:dtFim1, {2} filiais da venda de ativo,
+    /// :dtIni2/:dtFim2, {3} coluna do recorte, e o bind :chave com o valor.</para>
     /// </summary>
     public const string Lancamentos = """
         SELECT RECNUM, CODFILIAL, CODCCPRINC, DESCCCPRINC,
@@ -265,7 +277,7 @@ public static class DreDetalheQueries
                                       AND recnumadiantamento = fin.recnum)
                    AND FIN.DTESTORNOBAIXA IS NULL
                    {0}
-                   AND nvl(FIN.DTPAGTO,fin.DTVENC) BETWEEN :dtIni1 AND :dtFim1
+                   AND {4} BETWEEN :dtIni1 AND :dtFim1
                 UNION ALL
                 SELECT 0, 'A', fin.codfilial, '85', '85 - RECEITA VENDA ATIVO',
                        '8501', 'RECEITA VENDA ATIVO',
@@ -290,9 +302,37 @@ public static class DreDetalheQueries
                    AND fin.dtpag BETWEEN :dtIni2 AND :dtFim2
                    AND nf.codfilial IN ({2})
                )
-         WHERE {3} IN ({4})
+         WHERE {3} = :chave
          ORDER BY CODCCPRINC, CODCONTA, VPAGO
         """;
+
+    /// <summary>
+    /// Coluna do recorte final de <see cref="Lancamentos"/>, para o `{3}`.
+    ///
+    /// <para>Espelha o `decode(AntesLF, ...)` que cada consulta de despesas usa para formar
+    /// `GRUPOCONTA`. <b>Se as duas expressões divergirem, o detalhamento passa a recortar
+    /// por uma chave diferente da que somou a linha</b> — e o total deixa de fechar sem que
+    /// nada quebre. Qualquer mexida em `Despesas*` tem que passar por aqui.</para>
+    ///
+    /// <para>Comparação em texto dos dois lados: `GRUPOCONTA` é texto na apuração, e
+    /// converter código de cadastro para número é o erro que derrubou o Centro de Custo na
+    /// 9815 (`docs/CONVENCOES_ORACLE.md`).</para>
+    /// </summary>
+    public static string ColunaDoRecorte(string analise, bool orfa)
+    {
+        // Órfã é `AntesLF = 'N'` em todas as dimensões, e ali o decode devolve CODCONTA.
+        if (orfa) return "TO_CHAR(CODCONTA)";
+
+        return analise switch
+        {
+            "grupo-contas"     => "TO_CHAR(CODGRUPO)",
+            "conta-gerencial"  => "TO_CHAR(CODCONTA)",
+            "ccusto-principal" => "NVL(CODCCPRINC,'99')",
+            "centro-custo"     => "TO_CHAR(CODCENTROCUSTO)",
+            _ => throw new ArgumentOutOfRangeException(
+                     nameof(analise), analise, "Dimensão sem coluna de recorte definida."),
+        };
+    }
 
     /// <summary>
     /// Predicado dos dois blocos, para o `{0}` de <see cref="Lancamentos"/>.
