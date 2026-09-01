@@ -863,3 +863,54 @@ ou não descontar ST é uma pergunta contábil, não de código, e as duas telas
 diferente. A web escolheu o critério da linha do DRE porque é o que já foi conferido ao
 centavo contra a rotina antiga em milhares de células. Se a área contábil disser que o
 certo é o outro, muda a linha do DRE também — e aí é outra conversa, bem maior.
+
+---
+
+## Validação do detalhamento — 01/09/2026
+
+As três telas conferidas contra a 9815, no cenário do print (C. Custo Principal, caixa,
+agosto/2026, filiais 7/12/25).
+
+### Lançamentos — cinco de cinco, pela API
+
+[dc5](validacao/dc5_lancamentos.sh) bate **contagem e soma** de cada linha exportada, não
+só o total. Cobre os três blocos:
+
+| Linha | Bloco | Chave | Lançamentos | Soma | Tempo |
+|---|---|---|---|---|---|
+| DIRETORIA | operacional | `14` | 129 | −256.840,02 | 1,6 s |
+| COMPRAS - RAT | operacional | `11` | 92 | −278.024,83 | 0,2 s |
+| RECEITAS FINANCEIRAS | pós-operacional | `80` | 6.276 | 445.891,19 | 2,3 s |
+| ACERTO DE ESTOQUE | órfã | `3000003` | 62 | −83.723,73 | 1,2 s |
+| DISTRIBUIÇÃO DE LUCROS | órfã | `2342010001` | 2 | −50.000,00 | 0,0 s |
+
+Os dois últimos blocos são os que valem: `pos-operacional` e `orfa` trocam o `in` por
+`not in` nas duas subconsultas contra `EPCPARDRE` e mudam a coluna do recorte. Errar um
+deles devolve a contagem de outro bloco, e a soma denuncia na hora.
+
+**O rateio de centro de custo está correto:** o `RECNUM` 20638205 volta duas vezes, em
+`1401.001` e `1401.003`, com −2.912,90 e −2.265,59 — exatamente as duas linhas da
+planilha da 9815.
+
+### Receita e devolução
+
+Validadas por consulta direta, em [dc2](validacao/dc2_receita_por_cliente_corrigida.sql) e
+[dc3](validacao/dc3_devolucao_por_motivo_corrigida.sql), com previsão registrada antes de
+rodar. Ver §4 acima.
+
+### O tempo é o problema, e é de uma tela só
+
+Lançamentos responde entre 0,2 s e 2,3 s, mesmo com 6.276 linhas. A receita por cliente
+leva **116,9 s** — ela varre as mesmas notas da apuração, e nenhuma das outras faz isso.
+
+**Não foi limitada por número de linhas.** Um teto exigiria somar o total à parte, e a tela
+existe justamente para mostrar de onde vem o valor da linha; um total que não é a soma do
+que está na tela recria, por outro caminho, o problema que a §4 corrigiu. A espera fica
+visível com o mesmo cronômetro da apuração, e a otimização é assunto medido à parte.
+
+### Um objeto que faltava permissão
+
+O primeiro `curl` devolveu `ORA-00942`. Três objetos aparecem no detalhamento e em nenhuma
+consulta da apuração — `PCMOVCR`, `PCMOVCIAP` e `PCPRODCIAP` —, todos alimentando apenas
+colunas acessórias. Era `GRANT` para o usuário da API, resolvido sem tocar em consulta:
+`DTCOMPENSACAO` voltou preenchida, que é justamente `PCMOVCR`.
