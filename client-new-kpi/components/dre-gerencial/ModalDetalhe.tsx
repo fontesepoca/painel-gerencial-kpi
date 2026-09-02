@@ -244,6 +244,39 @@ function TabelaClientes({ linhas }: { linhas: readonly DetalheCliente[] }) {
   );
 }
 
+/**
+ * `Culpa RCA` — se a devolução é atribuída ao representante.
+ *
+ * <b>Verde para Sim, vermelho para Não, como na 9815.</b> A leitura é a de um marcador de
+ * sim/não, não de bom/ruim: "culpa do RCA" sendo verde só faz sentido porque é a convenção
+ * que quem vem da rotina antiga já tem na cabeça. Trocar o significado das cores aqui
+ * criaria um erro de leitura silencioso justamente em quem confere as duas telas.
+ *
+ * <b>O texto continua.</b> A cor entra como segundo canal, num ponto ao lado — quem não
+ * distingue verde de vermelho lê "Sim" e "Não" do mesmo jeito, e ninguém precisa de legenda.
+ */
+function CulpaRca({ valor }: { valor: string | null }) {
+  if (valor !== "S" && valor !== "N") {
+    return <span className="text-[var(--text-muted)]">—</span>;
+  }
+
+  const sim = valor === "S";
+
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1.5",
+        sim ? "text-[var(--positive)]" : "text-[var(--negative)]",
+      )}
+    >
+      {/* `bg-current` faz o ponto seguir a cor do texto: uma decisão de cor só, no
+          `className` acima, em vez de duas que podem sair de sincronia. */}
+      <span aria-hidden className="size-2 shrink-0 rounded-full bg-current" />
+      {sim ? "Sim" : "Não"}
+    </span>
+  );
+}
+
 function TabelaMotivos({ linhas }: { linhas: readonly DetalheMotivo[] }) {
   if (linhas.length === 0) return <Vazio />;
 
@@ -268,7 +301,9 @@ function TabelaMotivos({ linhas }: { linhas: readonly DetalheMotivo[] }) {
               codigo={m.codMotivo ?? "—"}
               nome={m.motivo ?? "Sem motivo cadastrado"}
             />
-            <td className={TD}>{m.culpaRca === "S" ? "Sim" : m.culpaRca === "N" ? "Não" : "—"}</td>
+            <td className={TD}>
+              <CulpaRca valor={m.culpaRca} />
+            </td>
             <td className={NUM}>{m.qdeNf}</td>
             <td className={NUM}>{formatarValor(m.vlDevolucao)}</td>
             <td className={NUM}>{formatarPercentual(m.pPart)}</td>
