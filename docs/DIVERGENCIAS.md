@@ -270,19 +270,31 @@ Qualquer uma que mude um centavo é revertida.
 Não são divergências conhecidas — são cenários onde ainda não olhamos. Fecham na
 Fase 5 ([HOMOLOGACAO.md](HOMOLOGACAO.md)).
 
-| Risco | Por quê |
+Revisado em 02/09/2026: dos cinco riscos abertos em 28/08, **quatro fecharam**. A matriz da
+HOMOLOGACAO.md ainda não foi atualizada com essas medições — quem for lê-la deve confiar
+nas seções deste documento, que são posteriores.
+
+| Risco | Situação |
 |---|---|
-| Conta Gerencial | dimensão ainda não conferida contra exportação |
-| Períodos de 3 e 4 meses | só validamos 1 e 2 meses |
-| As 18 filiais juntas | só validamos 3 |
-| Período sem movimento, 1 dia, virada de mês | recortes-limite não exercitados |
-| Filial sem movimento no período | comportamento não observado |
+| Conta Gerencial | ✅ [conferida em 31/08](#validação-de-conta-gerencial--31082026) — 1.197 células, só a MÉDIA |
+| Período de 4 meses | ✅ [medido em 31/08](#fase-5--quatro-meses--31082026) — 570 células, 2 divergências de MÉDIA |
+| Período de 3 meses | ⬜ **continua sem medição.** Pulamos de 2 para 4 |
+| As filiais todas juntas | ⬜ **continua sem medição.** O máximo testado são 3 |
+| Período sem movimento, 1 dia, virada de mês | ✅ [medidos em 31/08](#fase-5--período-de-um-dia--31082026) — 0 divergências |
+| Filial sem movimento no período | ✅ [medida em 31/08](#fase-5--filial-parada-e-filial-meio-vazia--31082026) — a parada não contamina nada |
+| O duplo clique **pela tela** | ⬜ a API fecha 157/157, mas o caminho pela interface com dado real nunca foi percorrido ponta a ponta |
+| `% AH` em Conta Gerencial | ⬜ a exportação usada saiu sem análise horizontal; a coluna só foi conferida em Grupo de Contas |
+
+Os dois períodos e o conjunto de filiais são riscos de **custo**, não de valor: quatro meses
+levaram 436 s, e o que ninguém mediu é o que acontece com 13 filiais de uma vez. Nenhum
+mecanismo depende do número de meses ou de filiais — o recorte parcial de mês, que era o
+único candidato, foi exercitado na virada de mês.
 
 ---
 
-## Duas armadilhas ao medir divergência
+## Quatro armadilhas ao medir divergência
 
-Ambas já produziram conclusão errada neste projeto. Detalhe em
+Todas já produziram conclusão errada neste projeto. Detalhe das duas primeiras em
 [ROTINA_9815.md §11](ROTINA_9815.md).
 
 1. **A exportação da 9815 esconde linhas zeradas.** Ausência no xlsx significa "fora da
@@ -292,6 +304,12 @@ Ambas já produziram conclusão errada neste projeto. Detalhe em
    sequência imediata. Uma comparação já acusou R$ 24 mil de diferença que eram apenas
    lançamentos feitos entre as duas coletas — e a medição da divergência nº 2 tem
    0,16% de folga não explicada, provavelmente pela mesma causa.
+3. **Compilar não é publicar.** `dotnet build -t:CoreCompile` compila sem gerar o
+   executável, e uma conferência que compara a API contra ela mesma não percebe que está
+   falando com um binário velho — [o caso completo](#uma-armadilha-nova-medir-contra-um-binário-velho).
+4. **Uma coluna zerada pode ser o mapeamento, não o dado.** O Dapper ignora maiúsculas, mas
+   **não ignora underscore**: um alias `QDE_NF` não encontra a propriedade `QdeNf` e a
+   coluna sai zerada, em silêncio — [o caso completo](#a-coluna-de-notas-veio-zerada-e-não-era-o-sql).
 
 ---
 
@@ -873,7 +891,7 @@ agosto/2026, filiais 7/12/25).
 
 ### Lançamentos — cinco de cinco, pela API
 
-[dc5](validacao/dc5_lancamentos.sh) bate **contagem e soma** de cada linha exportada, não
+[dc5](validacao/dc5_APOSENTADA_lancamentos.sh) bate **contagem e soma** de cada linha exportada, não
 só o total. Cobre os três blocos:
 
 | Linha | Bloco | Chave | Lançamentos | Soma | Tempo |
@@ -969,7 +987,7 @@ a dígito — coincidência que dado vivo não produz.
 
 ### A rede de segurança da dc8 disparou, e estava mal especificada
 
-A previsão dizia que as cinco linhas da [dc5](validacao/dc5_lancamentos.sh) tinham que
+A previsão dizia que as cinco linhas da [dc5](validacao/dc5_APOSENTADA_lancamentos.sh) tinham que
 continuar fechando, "porque não têm estorno nem conta escondida envolvidos". **Duas têm.**
 `DIRETORIA` ganhou 6 lançamentos e `COMPRAS - RAT` ganhou 7. Não foi a mudança pegando mais
 do que devia: foi a premissa que estava errada.
@@ -1044,3 +1062,54 @@ e o detalhamento as encontrou quentes.
 Isso muda o tamanho do problema. Os 116,9 s foram medidos **a frio**, sem apuração antes; no
 uso real o duplo clique vem sempre depois de uma apuração do mesmo período, que é o caso
 quente. A otimização continua valendo a pena, mas não é o que separa a tela de ser usável.
+
+### A coluna de notas veio zerada, e não era o SQL
+
+Gabriel abriu o duplo clique de `(-) DEVOLUCAO` e a coluna `Qt.Nota` mostrava zero em todas
+as linhas, contra os valores da 9815 no print ao lado. **A consulta estava certa e o número
+estava certo** — o que se perdeu foi o mapeamento.
+
+O Dapper casa coluna com propriedade ignorando maiúsculas, mas **não ignora underscore**. O
+alias `QDE_NF` não encontra `QdeNf`, e o resultado não é erro: é o valor default do tipo.
+Uma coluna inteira de zeros plausíveis.
+
+O alias virou `QDENF`, e na sequência os 41 aliases do detalhamento foram conferidos um a um
+contra as 51 propriedades das entidades — nenhum outro tinha underscore.
+
+Duas consequências de método:
+
+- O arquivo de consultas ganhou um `<remarks>` avisando que alias com underscore não mapeia.
+  É a única classe do projeto onde a convenção de nome tem efeito silencioso.
+- **Nenhuma das nove conferências pegaria isto.** Todas somam dinheiro, e `QDENF` é
+  contagem de notas. Uma coluna acessória zerada passa por qualquer teste que só olhe o
+  total — foi o olho de quem conhece a tela antiga que pegou.
+
+### A tela do detalhamento agora tem o desenho da 9815 — 02/09/2026
+
+Não é divergência de valor: as duas telas mostram o mesmo dinheiro. É a última diferença
+**visível** entre elas, e fica registrada porque é o que atrapalhava a conferência lado a
+lado. Motivada por `RECEITAS FINANCEIRAS`, onde os valores fechavam exatos — 6.276
+lançamentos, 445.891,19 — e ainda assim as telas pareciam contar coisas diferentes.
+
+| O que mudou | Como era | Como ficou |
+|---|---|---|
+| Colunas | 12, na ordem que fazia sentido do zero | **25, na ordem da 9815**, de `Rec.Num.` a `Cod. Func. Reclass.` |
+| Estrutura | lista plana | árvore `Centro Custo Princ` → `Conta`, com subtotal por conta |
+| Ordem | por data | contas em ordem **alfabética**, lançamentos por **valor decrescente** |
+| `%PART` | três casas | **duas**, como a rotina |
+
+A 9815 mostra 26 colunas; a primeira é `Rank`, a coluna de recuo da árvore, que aqui virou a
+indentação das linhas de grupo.
+
+**Por que copiar uma ordem que não é a melhor:** quem confere as duas telas percorre coluna
+por coluna. Reordenar "para melhorar" transforma cada conferência em caça ao campo — e a
+conferência é o que este documento inteiro existe para permitir.
+
+A ordenação vem pronta do banco (`ORDER BY CODCCPRINC, CONTA, VPAGO DESC`) e o front só
+quebra a lista onde a chave muda, sem reordenar. Ordenar de novo na tela criaria uma segunda
+fonte de verdade sobre a ordem, e as duas sairiam de sincronia na primeira vez que o SQL
+mudasse.
+
+**O que continua diferente na tela:** a contagem de lançamentos, pelo motivo da
+[§4](#consequência-a-lista-de-lançamentos-ficou-maior-que-a-da-9815) — os estornos entram
+aqui e não entram lá. Somam zero, mas aparecem.
