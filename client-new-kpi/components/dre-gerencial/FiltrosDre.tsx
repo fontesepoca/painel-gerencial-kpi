@@ -65,15 +65,6 @@ export function FiltrosDre({
 }) {
   const podeApurar = filtro.filiais.length > 0 && !apurando;
 
-  // Dois avisos com gatilhos diferentes. O da filial única só faz sentido com mais de uma
-  // marcada: com uma só, a lista completa e a última filial são a mesma coisa, e os
-  // números batem com a 9815.
-  const analise = ANALISES.find((a) => a.valor === filtro.analise);
-  const avisos = [
-    analise?.aviso,
-    filtro.filiais.length > 1 ? analise?.avisoMultiFilial : undefined,
-  ].filter((a): a is string => Boolean(a));
-
   return (
     // O gabarito da grade mora em `globals.css`, na classe `.grade-filtros` —
     // os mínimos foram medidos e dependem do modo de leitura. Ver o comentário lá.
@@ -125,17 +116,6 @@ export function FiltrosDre({
               lado a lado. */}
           <Seta className="pointer-events-none absolute top-1/2 right-[13px] -translate-y-1/2" />
         </div>
-
-        {/* Quem confere contra a 9815 precisa saber disso ANTES de estranhar o número,
-            não depois. A nota some quando a dimensão escolhida não diverge. */}
-        {avisos.map((aviso) => (
-          <p
-            key={aviso}
-            className="mt-1.5 text-[length:var(--fs-apoio)] leading-snug text-[var(--warning)]"
-          >
-            {aviso}
-          </p>
-        ))}
       </Campo>
 
       <Campo rotulo="Período">

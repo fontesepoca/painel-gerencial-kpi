@@ -199,39 +199,18 @@ export const REGIMES: ReadonlyArray<{ valor: Regime; rotulo: string }> = [
  * Espelha `AnaliseDre` da API. `pronta` reflete `Implementada` lá — se divergir, o filtro
  * oferece uma dimensão que a API recusa.
  *
- * Dois avisos distintos, porque valem em momentos diferentes:
- *
- * - `aviso` aparece **sempre** que a dimensão está escolhida;
- * - `avisoMultiFilial` só com mais de uma filial marcada, porque é o defeito da filial
- *   única da 9815 — com uma filial só não há divergência possível.
- *
- * Ver `docs/DIVERGENCIAS.md`.
+ * **Sem textos de aviso.** C. Custo Principal e Centro de Custo carregavam uma nota sob o
+ * campo, dizendo que divergem da 9815 com mais de uma filial e que Centro de Custo nunca
+ * funcionou lá. As duas saíram por decisão do Gabriel em 02/09/2026: isso é assunto de
+ * `docs/DIVERGENCIAS.md`, não de quem está escolhendo uma dimensão para apurar.
  */
 export const ANALISES: ReadonlyArray<{
   valor: Analise;
   rotulo: string;
   pronta: boolean;
-  aviso?: string;
-  avisoMultiFilial?: string;
 }> = [
   { valor: "grupo-contas", rotulo: "Grupo de Contas", pronta: true },
   { valor: "conta-gerencial", rotulo: "Conta Gerencial", pronta: true },
-  {
-    valor: "ccusto-principal",
-    rotulo: "C. Custo Principal",
-    pronta: true,
-    avisoMultiFilial:
-      "Com mais de uma filial, mostra centros de custo que a 9815 deixa de fora. " +
-      "Com uma filial só, os números são idênticos.",
-  },
-  {
-    valor: "centro-custo",
-    rotulo: "Centro de Custo",
-    pronta: true,
-    aviso:
-      "Esta análise nunca funcionou na 9815, então não há números antigos para comparar. " +
-      "Confira com quem conhece os centros de custo antes de usar para decidir.",
-    avisoMultiFilial:
-      "Com mais de uma filial, mostra centros de custo que a 9815 deixaria de fora.",
-  },
+  { valor: "ccusto-principal", rotulo: "C. Custo Principal", pronta: true },
+  { valor: "centro-custo", rotulo: "Centro de Custo", pronta: true },
 ];
