@@ -20,6 +20,34 @@ const CAMPO =
   "bg-[var(--surface-2)] px-3 text-[length:var(--fs-base)] text-[var(--text-primary)] " +
   "focus:border-[var(--primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary-ring)]";
 
+/**
+ * Seta dos campos que abrem lista.
+ *
+ * Uma só, usada nos dois: no `<select>` de análise — que perde a seta do navegador via
+ * `campo-lista` em `globals.css` — e no botão de filial. Cada navegador desenha a seta
+ * nativa de um jeito, e o `▾` que o filial usava antes vinha da fonte de texto: os dois
+ * campos faziam a mesma coisa e não pareciam a mesma família.
+ */
+function Seta({ className }: { className?: string }) {
+  return (
+    <svg
+      aria-hidden
+      viewBox="0 0 12 12"
+      className={cn(
+        "size-3 shrink-0 text-[var(--text-muted)] transition-transform duration-[var(--dur-fast)] motion-reduce:transition-none",
+        className,
+      )}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.75"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M2.5 4.5 6 8l3.5-3.5" />
+    </svg>
+  );
+}
+
 export function FiltrosDre({
   filtro,
   filiais,
@@ -61,25 +89,42 @@ export function FiltrosDre({
 
       <Campo rotulo="Regime">
         <Segmentado
-          opcoes={REGIMES.map((r) => ({ valor: r.valor, rotulo: r.rotulo, ativa: true }))}
+          opcoes={REGIMES.map((r) => ({
+            valor: r.valor,
+            rotulo: r.rotulo,
+            ativa: true,
+          }))}
           valor={filtro.regime}
           onMudar={(v) => onMudar({ ...filtro, regime: v as Regime })}
         />
       </Campo>
 
       <Campo rotulo="Tipo de análise">
-        <select
-          value={filtro.analise}
-          onChange={(e) => onMudar({ ...filtro, analise: e.target.value as Analise })}
-          className={CAMPO}
-        >
-          {ANALISES.map((a) => (
-            <option key={a.valor} value={a.valor} disabled={!a.pronta}>
-              {a.rotulo}
-              {a.pronta ? "" : " — em breve"}
-            </option>
-          ))}
-        </select>
+        {/* `appearance-none` apaga a seta que o navegador desenha, e a nossa entra por
+            cima — é o que faz este campo e o de filial terminarem iguais. O `pr-9` abre
+            o espaço dela, e `pointer-events-none` deixa o clique atravessar para o
+            `<select>`, senão clicar na seta não abriria a lista. */}
+        <div className="relative">
+          <select
+            value={filtro.analise}
+            onChange={(e) =>
+              onMudar({ ...filtro, analise: e.target.value as Analise })
+            }
+            className={cn(CAMPO, "appearance-none pr-9")}
+          >
+            {ANALISES.map((a) => (
+              <option key={a.valor} value={a.valor} disabled={!a.pronta}>
+                {a.rotulo}
+                {a.pronta ? "" : " — em breve"}
+              </option>
+            ))}
+          </select>
+          {/* 13px, não 12: a seta do filial fica dentro do botão, depois do `px-3` E da
+              borda de 1px, enquanto esta se posiciona pela caixa externa. Sem o pixel
+              extra as duas terminam desalinhadas na vertical de quem compara os campos
+              lado a lado. */}
+          <Seta className="pointer-events-none absolute top-1/2 right-[13px] -translate-y-1/2" />
+        </div>
 
         {/* Quem confere contra a 9815 precisa saber disso ANTES de estranhar o número,
             não depois. A nota some quando a dimensão escolhida não diverge. */}
@@ -115,7 +160,9 @@ export function FiltrosDre({
             className={cn(CAMPO, "tabular")}
           />
           <AtalhosDePeriodo
-            onEscolher={(dataInicio, dataFim) => onMudar({ ...filtro, dataInicio, dataFim })}
+            onEscolher={(dataInicio, dataFim) =>
+              onMudar({ ...filtro, dataInicio, dataFim })
+            }
           />
         </div>
       </Campo>
@@ -127,7 +174,7 @@ export function FiltrosDre({
           disabled={!podeApurar}
           className={cn(
             "h-[var(--altura-controle)] w-full rounded-[var(--radius-md)] px-6 text-[length:var(--fs-base)] font-medium whitespace-nowrap xl:w-auto",
-            "transition-colors duration-[var(--dur-fast)]",
+            "transition-colors duration-[var(--dur-fast)] h-full",
             podeApurar
               ? "bg-[var(--primary)] text-white hover:brightness-110"
               : "cursor-not-allowed bg-[var(--surface-3)] text-[var(--text-muted)]",
@@ -148,7 +195,13 @@ export function FiltrosDre({
  * deixaria os dois sem nome para o leitor de tela e, pior, devolveria o foco ao
  * primeiro input a cada clique no botão do relógio.
  */
-function Campo({ rotulo, children }: { rotulo?: string; children: React.ReactNode }) {
+function Campo({
+  rotulo,
+  children,
+}: {
+  rotulo?: string;
+  children: React.ReactNode;
+}) {
   const id = useId();
   return (
     <div
@@ -186,7 +239,8 @@ function AtalhosDePeriodo({
   useEffect(() => {
     if (!aberto) return;
     const fechar = (e: MouseEvent) => {
-      if (caixa.current && !caixa.current.contains(e.target as Node)) setAberto(false);
+      if (caixa.current && !caixa.current.contains(e.target as Node))
+        setAberto(false);
     };
     const esc = (e: KeyboardEvent) => e.key === "Escape" && setAberto(false);
     document.addEventListener("mousedown", fechar);
@@ -320,7 +374,8 @@ function SeletorFiliais({
   useEffect(() => {
     if (!aberto) return;
     const fechar = (e: MouseEvent) => {
-      if (caixa.current && !caixa.current.contains(e.target as Node)) setAberto(false);
+      if (caixa.current && !caixa.current.contains(e.target as Node))
+        setAberto(false);
     };
     const esc = (e: KeyboardEvent) => e.key === "Escape" && setAberto(false);
     document.addEventListener("mousedown", fechar);
@@ -345,7 +400,8 @@ function SeletorFiliais({
       : selecionadas.length === filiais.length
         ? `Todas as ${filiais.length}`
         : selecionadas.length === 1
-          ? (filiais.find((f) => f.codFilial === selecionadas[0])?.label ?? "1 filial")
+          ? (filiais.find((f) => f.codFilial === selecionadas[0])?.label ??
+            "1 filial")
           : `${selecionadas.length} filiais`;
 
   const empresas = [...new Set(filiais.map((f) => f.empresa))];
@@ -359,16 +415,28 @@ function SeletorFiliais({
         aria-expanded={aberto}
         className={cn(CAMPO, "flex items-center justify-between text-left")}
       >
-        <span className={cn("truncate", selecionadas.length === 0 && "text-[var(--text-muted)]")}>
+        <span
+          className={cn(
+            "truncate",
+            selecionadas.length === 0 && "text-[var(--text-muted)]",
+          )}
+        >
           {resumo}
         </span>
-        <span className="ml-2 shrink-0 text-[var(--text-muted)]">{aberto ? "▴" : "▾"}</span>
+        {/* A mesma seta do `<select>` de análise. Antes era o caractere `▾`, que o
+            navegador desenha com a fonte de texto e sai com peso, tamanho e alinhamento
+            diferentes da seta nativa ao lado — dois campos que fazem a mesma coisa
+            pareciam de famílias diferentes. Aqui ela gira, porque este campo abre e fecha
+            e a nativa não tem esse estado para comunicar. */}
+        <Seta className={cn("ml-2", aberto && "rotate-180")} />
       </button>
 
       {aberto && (
         <div className="absolute top-full left-0 z-20 mt-1 max-h-80 w-[min(22rem,90vw)] overflow-y-auto rounded-[var(--radius-lg)] border border-[var(--border-strong)] bg-[var(--surface-2)] p-2 shadow-[var(--shadow-float)]">
           <div className="mb-2 flex gap-2 border-b border-[var(--border)] pb-2">
-            <AcaoRapida onClick={() => onMudar(filiais.map((f) => f.codFilial))}>
+            <AcaoRapida
+              onClick={() => onMudar(filiais.map((f) => f.codFilial))}
+            >
               Todas
             </AcaoRapida>
             <AcaoRapida onClick={() => onMudar([])}>Nenhuma</AcaoRapida>
@@ -406,7 +474,13 @@ function SeletorFiliais({
   );
 }
 
-function AcaoRapida({ onClick, children }: { onClick: () => void; children: React.ReactNode }) {
+function AcaoRapida({
+  onClick,
+  children,
+}: {
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
   return (
     <button
       type="button"
