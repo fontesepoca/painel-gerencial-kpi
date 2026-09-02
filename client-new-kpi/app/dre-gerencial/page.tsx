@@ -31,8 +31,8 @@ export default function DreGerencialPage() {
     <AppShell trilha={["Época Analytics", "DRE Gerencial"]}>
       {/* Com a leitura ampliada a tabela precisa de mais largura útil antes de
           começar a rolar na horizontal. */}
-      <div className="mx-auto flex max-w-[110rem] flex-col gap-4">
-        <div className="rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface-1)] p-5 shadow-[var(--shadow-card)]">
+      <div className="mx-auto flex h-full min-h-0 w-full max-w-[110rem] flex-col gap-3">
+        <div className="rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface-1)] p-4 shadow-[var(--shadow-card)]">
           <FiltrosDre
             filtro={filtro}
             filiais={filiais.data ?? []}
@@ -60,8 +60,10 @@ export default function DreGerencialPage() {
         )}
 
         {dados && !apuracao.isPending && (
-          <section className="rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface-1)] shadow-[var(--shadow-card)]">
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border)] px-5 py-4">
+          // A altura da tabela deixa de ser chutada: esta secao pega o que sobra da
+          // coluna, e a rolagem interna dela se ajusta sozinha a qualquer janela.
+          <section className="flex min-h-0 flex-1 flex-col rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface-1)] shadow-[var(--shadow-card)]">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border)] px-4 py-2.5">
               <div>
                 <h2 className="text-[length:var(--fs-rotulo)] font-semibold tracking-[0.14em] text-[var(--text-secondary)] uppercase">
                   Visão gerencial

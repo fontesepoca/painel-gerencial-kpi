@@ -16,7 +16,10 @@ export function AppShell({
   children: ReactNode;
 }) {
   return (
-    <div className="flex min-h-screen bg-[var(--bg)]">
+    // `h-dvh` e nao `min-h-screen`: a casca ocupa EXATAMENTE a altura da janela, e a
+    // area de conteudo vira a unica que rola. Com `min-h` a pagina cresce com o conteudo
+    // e aparece uma segunda barra de rolagem ao lado da barra da tabela.
+    <div className="flex h-dvh overflow-hidden bg-[var(--bg)]">
       <aside
         className="hidden shrink-0 flex-col items-center gap-2 border-r border-[var(--border)] bg-[var(--surface-1)] py-4 md:flex"
         style={{ width: "var(--sidebar-w-sm)" }}
@@ -73,7 +76,11 @@ export function AppShell({
           </div>
         </header>
 
-        <main className="min-w-0 flex-1 p-4 sm:p-6">{children}</main>
+        {/* `min-h-0` e obrigatorio: sem ele um filho flex nunca encolhe abaixo do
+            proprio conteudo, e a coluna inteira transborda em vez de a tabela rolar. */}
+        <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-auto p-3 sm:p-4">
+          {children}
+        </main>
       </div>
     </div>
   );

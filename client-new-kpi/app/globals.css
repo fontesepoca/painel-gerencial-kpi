@@ -285,13 +285,19 @@ body {
   }
 }
 
-/* 1440px, e não os 1280px habituais: com a fonte ampliada as cinco colunas
-   somam 59,5rem de mínimo, e em 1280 sobravam 957px de área útil. O resultado
-   media era o controle de regime transbordando a própria caixa — scrollWidth
-   192 contra clientWidth 176 — com o botão "Caixa" terminando exatamente onde
-   o campo seguinte começava. Entre espremer cinco colunas e usar duas, duas
-   leem melhor. */
-@media (min-width: 1440px) {
+/* 1360px. O corte esteve em 1440 por um tempo, calibrado contra a falha medida em
+   1280 — e ninguém tinha testado o intervalo entre os dois. Custava caro: num
+   notebook de 1366 a grade quebrava em três linhas e comia 218px de altura, contra
+   76px em uma linha só. Com a tabela ocupando o que sobra da janela, esses 142px
+   são três linhas de DRE a menos.
+
+   A borda foi medida, não estimada: em 1340 as cinco colunas cabem com transbordo
+   zero, e em 1300 o botão Apurar é espremido de 105px para 74px. 1360 fica acima do
+   piso com folga e cobre o 1366, que é a tela onde o problema apareceu.
+
+   Abaixo disso continuam duas colunas: entre espremer cinco e usar duas, duas leem
+   melhor — foi o que a medição de 1280 mostrou. */
+@media (min-width: 1360px) {
   .grade-filtros {
     grid-template-columns:
       minmax(11rem, 1fr) minmax(13rem, 0.9fr) minmax(12rem, 1fr)
@@ -489,8 +495,15 @@ html[data-leitura="ampliada"] .puxador {
   z-index: 0;
 
   overflow: auto;
-  /* Sobra para o cabeçalho da aplicação, o título e a barra de reordenação. */
-  max-height: calc(100vh - 9rem);
+
+  /* A altura vem do que sobra na coluna, não de um `calc(100vh - …)`.
+     O cálculo era um chute sobre quanto o cabeçalho, os filtros e a barra de
+     reordenação ocupam — e quando errava para menos, a página crescia e nascia
+     uma segunda barra de rolagem ao lado desta. `min-height: 0` é o que permite
+     encolher abaixo do conteúdo; sem ele o `flex: 1` não serve para nada. */
+  flex: 1;
+  min-height: 0;
+
   /* Chegando ao fim da tabela, a rolagem para de vazar para a página. */
   overscroll-behavior: contain;
 }
