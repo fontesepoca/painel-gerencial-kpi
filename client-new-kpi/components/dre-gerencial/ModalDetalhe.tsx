@@ -60,7 +60,10 @@ export function ModalDetalhe({
       }}
       className="dialogo-detalhe"
     >
-      <div className="flex h-full flex-col">
+      {/* `min-h-0 flex-1` e não `h-full`: com a altura do diálogo vindo do conteúdo,
+          `h-full` resolveria para "100% de automático" e a área de rolagem perderia a
+          referência de altura. */}
+      <div className="flex min-h-0 flex-1 flex-col">
         <header className="flex flex-wrap items-start justify-between gap-3 border-b border-[var(--border)] px-5 py-4">
           <div className="min-w-0">
             <h2

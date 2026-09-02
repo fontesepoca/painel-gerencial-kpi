@@ -562,8 +562,25 @@ tbody tr.linha-totalizadora > .celula-descricao {
    ficarem colados enquanto se percorre a lista. */
 .dialogo-detalhe {
   margin: auto;
-  width: min(84rem, calc(100vw - 3rem));
-  height: min(46rem, calc(100vh - 4rem));
+  display: flex;
+  flex-direction: column;
+
+  /* A largura segue o CONTEÚDO, até onde a tela deixa. Era fixa em 84rem, e numa
+     tela de 1920 a tabela rolava na horizontal com 500px sobrando ao lado — o
+     modal não crescia junto com o espaço disponível.
+
+     `max-content` custa barato aqui: a tabela já tem `table-layout: auto`, que
+     mede todas as linhas de qualquer forma, e as células têm largura máxima
+     própria, então a largura natural é limitada. Uma tabela estreita, como a de
+     27 motivos, ganha um modal estreito — que é o certo, e não uma caixa de
+     1344px com dois terços vazios. */
+  width: max-content;
+  min-width: min(52rem, calc(100vw - 3rem));
+  max-width: calc(100vw - 3rem);
+
+  /* Altura pelo conteúdo também: 27 motivos não precisam de 46rem de caixa. */
+  max-height: calc(100vh - 3rem);
+
   padding: 0;
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-lg);
