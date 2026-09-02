@@ -51,12 +51,16 @@ export function ModalDetalhe({
     <dialog
       ref={ref}
       aria-labelledby="titulo-detalhe"
+      // `Esc` fecha, clique no fundo NÃO.
+      //
+      // Um clique fora é fácil de dar sem querer enquanto se percorre uma tabela de 15 mil
+      // linhas — e aqui isso custa a consulta inteira de volta, que na receita por cliente
+      // leva dois minutos. `Esc` não tem esse risco: ninguém aperta uma tecla por engano
+      // arrastando a barra de rolagem. Restam duas saídas deliberadas, o botão Fechar e a
+      // tecla, e nenhuma acidental.
       onCancel={(e) => {
         e.preventDefault();
         onFechar();
-      }}
-      onClick={(e) => {
-        if (e.target === ref.current) onFechar();
       }}
       className="dialogo-detalhe"
     >
