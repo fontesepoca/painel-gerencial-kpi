@@ -19,10 +19,16 @@ export function formatarValor(valor: number): string {
   return valor < 0 ? `(${texto})` : texto;
 }
 
-/** Percentual com 3 casas, como na 9815. Negativo entre parênteses. */
-export function formatarPercentual(valor: number | null): string {
+/**
+ * Percentual, negativo entre parênteses.
+ *
+ * **Três casas por padrão**, como a 9815 usa em `%AV` e `%AH`. O `%PART` da devolução
+ * pede duas, também como ela: aquele valor já vem arredondado em duas casas pela consulta,
+ * e a terceira seria sempre zero — precisão que o número não tem.
+ */
+export function formatarPercentual(valor: number | null, casas: 2 | 3 = 3): string {
   if (valor === null) return "";
-  const texto = valor.toFixed(3).replace(".", ",").replace("-", "");
+  const texto = valor.toFixed(casas).replace(".", ",").replace("-", "");
   return valor < 0 ? `(${texto})` : texto;
 }
 

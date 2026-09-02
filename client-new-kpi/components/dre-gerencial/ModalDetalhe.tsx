@@ -313,7 +313,9 @@ function TabelaMotivos({ linhas }: { linhas: readonly DetalheMotivo[] }) {
             </td>
             <td className={NUM}>{m.qdeNf}</td>
             <td className={NUM}>{formatarValor(m.vlDevolucao)}</td>
-            <td className={NUM}>{formatarPercentual(m.pPart)}</td>
+            {/* Duas casas: o valor vem arredondado assim da consulta, e é o que a
+                9815 mostra nesta coluna. */}
+            <td className={NUM}>{formatarPercentual(m.pPart, 2)}</td>
           </tr>
         ))}
       </tbody>
@@ -322,7 +324,7 @@ function TabelaMotivos({ linhas }: { linhas: readonly DetalheMotivo[] }) {
         <td className={TD} />
         <td className={NUM}>{soma(linhas, (m) => m.qdeNf)}</td>
         <td className={NUM}>{formatarValor(soma(linhas, (m) => m.vlDevolucao))}</td>
-        <td className={NUM}>{formatarPercentual(soma(linhas, (m) => m.pPart))}</td>
+        <td className={NUM}>{formatarPercentual(soma(linhas, (m) => m.pPart), 2)}</td>
       </Total>
     </table>
   );
