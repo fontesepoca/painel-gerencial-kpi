@@ -685,3 +685,33 @@ tr:focus-within .tem-detalhe .valor-clicavel {
 .dialogo-detalhe table {
   line-height: 1.25;
 }
+
+/* ── Hierarquia da lista de lançamentos ──
+   A 9815 mostra os lançamentos em árvore: centro de custo principal, conta, e um
+   subtotal por conta. Reproduzido aqui porque é assim que a conferência lado a
+   lado funciona — quem compara as duas telas procura a conta, não a linha. */
+
+.linha-grupo > td {
+  background: var(--surface-2);
+  border-top: 1px solid var(--border-strong);
+  border-bottom: 1px solid var(--border);
+}
+
+/* O rótulo do grupo fica parado na rolagem lateral. Quem gruda é o `span` de dentro,
+   e não a célula: a célula tem a largura da tabela inteira, então `sticky` nela nunca
+   sai do lugar e o texto escorre embora junto com as colunas. Sem isso, no meio de
+   seis mil lançamentos, não haveria como saber de que conta se está lendo. */
+.grupo-fixo {
+  position: sticky;
+  left: 0;
+  z-index: 10;
+}
+
+.linha-subtotal > td {
+  background: var(--surface-1);
+  border-bottom: 1px solid var(--border-strong);
+}
+
+.dialogo-detalhe tbody tr.linha-subtotal > .col-identidade {
+  background-color: var(--surface-1);
+}

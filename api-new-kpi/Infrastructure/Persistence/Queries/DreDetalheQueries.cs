@@ -322,7 +322,11 @@ public static class DreDetalheQueries
                    AND nf.codfilial IN ({2})
                )
          WHERE {3} = :chave
-         ORDER BY CODCCPRINC, CODCONTA, VPAGO
+         -- A ordem e a da 9815, conferida na exportacao de RECEITAS FINANCEIRAS:
+         -- contas em ordem ALFABETICA, nao por codigo, e os lancamentos por valor
+         -- DECRESCENTE dentro de cada conta. A mesma regra explica os dois sinais —
+         -- nas receitas vai de 44.000,97 a 0,01, e nas despesas de -87,28 a -2.912,90.
+         ORDER BY CODCCPRINC, CONTA, VPAGO DESC
         """;
 
     /// <summary>
