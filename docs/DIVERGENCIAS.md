@@ -652,10 +652,10 @@ Confirma também a aritmética no caso degenerado: `LUCRO BRUTO` zero faz
 
 ---
 
-## O filtro de filiais — 18, depois 13
+## O filtro de filiais — 18, depois 13, agora 11
 
-**Decisão de 31/08/2026.** Reversível numa linha; o histórico está aqui para que a reversão
-seja informada, e não uma volta atrás no escuro.
+**Decisões de 31/08 e 02/09/2026.** Cada uma reversível numa linha; o histórico está aqui
+para que a reversão seja informada, e não uma volta atrás no escuro.
 
 ### O que mudou
 
@@ -686,9 +686,9 @@ Selecionar uma delas na web devolveria um DRE inteiramente zerado, que parece um
 legítimo de operação sem movimento. **Um zero falso é pior que um erro, porque não parece
 erro** — ninguém abre chamado por um relatório que "funcionou".
 
-### O que NÃO mudou
+### O que NÃO mudou naquele momento
 
-As outras quatro que a 9815 não oferece continuam na lista:
+As outras quatro que a 9815 não oferece ficaram na lista:
 
 | Filial | Label |
 |---|---|
@@ -709,6 +709,26 @@ Apagar `AND F.DBLEPCTI IS NULL` de `DreGerencialQueries.Filiais`. Uma linha.
 link, ou se alguém precisar do relatório zerado dessas filiais por algum motivo que não
 antecipamos. Enquanto a apuração ler só a base local, mostrar as cinco é oferecer um número
 que não é o número delas.
+
+### As duas CeM saíram — 02/09/2026
+
+Instrução do Gabriel, **revertendo a decisão de 31/08** que as mantinha. A consulta ganhou
+`AND F.CODFIL NOT IN ('31','91')` e o filtro passa de **13 para 11**: saem `31 CeM-ES` e
+`91 CeM-MG`.
+
+O motivo não é técnico — elas não têm database link e o zero delas continua sendo verdadeiro.
+É de escopo: não pertencem à operação que este DRE mede, e oferecê-las no filtro só cria
+oportunidade de apurar por engano.
+
+**Por que o critério é o código, e não `LABEL LIKE 'CeM%'`.** `LABEL` é campo de exibição.
+Amarrar o que o DRE apura ao texto que aparece na tela transforma um rename de cadastro em
+mudança silenciosa de resultado — e ninguém que renomeia uma filial imagina estar mexendo
+em relatório. O preço é que uma CeM nova entraria na lista sem avisar: **se aparecer uma
+terceira, o certo é procurar o atributo de cadastro que separa as CeM e trocar a lista por
+ele.** A [fase5d](validacao/fase5d_filiais_que_a_9815_oferece.sql) é o ponto de partida —
+foi ela que levantou os atributos de cadastro das 18.
+
+**Como reverter:** apagar a linha. As duas voltam.
 
 ### O que continua sem resposta
 

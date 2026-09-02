@@ -47,9 +47,21 @@ public static class DreGerencialQueries
     /// 27/08/2026, era mostrar as 18, e foi tomada antes de sabermos que cinco delas apontam
     /// para outro banco.</para>
     ///
-    /// <para>As outras quatro que a 9815 não oferece — <c>20 EPC-CEASA</c>, <c>22 EPC-RJ</c>,
-    /// <c>31 CeM-ES</c> e <c>91 CeM-MG</c> — <b>continuam na lista</b>: não têm link, os
-    /// dados estão aqui, e o zero delas é verdadeiro. São filiais inativas, não ausentes.</para>
+    /// <para>Das outras quatro que a 9815 não oferece, duas <b>continuam na lista</b> —
+    /// <c>20 EPC-CEASA</c> e <c>22 EPC-RJ</c>: não têm link, os dados estão aqui, e o zero
+    /// delas é verdadeiro. São filiais inativas, não ausentes.</para>
+    ///
+    /// <para><b>4. `AND F.CODFIL NOT IN ('31','91')` — acrescentado em 02/09/2026.</b> São as
+    /// duas CeM, <c>31 CeM-ES</c> e <c>91 CeM-MG</c>. Decisão do Gabriel, revertendo a de
+    /// 31/08 que as mantinha: não pertencem à operação que o DRE mede, e oferecê-las no
+    /// filtro só cria oportunidade de apurar por engano.</para>
+    ///
+    /// <para>O critério é o <b>código</b>, e não o prefixo do `LABEL`, porque `LABEL` é campo
+    /// de exibição: um `LIKE 'CeM%'` transformaria renomear uma filial em mudar silenciosamente
+    /// o que o DRE apura. Em troca, uma CeM nova entraria na lista sem avisar — se surgir uma
+    /// terceira, o certo é procurar o atributo de cadastro que as separa e trocar por ele.</para>
+    ///
+    /// <para><b>Como reverter:</b> apagar a linha. As duas voltam a aparecer.</para>
     ///
     /// Sem parâmetros.
     /// </summary>
@@ -65,6 +77,7 @@ public static class DreGerencialQueries
          WHERE F.EMPRESA = E.EMPRESA
            AND F.CODFIL  = FW.CODIGO (+)
            AND F.DBLEPCTI IS NULL
+           AND F.CODFIL NOT IN ('31','91')
          ORDER BY F.ORDEM_PROCESSA, LPAD(F.CODFIL, 10, '0')
         """;
 
