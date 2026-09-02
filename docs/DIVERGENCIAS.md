@@ -9,7 +9,7 @@ registrada. O que não estiver aqui é defeito, não escolha.
 cada exceção precisa de três coisas: a medida, o motivo de não ser reproduzível, e
 a aprovação do Gabriel.
 
-**Última revisão:** 31/08/2026.
+**Última revisão:** 02/09/2026.
 
 ---
 
@@ -20,7 +20,7 @@ a aprovação do Gabriel.
 | [1](#1-a-coluna-média-em-um-centavo) | Coluna MÉDIA | todas | 1 centavo | aceita em 28/08/2026 |
 | [2](#2-a-filial-única-no-subselect-de-centro-de-custo) | Filial única no `CCC` | C. Custo Principal | R$ 2,56 mi em 2 meses | **corrigida** em 31/08/2026 |
 | [3](#3-centro-de-custo-simples-não-tem-referência) | Sem referência | Centro de Custo | não mensurável | validação manual pendente |
-| [4](#4-correção-deliberada-o-detalhamento-agora-fecha-com-a-linha-do-dre) | Detalhamento não fecha com a linha | Receita Bruta · Devolução · Receitas Líquidas | R$ 3,56 mi em 1 mês | **corrigida de propósito** em 01/09/2026 |
+| [4](#4-correção-deliberada-o-detalhamento-agora-fecha-com-a-linha-do-dre) | Detalhamento não fecha com a linha | todas as linhas que abrem duplo clique | R$ 3,56 mi em 1 mês, mais estorno de baixa e contas escondidas | **corrigida de propósito** em 01–02/09/2026 · 157/157 |
 
 ---
 
@@ -914,3 +914,66 @@ O primeiro `curl` devolveu `ORA-00942`. Três objetos aparecem no detalhamento e
 consulta da apuração — `PCMOVCR`, `PCMOVCIAP` e `PCPRODCIAP` —, todos alimentando apenas
 colunas acessórias. Era `GRANT` para o usuário da API, resolvido sem tocar em consulta:
 `DTCOMPENSACAO` voltou preenchida, que é justamente `PCMOVCR`.
+
+### O detalhamento fecha em todas as linhas — 02/09/2026
+
+[dc6](validacao/dc6_ponta_a_ponta.mjs) apura uma vez e confere **cada** linha que abre
+duplo clique contra o próprio detalhamento dela, no mesmo retrato:
+
+> **157/157 fecham ao centavo.**
+
+Chegar lá exigiu mais duas correções, achadas pela [dc7](validacao/dc7_diagnostico_do_detalhamento.mjs)
+e previstas na [dc8](validacao/dc8_PREVISAO_dois_filtros.md) antes de rodar. **As duas telas
+da 9815 divergem em dois filtros**, e foi a terceira e a quarta vez que isso aparece:
+
+| Filtro | Apuração | Detalhamento da 9815 | O que a web faz |
+|---|---|---|---|
+| `FIN.DTESTORNOBAIXA IS NULL` | não tem | tem | **removido** |
+| `FIN.CODCONTA NOT IN (EPCPARDRE_NAOEXIBIR)` | tem | não tem | **acrescentado** |
+
+**O estorno de baixa** explicava dois casos ao centavo. `VENDAS` tinha 626 lançamentos na
+linha e 601 no detalhamento — os 25 que faltavam somam os −471,87 da diferença. E
+`RATEIO DESP. CORPORATIVAS` tinha um lançamento de +36.726,00 fora do bloco operacional e
+um de −36.726,00 fora do pós-operacional: como caíam um em cada bloco, **as duas linhas
+erravam em sentidos opostos e o total geral continuava fechando**, que foi o que tornou o
+defeito difícil de enxergar.
+
+**O `EPCPARDRE_NAOEXIBIR`** explicava as outras 18. São contas que o DRE esconde de
+propósito — `Verbas Rebaixa Custo`, `Estoque De Transporte`, `Estoque De Terceiros` —, e
+sem o filtro o detalhamento mostrava R$ 1,46 milhão numa linha escrita 0,00.
+
+### Consequência: a lista de lançamentos ficou maior que a da 9815
+
+Incluir os estornos é o que faz o total fechar com a linha, mas muda o que a tela mostra.
+`DIRETORIA` sai com **135 lançamentos** onde a 9815 exporta 129 — e com a **soma idêntica**,
+−256.840,02, porque os seis a mais se cancelam. São o par baixa/estorno.
+
+Quem conferir tela contra tela vai achar linhas a mais. Quem conferir **valor** contra valor
+encontra o mesmo número, que é o que importa e o que a §4 decidiu preservar.
+
+### Uma armadilha nova: medir contra um binário velho
+
+A primeira execução da dc6 depois da correção devolveu **exatamente** o resultado anterior —
+mesmos 136/157, mesmos 601 itens em `VENDAS`. A mudança não tinha chegado na API.
+
+A causa foi método, não código: as verificações vinham sendo feitas com
+`dotnet build -t:CoreCompile`, que **compila mas não gera o executável**. Foi um contorno
+adotado quando o `bin/` estava travado pelo processo em execução, e nunca revisto — então
+"compila limpo" nunca significou "chegou na API". A DLL em `bin/` era 16 minutos mais velha
+que o fonte.
+
+**Uma conferência que compara a API contra ela mesma não percebe que está falando com um
+binário velho.** Os dois lados vêm do mesmo processo, e um retrato coerente de código
+obsoleto passa por correto. O sinal foi o resultado ter vindo idêntico ao anterior, dígito
+a dígito — coincidência que dado vivo não produz.
+
+### A rede de segurança da dc8 disparou, e estava mal especificada
+
+A previsão dizia que as cinco linhas da [dc5](validacao/dc5_lancamentos.sh) tinham que
+continuar fechando, "porque não têm estorno nem conta escondida envolvidos". **Duas têm.**
+`DIRETORIA` ganhou 6 lançamentos e `COMPRAS - RAT` ganhou 7. Não foi a mudança pegando mais
+do que devia: foi a premissa que estava errada.
+
+Por isso a dc5 foi aposentada. Ela comparava nosso detalhamento com a exportação do
+detalhamento da 9815, e essa referência deixou de valer no momento em que decidimos divergir
+dela. A conferência que vale agora é a dc6, contra a linha do DRE.

@@ -1,4 +1,20 @@
 #!/usr/bin/env bash
+#
+# APOSENTADA em 02/09/2026 — NÃO USE PARA VALIDAR.
+#
+# Comparava nosso detalhamento com a exportação do detalhamento da 9815. Essa
+# referência deixou de valer no momento em que decidimos divergir dela: a web passou
+# a incluir os estornos de baixa que a 9815 esconde, porque é o que faz o total
+# fechar com a linha do DRE (DIVERGENCIAS.md §4).
+#
+# DIRETORIA agora sai com 135 lançamentos onde a 9815 exporta 129 — com a soma
+# idêntica, porque os seis a mais se cancelam. As contagens abaixo são do contrato
+# antigo e vão falhar por construção.
+#
+# A conferência que vale é a dc6, contra a linha do DRE:
+#
+#   node docs/validacao/dc6_ponta_a_ponta.mjs
+#
 # dc5 — O detalhamento de lançamentos bate com os cinco exemplos da 9815?
 #
 # Cobre os três blocos, que é o que importa: `pos-operacional` e `orfa` trocam o `in` por
