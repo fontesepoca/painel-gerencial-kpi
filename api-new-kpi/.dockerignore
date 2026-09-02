@@ -1,0 +1,11 @@
+bin/
+obj/
+.vs/
+appsettings.Development.json
+appsettings.Homolog.json
+appsettings.Production.json
+appsettings.*.local.json
+*.user
+*.suo
+Dockerfile
+.dockerignore

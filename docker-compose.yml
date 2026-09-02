@@ -1,0 +1,25 @@
+services:
+  api:
+    build:
+      context: ./api-new-kpi
+    image: novo-kpi-api:teste
+    restart: unless-stopped
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__OracleEpoca: ${ORACLE_EPOCA:?Configure ORACLE_EPOCA no arquivo .env}
+      Cors__OrigensPermitidas__0: ${FRONTEND_ORIGIN:-http://localhost:3000}
+    ports:
+      - "${API_PORT:-5207}:8080"
+
+  client:
+    build:
+      context: ./client-new-kpi
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:5207}
+    image: novo-kpi-client:teste
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "${CLIENT_PORT:-3000}:3000"
