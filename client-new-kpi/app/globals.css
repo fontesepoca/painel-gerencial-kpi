@@ -562,8 +562,6 @@ tbody tr.linha-totalizadora > .celula-descricao {
    ficarem colados enquanto se percorre a lista. */
 .dialogo-detalhe {
   margin: auto;
-  display: flex;
-  flex-direction: column;
 
   /* A largura segue o CONTEÚDO, até onde a tela deixa. Era fixa em 84rem, e numa
      tela de 1920 a tabela rolava na horizontal com 500px sobrando ao lado — o
@@ -587,6 +585,16 @@ tbody tr.linha-totalizadora > .celula-descricao {
   background: var(--surface-1);
   color: var(--text-primary);
   box-shadow: var(--shadow-modal);
+}
+
+/* O `display` fica AQUI, no `[open]`, e não na classe.
+   Um `<dialog>` fechado é escondido pelo `display: none` da folha do navegador, e
+   declarar `display: flex` na classe sobrescreve isso — o diálogo passa a existir na
+   página o tempo todo, vazio, com o botão Fechar solto no meio da tela. Foi o que
+   aconteceu ao dar altura de conteúdo ao modal em 02/09/2026. */
+.dialogo-detalhe[open] {
+  display: flex;
+  flex-direction: column;
 }
 
 .dialogo-detalhe::backdrop {
