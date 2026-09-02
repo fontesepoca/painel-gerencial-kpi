@@ -275,7 +275,19 @@ public static class DreDetalheQueries
                    AND NOT EXISTS (SELECT recnumadiantamento FROM pclancadiantfornec
                                     WHERE recnumpagto IS NOT NULL AND dtestorno IS NULL
                                       AND recnumadiantamento = fin.recnum)
-                   AND FIN.DTESTORNOBAIXA IS NULL
+                   -- Os dois filtros abaixo são os da APURAÇÃO, não os do trace do
+                   -- detalhamento da 9815 — as duas telas dela discordam aqui, pela
+                   -- terceira vez neste levantamento. Ver DIVERGENCIAS.md §4.
+                   --
+                   -- A 9815 tem `DTESTORNOBAIXA IS NULL` só no detalhamento, e isso
+                   -- escondia lançamentos que a linha do DRE conta: 25 em VENDAS, e um
+                   -- par de ±36.726,00 em RATEIO DESP. CORPORATIVAS que, por cair um em
+                   -- cada bloco, fazia as duas linhas errarem em sentidos opostos e o
+                   -- total geral continuar fechando. O filtro saiu.
+                   --
+                   -- `EPCPARDRE_NAOEXIBIR` é o inverso: a 9815 tem só na apuração, e sem
+                   -- ele o detalhamento mostrava contas que o DRE esconde de propósito.
+                   AND FIN.CODCONTA NOT IN (SELECT codconta FROM EPCPARDRE_NAOEXIBIR)
                    {0}
                    AND {4} BETWEEN :dtIni1 AND :dtFim1
                 UNION ALL
