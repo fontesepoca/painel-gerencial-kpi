@@ -1046,12 +1046,28 @@ A diferença contra a exportação da 9815 fecha inteira:
 | menos a devolução fora do critério da apuração | −114.355,98 |
 | **Sobra** | **3.969,98** |
 
-A sobra é o **FECP**, exatamente o valor que a [dc1](validacao/dc1_st_explica_receita_bruta.sql)
-previu: ele entra na linha `(-) ST` do DRE, que soma `st + vlfecp`, mas o detalhamento da
-9815 subtraía só `st`. O mesmo número chegando por outro caminho.
-
 Os últimos dígitos oscilam entre execuções porque os dois retratos são de momentos
 diferentes — ver a armadilha 2.
+
+> **Correção de 02/09/2026 — a sobra não é o FECP.** Esta seção dizia, quando foi escrita
+> em 01/09, que os 3.969,98 eram o FECP, "exatamente o valor que a dc1 previu". A
+> [dc10](validacao/dc10_o_que_sobra_alem_do_st.sql) mediu os componentes e **o FECP das
+> vendas é 96.380,76**, não 3.969,98. O número está certo; a atribuição estava errada.
+>
+> Os 3.969,98 são a soma de **três** termos que quase se cancelam:
+>
+> | | |
+> |---|---:|
+> | ST das devoluções (`Sd`) | 97.274,04 |
+> | FECP das devoluções (`Fd`) | 3.076,70 |
+> | menos o FECP das vendas (`F`) | −96.380,76 |
+> | **Sobra** | **3.969,98** |
+>
+> A dc1 previu `FECP = −3.969,98` e o resultado foi lido como confirmação. Ela nunca
+> devolveria esse valor: a coluna que ela calcula é `Σ fecp·qt` das vendas. **A previsão
+> registrada acertou o número e errou o nome, e ninguém conferiu qual dos dois a coluna
+> media** — é o modo de falha que a previsão registrada existe para evitar, acontecendo
+> dentro dela mesma.
 
 ### As cinco colunas conferidas — 02/09/2026
 
@@ -1133,3 +1149,42 @@ mudasse.
 **O que continua diferente na tela:** a contagem de lançamentos, pelo motivo da
 [§4](#consequência-a-lista-de-lançamentos-ficou-maior-que-a-da-9815) — os estornos entram
 aqui e não entram lá. Somam zero, mas aparecem.
+
+### Por que `LUCRO BRUTO − ST` não fecha — 02/09/2026
+
+Pergunta do Gabriel. Tirando do nosso `LUCRO BRUTO` o ST que aparece na tela, não se chega
+ao que o detalhamento da 9815 mostrava: sobram alguns milhares.
+
+**Sobram porque o ST não é o único item, e o que falta é tudo devolução.** Medido pela
+[dc10](validacao/dc10_o_que_sobra_alem_do_st.sql):
+
+| | |
+|---|---:|
+| linha `(-) ST` do DRE | 3.556.322,88 |
+| devolução a mais na 9815 — 2 notas fora do critério da apuração | +114.355,98 |
+| o CMV dessas mesmas notas | −74.746,10 |
+| o ST e o FECP das devoluções, que a 9815 não tira do CMV delas | −100.350,74 |
+| **`LUCRO BRUTO` nosso − o do detalhamento da 9815** | **3.495.582,02** |
+
+Quem tira só a linha `(-) ST` para 60.740,86 antes da conta.
+
+**A hipótese que eu tinha era outra, e foi refutada.** O SQL do duplo clique da 9815 escreve
+o CMV como `decode(custofin, 0, custofinest, custofin − st)` — no ramo em que `custofin` é
+zero ela usa o custo estimado **puro**, sem tirar o ST que tirou da receita. Parecia o
+segundo item. A dc10 mediu: **nenhum** dos 387.480 itens do período tem `custofin = 0`. O
+ramo errado nunca é executado. Continua sendo defeito latente do SQL dela, e não explica um
+centavo desta diferença.
+
+**O que valida o modelo** são dois números que ele reproduz sem ter sido ajustado para
+nenhum dos dois:
+
+| | |
+|---|---:|
+| linha `(-) ST` montada dos componentes, `(S+F) − (Sd+Fd)` | 3.556.322,880278 |
+| a mesma linha, exportada da 9815 | 3.556.322,88 |
+| diferença da `REC.LÍQUIDA` pela álgebra, `S + (DEV' − DEV)` | 3.674.648,841134 |
+| a mesma diferença, medida em 01/09 | 3.674.648,84 |
+
+**E de novo o ponto da §4:** nada disso diz que a nossa tela erra. O `LUCRO BRUTO` do nosso
+DRE é igual ao do DRE da 9815 — 2.952 células conferidas. Quem discorda da linha é o
+detalhamento da própria 9815.

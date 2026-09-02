@@ -128,3 +128,39 @@ SELECT SUM(round(NVL(nvl(MV.QT,mv.QTCONT),0)
 -- O `LUCRO BRUTO nosso` é o da nossa tela do DRE, e é também o da 9815 na tela do DRE:
 -- a apuração das duas foi conferida em 2.952 células. Quem diverge é o DETALHAMENTO
 -- da 9815 contra a linha da própria 9815 — a divergência nº 4.
+
+-- ══ RESULTADO — rodado em 02/09/2026 ═══════════════════════════════════════════
+--
+-- A · vendas      S  = 3.560.292,861134   F  =  96.380,758831
+--                 S0 =         0,00       itens com custofin = 0: ZERO, de 387.480
+-- B · devolução   DEV  = 1.256.167,12     Cd  =   925.211,500076
+--                 Sd   =    97.274,036368 Fd  =     3.076,703319   1.682 notas
+-- C · devolução   DEV' = 1.370.523,10     Cd' = 1.100.308,336475   1.684 notas
+--
+-- PREVISÃO (a) REFUTADA. `S0` veio ZERO — não existe um único item com
+-- `custofin = 0` no período. O ramo que a 9815 escreve errado nunca é executado, e a
+-- hipótese do segundo desconto no custo morre aqui. Ela continua sendo um defeito
+-- latente do SQL dela, mas não explica um centavo desta diferença.
+--
+-- PREVISÃO (b) CONFIRMADA, e por dois caminhos que não dependem um do outro:
+--
+--   linha (-) ST montada dos componentes   (S + F) − (Sd + Fd) = 3.556.322,880278
+--   linha (-) ST exportada da 9815                               3.556.322,88
+--
+--   REC.LÍQUIDA nossa − a da 9815          S + (DEV' − DEV)    = 3.674.648,841134
+--   diferença medida em 01/09/2026                               3.674.648,84
+--
+-- A SOBRA DO LUCRO BRUTO, além da linha (-) ST — e ela é INTEIRA da devolução:
+--
+--     + 114.355,98   devolução a mais na 9815 (2 notas fora do critério da apuração)
+--     −  74.746,10   o CMV dessas mesmas notas
+--     − 100.350,74   o ST + FECP das devoluções, que a 9815 não tira do CMV delas
+--     ─────────────
+--     −  60.740,86
+--
+--   LUCRO BRUTO nosso − LUCRO BRUTO do detalhamento da 9815 = 3.495.582,02
+--
+-- ACHADO NÃO PREVISTO: a explicação de 01/09 para a sobra de 3.969,98 na
+-- RECEITA LÍQUIDA — "é o FECP" — está ERRADA. O FECP das vendas é 96.380,76.
+-- Os 3.969,98 são `−F + Sd + Fd`, o ST e o FECP das devoluções menos o FECP das
+-- vendas. O número estava certo, a atribuição não. Corrigido em DIVERGENCIAS.md.
