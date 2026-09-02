@@ -53,3 +53,22 @@ SELECT SUM(nvl(MV.st, 0) * MV.qt)                          AS DIF_ESPERADA,
    AND NF.CODFILIAL IN ('7','12','25')
    AND ( (nvl(esp.mostra_dre,'S') = 'S') OR (NF.CONDVENDA IN (5)) )
    AND nvl(PR.codsec,0) <> 1601;
+
+-- ══ CORREÇÃO — 02/09/2026 ══════════════════════════════════════════════════════
+--
+-- A PREVISÃO DA LINHA 22 ESTÁ ERRADA. `FECP = -3.969,98` nunca poderia sair desta
+-- consulta: a coluna FECP aqui é `Σ vlfecp·qt` das VENDAS, e a dc10 mediu esse valor
+-- em **96.380,76**.
+--
+-- Os 3.969,98 são outra coisa — `Sd + Fd − F`, o ST e o FECP das DEVOLUÇÕES menos o
+-- FECP das vendas. Três termos que quase se cancelam:
+--
+--     ST das devoluções     97.274,036368
+--   + FECP das devoluções    3.076,703319
+--   − FECP das vendas      -96.380,758831
+--   ─────────────────────────────────────
+--                            3.969,980856
+--
+-- DIF_ESPERADA e ST_DO_DRE continuam certas. O que falhou foi ler o resultado: o
+-- número previsto bateu, o nome não, e ninguém conferiu qual dos dois esta coluna
+-- media. Registrado em DIVERGENCIAS.md.

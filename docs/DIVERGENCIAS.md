@@ -121,16 +121,8 @@ LIQUIDO, não por centro de custo, então essas linhas sairiam zeradas de qualqu
 
 ### O valor confirmado nas duas exportações
 
-`TRANSPORTE T - (28)`, o maior deles, foi conferido diretamente nos dois xlsx:
-
-| Filiais selecionadas | jun/2026 | jul/2026 | Total |
-|---|---:|---:|---:|
-| **7 e 12** | (664.912,50) | (910.940,98) | **(1.575.853,48)** |
-| **7, 12 e 25** | — | — | **linha não existe** |
-
-O total bate ao centavo com a medição independente das três filiais, o que prova que a
-filial 25 não contribui com nada nesse centro de custo. Marcar uma filial a mais apagou
-R$ 1,57 milhão.
+`TRANSPORTE T - (28)`, o maior deles, foi conferido diretamente nos dois xlsx: **(664.912,50)**
+em junho e **(910.940,98)** em julho com 7 e 12 marcadas, e linha inexistente com 7/12/25.
 
 A [inc9h](validacao/inc9h_transporte_t_por_filial.sql) quebrou esse valor por filial e
 por mês — **e cada mês bate ao centavo com a exportação da 9815**:
@@ -306,10 +298,10 @@ Todas já produziram conclusão errada neste projeto. Detalhe das duas primeiras
    0,16% de folga não explicada, provavelmente pela mesma causa.
 3. **Compilar não é publicar.** `dotnet build -t:CoreCompile` compila sem gerar o
    executável, e uma conferência que compara a API contra ela mesma não percebe que está
-   falando com um binário velho — [o caso completo](#uma-armadilha-nova-medir-contra-um-binário-velho).
+   falando com um binário velho — [o caso completo](#a-armadilha-3-em-detalhe-medir-contra-um-binário-velho).
 4. **Uma coluna zerada pode ser o mapeamento, não o dado.** O Dapper ignora maiúsculas, mas
    **não ignora underscore**: um alias `QDE_NF` não encontra a propriedade `QdeNf` e a
-   coluna sai zerada, em silêncio — [o caso completo](#a-coluna-de-notas-veio-zerada-e-não-era-o-sql).
+   coluna sai zerada, em silêncio — [o caso completo](#a-armadilha-4-em-detalhe-a-coluna-de-notas-veio-zerada-e-não-era-o-sql).
 
 ---
 
@@ -856,6 +848,11 @@ cliente some inteiro, e a linha some junto.
 Isso é coerente com a aritmética, mas não foi provado diretamente — quem quiser fechar,
 roda o bloco de devolução de dc2 com `AND cli.codcli = 174297` e confere que volta vazio.
 
+A [dc10](validacao/dc10_o_que_sobra_alem_do_st.sql) corroborou por outro lado em 02/09: os
+dois critérios de devolução devolvem **1.684 e 1.682 notas**, e a diferença de valor entre
+eles é 114.355,98 ao centavo. Duas notas a mais, o mesmo valor — compatível com um único
+cliente, que é o que a contagem de clientes já dizia.
+
 ### A devolução por motivo também fechou — 01/09/2026
 
 [dc3](validacao/dc3_devolucao_por_motivo_corrigida.sql), previsão registrada antes de rodar:
@@ -876,8 +873,11 @@ motivo pela correção, e a lista de lançamentos porque já fechava.
 
 **Custo:** a consulta de receita levou **116,9 s**. A da 9815 levava 30,3 s — a diferença vem das
 junções que o critério da apuração exige (`PCPEDC`, `PCMOVCOMPLE`, `PCPRODUT` na
-devolução). Fechar os números veio primeiro; a otimização é assunto à parte, e dois
-minutos é tempo demais para uma tela que abre com duplo clique.
+devolução). Fechar os números veio primeiro; a otimização é assunto à parte.
+
+> Medição revista em 02/09: os 116,9 s foram **a frio**. No uso real o duplo clique vem
+> depois de uma apuração do mesmo período, e aí a mesma consulta responde em 8,2 s —
+> [ver adiante](#o-detalhamento-da-receita-não-custa-dois-minutos-sempre).
 
 ### Como reverter
 
@@ -939,7 +939,9 @@ rodar. Ver §4 acima.
 ### O tempo é o problema, e é de uma tela só
 
 Lançamentos responde entre 0,2 s e 2,3 s, mesmo com 6.276 linhas. A receita por cliente
-leva **116,9 s** — ela varre as mesmas notas da apuração, e nenhuma das outras faz isso.
+leva **116,9 s a frio** — ela varre as mesmas notas da apuração, e nenhuma das outras faz
+isso. Quente, logo depois de uma apuração do mesmo período, são **8,2 s**; o caso real é o
+quente ([medido em 02/09](#o-detalhamento-da-receita-não-custa-dois-minutos-sempre)).
 
 **Não foi limitada por número de linhas.** Um teto exigiria somar o total à parte, e a tela
 existe justamente para mostrar de onde vem o valor da linha; um total que não é a soma do
@@ -989,7 +991,7 @@ Incluir os estornos é o que faz o total fechar com a linha, mas muda o que a te
 Quem conferir tela contra tela vai achar linhas a mais. Quem conferir **valor** contra valor
 encontra o mesmo número, que é o que importa e o que a §4 decidiu preservar.
 
-### Uma armadilha nova: medir contra um binário velho
+### A armadilha 3 em detalhe: medir contra um binário velho
 
 A primeira execução da dc6 depois da correção devolveu **exatamente** o resultado anterior —
 mesmos 136/157, mesmos 601 itens em `VENDAS`. A mudança não tinha chegado na API.
@@ -1099,7 +1101,7 @@ Isso muda o tamanho do problema. Os 116,9 s foram medidos **a frio**, sem apura�
 uso real o duplo clique vem sempre depois de uma apuração do mesmo período, que é o caso
 quente. A otimização continua valendo a pena, mas não é o que separa a tela de ser usável.
 
-### A coluna de notas veio zerada, e não era o SQL
+### A armadilha 4 em detalhe: a coluna de notas veio zerada, e não era o SQL
 
 Gabriel abriu o duplo clique de `(-) DEVOLUCAO` e a coluna `Qt.Nota` mostrava zero em todas
 as linhas, contra os valores da 9815 no print ao lado. **A consulta estava certa e o número
@@ -1188,3 +1190,50 @@ nenhum dos dois:
 **E de novo o ponto da §4:** nada disso diz que a nossa tela erra. O `LUCRO BRUTO` do nosso
 DRE é igual ao do DRE da 9815 — 2.952 células conferidas. Quem discorda da linha é o
 detalhamento da própria 9815.
+
+### Os dois números chamados ST — 02/09/2026
+
+Pergunta do Gabriel ao ler a seção acima, e é a raiz de toda a confusão desta semana:
+*"o que fez a nossa aplicação chegar no valor bruto certo foi o FECP e o ST?"*
+
+**Não. A aplicação não somou ST nem FECP em lugar nenhum — ela parou de subtrair.** E o
+FECP não participa da receita em canto nenhum.
+
+Na `RECEITA BRUTA` a diferença é o ST sozinho:
+
+| | |
+|---|---:|
+| `REC.BRUTA` do detalhamento da 9815 — `Σ (ptabela − st) · qt` | 52.193.509,49 |
+| `RECEITA BRUTA` da linha do DRE — `Σ ptabela · qt` | 55.753.802,35 |
+| **Diferença** | **3.560.292,86** |
+| `Σ st · qt`, medido pela dc10 | 3.560.292,861134 |
+
+**O que confunde é que existem dois números com o nome "ST", e eles não são iguais:**
+
+| | |
+|---:|---:|
+| o ST que a 9815 subtraía da receita — `Σ st·qt` | 3.560.292,86 |
+| a linha `(-) ST` que aparece na tela — `(ST+FECP das vendas) − (ST+FECP das devoluções)` | 3.556.322,88 |
+| **diferença** | **3.969,98** |
+
+Qualquer conta feita com o ST **da tela** para desfazer a subtração erra em 3.969,98 já no
+primeiro passo. Não é arredondamento nem base viva: a linha da tela carrega o FECP dentro e
+ainda desconta o ST das devoluções, e o valor que saiu da receita não faz nem uma coisa nem
+outra. **É o mesmo 3.969,98 que foi registrado como "o FECP" em 01/09** — o número aparece
+nas duas contas porque é a mesma expressão, `Sd + Fd − F`, chegando por dois caminhos.
+
+### O detalhamento da 9815 tinha três defeitos, não um
+
+Consolidando o que foi medido entre 01 e 02/09. A `RECEITA BRUTA` sente só o primeiro; o
+`LUCRO BRUTO`, que é receita menos CMV, sente os três:
+
+| Onde | O que a 9815 fazia | O que a web faz |
+|---|---|---|
+| Receita — `ptabela` e `punit` | subtraía o `st` | não subtrai |
+| CMV | `custofin − st`, **sem o FECP** | `custofin − st − fecp`, como a apuração |
+| Devolução | outro conjunto de notas (`mostra_dre`, sem `PCPEDC` nem `PCPRODUT`) | o critério da apuração |
+
+**O critério das três correções não foi contábil.** Não julgamos se descontar ST ou FECP é
+o certo — copiamos literalmente as fórmulas da apuração, porque a regra é o detalhamento
+fechar com a linha que ele detalha. A pergunta contábil continua em aberto e está registrada
+em [§4 · O que continua sem resposta](#o-que-continua-sem-resposta).
