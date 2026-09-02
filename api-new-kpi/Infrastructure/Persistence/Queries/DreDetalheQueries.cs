@@ -16,6 +16,13 @@ namespace Epoca.Kpi.Api.Infrastructure.Persistence.Queries;
 /// somam o valor da linha clicada, e nem concordam entre si. Decisão do Gabriel em
 /// 01/09/2026, medida e revertível — ver `docs/DIVERGENCIAS.md` §4.</para>
 /// </summary>
+/// <remarks>
+/// <b>Alias de coluna aqui não leva sublinhado.</b> O Dapper casa coluna com propriedade
+/// ignorando maiúsculas, mas <b>não</b> ignora o sublinhado: <c>QDE_NF</c> não encontra
+/// <c>QdeNf</c>, e o campo fica no valor padrão — zero, sem erro nenhum. Foi assim que a
+/// coluna Notas do detalhamento saiu zerada em 02/09/2026, com todo o resto correto.
+/// O restante do projeto já seguia a convenção (<c>sum(QdeReg) AS QDEREG</c>).
+/// </remarks>
 public static class DreDetalheQueries
 {
     /// <summary>
@@ -41,7 +48,7 @@ public static class DreDetalheQueries
     /// :dtIni2/:dtFim2. <b>Ordem posicional</b> — ODP.NET com `BindByName=false`.</para>
     /// </summary>
     public const string ReceitaPorCliente = """
-        SELECT CODCLI, CLIENTE, CIDADE, QDE_NF,
+        SELECT CODCLI, CLIENTE, CIDADE, QDENF,
                VLTABELA                    AS RECEITABRUTA,
                VLTABELA - VLVENDA          AS DESCONTO,
                VLDEVOLUCAO                 AS DEVOLUCAO,
@@ -49,7 +56,7 @@ public static class DreDetalheQueries
                VLCUSTOFIN - VLCMVDEVOL     AS CUSTOLIQ
           FROM (
                 SELECT CODCLI, CLIENTE, CIDADE,
-                       COUNT(DISTINCT NUMNOTA)   AS QDE_NF,
+                       COUNT(DISTINCT NUMNOTA)   AS QDENF,
                        SUM(NVL(VLTABELA,0))      AS VLTABELA,
                        SUM(NVL(VLVENDA,0))       AS VLVENDA,
                        SUM(NVL(VLDEVOLUCAO,0))   AS VLDEVOLUCAO,
@@ -134,13 +141,13 @@ public static class DreDetalheQueries
     /// <para>Binds: :dtIni, :dtFim, {0} filiais.</para>
     /// </summary>
     public const string DevolucaoPorMotivo = """
-        SELECT CODMOTIVO, MOTIVO, CULPARCA, QDE_NF, VLDEVOLUCAO,
+        SELECT CODMOTIVO, MOTIVO, CULPARCA, QDENF, VLDEVOLUCAO,
                round((VLDEVOLUCAO / SUM(VLDEVOLUCAO) OVER (PARTITION BY NULL)) * 100, 2) AS PPART
           FROM (
                 SELECT MOTIVO.CODDEVOL            AS CODMOTIVO,
                        motivo.motivo              AS MOTIVO,
                        motivo.crldevculparca      AS CULPARCA,
-                       COUNT(DISTINCT NFE.numnota) AS QDE_NF,
+                       COUNT(DISTINCT NFE.numnota) AS QDENF,
                        SUM( round( NVL(nvl(MV.QT, mv.QTCONT),0)
                                  * NVL(nvl(MV.punit, mv.punitcont),0), 2) ) AS VLDEVOLUCAO
                   FROM PCNFENT NFE, PCMOV MV, PCMOVCOMPLE MVC, PCPEDC PED,
