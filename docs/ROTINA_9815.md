@@ -30,7 +30,7 @@ Melhorias de comportamento só entram **depois** dessa validação, uma a uma, c
 - Aba **4-DRE**, com os 4 filtros principais.
 - As 4 dimensões de análise, **incluindo Centro de Custo**, que hoje falha sempre.
 - Colunas por mês, `AV %` e `AH %`.
-- Marcação visual das linhas informativas (`NÃO SOMA`).
+- Marcação visual das linhas informativas (selo `INFORMATIVO`).
 
 ### Fora
 
@@ -84,7 +84,7 @@ colunas por mês, mais o bloco de total.
 | Linhas totalizadoras | `INFCONTAS = 'S'` — 9 linhas, com destaque |
 | Cor da linha | `EPCPARDRE.COR` convertido de `TColor` (BGR) para CSS |
 | Valor negativo | vermelho, entre parênteses, como no Winthor |
-| `NÃO SOMA` | marcador nas linhas que não entram nos totais |
+| `INFORMATIVO` | marcador nas linhas que não entram nos totais — a 9815 escreve `NÃO SOMA` |
 | Números | fonte monoespaçada tabular, alinhados à direita |
 
 **Base do `AV %` — são DUAS bases**, verificado em 28/08/2026:
@@ -225,8 +225,8 @@ LUCRO BRUTO       = RECEITAS LIQUIDAS − CMV LIQ.
 > valores, porque ela lê as mesmas colunas. Conferir a identidade somando o que está na
 > tela leva a um falso positivo.
 
-**ST, PIS e COFINS não entram no cálculo** — são informativas, e recebem o marcador
-`NÃO SOMA` na tela. Deduzi-las erra o resultado em milhões.
+**ST, PIS e COFINS não entram no cálculo** — são informativas, e recebem o selo
+`INFORMATIVO` na tela. Deduzi-las erra o resultado em milhões.
 
 Os checkboxes `Deduzir ST` e `Deduzir PIS/COFINS` do Winthor mudariam isso; estavam
 desmarcados em todas as capturas, e a web replica o comportamento desmarcado.
@@ -328,7 +328,7 @@ Nenhuma dessas mexe em regra de cálculo. Qualquer uma que altere um centavo é 
 | Tela de pré-seleção de filiais antes de abrir | seleção no próprio filtro, com as 13 apuráveis |
 | Grade estilo planilha | tabela responsiva, tema escuro |
 | Sem atalhos de período | Ontem · Mês Passado · Últimos 3 Meses · Ano Passado |
-| Linhas soltas após o LUCRO LIQUIDO | mesmas linhas, marcadas com `NÃO SOMA` |
+| Linhas soltas após o LUCRO LIQUIDO | mesmas linhas, marcadas com `INFORMATIVO` |
 | 12 checkboxes | 4 filtros |
 
 ### O que continua igual, de propósito
@@ -430,7 +430,7 @@ Conferência no cenário 01/08 a 27/08/2026, competência, filiais 7/12/25:
 **As flags são o que separa os blocos.** `AntesRO = 'S'` é o corpo operacional;
 `AntesRO = 'N'` com `AntesLL = 'S'` é o bloco entre RESULTADO OPERACIONAL e Total das
 Despesas; `AntesLL = 'N'` é o bloco informativo depois do LUCRO LIQUIDO, que **não entra em
-totalizador nenhum** — é o que a tela marca como `NÃO SOMA`.
+totalizador nenhum** — é o que a tela marca como `INFORMATIVO`.
 
 ### O bloco informativo ignora "Mostrar Contas Zeradas"
 

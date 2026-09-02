@@ -61,7 +61,10 @@ export interface LinhaDre {
   total: TotalLinha;
   totalizadora: boolean;
   calculada: boolean;
-  /** Não entra em totalizador: as 3 informativas e o bloco pós-LUCRO LIQUIDO. */
+  /**
+   * Não entra em totalizador: as 3 informativas e o bloco pós-LUCRO LIQUIDO.
+   * Na tela o selo diz **INFORMATIVO**; o nome do campo continua o da regra.
+   */
   naoSoma: boolean;
   /**
    * Nenhum lançamento no período — é isto que a 9815 esconde, e **não** valor zero.

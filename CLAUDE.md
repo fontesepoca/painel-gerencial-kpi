@@ -87,7 +87,8 @@ inclusive nos pontos que parecem defeito. Decisão do Gabriel em 27/08/2026. Os 
 que mais confundem quem lê o SQL pela primeira vez:
 
 1. **`RECEITAS LIQUIDAS = RECEITA BRUTA − ABAT./DESC. − DEVOLUCAO`.** ST, PIS e COFINS
-   **não são deduzidos** — são linhas informativas, marcadas com `NÃO SOMA` na tela.
+   **não são deduzidos** — são linhas informativas, com selo `INFORMATIVO` na tela web
+   (a 9815 escreve `NÃO SOMA`).
    Verificado ao centavo contra 4 cenários exportados.
 2. **Regime altera apenas a data das despesas.** Caixa usa `nvl(DTPAGTO, DTVENC)`,
    competência usa `dtcompetencia`. Receita, deduções e CMV são idênticos nos dois.

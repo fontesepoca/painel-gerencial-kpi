@@ -569,7 +569,7 @@ function Linha({
           >
             {nome}
           </span>
-          {linha.naoSoma && <SeloNaoSoma />}
+          {linha.naoSoma && <SeloInformativo />}
           {deslocada && <SeloForaDoBloco />}
         </div>
       </td>
@@ -736,10 +736,15 @@ function Variacao({ percentual }: { percentual: number | null }) {
   );
 }
 
-function SeloNaoSoma() {
+/**
+ * A 9815 escreve `NÃO SOMA` nestas linhas. Aqui elas são marcadas como **informativo**:
+ * diz a mesma coisa pelo lado do que a linha é, e não pelo que ela deixa de fazer.
+ * O cadastro e a regra continuam idênticos — muda só a palavra na tela.
+ */
+function SeloInformativo() {
   return (
     <span className="shrink-0 rounded-[var(--radius-sm)] bg-[var(--warning-glow)] px-1.5 py-0.5 text-[length:var(--fs-rotulo)] font-semibold tracking-[0.1em] text-[var(--warning)] uppercase">
-      Não soma
+      Informativo
     </span>
   );
 }
@@ -751,7 +756,7 @@ function SeloNaoSoma() {
  *
  * **Deliberadamente discreto**, em cinza e sem borda. O alerta já foi dado no momento em
  * que importava — o modal, antes de aplicar. Aqui ele é só uma nota de estado, e disputar
- * atenção com `NÃO SOMA`, que é informação do cadastro, seria dar peso a mais para uma
+ * atenção com `INFORMATIVO`, que é informação do cadastro, seria dar peso a mais para uma
  * escolha que o próprio usuário fez.
  */
 function SeloForaDoBloco() {
