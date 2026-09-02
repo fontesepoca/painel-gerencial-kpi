@@ -39,6 +39,12 @@ docker compose logs -f api
 docker compose logs -f client
 ```
 
+Se o build do front falhar no `npm ci`, rode com saída completa:
+
+```bash
+docker compose build client --no-cache --progress=plain
+```
+
 Testar a API sem tocar no banco:
 
 ```bash
