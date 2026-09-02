@@ -977,3 +977,70 @@ do que devia: foi a premissa que estava errada.
 Por isso a dc5 foi aposentada. Ela comparava nosso detalhamento com a exportação do
 detalhamento da 9815, e essa referência deixou de valer no momento em que decidimos divergir
 dela. A conferência que vale agora é a dc6, contra a linha do DRE.
+
+### Por que a RECEITA LÍQUIDA difere da 9815 — decomposta
+
+Pergunta do Gabriel em 02/09/2026, e vale registrar porque será feita de novo.
+
+**O ST saiu das duas colunas, não só da receita bruta.** Não é escolha, é consequência:
+as colunas do detalhamento se ligam pela identidade do DRE.
+
+```
+REC.BRUTA    = Σ (ptabela × qt)
+DESCONTO     = Σ (ptabela × qt) − Σ (punit × qt)
+REC.LÍQUIDA  = Σ (punit × qt) − devolução
+```
+
+A 9815 subtraía o ST de `ptabela` **e** de `punit`. Tirar só do primeiro inflaria o
+`DESCONTO` pelo ST e deixaria a líquida curta pelo mesmo valor — duas colunas erradas no
+lugar de uma certa. **A prova de que o ST estava nos dois** é que `ABAT./DESC.` era a única
+das quatro linhas que já batia ao centavo antes da correção: ele é a diferença entre as
+duas colunas, e o ST se cancelava ali.
+
+A diferença contra a exportação da 9815 fecha inteira:
+
+| | |
+|---|---:|
+| Nossa `REC.LÍQUIDA` | 49.834.919,58 |
+| `REC.LIQUIDA` da 9815 | 46.160.270,74 |
+| **Diferença** | **3.674.648,84** |
+| menos a linha `(-) ST` | −3.556.322,88 |
+| menos a devolução fora do critério da apuração | −114.355,98 |
+| **Sobra** | **3.969,98** |
+
+A sobra é o **FECP**, exatamente o valor que a [dc1](validacao/dc1_st_explica_receita_bruta.sql)
+previu: ele entra na linha `(-) ST` do DRE, que soma `st + vlfecp`, mas o detalhamento da
+9815 subtraía só `st`. O mesmo número chegando por outro caminho.
+
+Os últimos dígitos oscilam entre execuções porque os dois retratos são de momentos
+diferentes — ver a armadilha 2.
+
+### As cinco colunas conferidas — 02/09/2026
+
+A [dc6](validacao/dc6_ponta_a_ponta.mjs) percorre só as linhas que abrem duplo clique, e
+`ABAT./DESC.` e `CMV LIQ.` não abrem. **As colunas `DESCONTO` e `CUSTO Liq` do modal
+ficaram sem conferência** desde a dc2, que foi medida por SQL direto antes de várias
+mudanças. A [dc9](validacao/dc9_colunas_da_receita.mjs) fechou o buraco:
+
+| Coluna | Linha do DRE | Valor |
+|---|---|---:|
+| `REC.BRUTA` | `(+) RECEITA BRUTA` | 55.754.350,05 |
+| `DESCONTO` | `(-) ABAT./DESC.` | 4.663.263,35 |
+| `DEVOLUÇÃO` | `(-) DEVOLUCAO` | 1.256.167,12 |
+| `REC.LÍQUIDA` | `(=) RECEITAS LIQUIDAS` | 49.834.919,58 |
+| `CUSTO Liq` | `(=) CMV LIQ.` | 37.039.936,01 |
+
+Cinco de cinco, e a identidade `bruta − desconto − devolução = líquida` fecha nos dois
+lados. Que fechariam "por construção", uma vez que as outras três fechavam, era o
+raciocínio que dispensava a medição — e é o tipo de raciocínio que já falhou três vezes
+neste levantamento.
+
+### O detalhamento da receita não custa dois minutos sempre
+
+Na dc9 a receita por cliente respondeu em **8,2 s**, contra os 116,9 s medidos em
+01/09/2026. A diferença é o cache do Oracle: a apuração acabara de varrer as mesmas notas,
+e o detalhamento as encontrou quentes.
+
+Isso muda o tamanho do problema. Os 116,9 s foram medidos **a frio**, sem apuração antes; no
+uso real o duplo clique vem sempre depois de uma apuração do mesmo período, que é o caso
+quente. A otimização continua valendo a pena, mas não é o que separa a tela de ser usável.
