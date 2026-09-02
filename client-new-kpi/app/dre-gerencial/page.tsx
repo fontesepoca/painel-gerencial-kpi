@@ -14,6 +14,27 @@ export default function DreGerencialPage() {
   const filiais = useFiliais();
   const apuracao = useApuracao();
   const [mostrarZeradas, setMostrarZeradas] = useState(false);
+  const [expandida, setExpandida] = useState(false);
+
+  /**
+   * `Esc` sai da tela cheia, como em qualquer coisa que ocupa a tela inteira.
+   *
+   * **Só quando não há modal aberto.** O detalhamento é um `<dialog>` e fecha no `Esc`
+   * por conta própria; sem esta guarda, um `Esc` fecharia os dois de uma vez e quem
+   * queria só fechar o detalhe perderia também a tela cheia.
+   */
+  useEffect(() => {
+    if (!expandida) return;
+
+    const aoTeclar = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      if (document.querySelector("dialog[open]")) return;
+      setExpandida(false);
+    };
+
+    window.addEventListener("keydown", aoTeclar);
+    return () => window.removeEventListener("keydown", aoTeclar);
+  }, [expandida]);
 
   const [filtro, setFiltro] = useState<FiltroApuracao>(() => ({
     filiais: [],
@@ -62,7 +83,12 @@ export default function DreGerencialPage() {
         {dados && !apuracao.isPending && (
           // A altura da tabela deixa de ser chutada: esta secao pega o que sobra da
           // coluna, e a rolagem interna dela se ajusta sozinha a qualquer janela.
-          <section className="flex min-h-0 flex-1 flex-col rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface-1)] shadow-[var(--shadow-card)]">
+          <section
+            className={cn(
+              "flex min-h-0 flex-1 flex-col rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface-1)] shadow-[var(--shadow-card)]",
+              expandida && "tabela-expandida",
+            )}
+          >
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border)] px-4 py-2.5">
               <div>
                 <h2 className="text-[length:var(--fs-rotulo)] font-semibold tracking-[0.14em] text-[var(--text-secondary)] uppercase">
@@ -77,15 +103,22 @@ export default function DreGerencialPage() {
                 </p>
               </div>
 
-              <label className="flex cursor-pointer items-center gap-2.5 text-[length:var(--fs-apoio)] text-[var(--text-secondary)]">
-                <input
-                  type="checkbox"
-                  checked={mostrarZeradas}
-                  onChange={(e) => setMostrarZeradas(e.target.checked)}
-                  className="size-4 accent-[var(--primary)]"
+              <div className="flex items-center gap-4">
+                <label className="flex cursor-pointer items-center gap-2.5 text-[length:var(--fs-apoio)] text-[var(--text-secondary)]">
+                  <input
+                    type="checkbox"
+                    checked={mostrarZeradas}
+                    onChange={(e) => setMostrarZeradas(e.target.checked)}
+                    className="size-4 accent-[var(--primary)]"
+                  />
+                  Mostrar contas zeradas
+                </label>
+
+                <BotaoExpandir
+                  expandida={expandida}
+                  onAlternar={() => setExpandida((e) => !e)}
                 />
-                Mostrar contas zeradas
-              </label>
+              </div>
             </div>
 
             {dados.avisos.length > 0 && (
@@ -120,6 +153,65 @@ export default function DreGerencialPage() {
         {!dados && !apuracao.isPending && !apuracao.isError && <Inicial />}
       </div>
     </AppShell>
+  );
+}
+
+/**
+ * Alterna a tabela entre a página e a tela cheia.
+ *
+ * O mesmo botão faz os dois caminhos, como no player do YouTube: quem já entendeu que
+ * aquele canto expande procura o mesmo canto para voltar. Um segundo botão só para sair
+ * ocuparia espaço permanente para uma ação que só existe metade do tempo.
+ *
+ * Ícone **e** texto. Só o ícone caberia melhor, mas esta tela é usada em leitura
+ * ampliada por quem enxerga pouco, e um par de colchetes de 16px não é rótulo para
+ * essa pessoa.
+ */
+function BotaoExpandir({
+  expandida,
+  onAlternar,
+}: {
+  expandida: boolean;
+  onAlternar: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onAlternar}
+      aria-pressed={expandida}
+      title={expandida ? "Voltar ao normal (Esc)" : "Expandir a tabela para a tela inteira"}
+      className="flex shrink-0 cursor-pointer items-center gap-2 rounded-[var(--radius-sm)] border border-[var(--border)] px-2.5 py-1.5 text-[length:var(--fs-apoio)] font-medium text-[var(--text-secondary)] hover:border-[var(--border-strong)] hover:text-[var(--text-primary)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)]"
+    >
+      <svg
+        aria-hidden
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className="size-4 shrink-0"
+      >
+        {expandida ? (
+          // Cantos apontando para dentro — recolher.
+          <>
+            <path d="M3 8h3a2 2 0 0 0 2-2V3" />
+            <path d="M21 8h-3a2 2 0 0 1-2-2V3" />
+            <path d="M3 16h3a2 2 0 0 1 2 2v3" />
+            <path d="M21 16h-3a2 2 0 0 0-2 2v3" />
+          </>
+        ) : (
+          // Cantos apontando para fora — expandir.
+          <>
+            <path d="M8 3H5a2 2 0 0 0-2 2v3" />
+            <path d="M16 3h3a2 2 0 0 1 2 2v3" />
+            <path d="M8 21H5a2 2 0 0 1-2-2v-3" />
+            <path d="M16 21h3a2 2 0 0 0 2-2v-3" />
+          </>
+        )}
+      </svg>
+      {expandida ? "Voltar ao normal" : "Tela cheia"}
+    </button>
   );
 }
 

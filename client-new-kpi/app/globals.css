@@ -485,6 +485,34 @@ html[data-leitura="ampliada"] .puxador {
    não gruda em lugar nenhum.
    ═══════════════════════════════════════════════════════════════ */
 
+/* ── Tabela em tela cheia ──
+   Sobreposição na própria página, e não o Fullscreen API do navegador. O
+   `requestFullscreen` esconde a barra do sistema e a do navegador, o que num
+   relatório financeiro tira as referências de onde a pessoa está — e sai por
+   qualquer `Esc`, inclusive o que ela deu para fechar o detalhamento. Aqui a
+   tela cheia é da aplicação: a tabela cobre a página, e nada mais muda.
+
+   `z-index: 50` fica acima de tudo que a página usa hoje — o teto era 20, dos
+   menus de filtro. O detalhamento não precisa competir: `<dialog>` aberto com
+   `showModal()` vai para a top layer, acima de qualquer `z-index`. */
+.tabela-expandida {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+
+  /* Canto arredondado e sombra são para um cartão dentro da página. Colado nas
+     quatro bordas da janela, o arredondado só deixaria ver a página por baixo. */
+  border-width: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+/* Sem isto, a rolagem que chega ao fim da tabela continua na página atrás —
+   o conteúdo se mexe por baixo de uma tela que deveria estar cobrindo tudo. */
+.tabela-expandida .tabela-rolagem {
+  overscroll-behavior: contain;
+}
+
 .tabela-rolagem {
   /* Abre contexto de empilhamento próprio, e é isto que prende os `z-index` das
      células fixas aqui dentro. Sem esta linha eles competem com a página inteira:
