@@ -20,7 +20,7 @@ a aprovação do Gabriel.
 | [1](#1-a-coluna-média-em-um-centavo) | Coluna MÉDIA | todas | 1 centavo | aceita em 28/08/2026 |
 | [2](#2-a-filial-única-no-subselect-de-centro-de-custo) | Filial única no `CCC` | C. Custo Principal | R$ 2,56 mi em 2 meses | **corrigida** em 31/08/2026 |
 | [3](#3-centro-de-custo-simples-não-tem-referência) | Sem referência | Centro de Custo | não mensurável | validação manual pendente |
-| [4](#4-correção-deliberada-o-detalhamento-agora-fecha-com-a-linha-do-dre) | Detalhamento não fecha com a linha | todas as linhas que abrem duplo clique | R$ 3,56 mi em 1 mês, mais estorno de baixa e contas escondidas | **corrigida de propósito** em 01–02/09/2026 · 157/157 |
+| [4](#4-correção-deliberada-o-detalhamento-agora-fecha-com-a-linha-do-dre) | Detalhamento não fecha com a linha | todas as linhas que abrem duplo clique | R$ 3,56 mi em 1 mês, mais estorno de baixa e contas escondidas | **corrigida de propósito** em 01–02/09/2026 · 159/159 |
 
 ---
 
@@ -274,7 +274,7 @@ nas seções deste documento, que são posteriores.
 | As filiais todas juntas | ⬜ **continua sem medição.** O máximo testado são 3 |
 | Período sem movimento, 1 dia, virada de mês | ✅ [medidos em 31/08](#fase-5--período-de-um-dia--31082026) — 0 divergências |
 | Filial sem movimento no período | ✅ [medida em 31/08](#fase-5--filial-parada-e-filial-meio-vazia--31082026) — a parada não contamina nada |
-| O duplo clique **pela tela** | ⬜ a API fecha 157/157, mas o caminho pela interface com dado real nunca foi percorrido ponta a ponta |
+| O duplo clique **pela tela** | ⬜ a API fecha 159/159, mas o caminho pela interface com dado real nunca foi percorrido ponta a ponta |
 | `% AH` em Conta Gerencial | ⬜ a exportação usada saiu sem análise horizontal; a coluna só foi conferida em Grupo de Contas |
 
 Os dois períodos e o conjunto de filiais são riscos de **custo**, não de valor: quatro meses
