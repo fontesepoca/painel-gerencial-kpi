@@ -93,21 +93,25 @@ export interface LinhaDre {
 export type TipoDetalhe =
   | "receita-por-cliente"
   | "devolucao-por-motivo"
+  | "imposto-por-produto"
   | "lancamentos";
 
 /**
- * Uma parcela de uma linha calculada. Espelha `ParcelaDto`.
+ * Uma parcela de um totalizador, apontando para outra linha da apuração. Espelha
+ * `ParcelaDto`.
  *
- * Ou aponta para outra linha da apuração (`chaveOrdem`), ou traz o próprio valor
- * (`valores`) — nunca as duas coisas. Totalizadores apontam; ST, PIS e COFINS trazem,
- * porque as parcelas deles são colunas da consulta de faturamento e não existem como
- * linha em lugar nenhum da tela.
+ * **Por referência, nunca com o valor copiado.** A tela lê o valor na própria linha citada,
+ * e é isso que impede a composição de mostrar um total que discorda das linhas que ela
+ * lista: os dois lados leem o mesmo número.
+ *
+ * Vale só para os cinco totalizadores, cujo valor é aritmética sobre linhas que já estão
+ * na resposta. Quem tem origem no banco — inclusive ST, PIS e COFINS — abre detalhamento
+ * de verdade, com consulta própria, e não passa por aqui.
  */
 export interface Parcela {
-  chaveOrdem: string | null;
+  chaveOrdem: string;
   rotulo: string;
   sinal: number;
-  valores: { mesAno: string; valor: number }[] | null;
 }
 
 /** Espelha `DetalheDisponivelDto`. */
@@ -148,6 +152,24 @@ export interface DetalheMotivo {
   culpaRca: string | null;
   qdeNf: number;
   vlDevolucao: number;
+  pPart: number;
+}
+
+/**
+ * Uma linha da tela de ST, PIS e COFINS: o imposto de um produto no período.
+ *
+ * Mesmo formato da devolução por motivo — eixo, contagem de notas, valor e participação.
+ * `liquido` é `vendas − devolucoes`, e é a soma dele que fecha com a linha do DRE.
+ *
+ * `vendas` e `devolucoes` somam **imposto + FECP** no mesmo número, como a apuração faz.
+ */
+export interface DetalheImposto {
+  codProd: number;
+  produto: string | null;
+  qdeNf: number;
+  vendas: number;
+  devolucoes: number;
+  liquido: number;
   pPart: number;
 }
 
@@ -200,6 +222,7 @@ export interface Detalhamento {
   clientes: DetalheCliente[] | null;
   motivos: DetalheMotivo[] | null;
   lancamentos: DetalheLancamento[] | null;
+  impostos: DetalheImposto[] | null;
   duracaoMs: number;
 }
 

@@ -271,7 +271,22 @@ public record DetalhamentoDto(
     IReadOnlyList<DetalheClienteDto>? Clientes,
     IReadOnlyList<DetalheMotivoDto>? Motivos,
     IReadOnlyList<DetalheLancamentoDto>? Lancamentos,
+    IReadOnlyList<DetalheImpostoDto>? Impostos,
     long DuracaoMs);
+
+/// <summary>
+/// Uma linha da tela de ST, PIS e COFINS: o imposto de um produto no período.
+/// `Liquido` é `Vendas − Devolucoes`, e é a soma dele que fecha com a linha do DRE.
+/// </summary>
+public record DetalheImpostoDto(
+    decimal CodProd,
+    string? Produto,
+    int QdeNf,
+    decimal Vendas,
+    decimal Devolucoes,
+    decimal Liquido,
+    /// <summary>Participação no total da tela, em porcento. Como na tela de devolução.</summary>
+    decimal PPart);
 
 /// <summary>DRE apurado.</summary>
 public record ApuracaoDto(

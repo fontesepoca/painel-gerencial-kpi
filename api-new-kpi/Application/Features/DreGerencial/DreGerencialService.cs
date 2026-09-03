@@ -305,7 +305,7 @@ public sealed class DreGerencialService
                     linhas.Select(c => new DetalheClienteDto(
                         c.CodCli, c.Cliente, c.Cidade, c.QdeNf, c.ReceitaBruta,
                         c.Desconto, c.Devolucao, c.ReceitaLiquida, c.CustoLiq)).ToList(),
-                    null, null, cronometro.ElapsedMilliseconds));
+                    null, null, null, cronometro.ElapsedMilliseconds));
             }
 
             case "devolucao-por-motivo":
@@ -319,7 +319,7 @@ public sealed class DreGerencialService
                     linhas.Select(m => new DetalheMotivoDto(
                         m.CodMotivo, m.Motivo, m.CulpaRca, m.QdeNf,
                         m.VlDevolucao, m.PPart)).ToList(),
-                    null, cronometro.ElapsedMilliseconds));
+                    null, null, cronometro.ElapsedMilliseconds));
             }
 
             case "lancamentos":
@@ -368,6 +368,33 @@ public sealed class DreGerencialService
                         l.NumSeqBordero, l.NumCheque2, l.NumCar, l.Localizacao,
                         l.NomeFunc, l.NomeFuncBaixa, l.DtReclassific,
                         l.CodFuncReclassific)).ToList(),
+                    null, cronometro.ElapsedMilliseconds));
+            }
+
+            case "imposto-por-produto":
+            {
+                // O imposto vem em `Bloco`, e passa por lista fechada antes de chegar ao
+                // SQL — o mesmo tratamento que `Bloco` já recebia nos lançamentos.
+                if (filtro.Bloco is not ("st" or "pis" or "cofins"))
+                {
+                    return Result<DetalhamentoDto>.Invalido(
+                        $"Imposto '{filtro.Bloco}' não existe. Valores aceitos: st, pis, cofins.");
+                }
+
+                var linhas = await _repositorio.ObterDetalheImpostoPorProdutoAsync(
+                    filtro.Bloco, filtro.Filiais, filtro.DataInicio, filtro.DataFim,
+                    cancellationToken);
+
+                // A participação é do LÍQUIDO sobre o total da tela, como na devolução por
+                // motivo. Total zero não vira divisão por zero: a coluna sai zerada.
+                var total = linhas.Sum(i => i.Liquido);
+
+                cronometro.Stop();
+                return Result<DetalhamentoDto>.Ok(new DetalhamentoDto(
+                    filtro.Tipo, filtro.DataInicio, filtro.DataFim, null, null, null,
+                    linhas.Select(i => new DetalheImpostoDto(
+                        i.CodProd, i.Produto, i.QdeNf, i.Vendas, i.Devolucoes, i.Liquido,
+                        total == 0m ? 0m : Math.Round(i.Liquido / total * 100m, 2))).ToList(),
                     cronometro.ElapsedMilliseconds));
             }
 

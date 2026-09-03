@@ -286,6 +286,61 @@ public sealed class DreGerencialRepository : IDreGerencialRepository
         return linhas.ToList();
     }
 
+    public async Task<IReadOnlyList<DetalheImpostoDre>> ObterDetalheImpostoPorProdutoAsync(
+        string imposto,
+        IReadOnlyList<string> filiais,
+        DateOnly dataInicio,
+        DateOnly dataFim,
+        CancellationToken cancellationToken = default)
+    {
+        if (filiais.Count == 0)
+        {
+            return [];
+        }
+
+        var placeholdersA = string.Join(", ", filiais.Select((_, i) => $":filialA{i}"));
+        var placeholdersB = string.Join(", ", filiais.Select((_, i) => $":filialB{i}"));
+
+        // A expressão do imposto vem de uma lista fechada, nunca do que chegou na
+        // requisição. `ExpressaoDoImposto` lança se o nome não for um dos três.
+        var sql = string.Format(
+            DreDetalheQueries.ImpostoPorProduto,
+            DreDetalheQueries.ExpressaoDoImposto(imposto, devolucao: false),
+            placeholdersA,
+            DreDetalheQueries.ExpressaoDoImposto(imposto, devolucao: true),
+            placeholdersB);
+
+        var inicio = dataInicio.ToDateTime(TimeOnly.MinValue);
+        var fim = dataFim.ToDateTime(TimeOnly.MinValue);
+
+        // Ordem obrigatória, igual à da receita por cliente: datas das vendas, filiais das
+        // vendas, datas das devoluções, filiais das devoluções.
+        var parametros = new DynamicParameters();
+        parametros.Add("dtIni1", inicio);
+        parametros.Add("dtFim1", fim);
+        for (var i = 0; i < filiais.Count; i++)
+        {
+            parametros.Add($"filialA{i}", filiais[i]);
+        }
+        parametros.Add("dtIni2", inicio);
+        parametros.Add("dtFim2", fim);
+        for (var i = 0; i < filiais.Count; i++)
+        {
+            parametros.Add($"filialB{i}", filiais[i]);
+        }
+
+        using var conexao = await _conexoes.CriarConexaoAsync(cancellationToken);
+
+        var linhas = await conexao.QueryAsync<DetalheImpostoDre>(
+            new CommandDefinition(
+                sql,
+                parametros,
+                commandTimeout: 600,
+                cancellationToken: cancellationToken));
+
+        return linhas.ToList();
+    }
+
     public async Task<IReadOnlyList<DetalheMotivoDre>> ObterDetalheDevolucaoPorMotivoAsync(
         IReadOnlyList<string> filiais,
         DateOnly dataInicio,

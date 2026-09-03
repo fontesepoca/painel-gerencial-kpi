@@ -71,6 +71,18 @@ public interface IDreGerencialRepository
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Detalhamento de `(-) ST`, `(-) PIS` e `(-) COFINS`, agregado por produto.
+    /// <paramref name="imposto"/> é `st`, `pis` ou `cofins` — lista fechada, validada na
+    /// consulta antes de virar SQL.
+    /// </summary>
+    Task<IReadOnlyList<DetalheImpostoDre>> ObterDetalheImpostoPorProdutoAsync(
+        string imposto,
+        IReadOnlyList<string> filiais,
+        DateOnly dataInicio,
+        DateOnly dataFim,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Lançamentos de uma linha de grupo, um a um.
     /// </summary>
     /// <param name="bloco">

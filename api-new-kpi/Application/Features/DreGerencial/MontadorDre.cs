@@ -111,7 +111,7 @@ public static class MontadorDre
                 Zerada: valores.All(v => v.Valor == 0m),
                 Cor: CorDelphi.ParaCss(l.Estrutura.Cor),
                 Detalhe: ResolverDetalhe(l),
-                Composicao: ResolverComposicao(l, linhas, chavesOrdem, periodos, faturamento));
+                Composicao: ResolverComposicao(l, linhas, chavesOrdem));
         }).ToList();
 
         return new ApuracaoDto(
@@ -158,6 +158,18 @@ public static class MontadorDre
                     => new("receita-por-cliente", null, null),
                 Devolucao
                     => new("devolucao-por-motivo", null, null),
+
+                // As três informativas quebram por PRODUTO, no mesmo formato da devolução
+                // por motivo: eixo, contagem de notas, valor e participação. ST é imposto
+                // de item — nasce da classificação fiscal da mercadoria —, então é nesse
+                // eixo que a pergunta "por que subiu" tem resposta.
+                //
+                // O imposto viaja em `Bloco`, que já é o campo que passa por lista fechada
+                // antes de virar SQL.
+                St     => new("imposto-por-produto", "st", null),
+                Pis    => new("imposto-por-produto", "pis", null),
+                Cofins => new("imposto-por-produto", "cofins", null),
+
                 _   => null,
             };
         }
@@ -189,9 +201,7 @@ public static class MontadorDre
     private static IReadOnlyList<ParcelaDto> ResolverComposicao(
         LinhaEmMontagem linha,
         List<LinhaEmMontagem> todas,
-        string[] chaves,
-        IReadOnlyList<PeriodoDre> periodos,
-        Dictionary<string, FaturamentoDre> faturamento)
+        string[] chaves)
     {
         if (!linha.Calculada) return [];
 
@@ -201,15 +211,6 @@ public static class MontadorDre
             return i < 0 ? null : new ParcelaDto(chaves[i], todas[i].Estrutura.Grupo.Trim(), 1);
         }
 
-        // Parcela que não é linha do DRE: o valor vem direto da consulta de faturamento,
-        // mês a mês. O sinal fica na parcela, não no valor, para a tela poder mostrar
-        // "menos" ao lado da devolução em vez de um número negativo sem explicação.
-        ParcelaDto DoFaturamento(string rotulo, int sinal, Func<FaturamentoDre, decimal> ler) =>
-            new(null, rotulo, sinal, periodos
-                .Select(p => new ValorParcelaDto(
-                    p.MesAno,
-                    Arredondar(faturamento.TryGetValue(p.MesAno, out var f) ? ler(f) : 0m)))
-                .ToList());
 
         List<ParcelaDto> DoBloco(Func<LinhaEstruturaDre, bool> pertence) =>
             todas
@@ -217,45 +218,6 @@ public static class MontadorDre
                 .Where(p => !p.x.Calculada && pertence(p.x.Estrutura))
                 .Select(p => new ParcelaDto(chaves[p.i], p.x.Estrutura.Grupo.Trim(), 1))
                 .ToList();
-
-        // As três informativas: cada uma é a diferença entre a parcela das vendas e a das
-        // devoluções. `StVendas` já traz ST e FECP somados na mesma coluna — a linha do
-        // DRE é `(ST+FECP das vendas) − (ST+FECP das devoluções)`, e o rótulo diz isso
-        // porque foi exatamente essa confusão que custou dois dias em 02/09/2026.
-        //
-        // A linha do DRE mostra a dedução com sinal negativo (`St => -(f.StLiq)`), então
-        // as duas parcelas trocam de sinal junto: quem soma na tela é a devolução.
-        if (linha.Rotulo is St or Pis or Cofins)
-        {
-            Func<FaturamentoDre, decimal> vendas;
-            Func<FaturamentoDre, decimal> devolucao;
-            string imposto;
-
-            if (linha.Rotulo == St)
-            {
-                vendas = f => f.StVendas;
-                devolucao = f => f.StDevolucao;
-                imposto = "ST";
-            }
-            else if (linha.Rotulo == Pis)
-            {
-                vendas = f => f.PisVendas;
-                devolucao = f => f.PisDevolucao;
-                imposto = "PIS";
-            }
-            else
-            {
-                vendas = f => f.CofinsVendas;
-                devolucao = f => f.CofinsDevolucao;
-                imposto = "COFINS";
-            }
-
-            return
-            [
-                DoFaturamento($"{imposto} + FECP das vendas", -1, vendas),
-                DoFaturamento($"{imposto} + FECP das devoluções", 1, devolucao),
-            ];
-        }
 
         List<ParcelaDto?> partes = linha.Rotulo switch
         {

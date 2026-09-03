@@ -103,3 +103,29 @@ public class DetalheLancamentoDre
     public DateTime? DtReclassific { get; init; }
     public decimal? CodFuncReclassific { get; init; }
 }
+
+/// <summary>
+/// Uma linha da tela de `(-) ST`, `(-) PIS` e `(-) COFINS`: o imposto de um produto.
+///
+/// <para>Mesmo formato da tela de devolução por motivo — eixo, contagem de notas e valor.
+/// O eixo aqui é o produto, porque ST é imposto de item.</para>
+/// </summary>
+public class DetalheImpostoDre
+{
+    public decimal CodProd { get; init; }
+
+    /// <summary>`PCPRODUT.DESCRICAO`.</summary>
+    public string? Produto { get; init; }
+
+    /// <summary>Notas distintas em que o produto aparece, somando venda e devolução.</summary>
+    public int QdeNf { get; init; }
+
+    /// <summary><b>Imposto + FECP</b> das vendas, como a apuração soma.</summary>
+    public decimal Vendas { get; init; }
+
+    /// <summary><b>Imposto + FECP</b> das devoluções.</summary>
+    public decimal Devolucoes { get; init; }
+
+    /// <summary>`Vendas − Devolucoes`. É a soma desta coluna que fecha com a linha do DRE.</summary>
+    public decimal Liquido { get; init; }
+}

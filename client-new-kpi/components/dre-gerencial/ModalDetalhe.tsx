@@ -6,6 +6,7 @@ import { paraBr } from "@/lib/periodos";
 import { cn } from "@/lib/cn";
 import type {
   DetalheCliente,
+  DetalheImposto,
   DetalheLancamento,
   DetalheMotivo,
   Detalhamento,
@@ -159,6 +160,9 @@ function Conteudo({ dados }: { dados: Detalhamento }) {
   }
   if (dados.tipo === "devolucao-por-motivo") {
     return <TabelaMotivos linhas={dados.motivos ?? []} />;
+  }
+  if (dados.tipo === "imposto-por-produto") {
+    return <TabelaImpostos linhas={dados.impostos ?? []} />;
   }
   return <TabelaLancamentos linhas={dados.lancamentos ?? []} />;
 }
@@ -374,6 +378,57 @@ function CulpaRca({ valor }: { valor: string | null }) {
       <span aria-hidden className="size-2 shrink-0 rounded-full bg-current" />
       {sim ? "Sim" : "Não"}
     </span>
+  );
+}
+
+/**
+ * `(-) ST`, `(-) PIS` e `(-) COFINS`, quebrados por produto.
+ *
+ * Mesmo desenho da devolução por motivo — eixo, contagem de notas, valor e participação —,
+ * com duas colunas a mais que a devolução não precisa: o imposto das vendas e o das
+ * devoluções, separados. É a conta que a linha do DRE faz, e vê-la por produto responde
+ * "quem puxou o ST para cima" sem sair da tela.
+ *
+ * **`Vendas` e `Devoluções` somam imposto + FECP no mesmo número**, como a apuração faz.
+ * Separar os dois aqui daria uma tela que não fecha com a linha que ela detalha.
+ */
+function TabelaImpostos({ linhas }: { linhas: readonly DetalheImposto[] }) {
+  if (linhas.length === 0) return <Vazio />;
+
+  return (
+    <table className="w-full border-collapse text-[length:var(--fs-base)]">
+      <Cabecalho>
+        <th className={cn(TH, "col-identidade text-left")}>Produto</th>
+        <th className={cn(TH, "text-right")}>Notas</th>
+        <th className={cn(TH, "text-right")}>Vendas</th>
+        <th className={cn(TH, "text-right")}>Devoluções</th>
+        <th className={cn(TH, "text-right")}>Líquido</th>
+        <th className={cn(TH, "text-right")}>% part.</th>
+      </Cabecalho>
+      <tbody>
+        {linhas.map((i) => (
+          <tr
+            key={i.codProd}
+            className="border-b border-[var(--border)] odd:bg-[var(--zebra)] hover:bg-[var(--surface-2)]"
+          >
+            <Identidade codigo={i.codProd} nome={i.produto ?? "Sem descrição"} />
+            <td className={NUM}>{i.qdeNf}</td>
+            <td className={NUM}>{formatarValor(i.vendas)}</td>
+            <td className={NUM}>{formatarValor(i.devolucoes)}</td>
+            <td className={cn(NUM, "font-semibold")}>{formatarValor(i.liquido)}</td>
+            <td className={NUM}>{formatarPercentual(i.pPart, 2)}</td>
+          </tr>
+        ))}
+      </tbody>
+      <Total>
+        <td className={cn(TD, "col-identidade")}>{linhas.length} produtos</td>
+        <td className={NUM}>{soma(linhas, (i) => i.qdeNf)}</td>
+        <td className={NUM}>{formatarValor(soma(linhas, (i) => i.vendas))}</td>
+        <td className={NUM}>{formatarValor(soma(linhas, (i) => i.devolucoes))}</td>
+        <td className={NUM}>{formatarValor(soma(linhas, (i) => i.liquido))}</td>
+        <td className={NUM}>{formatarPercentual(soma(linhas, (i) => i.pPart), 2)}</td>
+      </Total>
+    </table>
   );
 }
 

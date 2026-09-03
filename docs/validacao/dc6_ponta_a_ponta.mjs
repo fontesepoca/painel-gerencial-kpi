@@ -62,6 +62,9 @@ function totalDoDetalhe(detalhe, dados, descricao) {
   if (detalhe.tipo === "lancamentos") return soma(dados.lancamentos ?? [], "vPago");
   if (detalhe.tipo === "devolucao-por-motivo") return -soma(dados.motivos ?? [], "vlDevolucao");
 
+  // ST, PIS e COFINS: a linha do DRE mostra a dedução negativa, e a coluna soma positivo.
+  if (detalhe.tipo === "imposto-por-produto") return -soma(dados.impostos ?? [], "liquido");
+
   // QUATRO linhas abrem a MESMA tela de receita por cliente; o que muda é a coluna que
   // fecha com cada uma. `ABAT./DESC.` e `CMV LIQ.` entraram em 03/09/2026 — antes disso
   // este trecho mandava tudo que não fosse "LIQUIDA" para `receitaBruta`, e as duas
@@ -77,7 +80,7 @@ function totalDoDetalhe(detalhe, dados, descricao) {
 }
 
 const quantas = (dados) =>
-  (dados.lancamentos ?? dados.motivos ?? dados.clientes ?? []).length;
+  (dados.lancamentos ?? dados.motivos ?? dados.impostos ?? dados.clientes ?? []).length;
 
 console.log(`API: ${API}`);
 console.log(

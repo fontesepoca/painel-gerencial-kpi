@@ -378,4 +378,114 @@ public static class DreDetalheQueries
                                                             WHERE upper(grupo) LIKE 'RESULTADO OPERACIONAL'))
                """;
     }
+    /// <summary>
+    /// Imposto por produto — a tela de `(-) ST`, `(-) PIS` e `(-) COFINS`.
+    ///
+    /// <para>Mesmo formato da tela de devolução por motivo: um eixo de agrupamento, a
+    /// contagem de notas, o valor e a participação. Aqui o eixo é o <b>produto</b>, porque
+    /// ST é imposto de item — nasce da classificação fiscal da mercadoria —, e é nesse
+    /// eixo que a pergunta "por que subiu" costuma ter resposta.</para>
+    ///
+    /// <para><b>Os filtros são os da consulta de faturamento, copiados ao pé da letra.</b>
+    /// É isso que faz o total desta tela fechar com a linha do DRE: qualquer critério a
+    /// mais ou a menos aqui e a soma passa a ser de outro conjunto de notas. As duas
+    /// pontas foram medidas na `dc12`.</para>
+    ///
+    /// <para><c>VENDAS</c> e <c>DEVOLUCOES</c> somam <b>imposto + FECP</b> no mesmo número,
+    /// como a apuração faz — a linha do DRE é
+    /// <c>(imposto+FECP das vendas) − (imposto+FECP das devoluções)</c>. Separar os dois
+    /// aqui daria uma tela que não fecha com a linha que ela detalha.</para>
+    ///
+    /// <para><b>Aliases sem underscore</b>: o Dapper não os ignora, e a coluna sairia
+    /// zerada em silêncio. Ver `docs/DIVERGENCIAS.md`, armadilha 4.</para>
+    ///
+    /// <para>Binds: {0} a expressão do imposto nas vendas, {1} filiais das vendas,
+    /// :dtIni1/:dtFim1; {2} a expressão nas devoluções, {3} filiais das devoluções,
+    /// :dtIni2/:dtFim2. As expressões vêm de <see cref="ExpressaoDoImposto"/>, que só
+    /// devolve constante — nada aqui é montado a partir do que chega na requisição.</para>
+    /// </summary>
+    public const string ImpostoPorProduto = """
+        SELECT CODPROD, PRODUTO,
+               SUM(QDENF)                  AS QDENF,
+               SUM(VENDAS)                 AS VENDAS,
+               SUM(DEVOLUCOES)             AS DEVOLUCOES,
+               SUM(VENDAS - DEVOLUCOES)    AS LIQUIDO
+          FROM (
+                SELECT PR.CODPROD AS CODPROD, PR.DESCRICAO AS PRODUTO,
+                       COUNT(DISTINCT NF.NUMNOTA)  AS QDENF,
+                       SUM({0} * MV.qt)            AS VENDAS,
+                       0                           AS DEVOLUCOES
+                  FROM PCNFSAID NF, PCMOV MV, PCMOVCOMPLE MVC, PCPRODUT PR,
+                       (SELECT clie.codcli, ce.codfil, ce.mostra_dre
+                          FROM cliente_especial ce, pcclient clie
+                         WHERE clie.codcliprinc = ce.codcli) esp
+                 WHERE NF.numtransvenda = MV.numtransvenda
+                   AND mv.numtransitem  = mvc.numtransitem (+)
+                   AND MV.CODPROD       = PR.CODPROD
+                   AND NF.codcli        = esp.codcli (+)
+                   AND NF.CODFILIAL     = esp.codfil (+)
+                   AND MV.DTCANCEL      IS NULL
+                   AND NF.DTCANCEL      IS NULL
+                   AND MV.CODFISCAL IN (5102,5502,5114,5115,5403,6403,5405,5117,5119,5910,5922,
+                                        6108,6922,6102,6114,6115,6117,6119,6404,6910)
+                   AND ( (NVL(NF.VLTABELA,0) > 0) OR (NVL(NF.VLTOTGER,0) > 0)
+                      OR (NVL(NF.VLTOTAL,0) > 0)  OR (NVL(NF.VLCUSTOFIN,0) > 0) )
+                   AND ( (NF.CONDVENDA IN (1,3,5,6,8)) OR (NF.ESPECIE = 'CO') )
+                   AND NF.DTSAIDA BETWEEN :dtIni1 AND :dtFim1
+                   AND NF.CODFILIAL IN ({1})
+                   AND ( (nvl(esp.mostra_dre,'S') = 'S') OR (NF.CONDVENDA IN (5)) )
+                   AND nvl(PR.codsec,0) <> 1601
+                 GROUP BY PR.CODPROD, PR.DESCRICAO
+                UNION ALL
+                SELECT PR.CODPROD, PR.DESCRICAO,
+                       COUNT(DISTINCT NFE.NUMNOTA),
+                       0,
+                       SUM({2} * MV.qt)
+                  FROM PCNFENT NFE, PCMOV MV, PCMOVCOMPLE MVC, PCPEDC PED, PCPRODUT PR,
+                       (SELECT clie.codcli, ce.codfil, ce.mostra_dre
+                          FROM cliente_especial ce, pcclient clie
+                         WHERE clie.codcliprinc = ce.codcli) esp
+                 WHERE NFE.numnota     = MV.numnota      (+)
+                   AND NFE.numtransent = MV.numtransent  (+)
+                   AND mv.numtransitem = mvc.numtransitem (+)
+                   AND NFE.codfornec   = esp.codcli      (+)
+                   AND NFE.CODFILIAL   = esp.codfil      (+)
+                   AND MV.numped       = PED.numped      (+)
+                   AND MV.CODPROD      = PR.CODPROD
+                   AND nvl(PED.CONDVENDA,1) IN ('1','3','5','6','8')
+                   -- Data ANTES da filial nos dois blocos, como em `ReceitaPorCliente`.
+                   -- Com bind posicional a ordem no SQL é a ordem dos parâmetros, e duas
+                   -- consultas irmãs com ordens diferentes é armadilha para quem copiar
+                   -- o repositório de uma para a outra.
+                   AND NFE.DTENT BETWEEN :dtIni2 AND :dtFim2
+                   AND NFE.CODFILIAL IN ({3})
+                   AND NFE.TIPODESCARGA IN ('6','7')
+                   AND MV.DTCANCEL IS NULL
+                   AND (NVL(NFE.OBS,'X') <> 'NF CANCELADA')
+                   AND MV.CODFISCAL IN (1202,1411,1949,2202,2411,2949)
+                   AND MV.CODSEC <> 1601
+                 GROUP BY PR.CODPROD, PR.DESCRICAO
+               )
+         GROUP BY CODPROD, PRODUTO
+        HAVING SUM(VENDAS - DEVOLUCOES) <> 0
+         ORDER BY SUM(VENDAS - DEVOLUCOES) DESC
+        """;
+
+    /// <summary>
+    /// A expressão de cada imposto, exatamente como a consulta de faturamento a escreve.
+    ///
+    /// <para><b>Lista fechada, e é a única forma de expressão entrar no SQL.</b> O tipo
+    /// chega na requisição; o que vai para a consulta é uma destas constantes, escolhida
+    /// por comparação. Nada é concatenado a partir do que o cliente mandou.</para>
+    /// </summary>
+    public static string ExpressaoDoImposto(string imposto, bool devolucao) => imposto switch
+    {
+        // ST e FECP no mesmo número, como no DRE.
+        "st" => "(nvl(MV.st,0) + nvl(MVC.vlfecp,0))",
+        "pis" => "( mv.VLPIS - (mv.custocont * mv.PERPIS/100) )",
+        "cofins" => "( mv.vlcofins - (mv.custocont * mv.PERCOFINS/100) )",
+        _ => throw new ArgumentOutOfRangeException(
+            nameof(imposto), imposto, "Imposto não reconhecido. Aceitos: st, pis, cofins."),
+    };
+
 }
