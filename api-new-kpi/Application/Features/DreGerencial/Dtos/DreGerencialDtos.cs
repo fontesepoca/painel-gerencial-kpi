@@ -141,7 +141,28 @@ public record LinhaDreDto(
     bool Zerada,
     string? Cor,
     /// <summary>Destino do duplo clique, ou `null` se a linha não abre detalhamento.</summary>
-    DetalheDisponivelDto? Detalhe);
+    DetalheDisponivelDto? Detalhe,
+    /// <summary>
+    /// De que outras linhas este total é feito — vazio quando a linha não é um totalizador.
+    ///
+    /// <para>É o detalhamento dos totalizadores, e ele <b>não passa pelo banco</b>: o valor
+    /// deles já é aritmética sobre linhas que estão na mesma resposta. Mandar as parcelas por
+    /// referência, e não com os valores repetidos, é o que impede a tela de mostrar um total
+    /// que discorda das próprias linhas que ela lista.</para>
+    ///
+    /// <para>`SUB-TOTAL` referencia as dezenas de linhas do bloco operacional; os outros
+    /// quatro têm duas parcelas cada.</para>
+    /// </summary>
+    IReadOnlyList<ParcelaDto> Composicao);
+
+/// <summary>
+/// Uma parcela de um totalizador, apontando para outra linha da mesma apuração.
+///
+/// <para><see cref="Sinal"/> é sempre `+1` hoje: as despesas já chegam negativas do banco e
+/// os totalizadores somam. Existe porque a alternativa seria a tela adivinhar o sinal a
+/// partir do rótulo, e um dia haver um totalizador que subtrai.</para>
+/// </summary>
+public record ParcelaDto(string ChaveOrdem, string Rotulo, int Sinal);
 
 /// <summary>
 /// Filtro do detalhamento — o duplo clique numa célula.

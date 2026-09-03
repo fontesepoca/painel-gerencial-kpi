@@ -69,6 +69,13 @@ export function TabelaDre({
     periodo: { dataInicio: string; dataFim: string };
   } | null>(null);
 
+  /** Composição de um totalizador. Vive fora do `detalhe` porque não passa pela API. */
+  const [composicao, setComposicao] = useState<{
+    titulo: string;
+    total: number;
+    parcelas: { rotulo: string; valor: number; semMovimento: boolean }[];
+  } | null>(null);
+
   const deslocadas = useMemo(
     () =>
       new Set(
@@ -281,8 +288,44 @@ export function TabelaDre({
     [filtro, periodos, consultaDetalhe],
   );
 
+  /**
+   * Detalhamento de um totalizador: de que linhas ele é feito.
+   *
+   * **Não vai ao banco.** O valor de um totalizador é aritmética sobre linhas que já estão
+   * na tela; perguntar ao Oracle de onde ele vem seria refazer lá uma conta já feita aqui,
+   * e abrir a porta para os dois números discordarem. As parcelas chegam por referência e
+   * o valor de cada uma é lido da própria linha citada — os dois lados leem o mesmo número.
+   */
+  const abrirComposicao = useCallback(
+    (linha: LinhaDre, mesAno: string | null) => {
+      const valorDe = (l: LinhaDre) =>
+        mesAno ? (l.valores.find((v) => v.mesAno === mesAno)?.valor ?? 0) : l.total.valor;
+
+      const parcelas = (linha.composicao ?? []).flatMap((p) => {
+        const alvo = ordenadas.find((l) => l.chaveOrdem === p.chaveOrdem);
+        // Parcela sem linha correspondente não vira zero: some. Um zero inventado no meio
+        // de uma composição parece uma conta que fechou.
+        return alvo
+          ? [{ rotulo: p.rotulo, valor: p.sinal * valorDe(alvo), semMovimento: alvo.semMovimento }]
+          : [];
+      });
+
+      const coluna = mesAno
+        ? (periodos.find((pp) => pp.mesAno === mesAno)?.rotulo ?? mesAno)
+        : "Total do período";
+
+      setComposicao({
+        titulo: `${linha.descricao.trim()} · ${coluna}`,
+        total: valorDe(linha),
+        parcelas,
+      });
+    },
+    [ordenadas, periodos],
+  );
+
   const fecharDetalhe = useCallback(() => {
     setDetalhe(null);
+    setComposicao(null);
     consultaDetalhe.reset();
   }, [consultaDetalhe]);
 
@@ -433,7 +476,14 @@ export function TabelaDre({
                   }}
                   onTeclado={(direcao) => moverPorTeclado(indice, direcao)}
                   onDetalhe={
-                    linha.detalhe ? (mesAno) => abrirDetalhe(linha, mesAno) : null
+                    linha.detalhe
+                      ? (mesAno) => abrirDetalhe(linha, mesAno)
+                      : // `?? []` de propósito: uma API mais velha que este front não
+                        // manda `composicao`, e o que se perde então é o duplo clique no
+                        // totalizador — não a tela inteira em branco.
+                        (linha.composicao ?? []).length > 0
+                        ? (mesAno) => abrirComposicao(linha, mesAno)
+                        : null
                   }
                 />
               );
@@ -453,11 +503,12 @@ export function TabelaDre({
       />
 
       <ModalDetalhe
-        aberto={detalhe !== null}
-        titulo={detalhe?.titulo ?? ""}
+        aberto={detalhe !== null || composicao !== null}
+        titulo={detalhe?.titulo ?? composicao?.titulo ?? ""}
         periodo={detalhe?.periodo ?? null}
         dados={consultaDetalhe.data}
-        carregando={consultaDetalhe.isPending}
+        composicao={composicao}
+        carregando={detalhe !== null && consultaDetalhe.isPending}
         erro={
           consultaDetalhe.error instanceof Error ? consultaDetalhe.error.message : null
         }

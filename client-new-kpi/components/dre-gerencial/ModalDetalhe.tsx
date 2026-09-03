@@ -11,12 +11,22 @@ import type {
   Detalhamento,
 } from "@/types/dre-gerencial";
 
+/** Composição de um totalizador — montada no front, sem passar pela API. */
+export interface Composicao {
+  titulo: string;
+  total: number;
+  parcelas: { rotulo: string; valor: number; semMovimento: boolean }[];
+}
+
 /**
  * Detalhamento de uma célula — o que a 9815 abre com duplo clique no valor.
  *
  * <b>O total desta tela soma o valor da linha clicada.</b> Não é assim na 9815: duas das
  * três telas dela usam critérios diferentes dos da apuração e fecham em outro número.
  * Corrigido de propósito, medido e revertível — `docs/DIVERGENCIAS.md` §4.
+ *
+ * <b>Quatro telas, não três.</b> As de cliente, motivo e lançamento vêm do banco; a de
+ * composição é montada aqui, das linhas que já estão na tabela — ver `TabelaComposicao`.
  *
  * Usa `<dialog>` nativo pelos mesmos motivos do aviso de mover linha: foco preso, `Esc` e
  * semântica de diálogo vêm do navegador.
@@ -26,6 +36,7 @@ export function ModalDetalhe({
   titulo,
   periodo,
   dados,
+  composicao,
   carregando,
   erro,
   onFechar,
@@ -34,6 +45,8 @@ export function ModalDetalhe({
   titulo: string;
   periodo: { dataInicio: string; dataFim: string } | null;
   dados: Detalhamento | undefined;
+  /** Quando presente, o modal mostra a composição em vez do resultado da API. */
+  composicao: Composicao | null;
   carregando: boolean;
   erro: string | null;
   onFechar: () => void;
@@ -103,7 +116,9 @@ export function ModalDetalhe({
             </p>
           )}
 
-          {dados && !carregando && !erro && <Conteudo dados={dados} />}
+          {composicao && <TabelaComposicao {...composicao} />}
+
+          {!composicao && dados && !carregando && !erro && <Conteudo dados={dados} />}
         </div>
       </div>
     </dialog>
@@ -146,6 +161,84 @@ function Conteudo({ dados }: { dados: Detalhamento }) {
     return <TabelaMotivos linhas={dados.motivos ?? []} />;
   }
   return <TabelaLancamentos linhas={dados.lancamentos ?? []} />;
+}
+
+/**
+ * De que linhas um totalizador é feito.
+ *
+ * Diferente das outras três telas, esta não lista dado do banco: lista as linhas da própria
+ * tabela que somam naquele número. É a resposta para "como se chegou aqui", que nas linhas
+ * de despesa é "destes lançamentos" e nos totalizadores é "destas linhas".
+ *
+ * O total no rodapé é lido da linha clicada, e não da soma das parcelas — se um dia os dois
+ * discordarem, é defeito de apuração, e esconder isso somando o que está na tela seria
+ * apagar justamente o sinal.
+ */
+function TabelaComposicao({ total, parcelas }: Composicao) {
+  const diferenca = total - soma(parcelas, (p) => p.valor);
+
+  /**
+   * Meio centavo de tolerância. Somar 126 parcelas em ponto flutuante deixa resto — a
+   * primeira versão disto comparava com zero e acendia o aviso mostrando `0,00`, que é o
+   * pior tipo de alarme: o que diz que há um problema e exibe o número certo ao lado.
+   *
+   * Os valores são moeda arredondada a duas casas, então qualquer divergência real é de
+   * pelo menos um centavo e passa por aqui.
+   */
+  const naoFecha = Math.abs(diferenca) >= 0.005;
+
+  return (
+    <table className="w-full border-collapse text-[length:var(--fs-base)]">
+      <Cabecalho>
+        <th className={cn(TH, "col-identidade text-left")}>Linha</th>
+        <th className={cn(TH, "text-right")}>Valor</th>
+      </Cabecalho>
+
+      <tbody>
+        {parcelas.map((p, i) => (
+          <tr
+            key={p.rotulo + i}
+            className="border-b border-[var(--border)] odd:bg-[var(--zebra)] hover:bg-[var(--surface-2)]"
+          >
+            <td className={cn(TD, "col-identidade")}>
+              {p.rotulo}
+              {p.semMovimento && (
+                <span className="ml-2 text-[length:var(--fs-apoio)] text-[var(--text-muted)]">
+                  sem lançamento no período
+                </span>
+              )}
+            </td>
+            <td
+              className={cn(
+                NUM,
+                p.valor < 0 ? "text-[var(--negative)]" : "text-[var(--text-primary)]",
+              )}
+            >
+              {formatarValor(p.valor)}
+            </td>
+          </tr>
+        ))}
+
+        {/* Só aparece se houver o que explicar. Uma linha de "diferença: 0,00" em toda
+            composição treina o olho a ignorá-la, e aí ela não avisa no dia em que valer. */}
+        {naoFecha && (
+          <tr className="border-b border-[var(--border)]">
+            <td className={cn(TD, "col-identidade text-[var(--warning)]")}>
+              Diferença não explicada pelas parcelas
+            </td>
+            <td className={cn(NUM, "text-[var(--warning)]")}>{formatarValor(diferenca)}</td>
+          </tr>
+        )}
+      </tbody>
+
+      <Total>
+        <td className={cn(TD, "col-identidade")}>
+          {parcelas.length} {parcelas.length === 1 ? "parcela" : "parcelas"}
+        </td>
+        <td className={NUM}>{formatarValor(total)}</td>
+      </Total>
+    </table>
+  );
 }
 
 function Vazio() {

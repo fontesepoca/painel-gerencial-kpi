@@ -110,7 +110,8 @@ public static class MontadorDre
                      l.Estrutura.AntesLl, l.Estrutura.AntesLf)) == 0,
                 Zerada: valores.All(v => v.Valor == 0m),
                 Cor: CorDelphi.ParaCss(l.Estrutura.Cor),
-                Detalhe: ResolverDetalhe(l));
+                Detalhe: ResolverDetalhe(l),
+                Composicao: ResolverComposicao(l, linhas, chavesOrdem));
         }).ToList();
 
         return new ApuracaoDto(
@@ -146,10 +147,18 @@ public static class MontadorDre
         {
             return l.Rotulo switch
             {
-                // As duas abrem a MESMA tela na 9815, com a mesma consulta.
-                ReceitaBruta or ReceitaLiquida => new("receita-por-cliente", null, null),
-                Devolucao                      => new("devolucao-por-motivo", null, null),
-                _                              => null,
+                // As duas primeiras abrem a MESMA tela na 9815, com a mesma consulta.
+                //
+                // `ABAT./DESC.` e `CMV LIQ.` **não abrem nada na 9815** — e passam a abrir
+                // aqui porque a tela de receita por cliente já traz as duas como coluna, e
+                // a dc9 mediu em 02/09/2026 que as duas colunas fecham ao centavo com as
+                // respectivas linhas do DRE. Era detalhamento pronto atrás de um duplo
+                // clique que ninguém tinha ligado.
+                ReceitaBruta or ReceitaLiquida or AbatDesc or CmvLiq
+                    => new("receita-por-cliente", null, null),
+                Devolucao
+                    => new("devolucao-por-motivo", null, null),
+                _   => null,
             };
         }
 
@@ -158,6 +167,63 @@ public static class MontadorDre
                   : "orfa";
 
         return new("lancamentos", bloco, l.Estrutura.CodGruConta);
+    }
+
+    /// <summary>
+    /// De que outras linhas cada totalizador é feito.
+    ///
+    /// <para>É o detalhamento das cinco linhas que não vêm do banco: o valor delas é
+    /// aritmética sobre linhas que já estão na resposta. Perguntar ao Oracle de onde vem o
+    /// `LUCRO LIQUIDO` seria refazer no banco uma conta que já foi feita aqui — e abriria a
+    /// porta para os dois números discordarem.</para>
+    ///
+    /// <para>As parcelas vão <b>por referência</b>, e é isso que garante que a tela de
+    /// composição não pode mostrar um total diferente das linhas que ela lista: os dois
+    /// lados leem o mesmo valor.</para>
+    ///
+    /// <para>Os blocos saem das flags, como no resto do montador. `SUB-TOTAL` é a soma das
+    /// linhas com `AntesRo = 'S'`; `TOTAL DAS DESPESAS` acrescenta a ele as de
+    /// `AntesLl = 'S'`. Nomear as linhas aqui faria a tela mentir no dia em que o cadastro
+    /// mudasse.</para>
+    /// </summary>
+    private static IReadOnlyList<ParcelaDto> ResolverComposicao(
+        LinhaEmMontagem linha,
+        List<LinhaEmMontagem> todas,
+        string[] chaves)
+    {
+        if (!linha.Calculada) return [];
+
+        ParcelaDto? PorRotulo(string rotulo)
+        {
+            var i = todas.FindIndex(x => x.Calculada && x.Rotulo == rotulo);
+            return i < 0 ? null : new ParcelaDto(chaves[i], todas[i].Estrutura.Grupo.Trim(), 1);
+        }
+
+        List<ParcelaDto> DoBloco(Func<LinhaEstruturaDre, bool> pertence) =>
+            todas
+                .Select((x, i) => (x, i))
+                .Where(p => !p.x.Calculada && pertence(p.x.Estrutura))
+                .Select(p => new ParcelaDto(chaves[p.i], p.x.Estrutura.Grupo.Trim(), 1))
+                .ToList();
+
+        List<ParcelaDto?> partes = linha.Rotulo switch
+        {
+            // O CMV já chega negativo na linha, então aqui é soma, não subtração.
+            LucroBruto => [PorRotulo(ReceitaLiquida), PorRotulo(CmvLiq)],
+            ResultadoOperacional => [PorRotulo(LucroBruto), PorRotulo(SubTotal)],
+            LucroLiquido => [PorRotulo(LucroBruto), PorRotulo(TotalDespesas)],
+            _ => [],
+        };
+
+        var referenciadas = partes.OfType<ParcelaDto>().ToList();
+
+        return linha.Rotulo switch
+        {
+            SubTotal => DoBloco(e => e.AntesRo == "S"),
+            TotalDespesas => [.. PorRotulo(SubTotal) is { } s ? new[] { s } : [],
+                              .. DoBloco(e => e.AntesRo != "S" && e.AntesLl == "S")],
+            _ => referenciadas,
+        };
     }
 
     /// <summary>

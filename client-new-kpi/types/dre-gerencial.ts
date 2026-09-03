@@ -80,12 +80,27 @@ export interface LinhaDre {
    * Quem decide é o servidor — o front devolve o que recebeu.
    */
   detalhe: DetalheDisponivel | null;
+  /**
+   * De que outras linhas este total é feito. Vazio quando a linha não é totalizadora.
+   *
+   * As parcelas vêm por **referência** (`chaveOrdem`), não com valor: a tela lê o valor na
+   * própria linha citada, e por isso a composição não tem como discordar do que a tabela
+   * mostra. Espelha `LinhaDreDto.Composicao`.
+   */
+  composicao: Parcela[];
 }
 
 export type TipoDetalhe =
   | "receita-por-cliente"
   | "devolucao-por-motivo"
   | "lancamentos";
+
+/** Uma parcela de um totalizador. Espelha `ParcelaDto`. */
+export interface Parcela {
+  chaveOrdem: string;
+  rotulo: string;
+  sinal: number;
+}
 
 /** Espelha `DetalheDisponivelDto`. */
 export interface DetalheDisponivel {
