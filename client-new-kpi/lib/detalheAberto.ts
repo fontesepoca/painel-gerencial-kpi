@@ -9,16 +9,21 @@ import type { Detalhamento } from "@/types/dre-gerencial";
  *
  * Duas camadas, e as duas de propósito:
  *
- * 1. **Memória do módulo.** É a que sempre funciona na navegação normal — o Next mantém o
- *    JavaScript vivo entre rotas, então o objeto atravessa intacto, sem serializar.
- * 2. **`sessionStorage`, na tentativa.** Serve só para o caso de a pessoa recarregar a
- *    página aberta. Pode falhar por cota: a receita por cliente traz 15 mil linhas, o que
- *    dá alguns megabytes, e o limite varia por navegador. Falhar aí não é problema — a
- *    camada 1 já cobriu o caminho normal, e por isso o erro é engolido.
+ * 1. **`localStorage`.** É a que faz o recurso funcionar, porque o destino é **outra aba**
+ *    e nada mais atravessa. Memória de módulo é por documento; `sessionStorage` é por aba,
+ *    e mesmo a cópia que o navegador faria para uma aba filha não acontece aqui — abrir
+ *    com `target="_blank"` implica `noopener`, e sem vínculo com a aba de origem não há o
+ *    que copiar. Sobra o armazenamento por origem.
+ * 2. **Memória do módulo.** Atalho para não desserializar megabytes de novo quando a mesma
+ *    aba reabre o mesmo detalhamento.
+ *
+ * **Guarda só o último.** Sem isso uma tarde de trabalho enche o armazenamento com
+ * detalhamentos que ninguém vai reabrir, e a gravação seguinte falha por cota — e falharia
+ * justamente na hora de usar.
  *
  * O que **não** existe aqui é buscar de novo quando não acha. Uma página de detalhamento
  * que dispara uma consulta de dois minutos porque alguém abriu o link direto seria uma
- * armadilha; a página diz que o dado não está mais em memória e manda voltar ao DRE.
+ * armadilha; a página diz que o dado não está mais disponível e manda voltar ao DRE.
  */
 export interface DetalheAberto {
   titulo: string;
@@ -32,24 +37,29 @@ const PREFIXO = "epoca:detalhe:";
 
 const memoria = new Map<string, DetalheAberto>();
 
-/** Guarda e devolve o identificador para a URL. */
-export function guardar(detalhe: DetalheAberto): string {
+/**
+ * Guarda e devolve o identificador para a URL, ou `null` se não conseguiu guardar.
+ *
+ * **`null` importa:** quem chama precisa saber que não dá para abrir a outra aba, porque
+ * ela abriria vazia. Sem armazenamento não há como atravessar, e prometer o contrário
+ * levaria a pessoa a uma tela dizendo que o dado sumiu.
+ */
+export function guardar(detalhe: DetalheAberto): string | null {
   const id = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 
-  memoria.set(id, detalhe);
-
-  // Só o último interessa. Sem isto, uma tarde de trabalho enche o armazenamento com
-  // detalhamentos que ninguém vai reabrir, e a gravação seguinte falha por cota.
   try {
-    for (const chave of Object.keys(sessionStorage)) {
-      if (chave.startsWith(PREFIXO)) sessionStorage.removeItem(chave);
+    // Limpa antes de gravar: o espaço do detalhamento anterior é o espaço deste.
+    for (const chave of Object.keys(localStorage)) {
+      if (chave.startsWith(PREFIXO)) localStorage.removeItem(chave);
     }
-    sessionStorage.setItem(PREFIXO + id, JSON.stringify(detalhe));
+    localStorage.setItem(PREFIXO + id, JSON.stringify(detalhe));
   } catch {
-    // Cota estourada ou armazenamento bloqueado: a memória do módulo cobre a navegação,
-    // e o que se perde é sobreviver a um recarregamento.
+    // Cota estourada — a receita por cliente traz 15 mil linhas — ou armazenamento
+    // bloqueado pelo navegador.
+    return null;
   }
 
+  memoria.set(id, detalhe);
   return id;
 }
 
@@ -59,11 +69,11 @@ export function recuperar(id: string): DetalheAberto | null {
   if (daMemoria) return daMemoria;
 
   try {
-    const bruto = sessionStorage.getItem(PREFIXO + id);
+    const bruto = localStorage.getItem(PREFIXO + id);
     if (!bruto) return null;
 
     const recuperado = JSON.parse(bruto) as DetalheAberto;
-    // Volta para a memória: um segundo recarregamento não precisa desserializar de novo.
+    // Guarda em memória: recarregar a aba não paga a desserialização de novo.
     memoria.set(id, recuperado);
     return recuperado;
   } catch {

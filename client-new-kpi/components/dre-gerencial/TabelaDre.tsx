@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 import { ModalMoverLinha, type MovimentoPendente } from "./ModalMoverLinha";
 import { ModalDetalhe } from "./ModalDetalhe";
 import { useDetalhe } from "@/hooks/useDreGerencial";
@@ -48,7 +47,6 @@ export function TabelaDre({
   filtro: FiltroApuracao;
 }) {
   const { ordem, salvar, limpar } = useOrdemSalva(filtro.analise);
-  const router = useRouter();
 
   // `linhas` é sempre a ordem do cadastro, como veio da API — é a referência contra a
   // qual tudo aqui é medido. `ordenadas` é o que a pessoa vê.
@@ -64,6 +62,11 @@ export function TabelaDre({
     (MovimentoPendente & { nova: LinhaDre[] }) | null
   >(null);
   const [arrastarBloco, setArrastarBloco] = useState(true);
+  /**
+   * Falha ao guardar o detalhamento para a outra aba. Raro, mas silêncio seria pior: a
+   * pessoa clicaria de novo achando que não pegou o clique.
+   */
+  const [avisoDaAba, setAvisoDaAba] = useState<string | null>(null);
   const [anuncio, setAnuncio] = useState("");
 
   const consultaDetalhe = useDetalhe();
@@ -343,13 +346,19 @@ export function TabelaDre({
   );
 
   /**
-   * Leva o detalhamento já apurado para a página dedicada.
+   * Leva o detalhamento já apurado para uma **nova aba**, deixando esta como está.
    *
-   * **Não consulta de novo.** O objeto que está na tela é guardado em memória e a página
-   * o recupera pelo id da URL — ver `lib/detalheAberto.ts`. Refazer a consulta aqui
-   * custaria de 8 s a 2 minutos para mostrar exatamente os mesmos números.
+   * **Não consulta de novo**, nem aqui nem lá: o objeto vai pelo armazenamento do
+   * navegador e a página o recupera pelo id da URL — ver `lib/detalheAberto.ts`. Refazer
+   * a consulta custaria de 8 s a 2 minutos para mostrar exatamente os mesmos números.
+   *
+   * **A aba de origem fica intacta**, com a apuração e o modal — que é o ponto de abrir
+   * em aba nova em vez de navegar: reapurar o DRE custa minutos.
+   *
+   * `noopener` porque a página nova não tem nada a fazer com esta. É o padrão de segurança
+   * para abrir aba, e nada aqui depende de `window.opener`.
    */
-  const abrirEmPagina = useCallback(() => {
+  const abrirEmNovaAba = useCallback(() => {
     if (!detalhe || !consultaDetalhe.data) return;
 
     const id = guardar({
@@ -359,12 +368,24 @@ export function TabelaDre({
       dados: consultaDetalhe.data,
     });
 
-    router.push(`/dre-gerencial/detalhe/${id}`);
-  }, [detalhe, consultaDetalhe.data, router]);
+    // Sem armazenamento não há como o dado atravessar, e a aba nova abriria vazia. Melhor
+    // dizer aqui, com o detalhamento ainda na tela, do que lá com a tela em branco.
+    if (id === null) {
+      setAvisoDaAba(
+        "O navegador recusou guardar o detalhamento, provavelmente por falta de espaço. " +
+          "Ele continua aberto aqui.",
+      );
+      return;
+    }
+
+    setAvisoDaAba(null);
+    window.open(`/dre-gerencial/detalhe/${id}`, "_blank", "noopener");
+  }, [detalhe, consultaDetalhe.data]);
 
   const fecharDetalhe = useCallback(() => {
     setDetalhe(null);
     setComposicao(null);
+    setAvisoDaAba(null);
     consultaDetalhe.reset();
   }, [consultaDetalhe]);
 
@@ -555,7 +576,8 @@ export function TabelaDre({
         onFechar={fecharDetalhe}
         // A composição dos totalizadores não vai para página: ela é aritmética sobre
         // linhas que estão na tabela atrás do modal, e fora daqui perde a referência.
-        onAbrirEmPagina={composicao ? null : abrirEmPagina}
+        onAbrirEmNovaAba={composicao ? null : abrirEmNovaAba}
+        avisoDaAba={avisoDaAba}
       />
     </>
   );

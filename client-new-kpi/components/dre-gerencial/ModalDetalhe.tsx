@@ -42,7 +42,8 @@ export function ModalDetalhe({
   carregando,
   erro,
   onFechar,
-  onAbrirEmPagina,
+  onAbrirEmNovaAba,
+  avisoDaAba,
 }: {
   aberto: boolean;
   titulo: string;
@@ -55,8 +56,10 @@ export function ModalDetalhe({
   carregando: boolean;
   erro: string | null;
   onFechar: () => void;
-  /** `null` na composição dos totalizadores: não há consulta para levar para outra tela. */
-  onAbrirEmPagina: (() => void) | null;
+  /** `null` na composição dos totalizadores: não há consulta para levar para outra aba. */
+  onAbrirEmNovaAba: (() => void) | null;
+  /** Falha ao preparar a outra aba. Fica ao lado do botão até o modal fechar. */
+  avisoDaAba: string | null;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
 
@@ -107,11 +110,11 @@ export function ModalDetalhe({
           <div className="flex shrink-0 items-center gap-2">
             {/* Só aparece quando há o que levar. Com a consulta em andamento ou em erro,
                 não existe detalhamento para abrir em lugar nenhum. */}
-            {onAbrirEmPagina && dados && !carregando && !erro && (
+            {onAbrirEmNovaAba && dados && !carregando && !erro && (
               <button
                 type="button"
-                onClick={onAbrirEmPagina}
-                title="Abre este mesmo detalhamento numa página inteira. Não consulta o banco de novo."
+                onClick={onAbrirEmNovaAba}
+                title="Abre este mesmo detalhamento numa aba nova, sem consultar o banco de novo. Esta aba continua como está."
                 className="flex items-center gap-2 rounded-[var(--radius-md)] border border-[var(--border-strong)] px-4 py-2 text-[length:var(--fs-base)] font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-2)] hover:text-[var(--text-primary)]"
               >
                 {/* Seta saindo de uma moldura: o ícone que a web inteira usa para "isto
@@ -131,7 +134,7 @@ export function ModalDetalhe({
                   <path d="M20 4 12 12" />
                   <path d="M18 14v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4" />
                 </svg>
-                Abrir em página
+                Abrir em nova aba
               </button>
             )}
 
@@ -144,6 +147,17 @@ export function ModalDetalhe({
               Fechar
             </button>
           </div>
+
+          {/* Largura cheia, embaixo dos botões: uma falha silenciosa faria a pessoa clicar
+              de novo achando que o clique não pegou. */}
+          {avisoDaAba && (
+            <p
+              role="status"
+              className="w-full text-[length:var(--fs-apoio)] text-[var(--warning)]"
+            >
+              {avisoDaAba}
+            </p>
+          )}
         </header>
 
         <div className="min-h-0 flex-1 overflow-auto">
