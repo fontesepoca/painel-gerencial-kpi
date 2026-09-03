@@ -42,6 +42,7 @@ export function ModalDetalhe({
   carregando,
   erro,
   onFechar,
+  onAbrirEmPagina,
 }: {
   aberto: boolean;
   titulo: string;
@@ -54,6 +55,8 @@ export function ModalDetalhe({
   carregando: boolean;
   erro: string | null;
   onFechar: () => void;
+  /** `null` na composição dos totalizadores: não há consulta para levar para outra tela. */
+  onAbrirEmPagina: (() => void) | null;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
 
@@ -101,14 +104,46 @@ export function ModalDetalhe({
             )}
           </div>
 
-          <button
-            type="button"
-            onClick={onFechar}
-            aria-label="Fechar detalhamento"
-            className="shrink-0 rounded-[var(--radius-md)] border border-[var(--border-strong)] px-4 py-2 text-[length:var(--fs-base)] font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-2)] hover:text-[var(--text-primary)]"
-          >
-            Fechar
-          </button>
+          <div className="flex shrink-0 items-center gap-2">
+            {/* Só aparece quando há o que levar. Com a consulta em andamento ou em erro,
+                não existe detalhamento para abrir em lugar nenhum. */}
+            {onAbrirEmPagina && dados && !carregando && !erro && (
+              <button
+                type="button"
+                onClick={onAbrirEmPagina}
+                title="Abre este mesmo detalhamento numa página inteira. Não consulta o banco de novo."
+                className="flex items-center gap-2 rounded-[var(--radius-md)] border border-[var(--border-strong)] px-4 py-2 text-[length:var(--fs-base)] font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-2)] hover:text-[var(--text-primary)]"
+              >
+                {/* Seta saindo de uma moldura: o ícone que a web inteira usa para "isto
+                    abre em outro lugar". Sem o traço para fora vira "maximizar", que é
+                    outra ação e já existe nesta tela. */}
+                <svg
+                  aria-hidden
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="size-[1.15em] shrink-0"
+                >
+                  <path d="M14 4h6v6" />
+                  <path d="M20 4 12 12" />
+                  <path d="M18 14v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4" />
+                </svg>
+                Abrir em página
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={onFechar}
+              aria-label="Fechar detalhamento"
+              className="rounded-[var(--radius-md)] border border-[var(--border-strong)] px-4 py-2 text-[length:var(--fs-base)] font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-2)] hover:text-[var(--text-primary)]"
+            >
+              Fechar
+            </button>
+          </div>
         </header>
 
         <div className="min-h-0 flex-1 overflow-auto">
@@ -123,10 +158,7 @@ export function ModalDetalhe({
           {composicao && <TabelaComposicao {...composicao} />}
 
           {!composicao && dados && !carregando && !erro && (
-            <>
-              <ResumoDoCalculo dados={dados} linha={linha} />
-              <Conteudo dados={dados} />
-            </>
+            <CorpoDoDetalhe dados={dados} linha={linha} />
           )}
         </div>
       </div>
@@ -159,6 +191,28 @@ function Esperando() {
         minutos.
       </p>
     </div>
+  );
+}
+
+/**
+ * O corpo do detalhamento: o resumo do cálculo e a tabela.
+ *
+ * Exportado porque a página dedicada mostra exatamente isto. **Uma implementação só para as
+ * duas telas** — se cada uma tivesse a sua, a página e o modal começariam iguais e
+ * divergiriam na primeira correção feita em um dos dois.
+ */
+export function CorpoDoDetalhe({
+  dados,
+  linha,
+}: {
+  dados: Detalhamento;
+  linha: { descricao: string; valor: number } | null;
+}) {
+  return (
+    <>
+      <ResumoDoCalculo dados={dados} linha={linha} />
+      <Conteudo dados={dados} />
+    </>
   );
 }
 

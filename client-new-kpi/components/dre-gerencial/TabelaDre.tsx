@@ -1,12 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { ModalMoverLinha, type MovimentoPendente } from "./ModalMoverLinha";
 import { ModalDetalhe } from "./ModalDetalhe";
 import { useDetalhe } from "@/hooks/useDreGerencial";
 import { recorteDoMes } from "@/lib/periodos";
 import { useOrdemSalva } from "@/hooks/useOrdemSalva";
 import { passoDeRolagem } from "@/lib/rolagemAutomatica";
+import { guardar } from "@/lib/detalheAberto";
 import { cn } from "@/lib/cn";
 import { formatarPercentual, formatarValor } from "@/lib/formato";
 import {
@@ -46,6 +48,7 @@ export function TabelaDre({
   filtro: FiltroApuracao;
 }) {
   const { ordem, salvar, limpar } = useOrdemSalva(filtro.analise);
+  const router = useRouter();
 
   // `linhas` é sempre a ordem do cadastro, como veio da API — é a referência contra a
   // qual tudo aqui é medido. `ordenadas` é o que a pessoa vê.
@@ -339,6 +342,26 @@ export function TabelaDre({
     [ordenadas, periodos],
   );
 
+  /**
+   * Leva o detalhamento já apurado para a página dedicada.
+   *
+   * **Não consulta de novo.** O objeto que está na tela é guardado em memória e a página
+   * o recupera pelo id da URL — ver `lib/detalheAberto.ts`. Refazer a consulta aqui
+   * custaria de 8 s a 2 minutos para mostrar exatamente os mesmos números.
+   */
+  const abrirEmPagina = useCallback(() => {
+    if (!detalhe || !consultaDetalhe.data) return;
+
+    const id = guardar({
+      titulo: detalhe.titulo,
+      periodo: detalhe.periodo,
+      linha: detalhe.linha,
+      dados: consultaDetalhe.data,
+    });
+
+    router.push(`/dre-gerencial/detalhe/${id}`);
+  }, [detalhe, consultaDetalhe.data, router]);
+
   const fecharDetalhe = useCallback(() => {
     setDetalhe(null);
     setComposicao(null);
@@ -530,6 +553,9 @@ export function TabelaDre({
           consultaDetalhe.error instanceof Error ? consultaDetalhe.error.message : null
         }
         onFechar={fecharDetalhe}
+        // A composição dos totalizadores não vai para página: ela é aritmética sobre
+        // linhas que estão na tabela atrás do modal, e fora daqui perde a referência.
+        onAbrirEmPagina={composicao ? null : abrirEmPagina}
       />
     </>
   );
