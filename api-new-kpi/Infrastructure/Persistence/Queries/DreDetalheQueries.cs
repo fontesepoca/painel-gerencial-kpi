@@ -405,16 +405,21 @@ public static class DreDetalheQueries
     /// devolve constante — nada aqui é montado a partir do que chega na requisição.</para>
     /// </summary>
     public const string ImpostoPorProduto = """
+        -- Os nomes da subconsulta terminam em ITEM, e os de fora nao. Nao e enfeite:
+        -- com `SUM(VENDAS) AS VENDAS`, o `ORDER BY SUM(VENDAS - DEVOLUCOES)` resolve
+        -- VENDAS como o ALIAS DE SAIDA, e a expressao vira SUM(SUM(...)). O Oracle
+        -- recusa com ORA-00935, "funcao de grupo aninhada muito profundamente" — uma
+        -- mensagem que manda procurar SUM dentro de SUM no texto, onde nao ha nenhum.
         SELECT CODPROD, PRODUTO,
-               SUM(QDENF)                  AS QDENF,
-               SUM(VENDAS)                 AS VENDAS,
-               SUM(DEVOLUCOES)             AS DEVOLUCOES,
-               SUM(VENDAS - DEVOLUCOES)    AS LIQUIDO
+               SUM(QDENFITEM)                       AS QDENF,
+               SUM(VENDASITEM)                      AS VENDAS,
+               SUM(DEVOLUCOESITEM)                  AS DEVOLUCOES,
+               SUM(VENDASITEM - DEVOLUCOESITEM)     AS LIQUIDO
           FROM (
                 SELECT PR.CODPROD AS CODPROD, PR.DESCRICAO AS PRODUTO,
-                       COUNT(DISTINCT NF.NUMNOTA)  AS QDENF,
-                       SUM({0} * MV.qt)            AS VENDAS,
-                       0                           AS DEVOLUCOES
+                       COUNT(DISTINCT NF.NUMNOTA)  AS QDENFITEM,
+                       SUM({0} * MV.qt)            AS VENDASITEM,
+                       0                           AS DEVOLUCOESITEM
                   FROM PCNFSAID NF, PCMOV MV, PCMOVCOMPLE MVC, PCPRODUT PR,
                        (SELECT clie.codcli, ce.codfil, ce.mostra_dre
                           FROM cliente_especial ce, pcclient clie
@@ -467,8 +472,8 @@ public static class DreDetalheQueries
                  GROUP BY PR.CODPROD, PR.DESCRICAO
                )
          GROUP BY CODPROD, PRODUTO
-        HAVING SUM(VENDAS - DEVOLUCOES) <> 0
-         ORDER BY SUM(VENDAS - DEVOLUCOES) DESC
+        HAVING SUM(VENDASITEM - DEVOLUCOESITEM) <> 0
+         ORDER BY SUM(VENDASITEM - DEVOLUCOESITEM) DESC
         """;
 
     /// <summary>

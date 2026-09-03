@@ -279,3 +279,34 @@ de ambiente — o tipo que passa em desenvolvimento e quebra em produção.
 
 A mesma regra vale para o inverso: **nunca compare `DATE` com literal de texto** confiando na
 conversão implícita. Sempre `DATE` com `DATE`, via parâmetro.
+
+## Alias de saída que repete o nome da coluna de dentro
+
+Custou uma execução da dc6 em 03/09/2026 — três linhas voltaram com `ORA-00935`, *"a função
+de grupo está aninhada muito profundamente"*, numa consulta sem um único `SUM` dentro de
+outro.
+
+```sql
+-- QUEBRA: o alias de saída se chama igual à coluna da subconsulta
+SELECT SUM(VENDAS) AS VENDAS, SUM(DEVOLUCOES) AS DEVOLUCOES
+  FROM ( ... )
+ ORDER BY SUM(VENDAS - DEVOLUCOES) DESC
+```
+
+No `ORDER BY`, o Oracle resolve `VENDAS` como o **alias de saída** — que já é `SUM(VENDAS)`.
+A expressão vira `SUM(SUM(VENDAS) - SUM(DEVOLUCOES))`, e aí sim há aninhamento. A mensagem
+manda procurar `SUM` dentro de `SUM` no texto, onde não existe nenhum.
+
+```sql
+-- Correto: os nomes de dentro e de fora são diferentes
+SELECT SUM(VENDASITEM) AS VENDAS, SUM(DEVOLUCOESITEM) AS DEVOLUCOES
+  FROM ( ... )
+ ORDER BY SUM(VENDASITEM - DEVOLUCOESITEM) DESC
+```
+
+**A regra:** numa consulta com subconsulta agregada, dê nomes distintos às colunas de
+dentro. O sufixo `ITEM` é a convenção adotada em `DreDetalheQueries.ImpostoPorProduto`.
+
+Vale para `ORDER BY` e `HAVING`, que são onde a resolução por alias acontece. O `SELECT` em
+si não tem o problema — o que confunde é justamente isso: a consulta parece certa até
+alguém ordenar por uma expressão.
