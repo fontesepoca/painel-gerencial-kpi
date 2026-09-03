@@ -83,6 +83,9 @@ export default function DreGerencialPage() {
         {dados && !apuracao.isPending && (
           // A altura da tabela deixa de ser chutada: esta secao pega o que sobra da
           // coluna, e a rolagem interna dela se ajusta sozinha a qualquer janela.
+          <>
+          <FolhaDaImpressao meses={dados.periodos.length} />
+
           <section
             className={cn(
               "flex min-h-0 flex-1 flex-col rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface-1)] shadow-[var(--shadow-card)]",
@@ -91,7 +94,8 @@ export default function DreGerencialPage() {
               // deitada, três ou mais em A2 deitada. Ver o bloco IMPRESSÃO em
               // globals.css — só o componente sabe quantos meses foram apurados.
               dados.periodos.length === 2 && "folha-media",
-              dados.periodos.length >= 3 && "folha-larga",
+              dados.periodos.length === 3 && "folha-larga",
+              dados.periodos.length >= 4 && "folha-cheia",
             )}
           >
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border)] px-4 py-2.5">
@@ -155,6 +159,7 @@ export default function DreGerencialPage() {
               }}
             />
           </section>
+          </>
         )}
 
         {!dados && !apuracao.isPending && !apuracao.isError && <Inicial />}
@@ -254,6 +259,32 @@ function BotaoImprimir() {
       Imprimir
     </button>
   );
+}
+
+/**
+ * Escreve o tamanho da folha de impressão, conforme o número de meses apurados.
+ *
+ * **Por que não está no `globals.css`.** `@page` não aceita variável CSS no `size`, e as
+ * duas formas de contornar isso falharam, as duas com o mesmo sintoma — A4 em pé com a
+ * tabela cortada:
+ *
+ * 1. `size: A2 landscape` não vale nada: **`A2` não existe** na especificação. Os nomes
+ *    param no A3, e nome desconhecido invalida a declaração inteira.
+ * 2. Páginas nomeadas (`page: folha-larga`) têm suporte irregular.
+ *
+ * Aqui não há nome de página nem palavra-chave de tamanho: só dois comprimentos em
+ * milímetros, que é a forma que a especificação garante. `594mm 420mm` é largura por
+ * altura — deitado é escrever a maior primeiro, sem depender de `landscape`.
+ *
+ * As medidas de fonte continuam no CSS, nas classes `folha-media` e `folha-larga`.
+ */
+function FolhaDaImpressao({ meses }: { meses: number }) {
+  // A2 foi testada e descartada em 03/09/2026: além de o nome não existir em CSS, é
+  // formato que a empresa não imprime. Fica A4 em pé para um mês e A3 deitada para o
+  // resto, e o que se ajusta ao número de colunas é a fonte, não a folha.
+  const tamanho = meses === 1 ? "210mm 297mm" : "420mm 297mm";
+
+  return <style>{`@page { size: ${tamanho}; }`}</style>;
 }
 
 function Inicial() {
