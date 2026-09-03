@@ -506,8 +506,8 @@ html[data-leitura="ampliada"] .puxador {
    Vale para todo canto onde uma faixa fixa cobre conteúdo que rola. Se um dia
    outra tabela ganhar cabeçalho fixo, ela precisa disto também. */
 .tabela-rolagem thead tr,
-.dialogo-detalhe thead tr,
-.dialogo-detalhe tfoot tr {
+.tabela-detalhe thead tr,
+.tabela-detalhe tfoot tr {
   border-width: 0;
 }
 
@@ -519,11 +519,11 @@ html[data-leitura="ampliada"] .puxador {
 /* Separador entre o cabeçalho e o corpo — o mais exposto, porque é sob ele que
    cada linha passa. */
 .tabela-rolagem thead tr:last-child > th,
-.dialogo-detalhe thead tr:last-child > th {
+.tabela-detalhe thead tr:last-child > th {
   box-shadow: inset 0 -1px 0 var(--border-strong);
 }
 
-.dialogo-detalhe tfoot tr > td {
+.tabela-detalhe tfoot tr > td {
   box-shadow: inset 0 1px 0 var(--border-strong);
 }
 
@@ -546,8 +546,8 @@ html[data-leitura="ampliada"] .puxador {
    `:not()` nas células que já são fixas: sobrescrever o `position: sticky` delas
    por `relative` derruba a coluna fixa e o canto do cabeçalho. */
 .tabela-rolagem thead th:not(.celula-descricao),
-.dialogo-detalhe thead th:not(.col-identidade),
-.dialogo-detalhe tfoot td:not(.col-identidade) {
+.tabela-detalhe thead th:not(.col-identidade),
+.tabela-detalhe tfoot td:not(.col-identidade) {
   position: relative;
 }
 
@@ -733,31 +733,31 @@ tr:focus-within .tem-detalhe .valor-clicavel {
    documento, e as linhas roladas passavam por cima do cabeçalho E do rodapé.
    Foi o mesmo mecanismo que fez o cabeçalho da tabela principal furar o menu de
    atalhos de período. */
-.dialogo-detalhe thead {
+.tabela-detalhe thead {
   position: sticky;
   top: 0;
   z-index: 20;
   background: var(--surface-1);
 }
 
-.dialogo-detalhe tfoot {
+.tabela-detalhe tfoot {
   position: sticky;
   bottom: 0;
   z-index: 20;
   background: var(--surface-2);
 }
 
-.dialogo-detalhe tfoot .col-identidade {
+.tabela-detalhe tfoot .col-identidade {
   background: var(--surface-2);
 }
 
 /* Zebra e realce vivem na linha, que rola junto; a célula fixa repete os dois por
    conta própria, senão a coluna sai lisa enquanto o resto da linha está zebrado. */
-.dialogo-detalhe tbody tr:nth-child(odd) > .col-identidade {
+.tabela-detalhe tbody tr:nth-child(odd) > .col-identidade {
   background-image: linear-gradient(var(--zebra), var(--zebra));
 }
 
-.dialogo-detalhe tbody tr:hover > .col-identidade {
+.tabela-detalhe tbody tr:hover > .col-identidade {
   background-color: var(--surface-2);
 }
 
@@ -776,7 +776,7 @@ tr:focus-within .tem-detalhe .valor-clicavel {
    ═══════════════════════════════════════════════════════════════ */
 
 .tabela-rolagem table,
-.dialogo-detalhe table {
+.tabela-detalhe table {
   line-height: 1.25;
 }
 
@@ -806,7 +806,7 @@ tr:focus-within .tem-detalhe .valor-clicavel {
   border-bottom: 1px solid var(--border-strong);
 }
 
-.dialogo-detalhe tbody tr.linha-subtotal > .col-identidade {
+.tabela-detalhe tbody tr.linha-subtotal > .col-identidade {
   background-color: var(--surface-1);
 }
 

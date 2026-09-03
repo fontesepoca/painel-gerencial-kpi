@@ -160,7 +160,7 @@ export function ModalDetalhe({
           )}
         </header>
 
-        <div className="min-h-0 flex-1 overflow-auto">
+        <div className="tabela-detalhe min-h-0 flex-1 overflow-auto">
           {carregando && <Esperando />}
 
           {erro && !carregando && (

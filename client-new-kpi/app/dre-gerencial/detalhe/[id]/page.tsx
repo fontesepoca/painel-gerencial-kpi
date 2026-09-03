@@ -62,7 +62,7 @@ export default function DetalhePage({ params }: { params: Promise<{ id: string }
 
           {/* A mesma área de rolagem da tabela do DRE: cabeçalho e coluna fixos, uma barra
               só, e a altura vindo do que sobra na coluna. */}
-          <div className="tabela-rolagem">
+          <div className="tabela-rolagem tabela-detalhe">
             <CorpoDoDetalhe dados={detalhe.dados} linha={detalhe.linha} />
           </div>
         </section>
