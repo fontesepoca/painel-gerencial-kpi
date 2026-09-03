@@ -37,6 +37,7 @@ export function ModalDetalhe({
   titulo,
   periodo,
   dados,
+  linha,
   composicao,
   carregando,
   erro,
@@ -46,6 +47,8 @@ export function ModalDetalhe({
   titulo: string;
   periodo: { dataInicio: string; dataFim: string } | null;
   dados: Detalhamento | undefined;
+  /** A célula clicada. O resumo do cálculo se confere contra ela. */
+  linha: { descricao: string; valor: number } | null;
   /** Quando presente, o modal mostra a composição em vez do resultado da API. */
   composicao: Composicao | null;
   carregando: boolean;
@@ -119,7 +122,12 @@ export function ModalDetalhe({
 
           {composicao && <TabelaComposicao {...composicao} />}
 
-          {!composicao && dados && !carregando && !erro && <Conteudo dados={dados} />}
+          {!composicao && dados && !carregando && !erro && (
+            <>
+              <ResumoDoCalculo dados={dados} linha={linha} />
+              <Conteudo dados={dados} />
+            </>
+          )}
         </div>
       </div>
     </dialog>
@@ -165,6 +173,135 @@ function Conteudo({ dados }: { dados: Detalhamento }) {
     return <TabelaImpostos linhas={dados.impostos ?? []} />;
   }
   return <TabelaLancamentos linhas={dados.lancamentos ?? []} />;
+}
+
+/**
+ * Como se chega no total — a conta que a linha do DRE faz, com os valores dela.
+ *
+ * Pedido do dono da empresa em 03/09/2026. A tabela abaixo responde "de onde vem"; isto
+ * responde "como se calcula", que é outra pergunta e vinha sem resposta na tela.
+ *
+ * **Os números saem das mesmas linhas que a tabela lista**, somando as colunas dela. Não
+ * há segunda consulta, e por construção o resumo não pode discordar do que está logo
+ * abaixo — os dois leem as mesmas linhas.
+ *
+ * Só aparece onde existe conta de verdade. Numa lista de lançamentos o total é a soma da
+ * coluna e ponto; escrever "soma dos lançamentos = total" seria ocupar espaço para não
+ * dizer nada, e treinar o olho a pular o bloco justamente onde ele importa.
+ */
+function ResumoDoCalculo({
+  dados,
+  linha,
+}: {
+  dados: Detalhamento;
+  linha: { descricao: string; valor: number } | null;
+}) {
+  const partes = operandos(dados, linha);
+  if (partes.length === 0) return null;
+
+  const resultado = partes.reduce((s, p) => s + p.sinal * p.valor, 0);
+
+  // A linha do DRE mostra as deduções negativas e a tela soma positivo; comparar em
+  // módulo é o que faz o selo dizer a verdade nos dois casos.
+  const confere =
+    linha === null || Math.abs(Math.abs(resultado) - Math.abs(linha.valor)) < 0.005;
+
+  return (
+    <section className="border-b border-[var(--border)] bg-[var(--surface-2)] px-5 py-4">
+      <h3 className="text-[length:var(--fs-rotulo)] font-semibold tracking-[0.14em] text-[var(--text-secondary)] uppercase">
+        Como se chega no total
+      </h3>
+
+      <dl className="tabular mt-3 flex flex-col gap-1.5">
+        {partes.map((p, i) => (
+          <div key={p.rotulo} className="flex items-baseline gap-3">
+            <dt className="flex-1 text-[length:var(--fs-base)] text-[var(--text-secondary)]">
+              <span aria-hidden className="mr-2 text-[var(--text-muted)]">
+                {i === 0 ? " " : p.sinal < 0 ? "−" : "+"}
+              </span>
+              {p.rotulo}
+            </dt>
+            <dd className="text-[length:var(--fs-base)] text-[var(--text-primary)]">
+              {formatarValor(p.valor)}
+            </dd>
+          </div>
+        ))}
+
+        <div className="mt-1 flex items-baseline gap-3 border-t border-[var(--border-strong)] pt-2">
+          <dt className="flex-1 text-[length:var(--fs-base)] font-semibold text-[var(--text-primary)]">
+            <span aria-hidden className="mr-2 text-[var(--text-muted)]">
+              =
+            </span>
+            {linha?.descricao ?? "Total"}
+          </dt>
+          <dd className="text-[length:var(--fs-base)] font-semibold text-[var(--text-primary)]">
+            {formatarValor(resultado)}
+          </dd>
+        </div>
+      </dl>
+
+      {/* Só fala quando NÃO confere. Um "✓ confere" em toda abertura vira enfeite, e
+          enfeite é o que o olho aprende a não ler. */}
+      {!confere && linha && (
+        <p className="mt-3 text-[length:var(--fs-apoio)] text-[var(--warning)]">
+          Esta conta dá {formatarValor(resultado)}, e a célula clicada mostra{" "}
+          {formatarValor(linha.valor)}. Os dois deveriam bater em módulo — vale conferir
+          antes de usar o número.
+        </p>
+      )}
+    </section>
+  );
+}
+
+/**
+ * As parcelas da conta de cada tela, somando as colunas das linhas já carregadas.
+ *
+ * Lista vazia significa "esta tela não tem conta a mostrar", e o resumo some.
+ */
+function operandos(
+  dados: Detalhamento,
+  linha: { descricao: string; valor: number } | null,
+): { rotulo: string; valor: number; sinal: 1 | -1 }[] {
+  const nome = (linha?.descricao ?? "").toUpperCase();
+
+  if (dados.tipo === "imposto-por-produto") {
+    const l = dados.impostos ?? [];
+    if (l.length === 0) return [];
+
+    // O rótulo diz "imposto + FECP" com todas as letras porque a coluna soma os dois na
+    // mesma expressão — e confundir os dois números chamados ST custou dois dias.
+    //
+    // Comparação exata, e "Imposto" quando não reconhece. Com `includes` a linha
+    // `Acerto De Estoque` viraria "ST", e um encadeamento com COFINS no fim rotula de
+    // COFINS tudo que não for ST nem PIS — dizer o nome errado é pior que não dizer.
+    const imposto =
+      { "(-) ST": "ST", "(-) PIS": "PIS", "(-) COFINS": "COFINS" }[nome] ?? "Imposto";
+
+    return [
+      { rotulo: `${imposto} + FECP das vendas`, valor: soma(l, (i) => i.vendas), sinal: 1 },
+      {
+        rotulo: `${imposto} + FECP das devoluções`,
+        valor: soma(l, (i) => i.devolucoes),
+        sinal: -1,
+      },
+    ];
+  }
+
+  // A tela de receita abre a partir de QUATRO linhas, e só uma delas é resultado de uma
+  // conta. `RECEITA BRUTA`, `ABAT./DESC.` e `CMV LIQ.` são cada uma a soma de UMA coluna:
+  // para elas não há conta a mostrar, e inventar a identidade da líquida faria o resumo
+  // exibir um total que não é o da célula clicada.
+  if (dados.tipo === "receita-por-cliente" && nome.includes("LIQUIDA")) {
+    const l = dados.clientes ?? [];
+    if (l.length === 0) return [];
+    return [
+      { rotulo: "Receita bruta", valor: soma(l, (c) => c.receitaBruta), sinal: 1 },
+      { rotulo: "Abatimentos e descontos", valor: soma(l, (c) => c.desconto), sinal: -1 },
+      { rotulo: "Devoluções", valor: soma(l, (c) => c.devolucao), sinal: -1 },
+    ];
+  }
+
+  return [];
 }
 
 /**

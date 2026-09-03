@@ -67,6 +67,8 @@ export function TabelaDre({
   const [detalhe, setDetalhe] = useState<{
     titulo: string;
     periodo: { dataInicio: string; dataFim: string };
+    /** A célula clicada, para o resumo do cálculo conferir contra ela. */
+    linha: { descricao: string; valor: number };
   } | null>(null);
 
   /** Composição de um totalizador. Vive fora do `detalhe` porque não passa pela API. */
@@ -276,7 +278,21 @@ export function TabelaDre({
         ? (periodos.find((pp) => pp.mesAno === mesAno)?.rotulo ?? mesAno)
         : "Total do período";
 
-      setDetalhe({ titulo: `${linha.descricao.trim()} · ${coluna}`, periodo });
+      // O valor da célula vai junto: é contra ele que o resumo do cálculo se confere.
+      const valorDaLinha = mesAno
+        ? (linha.valores.find((v) => v.mesAno === mesAno)?.valor ?? 0)
+        : linha.total.valor;
+
+      setDetalhe({
+        titulo: `${linha.descricao.trim()} · ${coluna}`,
+        periodo,
+        linha: { descricao: linha.descricao.trim(), valor: valorDaLinha },
+      });
+
+      // Descarta o resultado anterior ANTES de pedir o novo. Sem isto existe uma janela
+      // em que o título já é o da linha nova e os números ainda são os da linha velha —
+      // e essa tela existe justamente para alguém acreditar nos números dela.
+      consultaDetalhe.reset();
       consultaDetalhe.mutate({
         ...filtro,
         ...periodo,
@@ -507,6 +523,7 @@ export function TabelaDre({
         titulo={detalhe?.titulo ?? composicao?.titulo ?? ""}
         periodo={detalhe?.periodo ?? null}
         dados={consultaDetalhe.data}
+        linha={detalhe?.linha ?? null}
         composicao={composicao}
         carregando={detalhe !== null && consultaDetalhe.isPending}
         erro={
