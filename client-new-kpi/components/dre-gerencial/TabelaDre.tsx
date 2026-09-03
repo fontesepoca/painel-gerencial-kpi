@@ -302,6 +302,15 @@ export function TabelaDre({
         mesAno ? (l.valores.find((v) => v.mesAno === mesAno)?.valor ?? 0) : l.total.valor;
 
       const parcelas = (linha.composicao ?? []).flatMap((p) => {
+        // Parcela com valor próprio: ST, PIS e COFINS, cujas partes vêm da consulta de
+        // faturamento e não existem como linha na tela.
+        if (p.valores) {
+          const valor = mesAno
+            ? (p.valores.find((v) => v.mesAno === mesAno)?.valor ?? 0)
+            : p.valores.reduce((s, v) => s + v.valor, 0);
+          return [{ rotulo: p.rotulo, valor: p.sinal * valor, semMovimento: false }];
+        }
+
         const alvo = ordenadas.find((l) => l.chaveOrdem === p.chaveOrdem);
         // Parcela sem linha correspondente não vira zero: some. Um zero inventado no meio
         // de uma composição parece uma conta que fechou.

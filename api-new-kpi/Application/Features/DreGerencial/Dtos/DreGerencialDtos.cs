@@ -156,13 +156,31 @@ public record LinhaDreDto(
     IReadOnlyList<ParcelaDto> Composicao);
 
 /// <summary>
-/// Uma parcela de um totalizador, apontando para outra linha da mesma apuração.
+/// Uma parcela de uma linha calculada. Ou aponta para outra linha da apuração, ou traz o
+/// próprio valor — nunca as duas coisas.
 ///
-/// <para><see cref="Sinal"/> é sempre `+1` hoje: as despesas já chegam negativas do banco e
-/// os totalizadores somam. Existe porque a alternativa seria a tela adivinhar o sinal a
-/// partir do rótulo, e um dia haver um totalizador que subtrai.</para>
+/// <para><b>Por referência</b> (<see cref="ChaveOrdem"/>) nos totalizadores: o valor deles é
+/// aritmética sobre linhas que já estão na resposta, e apontar em vez de copiar é o que
+/// impede a tela de mostrar um total que discorda das linhas que ela lista.</para>
+///
+/// <para><b>Com valor</b> (<see cref="Valores"/>) no ST, PIS e COFINS: as parcelas deles não
+/// são linhas do DRE, são colunas da consulta de faturamento — o ST das vendas e o das
+/// devoluções não aparecem em lugar nenhum da tela.</para>
+///
+/// <para><see cref="Sinal"/> multiplica o valor. É `-1` na parcela de devolução, que é
+/// subtraída, e `+1` no resto.</para>
 /// </summary>
-public record ParcelaDto(string ChaveOrdem, string Rotulo, int Sinal);
+public record ParcelaDto(
+    string? ChaveOrdem,
+    string Rotulo,
+    int Sinal,
+    IReadOnlyList<ValorParcelaDto>? Valores = null);
+
+/// <summary>
+/// Valor de uma parcela num mês. Sem `%AV` nem `%AH`: parcela não é linha do DRE, e uma
+/// análise vertical sobre o ST das vendas não significa nada.
+/// </summary>
+public record ValorParcelaDto(string MesAno, decimal Valor);
 
 /// <summary>
 /// Filtro do detalhamento — o duplo clique numa célula.

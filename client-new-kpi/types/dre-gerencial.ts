@@ -95,11 +95,19 @@ export type TipoDetalhe =
   | "devolucao-por-motivo"
   | "lancamentos";
 
-/** Uma parcela de um totalizador. Espelha `ParcelaDto`. */
+/**
+ * Uma parcela de uma linha calculada. Espelha `ParcelaDto`.
+ *
+ * Ou aponta para outra linha da apuração (`chaveOrdem`), ou traz o próprio valor
+ * (`valores`) — nunca as duas coisas. Totalizadores apontam; ST, PIS e COFINS trazem,
+ * porque as parcelas deles são colunas da consulta de faturamento e não existem como
+ * linha em lugar nenhum da tela.
+ */
 export interface Parcela {
-  chaveOrdem: string;
+  chaveOrdem: string | null;
   rotulo: string;
   sinal: number;
+  valores: { mesAno: string; valor: number }[] | null;
 }
 
 /** Espelha `DetalheDisponivelDto`. */

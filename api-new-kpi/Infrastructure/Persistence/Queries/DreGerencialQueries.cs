@@ -898,7 +898,21 @@ public static class DreGerencialQueries
                Sum(NVL(VLCUSTOFIN,0)) - Sum(NVL(VLCMVDEVOL,0))     AS CMVLIQ,
                sum(nvl(VLST,0))     - sum(nvl(VLST_DEV,0))         AS STLIQ,
                sum(nvl(VLPIS,0))    - sum(nvl(VLPIS_DEV,0))        AS PISLIQ,
-               sum(nvl(VLCOFINS,0)) - sum(nvl(VLCOFINS_DEV,0))     AS COFINSLIQ
+               sum(nvl(VLCOFINS,0)) - sum(nvl(VLCOFINS_DEV,0))     AS COFINSLIQ,
+               -- As seis parcelas das tres linhas informativas, para o duplo clique
+               -- mostrar de onde o liquido saiu. Sao as MESMAS somas de tres linhas
+               -- acima, so que separadas em vez de subtraidas: acrescentar coluna ao
+               -- SELECT nao tem como mover o valor das outras.
+               --
+               -- Sem underscore no alias. O Dapper ignora maiusculas mas NAO ignora
+               -- underscore, e `VLST_DEV` nao acharia `VlStDev` — a coluna sairia
+               -- zerada em silencio (docs/DIVERGENCIAS.md, armadilha 4).
+               sum(nvl(VLST,0))                                    AS STVENDAS,
+               sum(nvl(VLST_DEV,0))                                AS STDEVOLUCAO,
+               sum(nvl(VLPIS,0))                                   AS PISVENDAS,
+               sum(nvl(VLPIS_DEV,0))                               AS PISDEVOLUCAO,
+               sum(nvl(VLCOFINS,0))                                AS COFINSVENDAS,
+               sum(nvl(VLCOFINS_DEV,0))                            AS COFINSDEVOLUCAO
           FROM (
           SELECT TO_CHAR(NF.DTSAIDA,'mm/yyyy') AS MESANO, SUM(  decode(MV.custofin,0,MV.custofinest-nvl(MV.st,0)-nvl(MVC.vlfecp,0), (MV.custofin-nvl(MV.st,0)-nvl(MVC.vlfecp,0)) ) * MV.qt) as VLCUSTOFIN, 
                  SUM(  MV.punit * MV.qt) as VLVENDA,  
