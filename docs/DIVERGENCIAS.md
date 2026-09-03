@@ -1237,3 +1237,66 @@ Consolidando o que foi medido entre 01 e 02/09. A `RECEITA BRUTA` sente só o pr
 o certo — copiamos literalmente as fórmulas da apuração, porque a regra é o detalhamento
 fechar com a linha que ele detalha. A pergunta contábil continua em aberto e está registrada
 em [§4 · O que continua sem resposta](#o-que-continua-sem-resposta).
+
+### As três informativas decompostas, e o CMV que se mexeu — 03/09/2026
+
+A consulta de faturamento passou a devolver as parcelas de ST, PIS e COFINS separadas,
+para as três linhas informativas abrirem detalhamento. Medido pela
+[dc11](validacao/dc11_composicao_das_calculadas.mjs), cenário de agosto/2026, caixa,
+filiais 7/12/25:
+
+| Linha | (imposto + FECP) das vendas | menos o das devoluções | = a linha |
+|---|---:|---:|---:|
+| `(-) ST` | 1.538.087,47 | 100.350,74 | **1.437.736,73** |
+| `(-) PIS` | 108.843,56 | 0,00 | **108.843,56** |
+| `(-) COFINS` | 501.339,89 | 0,00 | **501.339,89** |
+
+**As três fecham**, e as 16 conferências de composição passaram sem uma falha.
+
+**PIS e COFINS não têm parcela de devolução, e isso é dado, não defeito.** A previsão da
+dc11 dizia para desconfiar de coluna zerada — foi assim que a contagem de notas apareceu em
+branco em 02/09. Mas aqui há prova no próprio resultado: `PISLIQ` é calculado pela
+expressão **antiga**, `sum(VLPIS) − sum(VLPIS_DEV)`, e veio idêntico ao `PISVENDAS` novo.
+Duas colunas independentes, uma anterior à mudança, concordando que a parcela de devolução
+é zero. A consulta do bloco de devoluções calcula PIS de verdade — não é um `0` fixo —, e
+ainda assim soma zero: os campos de origem não são preenchidos em nota de entrada.
+
+O ST, que passa exatamente pelo mesmo mecanismo, voltou com 100.350,74 — o mesmo valor que
+a dc10 mediu como `Sd + Fd` em 02/09. Terceira medição independente do número.
+
+#### O `CMV LIQ.` mudou 2,1 milhões entre 02 e 03/09, e ainda não está explicado
+
+Comparando o cabeçalho de hoje com o que a dc9 registrou ontem, no mesmo cenário:
+
+| Linha | 02/09 | 03/09 | |
+|---|---:|---:|---|
+| `(+) RECEITA BRUTA` | 55.754.350,05 | 55.754.350,05 | idêntico |
+| `(-) ABAT./DESC.` | 4.663.263,35 | 4.663.263,35 | idêntico |
+| `(-) DEVOLUCAO` | 1.256.167,12 | 1.256.167,12 | idêntico |
+| `(=) RECEITAS LIQUIDAS` | 49.834.919,58 | 49.834.919,58 | idêntico |
+| `(=) CMV LIQ.` | 37.039.936,01 | **39.158.522,17** | **+2.118.586,16** |
+
+**Quatro linhas idênticas ao centavo e uma que anda 2,1 milhões não é a base viva se
+mexendo** — a armadilha 2 moveria todas. É uma diferença de uma coluna só.
+
+A hipótese é recálculo de custo no Winthor: `custofin` e `custofinest` são recalculados
+pela operação, e um recálculo sobre agosto moveria o CMV sem tocar em receita. Seria
+benigno. **Mas é hipótese, não medida.**
+
+A prova é a dc6 depois da correção abaixo: ela compara, na mesma execução, a linha
+`CMV LIQ.` com a coluna `CUSTO Liq` do detalhamento. Se as duas andaram juntas, é dado; se
+só a linha andou, é código, e o suspeito são as seis colunas novas.
+
+#### A dc6 não sabia ler a tela nova
+
+Na primeira execução depois da mudança, `ABAT./DESC.` e `CMV LIQ.` apareceram como falha de
+60 e 94 milhões. Não era a tela: a dc6 escolhia a coluna do detalhamento pelo nome da linha
+e mandava tudo que não contivesse "LIQUIDA" para `receitaBruta`. Com quatro linhas abrindo a
+mesma tela em vez de duas, ela passou a comparar a receita bruta contra o desconto.
+
+Corrigido: `ABAT` lê `desconto` e `CMV` lê `custoLiq`, ambos com o sinal invertido, porque
+são deduções — a linha do DRE mostra negativo e a coluna soma positivo.
+
+**A conferência envelheceu junto com o código que ela confere**, e a falha apareceu como
+defeito do produto. Vale para as outras: cada tela nova que reaproveita uma consulta
+existente é uma chance de a dc6 comparar a coluna errada.

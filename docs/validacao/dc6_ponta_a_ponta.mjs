@@ -62,7 +62,16 @@ function totalDoDetalhe(detalhe, dados, descricao) {
   if (detalhe.tipo === "lancamentos") return soma(dados.lancamentos ?? [], "vPago");
   if (detalhe.tipo === "devolucao-por-motivo") return -soma(dados.motivos ?? [], "vlDevolucao");
 
-  // As duas linhas de receita abrem a MESMA tela; o que muda é a coluna que fecha com elas.
+  // QUATRO linhas abrem a MESMA tela de receita por cliente; o que muda é a coluna que
+  // fecha com cada uma. `ABAT./DESC.` e `CMV LIQ.` entraram em 03/09/2026 — antes disso
+  // este trecho mandava tudo que não fosse "LIQUIDA" para `receitaBruta`, e as duas
+  // apareceram como falha de 60 e 94 milhões. Era a conferência que não sabia ler a tela
+  // nova, não a tela.
+  //
+  // As duas novas são deduções: a linha do DRE mostra negativo, a coluna soma positivo.
+  if (descricao.includes("ABAT")) return -soma(dados.clientes ?? [], "desconto");
+  if (descricao.includes("CMV")) return -soma(dados.clientes ?? [], "custoLiq");
+
   const campo = descricao.includes("LIQUIDA") ? "receitaLiquida" : "receitaBruta";
   return soma(dados.clientes ?? [], campo);
 }
