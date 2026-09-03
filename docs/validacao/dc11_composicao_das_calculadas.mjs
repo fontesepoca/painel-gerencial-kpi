@@ -54,12 +54,25 @@ const dinheiro = (n) =>
 const CENTAVO = 0.005;
 
 async function apurar() {
-  const r = await fetch(`${API}/api/dre-gerencial/apurar`, {
+  const url = `${API}/api/dre-gerencial/apuracao`;
+  const r = await fetch(url, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(FILTRO),
   });
-  const j = await r.json();
+
+  // Lê como texto antes de tentar JSON. A primeira versão disto chamava `/apurar`, que
+  // não existe: o 404 veio com corpo vazio e o erro que apareceu foi
+  // "Unexpected end of JSON input" — que manda procurar defeito no dado, não na rota.
+  const texto = await r.text();
+  if (!r.ok) {
+    throw new Error(`${r.status} ${r.statusText} em ${url}\n${texto.slice(0, 400)}`);
+  }
+  if (!texto.trim()) {
+    throw new Error(`${url} respondeu ${r.status} com corpo vazio. A API está no ar?`);
+  }
+
+  const j = JSON.parse(texto);
   if (!j.sucesso) throw new Error("apuração falhou: " + JSON.stringify(j.erros ?? j.mensagem));
   return j.dados;
 }
