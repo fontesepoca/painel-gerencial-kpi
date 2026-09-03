@@ -960,7 +960,7 @@ colunas acessórias. Era `GRANT` para o usuário da API, resolvido sem tocar em 
 [dc6](validacao/dc6_ponta_a_ponta.mjs) apura uma vez e confere **cada** linha que abre
 duplo clique contra o próprio detalhamento dela, no mesmo retrato:
 
-> **157/157 fecham ao centavo.**
+> **157/157 fecham ao centavo.** (159/159 desde 03/09, com ABAT./DESC. e CMV LIQ.)
 
 Chegar lá exigiu mais duas correções, achadas pela [dc7](validacao/dc7_diagnostico_do_detalhamento.mjs)
 e previstas na [dc8](validacao/dc8_PREVISAO_dois_filtros.md) antes de rodar. **As duas telas
@@ -1283,9 +1283,22 @@ A hipótese é recálculo de custo no Winthor: `custofin` e `custofinest` são r
 pela operação, e um recálculo sobre agosto moveria o CMV sem tocar em receita. Seria
 benigno. **Mas é hipótese, não medida.**
 
-A prova é a dc6 depois da correção abaixo: ela compara, na mesma execução, a linha
-`CMV LIQ.` com a coluna `CUSTO Liq` do detalhamento. Se as duas andaram juntas, é dado; se
-só a linha andou, é código, e o suspeito são as seis colunas novas.
+**Respondido em 03/09/2026: é dado.** A dc6 corrigida fechou **159/159**, e o CMV
+está entre eles — linha −39.158.522,17, detalhamento −39.158.522,17.
+
+O que torna isso conclusivo é que os dois lados vêm de consultas **diferentes**: o
+cabeçalho lê `FaturamentoPorMes`, que foi a consulta alterada; o detalhamento lê
+`ReceitaPorCliente`, que não foi tocada. Se as seis colunas novas tivessem corrompido a
+primeira, a segunda continuaria nos 37,04 milhões e a comparação acusaria. As duas
+concordam no valor novo, então o valor novo é o que a base devolve hoje.
+
+Sobra a causa da mudança no dado, que é da operação e não do projeto: `custofin` e
+`custofinest` são recalculados pelo Winthor, e um recálculo sobre agosto move o CMV sem
+tocar em receita — que é exatamente o retrato observado.
+
+**Fica o método:** quando uma linha se mexe sozinha, a pergunta certa é se as consultas
+independentes que a calculam ainda concordam entre si. Se concordam, mudou o dado; se
+discordam, mudou o código.
 
 #### A dc6 não sabia ler a tela nova
 
