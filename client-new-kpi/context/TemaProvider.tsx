@@ -44,6 +44,33 @@ export function TemaProvider({ children }: { children: React.ReactNode }) {
     document.documentElement.dataset.tema = tema;
   }, [tema]);
 
+  /**
+   * Impressão sai sempre no tema claro, seja qual for o tema da tela.
+   *
+   * A maioria das impressoras descarta fundo por padrão: o tema escuro sairia como
+   * texto quase branco em papel branco. Forçar o claro aqui, e não duplicar a paleta
+   * dentro de `@media print`, mantém uma fonte de verdade só para as cores.
+   *
+   * Escreve direto no `<html>` em vez de mexer no estado: assim não persiste em
+   * `localStorage` nem pisca a tela, e o `afterprint` devolve o tema de antes.
+   */
+  useEffect(() => {
+    const raiz = document.documentElement;
+    const aoImprimir = () => {
+      raiz.dataset.tema = "claro";
+    };
+    const aoTerminar = () => {
+      raiz.dataset.tema = tema;
+    };
+
+    window.addEventListener("beforeprint", aoImprimir);
+    window.addEventListener("afterprint", aoTerminar);
+    return () => {
+      window.removeEventListener("beforeprint", aoImprimir);
+      window.removeEventListener("afterprint", aoTerminar);
+    };
+  }, [tema]);
+
   const alternar = useCallback((claro: boolean) => {
     const novo: Tema = claro ? "claro" : "escuro";
     setTema(novo);

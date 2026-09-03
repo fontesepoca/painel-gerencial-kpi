@@ -21,7 +21,7 @@ export function AppShell({
     // e aparece uma segunda barra de rolagem ao lado da barra da tabela.
     <div className="flex h-dvh overflow-hidden bg-[var(--bg)]">
       <aside
-        className="hidden shrink-0 flex-col items-center gap-2 border-r border-[var(--border)] bg-[var(--surface-1)] py-4 md:flex"
+        className="nao-imprime hidden shrink-0 flex-col items-center gap-2 border-r border-[var(--border)] bg-[var(--surface-1)] py-4 md:flex"
         style={{ width: "var(--sidebar-w-sm)" }}
       >
         <div className="grid size-9 place-items-center rounded-[var(--radius-md)] bg-[var(--primary)] text-sm font-semibold text-white">
@@ -31,7 +31,7 @@ export function AppShell({
 
       <div className="flex min-w-0 flex-1 flex-col">
         <header
-          className="flex shrink-0 items-center gap-2 border-b border-[var(--border)] bg-[var(--surface-1)] px-4 sm:px-6"
+          className="nao-imprime flex shrink-0 items-center gap-2 border-b border-[var(--border)] bg-[var(--surface-1)] px-4 sm:px-6"
           style={{ minHeight: "var(--header-h)" }}
         >
           {/* A trilha encolhe e some em tela estreita; o interruptor nunca some,

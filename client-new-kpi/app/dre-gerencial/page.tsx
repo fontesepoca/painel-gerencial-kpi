@@ -53,7 +53,7 @@ export default function DreGerencialPage() {
       {/* Com a leitura ampliada a tabela precisa de mais largura útil antes de
           começar a rolar na horizontal. */}
       <div className="mx-auto flex h-full min-h-0 w-full max-w-[110rem] flex-col gap-3">
-        <div className="rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface-1)] p-4 shadow-[var(--shadow-card)]">
+        <div className="nao-imprime rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface-1)] p-4 shadow-[var(--shadow-card)]">
           <FiltrosDre
             filtro={filtro}
             filiais={filiais.data ?? []}
@@ -87,6 +87,9 @@ export default function DreGerencialPage() {
             className={cn(
               "flex min-h-0 flex-1 flex-col rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface-1)] shadow-[var(--shadow-card)]",
               expandida && "tabela-expandida",
+              // A partir de três meses a impressão vai para A3 — ver o bloco IMPRESSÃO
+              // em globals.css. Só o componente sabe quantos meses foram apurados.
+              dados.periodos.length > 2 && "folha-larga",
             )}
           >
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border)] px-4 py-2.5">
@@ -103,7 +106,7 @@ export default function DreGerencialPage() {
                 </p>
               </div>
 
-              <div className="flex items-center gap-4">
+              <div className="nao-imprime flex items-center gap-4">
                 <label className="flex cursor-pointer items-center gap-2.5 text-[length:var(--fs-apoio)] text-[var(--text-secondary)]">
                   <input
                     type="checkbox"
@@ -118,6 +121,8 @@ export default function DreGerencialPage() {
                   expandida={expandida}
                   onAlternar={() => setExpandida((e) => !e)}
                 />
+
+                <BotaoImprimir />
               </div>
             </div>
 
@@ -211,6 +216,40 @@ function BotaoExpandir({
         )}
       </svg>
       {expandida ? "Voltar ao normal" : "Tela cheia"}
+    </button>
+  );
+}
+
+/**
+ * Manda imprimir. O que muda a página é o bloco `@media print` do `globals.css` —
+ * este botão só dispara, e `Ctrl+P` passa exatamente pelo mesmo caminho.
+ *
+ * Existe porque nem todo mundo lembra do atalho, e porque a tela não parece um
+ * documento imprimível: ver o botão é o que diz que a tabela sai inteira no papel.
+ */
+function BotaoImprimir() {
+  return (
+    <button
+      type="button"
+      onClick={() => window.print()}
+      title="Imprimir a tabela inteira (Ctrl+P faz o mesmo)"
+      className="flex shrink-0 cursor-pointer items-center gap-2 rounded-[var(--radius-sm)] border border-[var(--border)] px-2.5 py-1.5 text-[length:var(--fs-apoio)] font-medium text-[var(--text-secondary)] hover:border-[var(--border-strong)] hover:text-[var(--text-primary)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)]"
+    >
+      <svg
+        aria-hidden
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className="size-4 shrink-0"
+      >
+        <path d="M6 9V3h12v6" />
+        <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+        <path d="M6 14h12v7H6z" />
+      </svg>
+      Imprimir
     </button>
   );
 }

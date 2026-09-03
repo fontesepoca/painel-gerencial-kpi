@@ -324,7 +324,7 @@ export function TabelaDre({
 
   return (
     <>
-      <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 border-b border-[var(--border)] px-4 py-2">
+      <div className="nao-imprime flex flex-wrap items-center justify-between gap-x-6 gap-y-2 border-b border-[var(--border)] px-4 py-2">
         <p className="text-[length:var(--fs-apoio)] text-[var(--text-muted)]">
           Arraste pelo punho{" "}
           <span aria-hidden className="text-[var(--text-secondary)]">

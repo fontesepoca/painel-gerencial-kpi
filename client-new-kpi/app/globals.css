@@ -809,3 +809,166 @@ tr:focus-within .tem-detalhe .valor-clicavel {
 .dialogo-detalhe tbody tr.linha-subtotal > .col-identidade {
   background-color: var(--surface-1);
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   IMPRESSÃO
+
+   Na tela, a aplicação cabe exatamente na janela e a tabela rola por dentro. No
+   papel não existe janela: existe um documento de altura livre, quebrado em
+   páginas. Tudo aqui desfaz as travas de altura e devolve a tabela inteira.
+
+   Vale para `Ctrl+P` também — o botão Imprimir só chama `window.print()`, e o
+   caminho é o mesmo.
+
+   O tema claro é forçado pelo `TemaProvider`, no `beforeprint`.
+   ═══════════════════════════════════════════════════════════════ */
+
+@media print {
+  /* Retrato não serve: mesmo com um mês já são quatro colunas de números. */
+  @page {
+    size: A4 landscape;
+    margin: 10mm;
+  }
+
+  /* De três meses em diante a folha cresce, em vez de o conteúdo encolher.
+
+     A4 paisagem tem ~1.047px úteis. Um mês ou dois cabem folgados; com quatro são
+     16 colunas pedindo ~1.290px mesmo com as larguras distribuídas da melhor forma
+     possível, e o que sobra é sobreposição de percentuais. A3 paisagem tem ~1.512px
+     e comporta os quatro meses com espaço de sobra.
+
+     Decisão do Gabriel em 03/09/2026, entre encolher a fonte para ~5,5pt, omitir a
+     coluna `AH %` do papel, ou crescer a folha. **Depende de haver impressora A3** —
+     não havendo, a saída ainda funciona: o diálogo de impressão reduz para caber, e
+     aí o efeito é o mesmo da opção da fonte menor.
+
+     Página nomeada porque `@page` não enxerga o React: quem sabe quantos meses foram
+     apurados é o componente, e o que ele consegue fazer é pôr uma classe. */
+  @page folha-larga {
+    size: A3 landscape;
+    margin: 10mm;
+  }
+
+  .folha-larga {
+    page: folha-larga;
+  }
+
+  /* Filtros, casca, punhos de arraste e botões. Nada disto é o relatório. */
+  .nao-imprime {
+    display: none !important;
+  }
+
+  /* A casca inteira existe para prender a altura na janela — `h-dvh`,
+     `overflow-hidden`, `flex-1`, `min-h-0`. No papel isso vira uma página só com o
+     resto cortado. Voltar para fluxo de bloco é o que deixa o conteúdo transbordar
+     para as páginas seguintes, que é o comportamento desejado aqui. */
+  html,
+  body,
+  body > div,
+  main,
+  main > div,
+  section {
+    display: block !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  /* Sombra e borda de cartão são linguagem de tela. */
+  section {
+    border: 0 !important;
+    box-shadow: none !important;
+  }
+
+  /* A tela cheia é `position: fixed`: imprimindo assim, sairia uma página só com o
+     que coubesse na janela. */
+  .tabela-expandida {
+    position: static !important;
+  }
+
+  /* A escala de leitura, comprimida para caber a largura da página.
+
+     Mexer só na fonte da tabela não bastava: `--fs-apoio` continuava nos 15px da
+     leitura ampliada, e cada coluna de `AV %` saía com 80px — cinco delas, 400px de
+     papel gastos com percentual. Os tokens são o mecanismo que a tela já usa para
+     trocar a escala inteira de uma vez; a impressão é só mais um modo.
+
+     `!important` porque `html[data-leitura="ampliada"]` é mais específico que
+     `:root`, e sem isso ele venceria aqui dentro também. */
+  :root {
+    --fs-rotulo: 6pt !important;
+    --fs-apoio: 6.5pt !important;
+    --fs-base: 7.5pt !important;
+    --celula-x: 3px !important;
+    --celula-y: 2px !important;
+    --barra-av-h: 2px !important;
+  }
+
+  .tabela-rolagem {
+    overflow: visible !important;
+    height: auto !important;
+    min-height: 0 !important;
+
+    /* Mantém zebra, barras de %AV e faixas dos totalizadores. Sem isto o navegador
+       descarta todo fundo e a tabela sai sem os apoios visuais de leitura. */
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  /* `fixed` é o que garante que a tabela CABE, seja qual for o período apurado.
+     No modo automático a largura vem do conteúdo, e com quatro meses ela pede
+     ~1.250px contra os ~1.047 úteis de um A4 paisagem — o que passa disso o
+     navegador simplesmente corta, e o que fica de fora são as últimas colunas,
+     onde mora o TOTAL. Com `fixed` as colunas dividem a largura da página e o
+     conteúdo que não couber quebra em duas linhas, que é perder estética em vez
+     de perder número.
+
+     A alternativa medida e descartada foi calcular uma escala no `beforeprint`:
+     esse evento dispara ANTES de o navegador aplicar a folha de impressão, então
+     a medida sai com as métricas da tela — fonte de 18px, célula de 16px de
+     respiro — e a conta dá errado justamente no caso que ela existia para
+     resolver. */
+  .tabela-rolagem table {
+    width: 100%;
+    table-layout: fixed;
+  }
+
+  /* Número quebrado no meio é ilegível; o nome da conta pode quebrar à vontade. */
+  .tabela-rolagem td,
+  .tabela-rolagem th {
+    overflow-wrap: normal;
+  }
+
+  /* Com `table-layout: fixed` toda coluna sem largura declarada recebe uma fatia
+     igual — e a descrição cairia para os mesmos ~60px de uma coluna de percentual,
+     truncando o nome da conta na primeira letra. Uma tabela de DRE sem os nomes das
+     contas não é um relatório, é uma folha de números. Daí a largura explícita.
+
+     Nome comprido quebra em duas linhas em vez de esticar a coluna. */
+  .tabela-rolagem .celula-descricao {
+    width: 15rem;
+    white-space: normal !important;
+  }
+
+  /* Fixar não significa nada no papel, e `sticky` atrapalha: o cabeçalho ficaria
+     preso na primeira página. Estático, o navegador REPETE o `thead` no topo de
+     cada página sozinho — é o ganho que a tela não tem. */
+  .tabela-rolagem thead,
+  .tabela-rolagem thead th,
+  .tabela-rolagem tfoot,
+  .tabela-rolagem .celula-descricao {
+    position: static !important;
+  }
+
+  /* Na tela a descrição tem 32rem para caber nome mais selo. No papel, 512px de uma
+     coluna só deixariam os valores espremidos contra a margem. */
+  .tabela-rolagem .celula-descricao {
+    min-width: 0 !important;
+  }
+
+  /* Linha partida entre duas páginas é linha lida errado: metade dos valores numa
+     folha, metade na outra, e nada dizendo que são a mesma conta. */
+  .tabela-rolagem tr {
+    break-inside: avoid;
+  }
+}
