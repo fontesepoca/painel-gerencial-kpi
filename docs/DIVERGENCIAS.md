@@ -20,7 +20,7 @@ a aprovação do Gabriel.
 | [1](#1-a-coluna-média-em-um-centavo) | Coluna MÉDIA | todas | 1 centavo | aceita em 28/08/2026 |
 | [2](#2-a-filial-única-no-subselect-de-centro-de-custo) | Filial única no `CCC` | C. Custo Principal | R$ 2,56 mi em 2 meses | **corrigida** em 31/08/2026 |
 | [3](#3-centro-de-custo-simples-não-tem-referência) | Sem referência | Centro de Custo | não mensurável | validação manual pendente |
-| [4](#4-correção-deliberada-o-detalhamento-agora-fecha-com-a-linha-do-dre) | Detalhamento não fecha com a linha | todas as linhas que abrem duplo clique | R$ 3,56 mi em 1 mês, mais estorno de baixa e contas escondidas | **corrigida de propósito** em 01–02/09/2026 · 159/159 |
+| [4](#4-correção-deliberada-o-detalhamento-agora-fecha-com-a-linha-do-dre) | Detalhamento não fecha com a linha | todas as linhas que abrem duplo clique | R$ 3,56 mi em 1 mês, mais estorno de baixa e contas escondidas | **corrigida de propósito** em 01–02/09/2026 · 162/162 |
 
 ---
 
@@ -274,7 +274,7 @@ nas seções deste documento, que são posteriores.
 | As filiais todas juntas | ⬜ **continua sem medição.** O máximo testado são 3 |
 | Período sem movimento, 1 dia, virada de mês | ✅ [medidos em 31/08](#fase-5--período-de-um-dia--31082026) — 0 divergências |
 | Filial sem movimento no período | ✅ [medida em 31/08](#fase-5--filial-parada-e-filial-meio-vazia--31082026) — a parada não contamina nada |
-| O duplo clique **pela tela** | ⬜ a API fecha 159/159, mas o caminho pela interface com dado real nunca foi percorrido ponta a ponta |
+| O duplo clique **pela tela** | ⬜ a API fecha 162/162, mas o caminho pela interface com dado real nunca foi percorrido ponta a ponta |
 | `% AH` em Conta Gerencial | ⬜ a exportação usada saiu sem análise horizontal; a coluna só foi conferida em Grupo de Contas |
 
 Os dois períodos e o conjunto de filiais são riscos de **custo**, não de valor: quatro meses
@@ -960,7 +960,8 @@ colunas acessórias. Era `GRANT` para o usuário da API, resolvido sem tocar em 
 [dc6](validacao/dc6_ponta_a_ponta.mjs) apura uma vez e confere **cada** linha que abre
 duplo clique contra o próprio detalhamento dela, no mesmo retrato:
 
-> **157/157 fecham ao centavo.** (159/159 desde 03/09, com ABAT./DESC. e CMV LIQ.)
+> **157/157 fecham ao centavo.** (162/162 desde 03/09, com ABAT./DESC., CMV LIQ.,
+> ST, PIS e COFINS.)
 
 Chegar lá exigiu mais duas correções, achadas pela [dc7](validacao/dc7_diagnostico_do_detalhamento.mjs)
 e previstas na [dc8](validacao/dc8_PREVISAO_dois_filtros.md) antes de rodar. **As duas telas
@@ -1313,3 +1314,56 @@ são deduções — a linha do DRE mostra negativo e a coluna soma positivo.
 **A conferência envelheceu junto com o código que ela confere**, e a falha apareceu como
 defeito do produto. Vale para as outras: cada tela nova que reaproveita uma consulta
 existente é uma chance de a dc6 comparar a coluna errada.
+
+### ST, PIS e COFINS ganham detalhamento próprio — 03/09/2026
+
+As três informativas passaram a abrir uma tela com **consulta própria**, quebrada por
+produto, no mesmo formato da devolução por motivo: eixo, contagem de notas, valor e
+participação. Medido pela dc6:
+
+| Linha | Valor | Produtos |
+|---|---:|---:|
+| `(-) ST` | −1.437.736,73 | 3.313 |
+| `(-) PIS` | −108.843,56 | 4.356 |
+| `(-) COFINS` | −501.339,89 | 4.356 |
+
+**162/162 fecham ao centavo**, e a contagem traz um sinal interno que ninguém programou:
+PIS e COFINS pegam exatamente os mesmos 4.356 produtos — incidem em quase tudo —, e o ST
+pega 1.043 a menos, porque só produto com substituição tributária tem ST e o
+`HAVING <> 0` derruba os demais.
+
+O eixo é o **produto** porque ST é imposto de item, nasce da classificação fiscal da
+mercadoria, e é nesse eixo que a pergunta "por que subiu" tem resposta. Decisão do Gabriel
+em 03/09/2026, entre produto, cliente, nota e fornecedor.
+
+#### O caminho errado que veio antes, e por que era errado
+
+A primeira tentativa acrescentou seis colunas à consulta de **apuração** e mostrou a conta
+`vendas − devoluções` como "composição". Fechava, foi validada, e mesmo assim estava errada
+em duas frentes:
+
+- **Mostrava a fórmula da linha, não o detalhamento dela.** Responde "que contas somam neste
+  número" quando a pergunta é "que notas, que produtos, que clientes formam este número".
+- **Engordava a consulta mais sensível do projeto para servir uma tela de detalhe**, contra
+  o padrão que já existia, em que cada detalhamento tem consulta própria.
+
+Revertido. Ficou só a composição dos **cinco totalizadores**, onde ela é a resposta certa:
+`LUCRO BRUTO` é `RECEITAS LIQUIDAS + CMV LIQ.` e não existe consulta possível para isso —
+o valor é aritmética sobre linhas que já estão na resposta.
+
+**A lição não é sobre SQL.** Uma implementação que passa em todas as conferências ainda pode
+responder à pergunta errada; nenhuma das nove validações deste projeto detectaria isso,
+porque todas conferem número, e o número estava certo.
+
+#### `ORA-00935` sem um `SUM` dentro de outro
+
+Na primeira execução, as três linhas voltaram com *"função de grupo aninhada muito
+profundamente"* — numa consulta onde não havia `SUM(SUM(...))` em lugar nenhum do texto.
+
+O alias de saída se chamava igual à coluna da subconsulta: com `SUM(VENDAS) AS VENDAS`, o
+`ORDER BY SUM(VENDAS - DEVOLUCOES)` faz o Oracle resolver `VENDAS` como o **alias**, e a
+expressão vira `SUM(SUM(VENDAS) - SUM(DEVOLUCOES))`. A mensagem manda procurar no lugar
+errado.
+
+Registrado em [CONVENCOES_ORACLE.md](CONVENCOES_ORACLE.md), com a convenção adotada: colunas
+de subconsulta agregada terminam em `ITEM`.
