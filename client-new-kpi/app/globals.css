@@ -824,23 +824,27 @@ tr:focus-within .tem-detalhe .valor-clicavel {
    ═══════════════════════════════════════════════════════════════ */
 
 @media print {
-  /* Retrato não serve: mesmo com um mês já são quatro colunas de números. */
+  /* UM MÊS: A4 em pé.
+
+     São quatro colunas ao todo — descrição, valor e `%AV` —, e paisagem deixaria dois
+     terços da folha em branco. Em pé, a mesma tabela ocupa a largura inteira com fonte
+     maior, que é o que se quer num relatório que alguém vai ler no papel. */
   @page {
-    size: A4 landscape;
+    size: A4;
     margin: 10mm;
   }
 
-  /* De três meses em diante a folha cresce, em vez de o conteúdo encolher.
+  /* MAIS DE UM MÊS: A3 deitada. A folha cresce em vez de o conteúdo encolher.
 
-     A4 paisagem tem ~1.047px úteis. Um mês ou dois cabem folgados; com quatro são
-     16 colunas pedindo ~1.290px mesmo com as larguras distribuídas da melhor forma
-     possível, e o que sobra é sobreposição de percentuais. A3 paisagem tem ~1.512px
-     e comporta os quatro meses com espaço de sobra.
+     A4 paisagem tem ~1.047px úteis. Dois meses ainda cabem; com quatro são 16 colunas
+     pedindo mais que isso, e o que sobra é sobreposição de percentuais. A3 paisagem tem
+     ~1.512px e comporta os quatro com folga.
 
-     Decisão do Gabriel em 03/09/2026, entre encolher a fonte para ~5,5pt, omitir a
-     coluna `AH %` do papel, ou crescer a folha. **Depende de haver impressora A3** —
-     não havendo, a saída ainda funciona: o diálogo de impressão reduz para caber, e
-     aí o efeito é o mesmo da opção da fonte menor.
+     Decisão do Gabriel em 03/09/2026, entre encolher a fonte, omitir a coluna `AH %` do
+     papel, ou crescer a folha. Revista no mesmo dia: o corte passou de três para **dois**
+     meses, porque a partir do segundo já não cabe em pé. **Depende de haver impressora
+     A3** — não havendo, o diálogo de impressão reduz para caber, e aí o efeito é o mesmo
+     da opção da fonte menor.
 
      Página nomeada porque `@page` não enxerga o React: quem sabe quantos meses foram
      apurados é o componente, e o que ele consegue fazer é pôr uma classe. */
@@ -895,13 +899,35 @@ tr:focus-within .tem-detalhe .valor-clicavel {
 
      `!important` porque `html[data-leitura="ampliada"]` é mais específico que
      `:root`, e sem isso ele venceria aqui dentro também. */
+  /* UM MÊS, A4 em pé: quatro colunas em 718px úteis. Sobra folha, então a fonte é
+     a maior das duas — o objetivo aqui é ler, não caber. */
   :root {
-    --fs-rotulo: 6pt !important;
-    --fs-apoio: 6.5pt !important;
-    --fs-base: 7.5pt !important;
-    --celula-x: 3px !important;
-    --celula-y: 2px !important;
-    --barra-av-h: 2px !important;
+    --fs-rotulo: 8pt !important;
+    --fs-apoio: 8.5pt !important;
+    --fs-base: 10pt !important;
+    --celula-x: 6px !important;
+    --celula-y: 4px !important;
+    --barra-av-h: 3px !important;
+  }
+
+  /* MAIS DE UM MÊS, A3 deitada: com quatro meses são 16 colunas, e aí a fonte é o
+     que separa caber de sair cortado. 8,5pt foi o maior valor medido que ainda cabe
+     em 1.512px com margem — 9,5pt pedia 1.664px e passava 152px da folha.
+
+     Os tokens descem no `.folha-larga` e não no `:root`: propriedade personalizada
+     herda, então declarar aqui vale para a tabela inteira sem tocar no caso de um mês. */
+  .folha-larga {
+    --fs-rotulo: 7pt !important;
+    --fs-apoio: 7.5pt !important;
+    --fs-base: 8.5pt !important;
+    --celula-x: 4px !important;
+    --celula-y: 3px !important;
+  }
+
+  /* O respiro do `main` é da tela. No papel são 32px de largura útil gastos com nada,
+     numa folha onde 12px decidem se a última coluna sai ou é cortada. */
+  main {
+    padding: 0 !important;
   }
 
   .tabela-rolagem {
@@ -915,13 +941,15 @@ tr:focus-within .tem-detalhe .valor-clicavel {
     -webkit-print-color-adjust: exact;
   }
 
-  /* `fixed` é o que garante que a tabela CABE, seja qual for o período apurado.
-     No modo automático a largura vem do conteúdo, e com quatro meses ela pede
-     ~1.250px contra os ~1.047 úteis de um A4 paisagem — o que passa disso o
-     navegador simplesmente corta, e o que fica de fora são as últimas colunas,
-     onde mora o TOTAL. Com `fixed` as colunas dividem a largura da página e o
-     conteúdo que não couber quebra em duas linhas, que é perder estética em vez
-     de perder número.
+  /* A tabela ocupa a largura do CONTEÚDO, não a da folha.
+
+     Com `width: 100%` as colunas se espalhavam para preencher a página: a descrição
+     de um lado, os valores do outro, e o olho atravessando um vão de papel branco
+     para ligar o nome da conta ao número dela. Encostadas à esquerda, nome e valor
+     ficam vizinhos, que é como se lê um DRE.
+
+     `max-width: 100%` continua sendo a rede: se um período longo pedir mais largura
+     que a folha, a tabela para de crescer em vez de sair cortada.
 
      A alternativa medida e descartada foi calcular uma escala no `beforeprint`:
      esse evento dispara ANTES de o navegador aplicar a folha de impressão, então
@@ -929,8 +957,9 @@ tr:focus-within .tem-detalhe .valor-clicavel {
      respiro — e a conta dá errado justamente no caso que ela existia para
      resolver. */
   .tabela-rolagem table {
-    width: 100%;
-    table-layout: fixed;
+    width: auto;
+    max-width: 100%;
+    table-layout: auto;
   }
 
   /* Número quebrado no meio é ilegível; o nome da conta pode quebrar à vontade. */
@@ -939,14 +968,12 @@ tr:focus-within .tem-detalhe .valor-clicavel {
     overflow-wrap: normal;
   }
 
-  /* Com `table-layout: fixed` toda coluna sem largura declarada recebe uma fatia
-     igual — e a descrição cairia para os mesmos ~60px de uma coluna de percentual,
-     truncando o nome da conta na primeira letra. Uma tabela de DRE sem os nomes das
-     contas não é um relatório, é uma folha de números. Daí a largura explícita.
-
-     Nome comprido quebra em duas linhas em vez de esticar a coluna. */
+  /* Teto, não largura fixa: com layout automático a coluna encolhe até o nome mais
+     comprido e para ali. O teto existe porque uma descrição longa esticaria a coluna
+     e empurraria os valores para longe de novo — que é justamente o que se quer
+     evitar. Passando disso, o nome quebra em duas linhas. */
   .tabela-rolagem .celula-descricao {
-    width: 15rem;
+    max-width: 15rem;
     white-space: normal !important;
   }
 
