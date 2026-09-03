@@ -1,11 +1,12 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ModalMoverLinha, type MovimentoPendente } from "./ModalMoverLinha";
 import { ModalDetalhe } from "./ModalDetalhe";
 import { useDetalhe } from "@/hooks/useDreGerencial";
 import { recorteDoMes } from "@/lib/periodos";
 import { useOrdemSalva } from "@/hooks/useOrdemSalva";
+import { passoDeRolagem } from "@/lib/rolagemAutomatica";
 import { cn } from "@/lib/cn";
 import { formatarPercentual, formatarValor } from "@/lib/formato";
 import {
@@ -52,6 +53,10 @@ export function TabelaDre({
 
   const [arrasto, setArrasto] = useState<Arrasto | null>(null);
   const [alvo, setAlvo] = useState<number | null>(null);
+
+  const rolagem = useRef<HTMLDivElement>(null);
+  /** Última posição vertical do ponteiro durante o arraste, em coordenadas da janela. */
+  const ponteiroY = useRef<number | null>(null);
   const [pendente, setPendente] = useState<
     (MovimentoPendente & { nova: LinhaDre[] }) | null
   >(null);
@@ -196,6 +201,45 @@ export function TabelaDre({
     [fatiaDe, visiveis, indiceCompleto, aplicar],
   );
 
+  /**
+   * Rola sozinho quando o arraste chega perto da borda da tabela.
+   *
+   * Sem isto, levar a primeira linha para o fim de uma tabela de 140 linhas é
+   * impossível sem soltar no meio do caminho, rolar, e pegar de novo.
+   *
+   * **Por que um laço de animação e não o próprio `dragover`.** O `dragover` só
+   * dispara quando o ponteiro se move. Segurar a linha parada na beirada — que é
+   * exatamente o gesto que a pessoa faz para esperar a tabela rolar — não gera
+   * evento nenhum, e a rolagem morreria depois de um solavanco. O laço lê a última
+   * posição conhecida e continua rolando enquanto o botão estiver pressionado.
+   *
+   * A velocidade é por SEGUNDO, multiplicada pelo tempo real do quadro, e não por
+   * quadro: num monitor de 144 Hz a rolagem por quadro andaria ao dobro da
+   * velocidade de um de 72 Hz.
+   */
+  useEffect(() => {
+    const cx = rolagem.current;
+    if (!arrasto || !cx) return;
+
+    let quadro = 0;
+    let anterior = performance.now();
+
+    const passo = (agora: number) => {
+      // Teto no delta: se a aba ficou em segundo plano, o primeiro quadro de volta
+      // traria segundos de uma vez e a tabela saltaria para o fim.
+      const dt = Math.min(agora - anterior, 50) / 1000;
+      anterior = agora;
+
+      const r = cx.getBoundingClientRect();
+      cx.scrollTop += passoDeRolagem(ponteiroY.current, { topo: r.top, base: r.bottom }, dt);
+
+      quadro = requestAnimationFrame(passo);
+    };
+
+    quadro = requestAnimationFrame(passo);
+    return () => cancelAnimationFrame(quadro);
+  }, [arrasto]);
+
   const confirmar = useCallback(() => {
     if (!pendente) return;
     salvar(pendente.nova.map((l) => l.chaveOrdem));
@@ -313,7 +357,16 @@ export function TabelaDre({
         </div>
       </div>
 
-      <div className="tabela-rolagem">
+      <div
+        ref={rolagem}
+        // No contêiner, e não nas linhas: o ponteiro passa por cabeçalho, rodapé e
+        // pelos vãos entre células, e em nenhum desses lugares há linha para ouvir.
+        // Aqui a posição continua chegando enquanto o arraste estiver sobre a tabela.
+        onDragOver={(e) => {
+          ponteiroY.current = e.clientY;
+        }}
+        className="tabela-rolagem"
+      >
         <table className="w-full border-collapse text-[length:var(--fs-base)]">
           <thead>
             {multiMes && (
@@ -371,10 +424,12 @@ export function TabelaDre({
                     if (arrasto) aplicar(arrasto, destino);
                     setArrasto(null);
                     setAlvo(null);
+                    ponteiroY.current = null;
                   }}
                   onArrastarFim={() => {
                     setArrasto(null);
                     setAlvo(null);
+                    ponteiroY.current = null;
                   }}
                   onTeclado={(direcao) => moverPorTeclado(indice, direcao)}
                   onDetalhe={
