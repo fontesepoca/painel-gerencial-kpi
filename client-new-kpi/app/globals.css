@@ -834,27 +834,47 @@ tr:focus-within .tem-detalhe .valor-clicavel {
     margin: 10mm;
   }
 
-  /* MAIS DE UM MÊS: A3 deitada. A folha cresce em vez de o conteúdo encolher.
+  /* DOIS MESES: A3 deitada. São 10 colunas — descrição, dois blocos de três e o TOTAL —
+     e ~1.512px úteis dão conta com fonte legível. */
+  @page folha-media {
+    size: A3 landscape;
+    margin: 10mm;
+  }
 
-     A4 paisagem tem ~1.047px úteis. Dois meses ainda cabem; com quatro são 16 colunas
-     pedindo mais que isso, e o que sobra é sobreposição de percentuais. A3 paisagem tem
-     ~1.512px e comporta os quatro com folga.
+  .folha-media {
+    page: folha-media;
+  }
 
-     Decisão do Gabriel em 03/09/2026, entre encolher a fonte, omitir a coluna `AH %` do
-     papel, ou crescer a folha. Revista no mesmo dia: o corte passou de três para **dois**
-     meses, porque a partir do segundo já não cabe em pé. **Depende de haver impressora
-     A3** — não havendo, o diálogo de impressão reduz para caber, e aí o efeito é o mesmo
-     da opção da fonte menor.
+  /* TRÊS MESES OU MAIS: A2 deitada, ~2.170px úteis.
+
+     A3 comportava quatro meses, mas só espremendo tudo para 8,5pt e com a tabela
+     ocupando a folha inteira — sem sobra para deslocar as colunas e sem espaço para
+     linha maior. A2 desafoga: as mesmas 16 colunas cabem com fonte 11pt.
+
+     Decisão do Gabriel em 03/09/2026, depois de ver o A3 sair apertado.
+
+     **Depende de haver impressora A2.** Não havendo, o diálogo de impressão reduz para
+     caber, e o resultado é parecido com o A3 de antes — nada se perde, só encolhe.
 
      Página nomeada porque `@page` não enxerga o React: quem sabe quantos meses foram
      apurados é o componente, e o que ele consegue fazer é pôr uma classe. */
   @page folha-larga {
-    size: A3 landscape;
+    size: A2 landscape;
     margin: 10mm;
   }
 
   .folha-larga {
     page: folha-larga;
+  }
+
+  /* A barra de %AV sai do papel.
+
+     Ela empilha sob o número e faz cada célula ter DUAS linhas de altura — numa tabela
+     de 140 linhas isso é meia folha gasta com enfeite. Na tela ela serve para varrer a
+     coluna com o olho; no papel o número está ali do lado, e o espaço que ela devolve
+     vira tamanho de fonte. */
+  .barra-av {
+    display: none !important;
   }
 
   /* Filtros, casca, punhos de arraste e botões. Nada disto é o relatório. */
@@ -910,18 +930,28 @@ tr:focus-within .tem-detalhe .valor-clicavel {
     --barra-av-h: 3px !important;
   }
 
-  /* MAIS DE UM MÊS, A3 deitada: com quatro meses são 16 colunas, e aí a fonte é o
-     que separa caber de sair cortado. 8,5pt foi o maior valor medido que ainda cabe
-     em 1.512px com margem — 9,5pt pedia 1.664px e passava 152px da folha.
+  /* Os tokens descem na classe da folha, e não no `:root`: propriedade personalizada
+     herda, então declarar aqui vale para a tabela inteira sem tocar nos outros casos.
+     Cada tamanho abaixo foi MEDIDO contra a largura útil da respectiva folha — nenhum
+     foi escolhido no olho. */
+  .folha-media {
+    --fs-rotulo: 8pt !important;
+    --fs-apoio: 8.5pt !important;
+    --fs-base: 10pt !important;
+    --celula-x: 5px !important;
+    --celula-y: 4px !important;
+  }
 
-     Os tokens descem no `.folha-larga` e não no `:root`: propriedade personalizada
-     herda, então declarar aqui vale para a tabela inteira sem tocar no caso de um mês. */
+  /* 12pt, medido: com quatro meses a tabela pede 1.952px dos 2.169 úteis do A2, e
+     sobram 217px. 13pt cabia também, mas com 177px, e 14pt com 13px — margem que uma
+     conta de nome comprido consome sozinha. O ganho de legibilidade de 12 para 13 não
+     paga o risco de a última coluna sair cortada em produção. */
   .folha-larga {
-    --fs-rotulo: 7pt !important;
-    --fs-apoio: 7.5pt !important;
-    --fs-base: 8.5pt !important;
-    --celula-x: 4px !important;
-    --celula-y: 3px !important;
+    --fs-rotulo: 9.5pt !important;
+    --fs-apoio: 10pt !important;
+    --fs-base: 12pt !important;
+    --celula-x: 5px !important;
+    --celula-y: 4px !important;
   }
 
   /* O respiro do `main` é da tela. No papel são 32px de largura útil gastos com nada,

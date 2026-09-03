@@ -872,9 +872,11 @@ function BarraAv({ percentual, maior }: { percentual: number | null; maior: numb
       <span className="tabular text-[length:var(--fs-apoio)] text-[var(--text-secondary)]">
         {formatarPercentual(percentual)}
       </span>
+      {/* A classe existe para a impressão poder apagar a barra: no papel ela é
+          decoração que custa uma linha de altura por célula, e o número está do lado. */}
       <span
         aria-hidden
-        className="w-full overflow-hidden rounded-full bg-[var(--surface-3)]"
+        className="barra-av w-full overflow-hidden rounded-full bg-[var(--surface-3)]"
         style={{ height: "var(--barra-av-h)" }}
       >
         <span

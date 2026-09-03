@@ -87,9 +87,11 @@ export default function DreGerencialPage() {
             className={cn(
               "flex min-h-0 flex-1 flex-col rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface-1)] shadow-[var(--shadow-card)]",
               expandida && "tabela-expandida",
-              // Um mês imprime em A4 em pé; de dois em diante, A3 deitada. Ver o bloco
-              // IMPRESSÃO em globals.css — só o componente sabe quantos meses saíram.
-              dados.periodos.length > 1 && "folha-larga",
+              // A folha cresce com o número de colunas: um mês em A4 em pé, dois em A3
+              // deitada, três ou mais em A2 deitada. Ver o bloco IMPRESSÃO em
+              // globals.css — só o componente sabe quantos meses foram apurados.
+              dados.periodos.length === 2 && "folha-media",
+              dados.periodos.length >= 3 && "folha-larga",
             )}
           >
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border)] px-4 py-2.5">
