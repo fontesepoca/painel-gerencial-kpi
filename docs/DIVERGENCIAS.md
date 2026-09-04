@@ -278,7 +278,7 @@ nas seções deste documento, que são posteriores.
 | `% AH` em Conta Gerencial | ⬜ a exportação usada saiu sem análise horizontal; a coluna só foi conferida em Grupo de Contas |
 
 Os dois períodos e o conjunto de filiais são riscos de **custo**, não de valor: quatro meses
-levaram 436 s, e o que ninguém mediu é o que acontece com 13 filiais de uma vez. Nenhum
+levaram 436 s, e o que ninguém mediu é o que acontece com 11 filiais de uma vez. Nenhum
 mecanismo depende do número de meses ou de filiais — o recorte parcial de mês, que era o
 único candidato, foi exercitado na virada de mês.
 

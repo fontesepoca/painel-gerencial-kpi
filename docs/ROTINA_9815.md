@@ -56,13 +56,25 @@ O **drill-down** é a primeira coisa depois da tabela pronta.
 
 Referência visual: `docs/Resultado das consultas na rotina oficial/prints/Como deve ser a rotina em web.png`.
 
-Rota **`/dre-gerencial`**. Sem login, a raiz redireciona direto para ela.
+Rota **`/dre-gerencial`**. Sem login, a raiz redireciona direto para ela. Há uma segunda
+rota, `/dre-gerencial/detalhe/[id]`, que mostra um detalhamento já apurado — ver §16.3.
+
+**Controles da tela, e onde cada um está documentado:**
+
+| Controle | Onde fica | Seção |
+|---|---|---|
+| Tema claro/escuro e leitura ampliada | cabeçalho da aplicação | — |
+| Mostrar contas zeradas | cabeçalho da tabela | §3.3 |
+| Tela cheia | cabeçalho da tabela | §18 |
+| Imprimir | cabeçalho da tabela | §17 |
+| Punho de arrastar e `Alt`+`↑`/`↓` | primeira coluna | §15 |
+| Duplo clique no valor | células de valor | §16 |
 
 ### 3.1 Filtros
 
 | Filtro | Controle | Origem dos valores |
 |---|---|---|
-| **Filial** | multisseleção | `GET /api/dre-gerencial/filiais` — **as 13 apuráveis**, ordenadas por `ORDEM_PROCESSA` |
+| **Filial** | multisseleção | `GET /api/dre-gerencial/filiais` — **as 11 apuráveis**, ordenadas por `ORDEM_PROCESSA` |
 | **Regime** | seleção única | Competência (padrão) · Caixa |
 | **Tipo de Análise** | seleção única | Grupo de Contas (padrão) · Conta Gerencial · C.Custo Principal · Centro de Custo |
 | **Período** | intervalo de datas | com atalhos: Ontem · Mês Passado · Últimos 3 Meses · Ano Passado |
@@ -325,7 +337,7 @@ Nenhuma dessas mexe em regra de cálculo. Qualquer uma que altere um centavo é 
 
 | Winthor | Web |
 |---|---|
-| Tela de pré-seleção de filiais antes de abrir | seleção no próprio filtro, com as 13 apuráveis |
+| Tela de pré-seleção de filiais antes de abrir | seleção no próprio filtro, com as 11 apuráveis |
 | Grade estilo planilha | tabela responsiva, tema escuro |
 | Sem atalhos de período | Ontem · Mês Passado · Últimos 3 Meses · Ano Passado |
 | Linhas soltas após o LUCRO LIQUIDO | mesmas linhas, marcadas com `INFORMATIVO` |
@@ -674,3 +686,174 @@ nem `CODGRUCONTA` sozinho (repete entre linhas com flags diferentes) serviriam.
 Arrastar tem par no teclado (`Alt` + `↑`/`↓` sobre o punho). Não é formalidade: arrastar
 é o gesto que quem tem tremor ou pouca mobilidade não consegue executar, e esta tela
 abre em leitura ampliada justamente por ser usada por quem costuma ter essa dificuldade.
+
+**A tabela rola sozinha** quando o arraste chega perto da borda. Sem isso, levar a primeira
+linha para o fim de uma tabela de 140 linhas exige soltar no meio do caminho, rolar e pegar
+de novo.
+
+O laço é `requestAnimationFrame`, e **não** o próprio `dragover`: este só dispara quando o
+ponteiro se move, e segurar a linha parada na beirada — que é justamente o gesto de esperar
+a tabela rolar — não gera evento nenhum. A velocidade é por segundo multiplicada pelo tempo
+real do quadro, não por quadro, senão um monitor de 144 Hz rolaria ao dobro de um de 72 Hz.
+
+A conta mora em `lib/rolagemAutomatica.ts`, fora do componente, porque é a única parte disto
+conferível sem navegador — 20 asserções, incluindo simetria entre subir e descer, saturação
+ao passar da borda e independência de taxa de quadros.
+
+| | |
+|---|---|
+| Faixa sensível | 18% da altura visível, no máximo 72px |
+| Na entrada da faixa | 140 px/s — devagar o bastante para mirar |
+| Encostado na borda | 1.300 px/s |
+| Rampa | ao quadrado; linear, qualquer tremida na entrada já dispara rápido |
+
+---
+
+## 16. Detalhamento — o duplo clique no valor
+
+Duplo clique numa célula de valor abre o detalhamento daquela linha **naquele mês**. O
+período é o do mês clicado, recortado pelo período apurado: com 01/08 a 27/08, agosto
+detalha 01/08 a 27/08, não o mês calendário.
+
+### 16.1 Quatro telas, e qual linha abre cada uma
+
+| Tela | Linhas que abrem | Consulta |
+|---|---|---|
+| **Receita por cliente** | `(+) RECEITA BRUTA`, `(=) RECEITAS LIQUIDAS`, `(-) ABAT./DESC.`, `(=) CMV LIQ.` | `ReceitaPorCliente` |
+| **Devolução por motivo** | `(-) DEVOLUCAO` | `DevolucaoPorMotivo` |
+| **Imposto por produto** | `(-) ST`, `(-) PIS`, `(-) COFINS` | `ImpostoPorProduto` |
+| **Lançamentos** | toda linha não-calculada | `Lancamentos` |
+| **Composição** | os 5 totalizadores | *nenhuma* — aritmética sobre a resposta |
+
+**A 9815 abre só três dessas linhas** — receita bruta, receitas líquidas e devolução. As
+outras nove passaram a abrir na web, e cada acréscimo tem um motivo diferente:
+
+- `ABAT./DESC.` e `CMV LIQ.` reaproveitam a tela de receita, onde as colunas `DESCONTO` e
+  `CUSTO Liq` já existiam e já fechavam ao centavo (dc9, 02/09/2026). Era detalhamento
+  pronto atrás de um duplo clique que ninguém tinha ligado.
+- ST, PIS e COFINS ganharam **consulta própria**, quebrada por produto — ST é imposto de
+  item, nasce da classificação fiscal da mercadoria, e é nesse eixo que "por que subiu"
+  tem resposta. Decisão do Gabriel em 03/09/2026, entre produto, cliente, nota e fornecedor.
+- Os cinco totalizadores mostram **de que linhas o total é feito**. Não passa pelo banco:
+  o valor deles é aritmética sobre linhas que já estão na resposta, e perguntar ao Oracle
+  de onde vem o `LUCRO LIQUIDO` seria refazer lá uma conta já feita aqui.
+
+As parcelas da composição vão **por referência**, não com o valor copiado: a tela lê o valor
+na própria linha citada, e é isso que impede a composição de mostrar um total que discorda
+das linhas que ela lista.
+
+### 16.2 Como se chega no total
+
+No topo do detalhamento, um bloco mostra a conta da linha com os valores dela:
+
+```
+COMO SE CHEGA NO TOTAL
+    ST + FECP das vendas          1.538.087,47
+  − ST + FECP das devoluções        100.350,74
+  ─────────────────────────────────────────────
+  = (-) ST                        1.437.736,73
+```
+
+Pedido do dono da empresa em 03/09/2026. A tabela responde "de onde vem"; isto responde
+"como se calcula", que é outra pergunta.
+
+**Os números saem das mesmas linhas que a tabela lista**, somando as colunas dela — não há
+segunda consulta, e por construção o resumo não pode discordar do que está logo abaixo.
+
+Aparece só onde existe conta: em ST, PIS, COFINS (vendas − devoluções) e em
+`RECEITAS LIQUIDAS` (bruta − descontos − devoluções). `RECEITA BRUTA`, `ABAT./DESC.` e
+`CMV LIQ.` são cada uma a soma de **uma** coluna, e inventar uma identidade ali faria o
+bloco exibir um total que não é o da célula clicada.
+
+Quando o resumo não bate com a célula, aparece um aviso com os dois números. **Não existe
+"✓ confere"** — um selo verde em toda abertura vira enfeite, e enfeite é o que o olho
+aprende a pular.
+
+### 16.3 Página própria e nova aba
+
+O botão **Abrir em nova aba**, ao lado de Fechar, leva o mesmo detalhamento para
+`/dre-gerencial/detalhe/[id]` numa aba nova, deixando a atual como está — com a apuração e
+o modal intactos, porque reapurar o DRE custa minutos.
+
+**Não consulta o banco de novo.** O objeto atravessa por `localStorage`, e a escolha não é
+arbitrária: memória de módulo é por documento, `sessionStorage` é por aba, e `target=_blank`
+implica `noopener` — sem vínculo com a aba de origem, nem a cópia do session storage
+acontece. Guarda **só o último** detalhamento, senão uma tarde de trabalho enche a cota.
+
+Quando o dado não está mais disponível, a página **diz isso e manda voltar ao DRE**. Não
+busca: um link colado viraria minutos de espera que ninguém pediu, e o número voltaria de
+outro instante do banco.
+
+O corpo do detalhamento é o mesmo componente nas duas telas (`CorpoDoDetalhe`). Duas
+implementações começariam iguais e divergiriam na primeira correção feita em uma delas.
+
+---
+
+## 17. Impressão
+
+`Ctrl+P` e o botão **Imprimir** passam pelo mesmo caminho — quem reconfigura a página é o
+bloco `@media print` do `globals.css`, e o botão só chama `window.print()`.
+
+### 17.1 O que muda no papel
+
+| | |
+|---|---|
+| Altura | a casca prende tudo na janela; no papel volta a fluxo de bloco e a tabela transborda para as páginas seguintes |
+| Cabeçalho | deixa de ser `sticky` — e estático, **o navegador o repete no topo de cada página**, que é o ganho que a tela não tem |
+| Tema | forçado a claro no `beforeprint`; impressora descarta fundo, e o escuro sairia texto branco em papel branco |
+| Barra de `%AV` | **sai** — empilha sob o número e faz cada célula ter duas linhas de altura |
+| Cromo da aplicação | sidebar, trilha, filtros, barra de reordenação e botões saem via `.nao-imprime` |
+| Quebra | `break-inside: avoid` na linha: metade dos valores numa folha é linha lida errado |
+
+### 17.2 A folha e a fonte, por número de colunas
+
+Cada valor abaixo é o **maior que coube na medição** de 03/09/2026, com a tabela presa na
+largura útil da respectiva folha:
+
+| Meses | Colunas | Folha | Fonte | Sobra | O que estourou |
+|---:|---:|---|---|---:|---|
+| 1 | 4 | A4 em pé | 13pt | 171px | — |
+| 2 | 10 | A3 deitada | 13pt | 38px | 14pt encosta no limite |
+| 3 | 13 | A3 deitada | 11pt | 0 | 12pt pede 1.598 de 1.512 |
+| 4+ | 16 | A3 deitada | 8,5pt | 0 | 9pt pede 1.530 de 1.512 |
+
+**Com quatro meses a fonte não sobe**, e é aritmética da folha: 16 colunas em 1.512px não
+cabem maiores. Quem precisar de fonte maior nesse caso precisa de menos colunas — omitir o
+`AH %` do papel é o caminho, e é decisão de negócio.
+
+A tabela **não estica** para a largura da folha. Com `width: 100%` as colunas se espalhavam
+e o olho atravessava um vão de papel branco para ligar o nome da conta ao número dela;
+encostadas à esquerda, ficam vizinhas.
+
+### 17.3 Duas armadilhas de `@page`, as duas com o mesmo sintoma
+
+Ambas produzem **A4 em pé com a tabela cortada**, que é o que se vê quando a regra de
+tamanho é descartada:
+
+1. **`A2` não existe em CSS.** Os nomes de tamanho param no A3 — A5, A4, A3, B5, B4,
+   JIS-B5, JIS-B4, letter, legal, ledger. Nome desconhecido invalida a declaração inteira.
+   Provado no navegador: `@page { size: A2 landscape }` volta como `@page { }`, enquanto
+   `A3 landscape` e `594mm 420mm` sobrevivem.
+2. **Páginas nomeadas** (`@page nome` + `page: nome`) têm suporte irregular.
+
+Por isso o tamanho **não está no CSS**: é escrito pelo componente `FolhaDaImpressao`, numa
+regra `@page` só, com a medida em milímetros — sem nome de tamanho e sem página nomeada.
+
+Descartado no caminho: calcular uma escala no `beforeprint`. Esse evento dispara **antes**
+de o navegador aplicar a folha de impressão, então a medida sai com as métricas da tela e a
+conta erra justamente no caso que ela existia para resolver.
+
+---
+
+## 18. Tela cheia
+
+Botão `⛶ Tela cheia` ao lado de "Mostrar contas zeradas". A seção da tabela vira
+`position: fixed; inset: 0` e cobre sidebar, trilha e filtros. `Esc` também sai.
+
+**Não usa o Fullscreen API do navegador.** O `requestFullscreen` esconde a barra do sistema
+e a do navegador — num relatório financeiro isso tira as referências de onde a pessoa está —
+e sai com qualquer `Esc`, inclusive o que ela deu para fechar o detalhamento.
+
+O `Esc` daqui **só sai quando não há modal aberto**. O detalhamento é um `<dialog>` e fecha
+no `Esc` sozinho; sem a guarda, um `Esc` fecharia os dois e quem só queria fechar o detalhe
+perderia a tela cheia junto.

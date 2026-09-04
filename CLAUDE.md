@@ -18,7 +18,18 @@ literal** da tela antiga.
 | 2 | Documentação | ✅ este arquivo e `docs/` |
 | 3 | Skills do projeto | ✅ 4 skills em `.claude/skills/` |
 | 4 | Implementação da 9815 | ✅ as 4 dimensões implementadas e conferidas — [docs/DIVERGENCIAS.md](docs/DIVERGENCIAS.md) |
-| 5 | Homologação — matriz de cenários | ⬜ [docs/HOMOLOGACAO.md](docs/HOMOLOGACAO.md) |
+| 4.1 | Detalhamento por duplo clique | ✅ **162/162 fecham ao centavo** — [ROTINA_9815 §16](docs/ROTINA_9815.md) |
+| 4.2 | Recursos da tela web | ✅ reordenar, tema, tela cheia, impressão — §15, §17, §18 |
+| 5 | Homologação — matriz de cenários | ⬜ [docs/HOMOLOGACAO.md](docs/HOMOLOGACAO.md) · **a matriz está desatualizada**, ver os riscos em DIVERGENCIAS |
+
+**Em aberto, em ordem de risco** (detalhe na tabela de riscos de `DIVERGENCIAS.md`):
+
+| | |
+|---|---|
+| O duplo clique **pela tela** | a API fecha 162/162, mas as telas novas nunca foram percorridas pela interface com dado real |
+| Tempo das consultas de imposto | nunca medido isoladamente — a dc6 só dá o total da execução |
+| Período de 3 meses e todas as filiais juntas | nunca apurados; risco de custo, não de valor |
+| `% AH` em Conta Gerencial | a exportação usada saiu sem análise horizontal |
 
 ## Stack
 
