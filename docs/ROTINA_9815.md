@@ -57,7 +57,7 @@ O **drill-down** é a primeira coisa depois da tabela pronta.
 Referência visual: `docs/Resultado das consultas na rotina oficial/prints/Como deve ser a rotina em web.png`.
 
 Rota **`/dre-gerencial`**. Sem login, a raiz redireciona direto para ela. Há uma segunda
-rota, `/dre-gerencial/detalhe/[id]`, que mostra um detalhamento já apurado — ver §16.3.
+rota, `/dre-gerencial/detalhe/[id]`, que mostra um detalhamento já apurado — ver §16.5.
 
 **Controles da tela, e onde cada um está documentado:**
 
@@ -74,9 +74,9 @@ rota, `/dre-gerencial/detalhe/[id]`, que mostra um detalhamento já apurado — 
 
 | Filtro | Controle | Origem dos valores |
 |---|---|---|
-| **Filial** | multisseleção | `GET /api/dre-gerencial/filiais` — **as 11 apuráveis**, ordenadas por `ORDEM_PROCESSA` |
+| **Filial** | multisseleção | `GET /api/dre-gerencial/filiais` — **as 9 apuráveis**, ordenadas por `ORDEM_PROCESSA` |
 | **Regime** | seleção única | Competência (padrão) · Caixa |
-| **Tipo de Análise** | seleção única | Grupo de Contas (padrão) · Conta Gerencial · C.Custo Principal · Centro de Custo |
+| **Tipo de Análise** | seleção única | Grupo de Contas · Conta Gerencial · C.Custo Principal (padrão) · Centro de Custo |
 | **Período** | intervalo de datas | com atalhos: Ontem · Mês Passado · Últimos 3 Meses · Ano Passado |
 
 Botão **Aplicar** dispara a apuração. Nada é apurado enquanto o usuário mexe nos filtros —
@@ -337,7 +337,7 @@ Nenhuma dessas mexe em regra de cálculo. Qualquer uma que altere um centavo é 
 
 | Winthor | Web |
 |---|---|
-| Tela de pré-seleção de filiais antes de abrir | seleção no próprio filtro, com as 11 apuráveis |
+| Tela de pré-seleção de filiais antes de abrir | seleção no próprio filtro, com as 9 apuráveis |
 | Grade estilo planilha | tabela responsiva, tema escuro |
 | Sem atalhos de período | Ontem · Mês Passado · Últimos 3 Meses · Ano Passado |
 | Linhas soltas após o LUCRO LIQUIDO | mesmas linhas, marcadas com `INFORMATIVO` |
@@ -648,8 +648,16 @@ que ponto flutuante em valores de dinheiro.
 
 ## 15. Reordenar linhas — preferência de leitura, nunca de cálculo
 
-A tabela deixa arrastar linhas e blocos para a ordem que o usuário preferir. Três
-decisões estruturam isso, e a primeira é a que importa para a regra de fidelidade:
+A tabela deixa arrastar linhas para a ordem que o usuário preferir. Três decisões
+estruturam isso, e a primeira é a que importa para a regra de fidelidade:
+
+> **Arrastar move uma linha, sempre.** Até 09/09/2026 um totalizador levava consigo o bloco
+> que ele encabeça — ele mais as linhas não-calculadas abaixo, até a próxima calculada —,
+> com um interruptor na barra (*Totalizador arrasta o bloco inteiro*) para desligar isso.
+> Removido por decisão do Gabriel: mover várias linhas num gesto muda a leitura de todas
+> elas de uma vez, e num relatório onde a posição sugere o que compõe o quê, é efeito grande
+> demais para um arraste. Saíram o interruptor, o `blocoDe` e o `moverIntervalo`; o `mover`
+> que restou foi conferido contra o comportamento anterior em 46 asserções.
 
 **A ordem não entra em cálculo nenhum.** Os totalizadores somam pelas marcações do
 cadastro (`ANTESRO`, `ANTESLL`, `ANTESLF`), no `MontadorDre`, no servidor — muito antes
@@ -769,7 +777,62 @@ Quando o resumo não bate com a célula, aparece um aviso com os dois números. 
 "✓ confere"** — um selo verde em toda abertura vira enfeite, e enfeite é o que o olho
 aprende a pular.
 
-### 16.3 Página própria e nova aba
+### 16.3 Os cabeçalhos, em negrito
+
+Decisão do Gabriel em 10/09/2026: os cabeçalhos do detalhamento precisam se separar dos
+dados. Valem para os três que a tela tem — o de coluna, o título `COMO SE CHEGA NO TOTAL`, e
+as linhas de grupo dos lançamentos (`Centro Custo Princ`, `Conta`).
+
+| | Antes | Agora |
+|---|---|---|
+| Peso | `font-medium` (500) | **`font-bold` (700)** |
+| Cor | `--text-muted` | `--text-primary` |
+
+**A cor subiu junto, e isso foi medido, não escolhido no escuro.** Com o cabeçalho em
+`--text-secondary`, os números do corpo ficavam em `rgb(241,245,249)` e o cabeçalho em
+`rgb(203,213,225)`: no tema escuro **mais claro é o que salta**, então o cabeçalho continuava
+atrás do dado por mais negrito que tivesse. Igualada a cor, o que separa os dois passa a ser
+peso, caixa alta e letter-spacing — e o cabeçalho vem para a frente. Confere nos dois temas:
+no claro, `#0f172a` sobre branco em 700 contra o mesmo tom em 400.
+
+Nas linhas de grupo os **dois níveis** ficaram em 700. O que os separa entre si passa a ser o
+recuo e a cor; dois pesos diferentes ali competiriam com a distinção que importa, que é
+cabeçalho contra dado.
+
+**A tabela do DRE não mudou** — o pedido era o detalhamento. Os cabeçalhos dela seguem em
+`font-medium` com `--text-muted`, então as duas telas têm hierarquias diferentes hoje.
+
+### 16.4 Qual coluna é o valor da tabela do DRE
+
+Toda tela de detalhamento tem **uma** coluna cujo somatório é o número que estava na célula
+clicada; as demais são contexto. A de imposto tem três colunas de dinheiro e só `Líquido`
+fecha, e nada na tela dizia isso — quem abria escolhia pela aparência.
+
+Três coisas dizem qual é, e todas apontam para a mesma:
+
+| | |
+|---|---|
+| Uma frase acima da tabela | *O valor de `(-) ST` na tabela do DRE é a soma da coluna `(ST) Líquido`.* |
+| O cabeçalho da coluna | ganha o nome da linha acima do rótulo — `(ST)` sobre `LÍQUIDO` |
+| O rodapé daquela coluna | pintado na cor de destaque, para o olho ligar as duas pontas |
+
+**O nome entra acima do rótulo, não no lugar dele.** Quem confere contra a 9815 procura a
+coluna pelo nome que ela sempre teve, e trocar `Líquido` por `ST` faria a coluna sumir para
+esse olhar.
+
+**Sem repetir o nome quando já é o mesmo.** `(DEVOLUCAO) Devolução` diria duas vezes a mesma
+coisa e ainda sugeriria que são dois números diferentes; a comparação ignora acento, caixa e
+pontuação, que é o que separa a grafia da tela nova da grafia da 9815.
+
+A escolha da coluna é decisão pura, mora em `client-new-kpi/lib/colunaDoTotal.ts` e é
+testada por `docs/validacao/dc12_coluna_que_fecha_o_total.mjs` — **30 asserções, todas
+passando**. Vale um teste porque a tela de receita abre a partir de quatro linhas do DRE
+que fecham em quatro colunas diferentes da mesma tabela, e `CMV LIQ.` casa tanto com a
+regra do CMV quanto com a de "líquida": apontar a coluna errada seria a tela mentindo com
+ar de certeza. Sem saber a linha de origem, **nada é apontado** — é o caso da abertura por
+link direto, e um palpite ali seria pior que o silêncio.
+
+### 16.5 Página própria e nova aba
 
 O botão **Abrir em nova aba**, ao lado de Fechar, leva o mesmo detalhamento para
 `/dre-gerencial/detalhe/[id]` numa aba nova, deixando a atual como está — com a apuração e
@@ -821,11 +884,100 @@ largura útil da respectiva folha:
 cabem maiores. Quem precisar de fonte maior nesse caso precisa de menos colunas — omitir o
 `AH %` do papel é o caminho, e é decisão de negócio.
 
+**Esta tabela foi medida com `AV %` e `AH %` de três casas e a descrição em 15rem.** Desde
+09/09/2026 os dois percentuais saem com **uma casa** no papel e a descrição vai a 18rem, o
+que muda o balanço de largura — provavelmente para melhor. A recalibragem depende de uma
+impressão nova com 3 e 4 meses.
+
+### 17.3 Os percentuais e a descrição, no papel
+
+Três diferenças entre a tela e a folha, e todas nascem da mesma restrição: no papel não há
+hover nem rolagem, e cada milímetro decide se a última coluna sai.
+
+| | Tela | Papel |
+|---|---|---|
+| `AV %` e `AH %` | três casas, como a 9815 | **uma casa** — `19,474` vira `19,5` |
+| `% part.` do detalhamento | duas casas | **uma casa** |
+| Nome da conta, cliente, produto | cortado com reticências, `title` no hover | **inteiro, quebrando em duas linhas** |
+
+**As duas grafias do número vivem no DOM**, e o CSS escolhe qual sai (`so-na-tela` /
+`so-no-papel`). Não é estado trocado no `beforeprint`: aquele evento é onde a impressão já
+enganou este projeto uma vez, e um `Ctrl+P` direto não espera por re-render.
+
+**O corte da descrição não estava onde parecia.** O `@media print` já mandava
+`white-space: normal` na célula, e o nome continuava saindo com reticências: quem carrega o
+`nowrap` é o `truncate` do próprio `<span>`, e propriedade declarada no elemento vence a
+herdada do pai. As três propriedades do `truncate` precisam cair juntas — derrubar só o
+`white-space` deixa o `overflow: hidden` cortando na segunda linha.
+
+### 17.4 A impressão do detalhamento
+
+**O botão do modal abre a página dedicada e manda imprimir lá.** Um `<dialog>` aberto vive
+na *top layer* do navegador, e conteúdo da top layer **não se fragmenta entre páginas**:
+`window.print()` no modal sairia com a primeira folha e o resto cortado, o que numa lista de
+15 mil clientes é o pior defeito possível. A página é HTML em fluxo normal — pagina, e o
+cabeçalho se repete. O parâmetro `?imprimir=1` é o que dispara o diálogo lá, uma vez só.
+
+**A folha e a fonte são decididas na hora de imprimir**, medindo a tabela — não há escala
+fixa por tela, e a ausência dela é o resultado de quatro tentativas.
+
+`hooks/useEscalaDeImpressao.ts`, no `beforeprint`:
+
+1. **mede** a tabela com 13pt e `width: max-content` — a largura que ela pede quando nada a
+   comprime;
+2. **escolhe** a menor folha em que ela caiba com pelo menos 13pt, entre A4 em pé (190mm
+   úteis), A4 deitada (277mm) e A3 deitada (400mm);
+3. **calcula** a fonte por regra de três contra essa largura, com 2% de folga, presa entre
+   7pt e 20pt;
+4. **aplica** as variáveis inline com `important` e reescreve a regra `@page`, e desfaz tudo
+   no `afterprint`.
+
+**Isto não é a armadilha do `beforeprint`.** O erro antigo foi medir naquele evento
+esperando as métricas do papel, que ainda não existem. Aqui a medição é de tela por
+construção, e a folha entra como número conhecido: 400mm úteis são 1.512px, e isso não
+depende de quando o navegador aplica a página.
+
+A folha que o React desenha (`FolhaDaImpressao`, por tipo de tela) é a **folha segura**: se
+o ajuste do `beforeprint` não pegar, sobra papel em vez de cortar conteúdo.
+
+#### Quatro tentativas, e por que as três primeiras falharam
+
+Nenhuma falhou de forma visível — todas produziram números plausíveis:
+
+| Tentativa | O que produziu |
+|---|---|
+| Contar colunas, supondo ≈16mm cada | receita em A3 com 69% de papel branco |
+| Medir o PDF impresso, lendo o fluxo errado | receita em A4 em pé, **valores cortados** |
+| Medir no navegador, com conteúdo pessimista | folha 2x maior que o necessário |
+| Medir a tabela real antes de cada impressão | — |
+
+1. **Contar colunas.** Coluna de data, de nome de cliente e de valor de nove dígitos têm
+   larguras que não se parecem; uma média de 16mm não descreve nenhuma delas.
+2. **Ler o X errado no PDF.** Concluiu 130mm para a receita, contra ≈316mm reais. Os
+   operadores `Tm` lidos eram do bloco "Como se chega no total": o primeiro fluxo de
+   conteúdo com texto não é necessariamente o da tabela. E a régua tinha um segundo defeito
+   — inferia a escala pelo maior retângulo pintado, que é o fundo da página **até** a tabela
+   transbordar, e aí passa a medir com a própria coisa medida. A escala verdadeira está na
+   matriz `cm` do fluxo (0,24 nos PDFs do Chrome).
+3. **Medir com conteúdo pessimista.** Nomes de 50 caracteres e valores de nove dígitos
+   davam 314mm para o imposto por produto; os PDFs reais de 09/09/2026 mostraram ≈150mm.
+   Produto chamado `ARROZ 5KG` com valor de seis dígitos não ocupa o que a amostra ocupava,
+   e **nada no CSS sabe qual dos dois vem na consulta** — foi este o argumento que encerrou
+   a busca por uma escala fixa.
+
+**O que sobra do PDF como fonte de verdade:** o `/MediaBox` (tamanho da folha que saiu) e a
+matriz `cm` (a escala). Ambos confiáveis. Largura de conteúdo se mede no navegador.
+
+**O teto de 20pt deixa sobra nas telas estreitas.** A devolução por motivo, com 5 colunas de
+dado curto, aceitaria fonte maior que qualquer relatório deveria ter: ela enche cerca de dois
+terços da A4 em pé e para ali. É limite tipográfico, não de folha — e a alternativa, esticar
+a tabela, devolveria o vão de papel entre o nome e o número que a §17.1 existe para evitar.
+
 A tabela **não estica** para a largura da folha. Com `width: 100%` as colunas se espalhavam
 e o olho atravessava um vão de papel branco para ligar o nome da conta ao número dela;
 encostadas à esquerda, ficam vizinhas.
 
-### 17.3 Duas armadilhas de `@page`, as duas com o mesmo sintoma
+### 17.5 Duas armadilhas de `@page`, as duas com o mesmo sintoma
 
 Ambas produzem **A4 em pé com a tabela cortada**, que é o que se vê quando a regra de
 tamanho é descartada:
@@ -857,3 +1009,218 @@ e sai com qualquer `Esc`, inclusive o que ela deu para fechar o detalhamento.
 O `Esc` daqui **só sai quando não há modal aberto**. O detalhamento é um `<dialog>` e fecha
 no `Esc` sozinho; sem a guarda, um `Esc` fecharia os dois e quem só queria fechar o detalhe
 perderia a tela cheia junto.
+
+---
+
+## 19. Celular
+
+Tudo medido em 09/09/2026, viewport de 375px com leitura ampliada. O ponto de corte é
+`max-width: 767px` para o que é questão de largura, e `(hover: none) and (pointer: coarse)`
+para o que é questão de dispositivo.
+
+### 19.1 A coluna de descrição
+
+**Ela ocupava 622px numa tela de 375px — 166% da largura da janela**, e a tabela inteira
+1.722px. Como a coluna é fixa na rolagem lateral, ela cobria a tela toda: não havia como ver
+um valor, e rolar não resolvia, porque o que rolava passava por baixo dela.
+
+A causa é o `min-w-[32rem]` da descrição — 512px reservados para caber o nome mais comprido
+do cadastro **e** um selo ao lado. Numa tela de 375px isso não é folga, é a tela inteira
+mais uma vez.
+
+| | Antes | Depois |
+|---|---:|---:|
+| Coluna de descrição | 622px (166% da tela) | 188px (50%) |
+| Tabela inteira | 1.722px | 1.108px |
+| Visível para valores | 0 | 162px |
+
+O teto é `50vw`: o suficiente para ler o nome da conta, e o suficiente para o primeiro valor
+aparecer ao lado **sem nenhum gesto**.
+
+### 19.2 Quebrar ou cortar, e onde
+
+As duas telas resolvem o nome comprido de formas opostas, e é medição que decide:
+
+- **Tabela do DRE — quebra livre.** São 13 nomes de conta, e ler `(=) RECEITAS LIQUIDAS` em
+  duas linhas é melhor que ler `(=) RECEITAS LIQ…`.
+- **Detalhamento — duas linhas e para.** Com quebra livre,
+  `ARROZ TIPO 1 PACOTE DE 5KG MARCA REGIONAL 0` virou **sete linhas** numa coluna de 150px;
+  uma lista de 15 mil produtos assim não se percorre. `line-clamp: 2` corta no fim da
+  segunda linha, e o `title` continua guardando o nome inteiro.
+
+### 19.3 A altura da tabela
+
+Antes: **107px de tabela**, e a `main` não rolava — o conteúdo dela tem `h-full` e nunca
+passa da própria altura, então o resto da tabela era simplesmente inalcançável. Com
+`min-height: 65svh` a tabela tem 528px e a `main` passa a rolar.
+
+`svh` e não `vh`: no celular a barra do navegador aparece e desaparece, e `vh` toma a janela
+grande como referência, deixando a tabela mais alta que a tela.
+
+**A rolagem interna fica**, em vez de a tabela crescer e a página rolar tudo: é ela que
+mantém o cabeçalho grudado no topo. Numa lista de 15 mil clientes, rolar sem saber de que mês
+é a coluna pesa mais que a segunda barra de rolagem incomoda.
+
+### 19.4 O que sai em dispositivo de toque
+
+**O punho de arrastar e a barra que explica o arraste.** O reordenamento usa a API de
+drag-and-drop do HTML, que **não recebe eventos de dedo**: no celular o punho é um controle
+morto ocupando 24px da coluna mais disputada da tela, e a dica manda usar `Alt`+setas num
+aparelho sem tecla `Alt`.
+
+A mira é o **dispositivo**, não a largura da janela — num desktop com janela estreita o mouse
+continua arrastando, e ali os dois seguem valendo.
+
+### 19.5 O selo, em quatro letras
+
+`INFORMATIVO` ocupava mais que o nome que qualifica: numa coluna de 188px, `(-) ST` era
+empurrado para duas linhas com o selo no meio. Em tela estreita o selo mostra `INFO`, e a
+linha volta de 62px para 42px.
+
+**O texto acessível continua sendo o longo** — quem usa leitor de tela ouve "Informativo",
+não a abreviação, e o `title` guarda a frase inteira para quem passa o ponteiro.
+
+### 19.6 A armadilha que apareceu três vezes aqui
+
+As regras de celular vivem **no fim do `globals.css`**, e isso não é organização: é
+necessidade. Elas sobrescrevem declarações de mesma especificidade que estão acima —
+`min-height: 0` da `.tabela-rolagem`, `display: flex` do `.puxador`, `display: none` do
+`.selo-curto` — e na mesma especificidade **quem ganha é quem vem por último**.
+
+Escritas no começo do arquivo, não faziam efeito nenhum, e nada acusava: nem erro de
+sintaxe, nem aviso, nem diferença visível até alguém medir o elemento. Aconteceu três vezes
+na mesma sessão, com três propriedades diferentes.
+
+---
+
+## 20. Exportar
+
+Um botão **Exportar** no cabeçalho da tabela abre um popover com três saídas — mesmo padrão
+do popover de atalhos de período: `mousedown` fora fecha, `Esc` fecha, `role="menu"`.
+
+| Item | O que faz |
+|---|---|
+| **Imprimir** | `window.print()` |
+| **Exportar PDF** | `window.print()` — o destino *Salvar como PDF* é escolhido no diálogo |
+| **Exportar Excel** | gera e baixa um `.xlsx` |
+
+**O botão Imprimir separado saiu**, porque *Imprimir* passou a ser um item do menu. Se a
+intenção era manter os dois, é uma linha de volta.
+
+### 20.1 PDF é a impressão, e isso é decisão
+
+Os dois itens chamam o mesmo `window.print()`, com a folha e a fonte que
+`useEscalaDeImpressao` calibra. **Um gerador de PDF no navegador seria uma segunda
+implementação dos padrões da §17** — cabeçalho repetido a cada página, folha por largura
+medida, as duas armadilhas de `@page` — e divergiria da impressão na primeira correção feita
+em um dos dois lados. Escolhido pelo Gabriel em 09/09/2026, entre este caminho, `jsPDF` e
+gerar no back-end.
+
+O que muda entre os dois itens é **o que se diz a quem clica**: nenhuma API do navegador
+pré-seleciona o destino "PDF", então o item avisa que ele é escolhido no diálogo. Prometer o
+contrário deixaria a pessoa esperando um download que não vem.
+
+### 20.2 O Excel
+
+Biblioteca: **SheetJS `xlsx` 0.20.3**, aprovada pelo Gabriel em 09/09/2026.
+
+> **Instalada da CDN oficial**, não do npm: `https://cdn.sheetjs.com/xlsx-0.20.3/…`. O
+> pacote `xlsx` do registro público parou na 0.18.5, de 2022, e carrega CVEs de
+> *prototype pollution* e ReDoS. Nosso uso é só escrita, o que não exercita nenhum dos
+> dois, mas instalar dependência com alerta conhecido é dívida que aparece na próxima
+> auditoria. `npm audit`: **0 vulnerabilidades**.
+
+Três decisões dentro dele:
+
+**Número é número.** A tela mostra `(617.283,95)`, mas a célula recebe `-617283.95` com o
+*formato* `#,##0.00;(#,##0.00)` mandando exibir os parênteses. Quem abre vê a mesma tabela e
+consegue somar, filtrar e montar tabela dinâmica. Exportar o texto formatado dá uma planilha
+bonita e inútil — e é o defeito mais fácil de cometer aqui, porque na tela ele não aparece:
+quem descobre é o contador, na frente do cliente.
+
+**A ordem é a da tela.** As chaves são lidas do DOM (`tr[data-chave]`), então linhas
+arrastadas e zeradas escondidas valem no arquivo. É o mesmo critério da impressão, que
+imprime o que está renderizado; divergir faria o Excel e o papel discordarem sobre a mesma
+apuração. A alternativa era levantar o `useOrdemSalva` e o cálculo de visíveis para fora da
+`TabelaDre` — refatorar o dono de três estados para servir a um botão.
+
+**O `xlsx` entra por `import()` dinâmico**, ~400KB que só interessam a quem exporta.
+
+Também: largura de coluna (sem ela o Excel mostra `#######` na coluna de dinheiro, o
+primeiro motivo de alguém achar que a exportação veio quebrada), faixa do mês unindo as três
+colunas, e painel congelado nas duas linhas de cabeçalho mais a coluna da descrição.
+
+**Não faz negrito nos totalizadores** — estilo de célula é recurso da versão paga do
+SheetJS. A community escreve valor, formato, largura e congelamento, e é o que está aqui.
+
+### 20.3 O menu está nas três telas
+
+| Tela | Imprimir e PDF | Excel |
+|---|---|---|
+| Tabela do DRE | `window.print()` | a apuração, na ordem da tela |
+| **Modal** de detalhamento | abre a página em nova aba e imprime lá | **daqui mesmo** |
+| **Página** de detalhamento | `window.print()` | daqui mesmo |
+
+**No modal, o Excel não passa pela outra aba.** O que impede a impressão de sair do
+`<dialog>` — conteúdo da *top layer* não se fragmenta entre páginas — não vale para um
+arquivo: planilha não tem folha nem paginação. Os dados já estão carregados; é só montar.
+
+O texto de apoio dos itens muda no modal, para dizer que a impressão abre uma aba — aba que
+aparece sem avisar parece defeito.
+
+**A composição dos totalizadores não exporta**, pelo mesmo motivo de não ter página: ela é
+aritmética sobre linhas da tabela que está atrás do modal, e a tabela inteira já exporta.
+
+### 20.4 O Excel do detalhamento
+
+Uma matriz por tela, com **duas diferenças deliberadas em relação à tela**:
+
+**Código e nome em colunas separadas.** Na tela os dois moram na mesma célula, porque duas
+colunas fixas teriam que concordar até o pixel sobre onde uma termina (§15). Em planilha isso
+se inverte: quem vai cruzar com outra base precisa do código sozinho, e `100 ARROZ 5KG` numa
+célula só obriga fórmula de texto para separar.
+
+**Centro de custo e conta viram colunas, nos lançamentos.** Na tela são linhas de grupo —
+hierarquia visual, como a 9815 faz. Planilha quer dado tabular: repetidas em cada linha, uma
+tabela dinâmica reagrupa sozinha e o subtotal que a tela desenha o Excel calcula. São 27
+colunas: as 25 da 9815 mais essas duas.
+
+**A coluna que fecha o total leva o nome da linha do DRE**, como na tela — `(ST) Líquido`.
+Quem abre a planilha semanas depois não tem o cabeçalho da tela ao lado para lembrar qual das
+colunas de dinheiro bate com o DRE.
+
+### 20.5 Como isto foi verificado
+
+Duas validações, ambas rodando os **módulos reais** do front no Node — sem bundler, sem
+navegador, sem banco:
+
+| | |
+|---|---|
+| [dc13](validacao/dc13_excel_da_apuracao.mjs) | **20 asserções** — a apuração. Gera o arquivo, **reabre** e confere célula por célula, inclusive que `B3.t === "n"` (tipo numérico) e que o formato pede parênteses |
+| [dc14](validacao/dc14_excel_do_detalhamento.mjs) | **25 asserções** — as quatro telas do detalhamento, rótulo por rótulo. Um teste que só olhasse "gerou o arquivo" passaria com a matriz errada |
+
+Rodam com o resolvedor de alias:
+
+```bash
+node --experimental-strip-types --import ./docs/validacao/_alias.mjs docs/validacao/dc14_excel_do_detalhamento.mjs
+```
+
+`docs/validacao/_alias.mjs` ensina o Node a resolver o `@/` do `tsconfig`. Existe porque a
+alternativa era trocar os imports do código de produção por caminhos relativos — mudar o
+código para o teste passar.
+
+**E pela interface, com a API de verdade** (autorizado pelo Gabriel em 09/09/2026, para os
+endpoints já validados). Uma filial, 01/09 a 09/09/2026, apuração em 14 s e 52 linhas:
+
+- tabela do DRE → `DRE_ccusto-principal_2026-09-01_a_2026-09-09.xlsx`, 13.299 bytes;
+- duplo clique em `(-) DEVOLUCAO` → modal com 20 motivos fechando em **413.947,02**, o mesmo
+  valor da célula clicada → 11.203 bytes;
+- página dedicada, mesma consulta → 11.170 bytes.
+
+O download foi **espiado, não disparado**: `URL.createObjectURL` e `HTMLAnchorElement.click`
+interceptados no navegador, para não abrir diálogo de salvar na máquina de ninguém. É a mesma
+razão de `gerarPlanilha` e `baixar` serem funções separadas.
+
+**Um defeito que só a exportação real mostrou:** o nome do arquivo saía
+`Detalhe (-) DEVOLUCAO · Setembro2026` — o `nomeSeguro` remove a barra, proibida em nome de
+arquivo, e o mês perdia o separador. A troca por hífen agora acontece **antes** da limpeza.

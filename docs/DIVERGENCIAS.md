@@ -644,7 +644,7 @@ Confirma também a aritmética no caso degenerado: `LUCRO BRUTO` zero faz
 
 ---
 
-## O filtro de filiais — 18, depois 13, agora 11
+## O filtro de filiais — 18, depois 13, 11, agora 9
 
 **Decisões de 31/08 e 02/09/2026.** Cada uma reversível numa linha; o histórico está aqui
 para que a reversão seja informada, e não uma volta atrás no escuro.
@@ -721,6 +721,35 @@ ele.** A [fase5d](validacao/fase5d_filiais_que_a_9815_oferece.sql) é o ponto de
 foi ela que levantou os atributos de cadastro das 18.
 
 **Como reverter:** apagar a linha. As duas voltam.
+
+### Mais duas saíram — 09/09/2026
+
+Instrução do Gabriel. A lista de exclusões passa a
+`AND F.CODFIL NOT IN ('20','31','35','91')`, e o filtro vai de **11 para 9**:
+
+| | |
+|---|---|
+| `20 EPC-CEASA` | EPC — EPC - CEASA, ordem 1 |
+| `35 VIVALOG-SUL` | VIVALOG — VIVALOG-SUL, ordem 3 |
+
+Mesmo motivo de escopo das CeM: as duas têm os dados nesta base, o zero delas seria
+verdadeiro, e ainda assim ninguém deve apurá-las — oferecê-las no filtro só cria
+oportunidade de erro.
+
+**Vale registrar que a 20 chegou a ser defendida nesta lista.** Em 31/08/2026, quando as
+cinco filiais com database link saíram, a `20 EPC-CEASA` foi explicitamente **mantida**, com
+o argumento de que ela não tem link, os dados estão aqui e o zero dela é legítimo — "filial
+inativa, não ausente". O argumento continua correto; a decisão de negócio passou por cima
+dele. Não é contradição, e a distinção importa para as próximas: **"o número está certo" e
+"esta linha deve estar no filtro" são perguntas diferentes**, e a segunda não é técnica.
+
+**O filtro é a única barreira.** `ValidarPeriodoEFiliais` exige ao menos uma filial e não
+confere se os códigos recebidos estão entre os apuráveis: um `POST /apuracao` com
+`"filiais": ["20"]` continua sendo atendido. Para a tela isso não muda nada — ela só oferece
+as 9 —, mas quem chamar a API direto ainda consegue apurar as excluídas. Fechar isso é uma
+validação no serviço, e não foi pedida.
+
+**Como reverter:** tirar o código da lista. Cada um sai sozinho.
 
 ### O que continua sem resposta
 
@@ -1367,3 +1396,109 @@ errado.
 
 Registrado em [CONVENCOES_ORACLE.md](CONVENCOES_ORACLE.md), com a convenção adotada: colunas
 de subconsulta agregada terminam em `ITEM`.
+
+---
+
+## 5. A receita da transportadora vinha zero — 10/09/2026
+
+Reportado por usuário: com a filial **28 EPC-TRANSP** selecionada, `RECEITA BRUTA` na web
+saía **0,00**; a 9815, no mesmo filtro, trazia **1.152.705,09**.
+
+### A causa: nós somamos item, a 9815 soma cabeçalho
+
+| | 9815 | Nossa web (antes) |
+|---|---|---|
+| Granularidade | cabeçalho da nota (`PCNFSAID`) | **item** (`PCMOV`) |
+| Receita bruta | `Σ nvl(NF.VLTABELA, NF.VLTOTGER)` | `Σ MV.ptabela · MV.qt` |
+| Junções | só a nota | `+ PCMOV + PCMOVCOMPLE + PCPRODUT` |
+| Código fiscal | **exclusão** na nota (`NOT IN 522,…`) | **inclusão** no item (`IN 5102,…`) |
+
+`NF.numtransvenda = MV.numtransvenda` é junção **interna**: nota sem item desaparece da
+soma inteira. E EPC-TRANSP é transportadora — emite CT-e.
+
+Medido pela [dc15](validacao/dc15_receita_da_transportadora.sql), no período do reporte:
+
+| | |
+|---|---|
+| Notas no período | **607** |
+| Notas **sem** item em `PCMOV` | **607 — todas** |
+| `ESPECIE` | `'CO'` em todas |
+| `CONDVENDA` | **nula** em todas — entram na 9815 só pelo `OR NF.ESPECIE = 'CO'` |
+| `VLTABELA` | **nulo** em todas; o valor vem inteiro de `VLTOTGER` |
+| Códigos fiscais da nota | 5353 (601 notas), 6932, 6353, 5932 |
+| O que a web via | 0 itens, receita nula |
+
+**Não era a lista de códigos fiscais.** Essa era a primeira hipótese — que faltavam os
+códigos de serviço de transporte na lista de inclusão —, e a dc15 a descartou: sem item, não
+há `CODFISCAL` de item para incluir. Uma correção na lista teria parecido plausível e não
+mudaria nada.
+
+### Por que passou pelas quatro conferências
+
+As validações do faturamento — [inc4](validacao/inc4_comparacao_faturamento.sql) e
+[inc8](validacao/inc8_mensal_vs_periodo.sql) — usaram as filiais **7, 12 e 25**, todas de
+distribuição. **Nenhuma transportadora entrou em nenhum dos quatro cenários.** Uma lista de
+inclusão por item só inclui o que alguém previu, e ninguém previu frete: é o defeito que
+fecha ao centavo em quatro cenários e quebra no quinto.
+
+### A correção
+
+Um **terceiro bloco** em `FaturamentoPorMes`, somando o cabeçalho **só das notas sem item**,
+com `NOT EXISTS` garantindo que nada some duas vezes. Os filtros são os da 9815, que é a
+referência para este caso. `ST`, `PIS`, `COFINS` e devolução entram como zero — é o que a
+rotina traz para a 28, e coerente com CT-e não ter imposto de mercadoria.
+
+**Aditivo de propósito:** nota com item continua somando exatamente como antes, então os
+números conferidos não deviam se mexer.
+
+### Medido, e a correção está validada — 10/09/2026
+
+A [dc16](validacao/dc16_notas_sem_item_por_filial.sql) respondeu as duas perguntas:
+
+| | |
+|---|---|
+| Cenário de referência (7, 12, 25 em 01/08 a 27/08) | **nenhuma linha** — não existe nota sem item ali |
+| Todas as 9 apuráveis, agosto/2026 | **só a 28**: 1.812 notas, 4.034.347,40 |
+
+Nenhuma outra filial do filtro tem nota sem item. O bloco novo só encosta na 28.
+
+**Pela API, com período fechado.** Filial 28, agosto inteiro: `RECEITA BRUTA`
+**4.034.347,40** — o mesmo valor que a dc16 mediu por SQL, de forma independente.
+
+E o cenário da [dc9](validacao/dc9_colunas_da_receita.mjs), reapurado depois da mudança:
+
+| Linha | Agora | dc9 (02-03/09) | |
+|---|---:|---:|---|
+| `(+) RECEITA BRUTA` | 55.754.350,05 | 55.754.350,05 | idêntico |
+| `(-) ABAT./DESC.` | −4.663.263,35 | −4.663.263,35 | idêntico |
+| `(-) DEVOLUCAO` | −1.256.167,12 | −1.256.167,12 | idêntico |
+| `(=) RECEITAS LIQUIDAS` | 49.834.919,58 | 49.834.919,58 | idêntico |
+| `(=) CMV LIQ.` | −39.158.687,34 | −39.158.522,17 | **−165,17** |
+
+**As quatro primeiras idênticas ao centavo são a prova de que o bloco novo somou zero ali.**
+Se ele tivesse pegado alguma nota naquelas filiais, a receita bruta teria mudado — ela é a
+primeira coisa que o bloco toca.
+
+Os −165,17 do CMV **não podem vir do bloco novo** pelo mesmo argumento: ele soma
+`NVL(NF.VLCUSTOFIN,0)` das mesmas notas que somariam receita, e receita não mudou. É o
+padrão já registrado neste documento — quatro linhas paradas e o CMV andando é recálculo de
+custo no Winthor, o mesmo fenômeno que moveu 2,1 milhões entre 02 e 03/09.
+
+> **Erro de método na primeira tentativa desta conferência.** Rodei 01/08 a **27/08** e
+> comparei com os números da dc9, que são de 01/08 a **31/08**. As cinco linhas divergiram —
+> a receita em 14,3 milhões — e por um instante pareceu regressão grave. Não era: eram
+> cenários diferentes. O alvo de comparação faz parte da medição, e conferir contra número
+> de outro recorte produz um alarme que custa mais que o defeito que ele denuncia.
+
+**Resíduo conhecido:** nota que **tem** item, mas cujos itens caem fora da lista
+`MV.CODFISCAL IN (5102,…)`, continua não somando em lugar nenhum — o primeiro bloco a exclui
+pelo filtro, o terceiro pelo `NOT EXISTS`. Não é o caso da 28; o bloco 4 da dc15 é quem mede
+se existe em outra filial.
+
+### O valor que subia a cada consulta
+
+Três leituras do mesmo cenário, em minutos: **1.137.050,01** (planilha), **1.137.229,05**
+(relato) e **1.152.705,09** (dc15). Não é defeito: o período termina **no dia corrente** e a
+transportadora está emitindo CT-e agora. É a armadilha 2 — a base viva — e o alvo de
+comparação num período que inclui hoje muda enquanto se mede. Para conferir contra a 9815,
+usar período **fechado**.

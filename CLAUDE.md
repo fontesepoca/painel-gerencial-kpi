@@ -53,6 +53,7 @@ literal** da tela antiga.
 | Estilo | Tailwind CSS 4 (tokens em `app/globals.css`) |
 | Dados do servidor | React Query v5 |
 | HTTP | `services/apiClient.ts` — fetch nativo, sem axios |
+| Excel | SheetJS `xlsx` 0.20.3 — **da CDN oficial**, não do npm (ver [ROTINA_9815 §20.2](docs/ROTINA_9815.md)) |
 | Tipos | TypeScript strict, com `noUncheckedIndexedAccess` |
 
 Toda biblioteca nova passa por aprovação do Gabriel antes de ser instalada.
