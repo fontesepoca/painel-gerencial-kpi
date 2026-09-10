@@ -47,21 +47,35 @@ public static class DreGerencialQueries
     /// 27/08/2026, era mostrar as 18, e foi tomada antes de sabermos que cinco delas apontam
     /// para outro banco.</para>
     ///
-    /// <para>Das outras quatro que a 9815 não oferece, duas <b>continuam na lista</b> —
-    /// <c>20 EPC-CEASA</c> e <c>22 EPC-RJ</c>: não têm link, os dados estão aqui, e o zero
-    /// delas é verdadeiro. São filiais inativas, não ausentes.</para>
+    /// <para>Das outras quatro que a 9815 não oferece, <c>22 EPC-RJ</c> <b>continua na
+    /// lista</b>: não tem link, os dados estão aqui, e o zero dela é verdadeiro — é filial
+    /// inativa, não ausente.</para>
     ///
-    /// <para><b>4. `AND F.CODFIL NOT IN ('31','91')` — acrescentado em 02/09/2026.</b> São as
-    /// duas CeM, <c>31 CeM-ES</c> e <c>91 CeM-MG</c>. Decisão do Gabriel, revertendo a de
-    /// 31/08 que as mantinha: não pertencem à operação que o DRE mede, e oferecê-las no
-    /// filtro só cria oportunidade de apurar por engano.</para>
+    /// <para><b>4. `AND F.CODFIL NOT IN ('20','31','35','91')` — a lista de exclusões por
+    /// decisão de negócio.</b> Quatro filiais que existem, têm os dados nesta base e ainda
+    /// assim não devem aparecer no filtro:</para>
+    ///
+    /// <list type="bullet">
+    ///   <item><c>31 CeM-ES</c> e <c>91 CeM-MG</c> — em 02/09/2026, revertendo a decisão de
+    ///   31/08 que as mantinha: não pertencem à operação que o DRE mede.</item>
+    ///   <item><c>20 EPC-CEASA</c> e <c>35 VIVALOG-SUL</c> — em 09/09/2026.</item>
+    /// </list>
+    ///
+    /// <para>Todas por decisão do Gabriel, e o motivo é o mesmo: oferecer no filtro uma
+    /// filial que ninguém deve apurar só cria oportunidade de apurar por engano. Note que a
+    /// 20 chegou a ser <b>defendida</b> na lista, em 31/08, com o argumento de que o zero
+    /// dela é verdadeiro — o argumento continua correto, e a decisão de negócio passou por
+    /// cima dele. Não é contradição: "o número está certo" e "esta linha deve estar no
+    /// filtro" são perguntas diferentes.</para>
     ///
     /// <para>O critério é o <b>código</b>, e não o prefixo do `LABEL`, porque `LABEL` é campo
     /// de exibição: um `LIKE 'CeM%'` transformaria renomear uma filial em mudar silenciosamente
-    /// o que o DRE apura. Em troca, uma CeM nova entraria na lista sem avisar — se surgir uma
-    /// terceira, o certo é procurar o atributo de cadastro que as separa e trocar por ele.</para>
+    /// o que o DRE apura. Em troca, uma filial nova do mesmo grupo entraria na lista sem
+    /// avisar — se isso virar rotina, o certo é procurar o atributo de cadastro que as separa
+    /// e trocar por ele.</para>
     ///
-    /// <para><b>Como reverter:</b> apagar a linha. As duas voltam a aparecer.</para>
+    /// <para><b>Como reverter:</b> tirar o código da lista. Cada um sai sozinho, sem afetar
+    /// os outros.</para>
     ///
     /// Sem parâmetros.
     /// </summary>
@@ -77,7 +91,7 @@ public static class DreGerencialQueries
          WHERE F.EMPRESA = E.EMPRESA
            AND F.CODFIL  = FW.CODIGO (+)
            AND F.DBLEPCTI IS NULL
-           AND F.CODFIL NOT IN ('31','91')
+           AND F.CODFIL NOT IN ('20','31','35','91')
          ORDER BY F.ORDEM_PROCESSA, LPAD(F.CODFIL, 10, '0')
         """;
 
@@ -885,8 +899,30 @@ public static class DreGerencialQueries
     /// <para><b>Não depende do regime.</b> Receita e CMV são idênticos em caixa e
     /// competência.</para>
     ///
-    /// <para>Binds: :dtIni1, :dtFim1 (vendas), {0} filiais de `PCNFSAID`, {1} filiais de
-    /// `PCNFENT`, :dtIni2, :dtFim2 (devoluções).</para>
+    /// <para><b>3. Um terceiro bloco, para as notas SEM item — 10/09/2026.</b> Os dois
+    /// primeiros somam <b>item</b> (`PCMOV`); a 9815 soma <b>cabeçalho</b> (`PCNFSAID`), e a
+    /// junção interna com os itens engolia a nota inteira quando ela não tem nenhum.</para>
+    ///
+    /// <para>Foi o defeito da filial <c>28 EPC-TRANSP</c>: `RECEITA BRUTA` zero na web e
+    /// 1.152.705,09 na rotina. Ela é transportadora — emite CT-e, que tem `ESPECIE = 'CO'`,
+    /// `CONDVENDA` <b>nula</b> e <b>nenhum item em `PCMOV`</b>. Medido em
+    /// `docs/validacao/dc15_receita_da_transportadora.sql`: <b>607 de 607 notas sem
+    /// item</b>, todas com `VLTABELA` nulo, o valor inteiro em `VLTOTGER`.</para>
+    ///
+    /// <para>O bloco novo é <b>aditivo</b>: o `NOT EXISTS` garante que nota com item soma no
+    /// primeiro bloco e nota sem item soma neste, nunca nos dois. Os filtros dele são os da
+    /// 9815, porque para este caso é ela a referência — inclusive
+    /// `NF.CODFISCAL NOT IN (522,...)` e `numtranscteanul IS NULL`, que a soma por item não
+    /// precisava.</para>
+    ///
+    /// <para><b>Resíduo conhecido:</b> nota que <b>tem</b> item, mas cujos itens ficam fora
+    /// da lista `MV.CODFISCAL IN (5102,...)`, continua não somando em lugar nenhum — não
+    /// entra no primeiro bloco (o filtro a exclui) nem neste (o `NOT EXISTS` a exclui).
+    /// Não é o caso da 28, e o bloco 4 da dc15 é quem mede se existe.</para>
+    ///
+    /// <para><b>Binds, na ordem em que aparecem</b> — o ODP.NET liga por posição:
+    /// :dtIni1, :dtFim1 (vendas), {0} filiais de `PCNFSAID`, {1} filiais de `PCNFENT`,
+    /// :dtIni2, :dtFim2 (devoluções), {2} filiais do bloco sem item, :dtIni3, :dtFim3.</para>
     /// </summary>
     public const string FaturamentoPorMes = """
         SELECT MESANO                                              AS MESANO,
@@ -948,7 +984,41 @@ public static class DreGerencialQueries
             AND NFE.DTENT BETWEEN :dtIni2 AND :dtFim2
             AND MV.CODFISCAL IN (1202,1411,1949,2202,2411,2949) 
           AND MV.CODSEC <> 1601 
-          GROUP BY TO_CHAR(NFE.DTENT,'mm/yyyy') 
+          GROUP BY TO_CHAR(NFE.DTENT,'mm/yyyy')
+         UNION ALL
+         /* ── TERCEIRO BLOCO: as notas SEM item em PCMOV ──────────────────────────────
+            Acrescentado em 10/09/2026. O bloco de vendas acima soma ITEM (PCMOV); este
+            soma o CABEÇALHO, e só das notas que não têm item nenhum — é o que a 9815 faz
+            para todas as notas, e o que faltava para o CT-e da transportadora.
+
+            `NOT EXISTS` é o que garante que os dois blocos não se sobreponham: nota com
+            item soma lá, nota sem item soma aqui, e nenhuma soma duas vezes. Os filtros
+            são os DA 9815, porque para este caso é ela a referência. */
+         SELECT TO_CHAR(NF.DTSAIDA,'mm/yyyy') AS MESANO,
+                SUM(NVL(NF.VLCUSTOFIN,0)) as VLCUSTOFIN,
+                SUM(DECODE(NF.CONDVENDA, 8, NF.VLTOTAL, NF.VLTOTGER)) as VLVENDA,
+                SUM(DECODE(NF.CONDVENDA, 8, NF.VLTOTAL, NF.VLTOTGER)) VLVENDA_Total,
+                SUM(NVL(NF.VLTABELA, NF.VLTOTGER)) as VLTABELA,
+                0 as VLDEVOLUCAO, 0 as VLDEVOLUCAO_total, 0 as VLCMVDEVOL,
+                0 as VLST, 0 as VLST_DEV,
+                0 as VLPIS, 0 AS VLPIS_dev,
+                0 as vlcofins, 0 AS vlcofins_dev
+           FROM PCNFSAID NF,
+                (select clie.codcli, ce.codfil, ce.mostra_dre from cliente_especial ce, pcclient clie where clie.codcliprinc = ce.codcli) esp
+          WHERE NF.codcli        = esp.codcli (+)
+            AND NF.CODFILIAL     = esp.codfil (+)
+            AND NF.DTCANCEL      IS NULL
+            AND ( (NF.CONDVENDA in (1,5,8) OR (NF.ESPECIE = 'CO')) OR ((NF.CONDVENDA = 10) and (substr(replace(replace(replace(nf.cgc,'.',''),'/',''),'-',''),0,8) <> substr(replace(replace(replace(nf.cgcfilial,'.',''),'/',''),'-',''),0,8))) )
+            AND ( (NF.CONDVENDA IN (1,3,5,6,8)) OR (NF.ESPECIE = 'CO') )
+            AND NF.CODFISCAL NOT IN (522,622,722,532,632,732,5206)
+            AND NF.numtranscteanul IS NULL
+            AND ( (nvl(esp.mostra_dre,'S') = 'S') or (NF.CONDVENDA in (5)) )
+            AND NF.CODFILIAL IN ({2})
+            AND NF.DTSAIDA BETWEEN :dtIni3 AND :dtFim3
+            AND NOT EXISTS (SELECT 1 FROM PCMOV MV
+                             WHERE MV.numtransvenda = NF.numtransvenda
+                               AND MV.DTCANCEL IS NULL)
+          GROUP BY TO_CHAR(NF.DTSAIDA,'mm/yyyy')
             )
          GROUP BY MESANO
          ORDER BY SUBSTR(MESANO,4,4), SUBSTR(MESANO,1,2)

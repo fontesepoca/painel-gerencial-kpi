@@ -199,14 +199,17 @@ public sealed class DreGerencialRepository : IDreGerencialRepository
 
         var placeholdersA = string.Join(", ", filiais.Select((_, i) => $":filialA{i}"));
         var placeholdersB = string.Join(", ", filiais.Select((_, i) => $":filialB{i}"));
+        var placeholdersC = string.Join(", ", filiais.Select((_, i) => $":filialC{i}"));
 
-        var sql = string.Format(DreGerencialQueries.FaturamentoPorMes, placeholdersA, placeholdersB);
+        var sql = string.Format(
+            DreGerencialQueries.FaturamentoPorMes, placeholdersA, placeholdersB, placeholdersC);
 
         var inicio = dataInicio.ToDateTime(TimeOnly.MinValue);
         var fim = dataFim.ToDateTime(TimeOnly.MinValue);
 
         // Ordem obrigatória: datas das vendas, filiais de PCNFSAID, filiais de PCNFENT,
-        // datas das devoluções. É a ordem em que os binds aparecem no SQL.
+        // datas das devoluções, filiais do bloco sem item, datas dele. É a ordem em que os
+        // binds aparecem no SQL — o ODP.NET liga por POSIÇÃO, não por nome.
         var parametros = new DynamicParameters();
         parametros.Add("dtIni1", inicio);
         parametros.Add("dtFim1", fim);
@@ -220,6 +223,12 @@ public sealed class DreGerencialRepository : IDreGerencialRepository
         }
         parametros.Add("dtIni2", inicio);
         parametros.Add("dtFim2", fim);
+        for (var i = 0; i < filiais.Count; i++)
+        {
+            parametros.Add($"filialC{i}", filiais[i]);
+        }
+        parametros.Add("dtIni3", inicio);
+        parametros.Add("dtFim3", fim);
 
         using var conexao = await _conexoes.CriarConexaoAsync(cancellationToken);
 
