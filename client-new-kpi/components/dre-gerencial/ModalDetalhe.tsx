@@ -4,7 +4,13 @@ import { Fragment, useEffect, useRef } from "react";
 import { formatarPercentual, formatarValor } from "@/lib/formato";
 import { paraBr } from "@/lib/periodos";
 import { cn } from "@/lib/cn";
-import { colunaDoTotal, igual, nomeDaLinha, rotuloDaColuna } from "@/lib/colunaDoTotal";
+import {
+  colunaDoTotal,
+  igual,
+  nomeDaLinha,
+  rotuloDaColuna,
+} from "@/lib/colunaDoTotal";
+import { semEstornosQueSeAnulam } from "@/lib/estornosQueSeAnulam";
 import { MenuExportar } from "@/components/dre-gerencial/MenuExportar";
 import type {
   DetalheCliente,
@@ -128,7 +134,8 @@ export function ModalDetalhe({
             {periodo && (
               <p className="mt-1 text-[length:var(--fs-apoio)] text-[var(--text-muted)]">
                 {paraBr(periodo.dataInicio)} a {paraBr(periodo.dataFim)}
-                {dados && ` · apurado em ${(dados.duracaoMs / 1000).toFixed(1)} s`}
+                {dados &&
+                  ` · apurado em ${(dados.duracaoMs / 1000).toFixed(1)} s`}
               </p>
             )}
           </div>
@@ -245,8 +252,8 @@ function Esperando() {
         Buscando o detalhamento…
       </p>
       <p className="mx-auto mt-2 max-w-md text-[length:var(--fs-apoio)] leading-relaxed text-[var(--text-muted)]">
-        A receita por cliente percorre as mesmas notas da apuração e pode levar alguns
-        minutos.
+        A receita por cliente percorre as mesmas notas da apuração e pode levar
+        alguns minutos.
       </p>
     </div>
   );
@@ -290,15 +297,35 @@ function Conteudo({
   nome: string | null;
 }) {
   if (dados.tipo === "receita-por-cliente") {
-    return <TabelaClientes linhas={dados.clientes ?? []} coluna={coluna} nome={nome} />;
+    return (
+      <TabelaClientes
+        linhas={dados.clientes ?? []}
+        coluna={coluna}
+        nome={nome}
+      />
+    );
   }
   if (dados.tipo === "devolucao-por-motivo") {
-    return <TabelaMotivos linhas={dados.motivos ?? []} coluna={coluna} nome={nome} />;
+    return (
+      <TabelaMotivos linhas={dados.motivos ?? []} coluna={coluna} nome={nome} />
+    );
   }
   if (dados.tipo === "imposto-por-produto") {
-    return <TabelaImpostos linhas={dados.impostos ?? []} coluna={coluna} nome={nome} />;
+    return (
+      <TabelaImpostos
+        linhas={dados.impostos ?? []}
+        coluna={coluna}
+        nome={nome}
+      />
+    );
   }
-  return <TabelaLancamentos linhas={dados.lancamentos ?? []} coluna={coluna} nome={nome} />;
+  return (
+    <TabelaLancamentos
+      linhas={dados.lancamentos ?? []}
+      coluna={coluna}
+      nome={nome}
+    />
+  );
 }
 
 /**
@@ -330,7 +357,8 @@ function ResumoDoCalculo({
   // A linha do DRE mostra as deduções negativas e a tela soma positivo; comparar em
   // módulo é o que faz o selo dizer a verdade nos dois casos.
   const confere =
-    linha === null || Math.abs(Math.abs(resultado) - Math.abs(linha.valor)) < 0.005;
+    linha === null ||
+    Math.abs(Math.abs(resultado) - Math.abs(linha.valor)) < 0.005;
 
   return (
     <section className="border-b border-[var(--border)] bg-[var(--surface-2)] px-5 py-4">
@@ -372,8 +400,8 @@ function ResumoDoCalculo({
       {!confere && linha && (
         <p className="mt-3 text-[length:var(--fs-apoio)] text-[var(--warning)]">
           Esta conta dá {formatarValor(resultado)}, e a célula clicada mostra{" "}
-          {formatarValor(linha.valor)}. Os dois deveriam bater em módulo — vale conferir
-          antes de usar o número.
+          {formatarValor(linha.valor)}. Os dois deveriam bater em módulo — vale
+          conferir antes de usar o número.
         </p>
       )}
     </section>
@@ -402,10 +430,15 @@ function operandos(
     // `Acerto De Estoque` viraria "ST", e um encadeamento com COFINS no fim rotula de
     // COFINS tudo que não for ST nem PIS — dizer o nome errado é pior que não dizer.
     const imposto =
-      { "(-) ST": "ST", "(-) PIS": "PIS", "(-) COFINS": "COFINS" }[nome] ?? "Imposto";
+      { "(-) ST": "ST", "(-) PIS": "PIS", "(-) COFINS": "COFINS" }[nome] ??
+      "Imposto";
 
     return [
-      { rotulo: `${imposto} + FECP das vendas`, valor: soma(l, (i) => i.vendas), sinal: 1 },
+      {
+        rotulo: `${imposto} + FECP das vendas`,
+        valor: soma(l, (i) => i.vendas),
+        sinal: 1,
+      },
       {
         rotulo: `${imposto} + FECP das devoluções`,
         valor: soma(l, (i) => i.devolucoes),
@@ -422,8 +455,16 @@ function operandos(
     const l = dados.clientes ?? [];
     if (l.length === 0) return [];
     return [
-      { rotulo: "Receita bruta", valor: soma(l, (c) => c.receitaBruta), sinal: 1 },
-      { rotulo: "Abatimentos e descontos", valor: soma(l, (c) => c.desconto), sinal: -1 },
+      {
+        rotulo: "Receita bruta",
+        valor: soma(l, (c) => c.receitaBruta),
+        sinal: 1,
+      },
+      {
+        rotulo: "Abatimentos e descontos",
+        valor: soma(l, (c) => c.desconto),
+        sinal: -1,
+      },
       { rotulo: "Devoluções", valor: soma(l, (c) => c.devolucao), sinal: -1 },
     ];
   }
@@ -483,7 +524,9 @@ function TabelaComposicao({
             <td
               className={cn(
                 NUM,
-                p.valor < 0 ? "text-[var(--negative)]" : "text-[var(--text-primary)]",
+                p.valor < 0
+                  ? "text-[var(--negative)]"
+                  : "text-[var(--text-primary)]",
               )}
             >
               {formatarValor(p.valor)}
@@ -498,7 +541,9 @@ function TabelaComposicao({
             <td className={cn(TD, "col-identidade text-[var(--warning)]")}>
               Diferença não explicada pelas parcelas
             </td>
-            <td className={cn(NUM, "text-[var(--warning)]")}>{formatarValor(diferenca)}</td>
+            <td className={cn(NUM, "text-[var(--warning)]")}>
+              {formatarValor(diferenca)}
+            </td>
           </tr>
         )}
       </tbody>
@@ -508,7 +553,9 @@ function TabelaComposicao({
           {parcelas.length} {parcelas.length === 1 ? "parcela" : "parcelas"}
         </td>
         {/* Aqui a coluna do total é sempre esta — a composição só tem uma de valor. */}
-        <td className={cn(NUM, "text-[var(--primary)]")}>{formatarValor(total)}</td>
+        <td className={cn(NUM, "text-[var(--primary)]")}>
+          {formatarValor(total)}
+        </td>
       </Total>
     </table>
   );
@@ -564,7 +611,9 @@ function Cabecalho({ children }: { children: React.ReactNode }) {
 function Total({ children }: { children: React.ReactNode }) {
   return (
     <tfoot>
-      <tr className="border-t border-[var(--border-strong)] font-semibold">{children}</tr>
+      <tr className="border-t border-[var(--border-strong)] font-semibold">
+        {children}
+      </tr>
     </tfoot>
   );
 }
@@ -592,8 +641,10 @@ function OrigemDoTotal({
   return (
     <p className="border-b border-[var(--border)] bg-[var(--surface-2)] px-5 py-2.5 text-[length:var(--fs-apoio)] text-[var(--text-secondary)]">
       O valor de{" "}
-      <strong className="font-semibold text-[var(--text-primary)]">{linha.descricao}</strong> na
-      tabela do DRE é a soma da coluna{" "}
+      <strong className="font-semibold text-[var(--text-primary)]">
+        {linha.descricao}
+      </strong>{" "}
+      na tabela do DRE é a soma da coluna{" "}
       <strong className="font-semibold text-[var(--primary)]">
         {rotuloDaColuna(coluna, nome)}
       </strong>
@@ -619,7 +670,8 @@ function ThNum({
   nome: string | null;
 }) {
   const eOTotal = coluna === rotulo;
-  const prefixo = eOTotal && nome !== null && !igual(nome, rotulo) ? `(${nome})` : null;
+  const prefixo =
+    eOTotal && nome !== null && !igual(nome, rotulo) ? `(${nome})` : null;
 
   return (
     <th
@@ -667,7 +719,13 @@ function ParteDoTotal({ valor }: { valor: number | null }) {
  * não garante isso — foi assim que a tabela principal abriu uma fresta por onde os valores
  * passavam por baixo. Uma coluna não tem com o que discordar.
  */
-function Identidade({ codigo, nome }: { codigo: React.ReactNode; nome: string }) {
+function Identidade({
+  codigo,
+  nome,
+}: {
+  codigo: React.ReactNode;
+  nome: string;
+}) {
   return (
     <td className={cn(TD, "col-identidade max-w-[24rem]")}>
       <div className="flex items-baseline gap-2">
@@ -709,7 +767,10 @@ function TabelaClientes({
       </Cabecalho>
       <tbody>
         {linhas.map((c) => (
-          <tr key={c.codCli} className="border-b border-[var(--border)] odd:bg-[var(--zebra)] hover:bg-[var(--surface-2)]">
+          <tr
+            key={c.codCli}
+            className="border-b border-[var(--border)] odd:bg-[var(--zebra)] hover:bg-[var(--surface-2)]"
+          >
             <Identidade codigo={c.codCli} nome={c.cliente} />
             <td
               className={cn(TD, "descricao-conta max-w-[12rem] truncate")}
@@ -821,11 +882,16 @@ function TabelaImpostos({
             key={i.codProd}
             className="border-b border-[var(--border)] odd:bg-[var(--zebra)] hover:bg-[var(--surface-2)]"
           >
-            <Identidade codigo={i.codProd} nome={i.produto ?? "Sem descrição"} />
+            <Identidade
+              codigo={i.codProd}
+              nome={i.produto ?? "Sem descrição"}
+            />
             <td className={NUM}>{i.qdeNf}</td>
             <td className={NUM}>{formatarValor(i.vendas)}</td>
             <td className={NUM}>{formatarValor(i.devolucoes)}</td>
-            <td className={cn(NUM, "font-semibold")}>{formatarValor(i.liquido)}</td>
+            <td className={cn(NUM, "font-semibold")}>
+              {formatarValor(i.liquido)}
+            </td>
             <td className={NUM}>
               <ParteDoTotal valor={i.pPart} />
             </td>
@@ -836,7 +902,9 @@ function TabelaImpostos({
         <td className={cn(TD, "col-identidade")}>{linhas.length} produtos</td>
         <td className={NUM}>{soma(linhas, (i) => i.qdeNf)}</td>
         <td className={NUM}>{formatarValor(soma(linhas, (i) => i.vendas))}</td>
-        <td className={NUM}>{formatarValor(soma(linhas, (i) => i.devolucoes))}</td>
+        <td className={NUM}>
+          {formatarValor(soma(linhas, (i) => i.devolucoes))}
+        </td>
         <td className={totalDe(coluna, "Líquido")}>
           {formatarValor(soma(linhas, (i) => i.liquido))}
         </td>
@@ -933,8 +1001,16 @@ const COLUNAS: ReadonlyArray<{
   { rotulo: "V. Pago", numerica: true, ler: (l) => formatarValor(l.vPago) },
   { rotulo: "Dt.Lançamento", numerica: true, ler: (l) => data(l.dtLanc) },
   { rotulo: "Dt. Pagto.", numerica: true, ler: (l) => data(l.dtPagto) },
-  { rotulo: "Dt.Competência", numerica: true, ler: (l) => data(l.dtCompetencia) },
-  { rotulo: "Dt.Compensação", numerica: true, ler: (l) => data(l.dtCompensacao) },
+  {
+    rotulo: "Dt.Competência",
+    numerica: true,
+    ler: (l) => data(l.dtCompetencia),
+  },
+  {
+    rotulo: "Dt.Compensação",
+    numerica: true,
+    ler: (l) => data(l.dtCompensacao),
+  },
   { rotulo: "Filial", numerica: true, ler: (l) => texto(l.codFilial) },
   { rotulo: "Nota", numerica: true, ler: (l) => texto(l.numNota) },
   { rotulo: "Prest.", numerica: true, ler: (l) => texto(l.duplic) },
@@ -949,10 +1025,18 @@ const COLUNAS: ReadonlyArray<{
   { rotulo: "Num. Trans", numerica: true, ler: (l) => texto(l.numTrans) },
   { rotulo: "Num. Banco", numerica: true, ler: (l) => texto(l.numBanco) },
   { rotulo: "Num. Cheque", numerica: true, ler: (l) => texto(l.numCheque) },
-  { rotulo: "Num. Seq. Borderô", numerica: true, ler: (l) => texto(l.numSeqBordero) },
+  {
+    rotulo: "Num. Seq. Borderô",
+    numerica: true,
+    ler: (l) => texto(l.numSeqBordero),
+  },
   { rotulo: "Localização", ler: (l) => texto(l.localizacao) },
   { rotulo: "Dt. Reclass.", numerica: true, ler: (l) => data(l.dtReclassific) },
-  { rotulo: "Cod. Func. Reclass.", numerica: true, ler: (l) => texto(l.codFuncReclassific) },
+  {
+    rotulo: "Cod. Func. Reclass.",
+    numerica: true,
+    ler: (l) => texto(l.codFuncReclassific),
+  },
 ];
 
 interface ContaAgrupada {
@@ -985,14 +1069,24 @@ function agrupar(linhas: readonly DetalheLancamento[]): CentroAgrupado[] {
     const chaveCentro = l.codCcPrinc ?? "—";
     let centro = centros.at(-1);
     if (!centro || centro.chave !== chaveCentro) {
-      centro = { chave: chaveCentro, rotulo: l.descCcPrinc ?? "—", total: 0, contas: [] };
+      centro = {
+        chave: chaveCentro,
+        rotulo: l.descCcPrinc ?? "—",
+        total: 0,
+        contas: [],
+      };
       centros.push(centro);
     }
 
     const chaveConta = String(l.codConta ?? "—");
     let conta = centro.contas.at(-1);
     if (!conta || conta.chave !== chaveConta) {
-      conta = { chave: chaveConta, rotulo: l.conta ?? "—", total: 0, linhas: [] };
+      conta = {
+        chave: chaveConta,
+        rotulo: l.conta ?? "—",
+        total: 0,
+        linhas: [],
+      };
       centro.contas.push(conta);
     }
 
@@ -1015,89 +1109,130 @@ function TabelaLancamentos({
 }) {
   if (linhas.length === 0) return <Vazio />;
 
-  const centros = agrupar(linhas);
+  /**
+   * Os pares de estorno que se anulam saem da lista — e **só eles**.
+   *
+   * Filtro de apresentação: a consulta continua trazendo tudo, e a soma do que sobra é
+   * idêntica à de antes, porque par oposto no mesmo grupo soma zero. Ver
+   * `lib/estornosQueSeAnulam.ts` para o motivo de não copiarmos o filtro da 9815.
+   */
+  const { visiveis, omitidos } = semEstornosQueSeAnulam(linhas);
+  const centros = agrupar(visiveis);
 
   return (
-    <table className="w-full border-collapse text-[length:var(--fs-base)]">
-      <Cabecalho>
-        {COLUNAS.map((c, i) =>
-          c.rotulo === coluna ? (
-            <ThNum key={c.rotulo} rotulo={c.rotulo} coluna={coluna} nome={nome} />
-          ) : (
-            <th
-              key={c.rotulo}
-              className={cn(
-                TH,
-                c.numerica ? "text-right" : "text-left",
-                i === 0 && "col-identidade",
-              )}
-            >
-              {c.rotulo}
-            </th>
-          ),
-        )}
-      </Cabecalho>
+    <>
+      <table className="w-full border-collapse text-[length:var(--fs-base)]">
+        <Cabecalho>
+          {COLUNAS.map((c, i) =>
+            c.rotulo === coluna ? (
+              <ThNum
+                key={c.rotulo}
+                rotulo={c.rotulo}
+                coluna={coluna}
+                nome={nome}
+              />
+            ) : (
+              <th
+                key={c.rotulo}
+                className={cn(
+                  TH,
+                  c.numerica ? "text-right" : "text-left",
+                  i === 0 && "col-identidade",
+                )}
+              >
+                {c.rotulo}
+              </th>
+            ),
+          )}
+        </Cabecalho>
 
-      <tbody>
-        {centros.map((centro) => (
-          <Fragment key={centro.chave}>
-            <LinhaDeGrupo nivel={1} rotulo={"Centro Custo Princ : " + centro.rotulo} />
+        <tbody>
+          {centros.map((centro) => (
+            <Fragment key={centro.chave}>
+              <LinhaDeGrupo
+                nivel={1}
+                rotulo={"Centro Custo Princ : " + centro.rotulo}
+              />
 
-            {centro.contas.map((conta) => (
-              <Fragment key={conta.chave}>
-                <LinhaDeGrupo nivel={2} rotulo={"Conta : " + conta.rotulo} />
+              {centro.contas.map((conta) => (
+                <Fragment key={conta.chave}>
+                  <LinhaDeGrupo nivel={2} rotulo={"Conta : " + conta.rotulo} />
 
-                {conta.linhas.map((l, i) => (
-                  // O RECNUM se repete quando o lançamento é rateado entre centros de
-                  // custo — duas linhas legítimas com o mesmo número. O índice completa.
-                  <tr
-                    key={l.recNum + "-" + (l.codCentroCusto ?? "") + "-" + i}
-                    className="border-b border-[var(--border)] odd:bg-[var(--zebra)] hover:bg-[var(--surface-2)]"
-                  >
-                    {COLUNAS.map((c, j) => {
-                      const conteudo = c.ler(l);
-                      return (
-                        <td
-                          key={c.rotulo}
-                          className={cn(
-                            c.numerica
-                              ? NUM
-                              : cn(TD, "descricao-conta max-w-[22rem] truncate"),
-                            j === 0 && "col-identidade",
-                            c.rotulo === "V. Pago" &&
-                              (l.vPago < 0
-                                ? "text-[var(--negative)]"
-                                : "text-[var(--text-primary)]"),
-                          )}
-                          title={c.numerica ? undefined : String(conteudo)}
-                        >
-                          {conteudo}
-                        </td>
-                      );
-                    })}
-                  </tr>
-                ))}
+                  {conta.linhas.map((l, i) => (
+                    // O RECNUM se repete quando o lançamento é rateado entre centros de
+                    // custo — duas linhas legítimas com o mesmo número. O índice completa.
+                    <tr
+                      key={l.recNum + "-" + (l.codCentroCusto ?? "") + "-" + i}
+                      className="border-b border-[var(--border)] odd:bg-[var(--zebra)] hover:bg-[var(--surface-2)]"
+                    >
+                      {COLUNAS.map((c, j) => {
+                        const conteudo = c.ler(l);
+                        return (
+                          <td
+                            key={c.rotulo}
+                            className={cn(
+                              c.numerica
+                                ? NUM
+                                : cn(
+                                    TD,
+                                    "descricao-conta max-w-[22rem] truncate",
+                                  ),
+                              j === 0 && "col-identidade",
+                              c.rotulo === "V. Pago" &&
+                                (l.vPago < 0
+                                  ? "text-[var(--negative)]"
+                                  : "text-[var(--text-primary)]"),
+                            )}
+                            title={c.numerica ? undefined : String(conteudo)}
+                          >
+                            {conteudo}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
 
-                <LinhaDeSubtotal nivel={2} valor={conta.total} />
-              </Fragment>
-            ))}
+                  <LinhaDeSubtotal nivel={2} valor={conta.total} />
+                </Fragment>
+              ))}
 
-            {/* O total do centro de custo só aparece quando há mais de um. Com um só ele
+              {/* O total do centro de custo só aparece quando há mais de um. Com um só ele
                 repetiria o rodapé duas linhas abaixo. */}
-            {centros.length > 1 && <LinhaDeSubtotal nivel={1} valor={centro.total} />}
-          </Fragment>
-        ))}
-      </tbody>
+              {centros.length > 1 && (
+                <LinhaDeSubtotal nivel={1} valor={centro.total} />
+              )}
+            </Fragment>
+          ))}
+        </tbody>
 
-      <Total>
-        <td className={cn(TD, "col-identidade")}>{linhas.length} lançamentos</td>
-        <td className={TD} />
-        <td className={totalDe(coluna, "V. Pago")}>
-          {formatarValor(soma(linhas, (l) => l.vPago))}
-        </td>
-        <td className={TD} colSpan={COLUNAS.length - 3} />
-      </Total>
-    </table>
+        <Total>
+          <td className={cn(TD, "col-identidade")}>
+            {visiveis.length} lançamentos
+          </td>
+          <td className={TD} />
+          {/* Soma o que está na tela. Dá o mesmo número de antes — par de estorno oposto no
+            mesmo grupo soma zero —, e é o que mantém este rodapé fechando com a linha do
+            DRE. Se um dia divergir, o filtro escondeu algo que não se anulava. */}
+          <td className={totalDe(coluna, "V. Pago")}>
+            {formatarValor(soma(visiveis, (l) => l.vPago))}
+          </td>
+          <td className={TD} colSpan={COLUNAS.length - 3} />
+        </Total>
+      </table>
+
+      {/* Dizer o que foi escondido não é formalidade: quem confere esta tela contra a 9815
+          compara a contagem de linhas, e uma lista mais curta sem explicação parece dado
+          faltando. A frase também deixa claro que o total não mudou. */}
+      {omitidos > 0 && (
+        <p className="px-3 py-2 text-[length:var(--fs-apoio)] text-[var(--text-muted)]">
+          {omitidos === 2
+            ? "1 par de estorno que se anula foi omitido"
+            : `${omitidos / 2} pares de estorno que se anulam foram omitidos`}{" "}
+          — o total acima não muda por causa disso. Estorno sem contrapartida no
+          período continua na lista.
+        </p>
+      )}
+    </>
   );
 }
 

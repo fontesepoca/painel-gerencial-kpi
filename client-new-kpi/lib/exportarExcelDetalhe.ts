@@ -12,6 +12,7 @@ import {
   type Planilha,
 } from "@/lib/excel";
 import { colunaDoTotal, nomeDaLinha, rotuloDaColuna } from "@/lib/colunaDoTotal";
+import { semEstornosQueSeAnulam } from "@/lib/estornosQueSeAnulam";
 import type { Detalhamento } from "@/types/dre-gerencial";
 
 /**
@@ -149,7 +150,9 @@ function corpoDoDetalhe(dados: Detalhamento): Corpo {
       28, 32, 10, 44, 16, 14, 14, 14, 14, 8, 12, 8, 12, 36, 20, 20, 10, 10, 14, 12, 12, 12,
       14, 16, 16, 14, 18,
     ],
-    linhas: (dados.lancamentos ?? []).map((l) => [
+    // Os mesmos pares de estorno que a tela esconde — o arquivo e a tela têm de contar a
+    // mesma coisa sobre a mesma consulta. A soma não muda: par oposto no mesmo grupo é zero.
+    linhas: semEstornosQueSeAnulam(dados.lancamentos ?? []).visiveis.map((l) => [
       txt(l.descCcPrinc),
       txt(l.conta),
       num(l.recNum, INTEIRO),

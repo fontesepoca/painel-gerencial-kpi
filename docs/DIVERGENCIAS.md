@@ -1021,6 +1021,44 @@ Incluir os estornos é o que faz o total fechar com a linha, mas muda o que a te
 Quem conferir tela contra tela vai achar linhas a mais. Quem conferir **valor** contra valor
 encontra o mesmo número, que é o que importa e o que a §4 decidiu preservar.
 
+#### Resolvido no front, sem tocar nas consultas — 10/09/2026
+
+A consequência acima virou reclamação de usuário: no detalhamento de `ADMINISTRATIVO`
+apareciam dois lançamentos `REF.ESTORN.BORDERO JA BAIXADO` que a 9815 não mostra, e aquilo
+foi lido como valor entrando no cálculo.
+
+Medido nos dois arquivos do mesmo cenário — filial 7, 01/09 a 10/09/2026:
+
+| | Lançamentos | Soma |
+|---|---:|---:|
+| 9815 | 5 | −71.311,55 |
+| Nossa web, antes | 7 | −71.311,55 |
+
+**O cálculo estava certo**; o par se cancela. Era ruído de leitura, não erro de número.
+
+A saída foi um filtro **de apresentação**, em `client-new-kpi/lib/estornosQueSeAnulam.ts`:
+some da lista o par de estorno que se anula, e **só ele**. Duas condições, por motivos
+diferentes:
+
+- **valores opostos** — a soma do par é zero, então nenhum total muda, e é isso que mantém o
+  rodapé fechando com a linha do DRE;
+- **mesmo grupo** (centro de custo + conta) — sem esta, esconder um par dividido entre duas
+  contas manteria o total geral e **mudaria os dois subtotais**, que é o defeito da 9815 com
+  outro nome. É literalmente o caso do `RATEIO DESP. CORPORATIVAS` acima.
+
+Estorno **sem par** continua visível: ele afeta o total, e sumir com ele seria mentir sobre a
+soma. E a tela **diz o que escondeu** — quem compara a contagem de linhas com a rotina antiga
+precisa saber por que ela difere.
+
+Nada disso chega ao banco: as consultas continuam trazendo tudo, e o filtro é reversível
+apagando uma chamada. Aplicado também ao Excel, para o arquivo não contar outra história.
+
+Verificado: [dc17](validacao/dc17_estornos_que_se_anulam.mjs) com **225 asserções** — os
+casos que NÃO podem ser escondidos inclusive, e 200 listas aleatórias em que a soma nunca
+mudou — e a **dc6 em 162/162** depois da mudança. Na tela, `ADMINISTRATIVO` passou de 7 para
+5 lançamentos com o rodapé em (71.311,55), idêntico à célula do DRE.
+
+
 ### A armadilha 3 em detalhe: medir contra um binário velho
 
 A primeira execução da dc6 depois da correção devolveu **exatamente** o resultado anterior —
