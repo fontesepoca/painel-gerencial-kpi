@@ -6,7 +6,7 @@ import { useEffect, useRef } from "react";
 const LIMITE_DA_LISTA = 6;
 
 export interface MovimentoPendente {
-  /** "a linha DESPESAS COM PESSOAL" ou "o bloco de LUCRO LIQUIDO, com 2 linhas". */
+  /** "a linha DESPESAS COM PESSOAL" — sempre uma linha, desde 09/09/2026. */
   oQue: string;
   deOnde: string;
   paraOnde: string;

@@ -305,6 +305,29 @@ body {
   }
 }
 
+/* Conteúdo que existe só no papel — o par de `.so-na-tela` fica escondido aqui e a
+   regra se inverte dentro do `@media print`. Ver `Variacao` em `TabelaDre.tsx`. */
+.so-no-papel {
+  display: none;
+}
+
+/* ── O estado de MEDIÇÃO, usado por um instante antes de imprimir ──
+
+   `useEscalaDeImpressao` liga esta classe, lê a largura da tabela e desliga, tudo dentro
+   do `beforeprint` — a tela nunca é desenhada assim.
+
+   As três declarações existem porque `max-content` sozinho mediria a caixa de rolagem, e
+   não a tabela: com o contêiner em `overflow: auto`, a tabela já está limitada a ele. */
+.calibrando .tabela-rolagem {
+  overflow: visible !important;
+  height: auto !important;
+}
+
+.calibrando table {
+  width: max-content !important;
+  max-width: none !important;
+}
+
 /* Números tabulares: dígitos de mesma largura, colunas alinhadas. */
 .tabular {
   font-family: var(--font-data);
@@ -425,7 +448,8 @@ html[data-leitura="ampliada"] .puxador {
   color: var(--text-secondary);
 }
 
-/* A fatia arrastada some parcialmente para o traço de destino ficar sendo a única
+
+/* A linha arrastada some parcialmente para o traço de destino ficar sendo a única
    coisa que o olho persegue. */
 .linha-arrastando {
   opacity: 0.4;
@@ -810,6 +834,104 @@ tr:focus-within .tem-detalhe .valor-clicavel {
   background-color: var(--surface-1);
 }
 
+/* Fora do celular vale a palavra inteira no selo — a versão curta só aparece na media
+   query abaixo, e por isso a regra padrão precisa vir ANTES dela. */
+.selo-curto {
+  display: none;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   TELA ESTREITA — CELULAR
+
+   Medido em 09/09/2026, viewport de 375px com leitura ampliada: a coluna de descrição
+   ocupava **622px, 166% da largura da janela**, e a tabela inteira 1.722px. A coluna é
+   fixa na rolagem lateral, então cobria a tela toda — não havia como ver um valor, e rolar
+   não resolvia, porque o que rolava passava por baixo dela.
+
+   A causa é o `min-w-[32rem]` da descrição: 512px reservados para caber o nome mais
+   comprido do cadastro E um selo ao lado. Numa tela de 375px isso não é folga, é a tela
+   inteira mais uma vez.
+
+   **Este bloco fica no fim do arquivo de propósito.** Ele sobrescreve declarações que
+   estão acima com a mesma especificidade — `min-height: 0` da `.tabela-rolagem`,
+   `display: flex` do `.puxador` —, e na mesma especificidade quem ganha é quem vem por
+   último. Escrito no começo, ele não fazia efeito nenhum e nada acusava.
+   ═══════════════════════════════════════════════════════════════ */
+@media (max-width: 767px) {
+  .tabela-rolagem .celula-descricao {
+    /* Mata o mínimo de 32rem e dá um teto proporcional à tela. Metade dela: o suficiente
+       para ler o nome da conta, e o suficiente para o primeiro valor aparecer ao lado sem
+       nenhum gesto. */
+    min-width: 0;
+    max-width: 50vw;
+  }
+
+  /* Na tabela do DRE o nome quebra à vontade: são 13 linhas de nomes de conta, e ler
+     `(=) RECEITAS LIQUIDAS` em duas linhas é melhor que ler `(=) RECEITAS LIQ…`. */
+  .tabela-rolagem:not(.tabela-detalhe) .descricao-conta {
+    overflow: visible;
+    text-overflow: clip;
+    white-space: normal;
+  }
+
+  /* No detalhamento, **duas linhas e para**. Quebra livre aqui é pior que corte: medido em
+     09/09/2026, `ARROZ TIPO 1 PACOTE DE 5KG MARCA REGIONAL 0` virou SETE linhas numa
+     coluna de 150px, e uma lista de 15 mil produtos assim não se percorre.
+
+     `line-clamp` corta no fim da segunda linha com reticências, e o `title` de cada célula
+     continua guardando o nome inteiro. */
+  .tabela-detalhe .descricao-conta {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+    white-space: normal;
+  }
+
+  .tabela-rolagem {
+    /* Respiro menor: 16px de cada lado numa célula de 375px é 8% da tela gastos em vão. */
+    --celula-x: 6px;
+
+    /* Altura mínima, senão a tabela fica com a faixa que sobra embaixo dos filtros — e
+       nesta tela eles empilhados ocupam quase a janela inteira. Medido antes disto: 107px
+       de tabela, e a `main` não rolava, porque o conteúdo dela tem `h-full` e nunca passa
+       da própria altura. O resto da tabela era simplesmente inalcançável.
+
+       `svh` e não `vh`: no celular a barra do navegador aparece e desaparece, e `vh` toma
+       a janela grande como referência, deixando a tabela mais alta que a tela.
+
+       A rolagem interna FICA, em vez de a tabela crescer e a página rolar tudo: é ela que
+       mantém o cabeçalho grudado no topo. Numa lista de 15 mil clientes, rolar sem saber de
+       que mês é a coluna pesa mais que a segunda barra de rolagem incomoda. */
+    min-height: 65svh;
+  }
+
+  /* O selo encurta: `INFORMATIVO` ocupava mais que o nome que qualifica, e empurrava
+     `(-) ST` para duas linhas. Ver `SeloInformativo`. */
+  .selo-longo {
+    display: none;
+  }
+
+  .selo-curto {
+    display: inline;
+  }
+}
+
+/* ── Em dispositivo de toque, o punho e a dica de reordenar saem ──
+
+   O arraste usa a API de drag-and-drop do HTML, que **não recebe eventos de dedo**. Num
+   celular o punho é um controle morto ocupando 24px da coluna mais disputada da tela, e a
+   dica manda usar `Alt`+setas num aparelho sem tecla `Alt`.
+
+   A mira é o dispositivo, não a largura da janela: num desktop com janela estreita o mouse
+   continua arrastando, e ali os dois seguem valendo. */
+@media (hover: none) and (pointer: coarse) {
+  .puxador,
+  .barra-reordenar {
+    display: none;
+  }
+}
+
 /* ═══════════════════════════════════════════════════════════════
    IMPRESSÃO
 
@@ -859,6 +981,20 @@ tr:focus-within .tem-detalhe .valor-clicavel {
   /* Filtros, casca, punhos de arraste e botões. Nada disto é o relatório. */
   .nao-imprime {
     display: none !important;
+  }
+
+  /* A troca das duas grafias do `%AH` — ver `Variacao` em `TabelaDre.tsx`. O par existe
+     no DOM e quem escolhe é esta regra, não um estado de React: `Ctrl+P` não espera
+     re-render, e `beforeprint` é justamente onde a impressão já nos enganou. */
+  .so-na-tela {
+    display: none !important;
+  }
+
+  /* `revert` e não `inline`: a classe marca `<span>` de percentual e `<p>` de data, e
+     forçar `inline` transformaria o parágrafo em texto corrido no meio do cabeçalho.
+     Revertido, cada elemento volta ao display que o navegador lhe dá. */
+  .so-no-papel {
+    display: revert !important;
   }
 
   /* A casca inteira existe para prender a altura na janela — `h-dvh`,
@@ -956,6 +1092,38 @@ tr:focus-within .tem-detalhe .valor-clicavel {
     --celula-y: 3px !important;
   }
 
+  /* ── AS TRÊS ESCALAS DO DETALHAMENTO ──
+
+     Medidas no navegador em 09/09/2026, com a tabela em `width: max-content` e estes
+     mesmos tokens aplicados — a largura que a tabela pede quando nada a comprime, com
+     conteúdo pessimista (nomes de 45 a 55 caracteres, valores de nove dígitos):
+
+       tela                    colunas   13pt    16pt    18pt
+       devolução por motivo       5      215mm   238mm   246mm
+       imposto por produto        6      264mm   301mm   314mm
+       receita por cliente        8      316mm   357mm     —
+       lançamentos               25      983mm     —     760mm a 8,5pt
+
+     Úteis: A4 em pé ≈190mm · A4 deitada ≈277mm · A3 deitada ≈400mm.
+
+     **Nenhuma tela do detalhamento cabe em A4 em pé, nem a 13pt** — foi o que cortou
+     valores no PDF de 09/09/2026. E a escolha da fonte não é "a que cabe": é a que
+     PREENCHE a folha, porque folha sobrando é fonte pequena disfarçada num relatório
+     lido por quem enxerga pouco.
+
+     Quem escolhe a classe é `lib/folhaDoDetalhe.ts`, que também guarda a tabela acima e
+     os dois erros de medição que vieram antes dela. */
+
+  /* **Não existe classe de escala do detalhamento, e a ausência é o resultado.** Três
+     versões tentaram fixar a fonte por tela — contando colunas, medindo o PDF e medindo o
+     navegador com conteúdo pessimista — e as três erraram, porque a largura da tabela é do
+     CONTEÚDO daquela consulta, não da tela.
+
+     Quem calcula agora é `hooks/useEscalaDeImpressao.ts`, no `beforeprint`: mede a tabela
+     com 13pt, faz a regra de três contra a largura útil da folha e escreve as variáveis
+     inline com `important`. Os valores abaixo, do `:root`, continuam valendo para a tabela
+     do DRE e como ponto de partida da medição. */
+
   /* O respiro do `main` é da tela. No papel são 32px de largura útil gastos com nada,
      numa folha onde 12px decidem se a última coluna sai ou é cortada. */
   main {
@@ -1005,7 +1173,23 @@ tr:focus-within .tem-detalhe .valor-clicavel {
      e empurraria os valores para longe de novo — que é justamente o que se quer
      evitar. Passando disso, o nome quebra em duas linhas. */
   .tabela-rolagem .celula-descricao {
-    max-width: 15rem;
+    max-width: 18rem;
+    white-space: normal !important;
+  }
+
+  /* E o nome da conta precisa PODER quebrar.
+
+     `white-space: normal` na célula não alcançava o texto: quem carrega o `nowrap` é o
+     `truncate` do próprio `span`, e propriedade declarada no elemento vence a herdada
+     do pai. O resultado era a conta saindo com reticências no papel — onde não existe
+     hover para ler o `title` e descobrir o que ficou de fora.
+
+     As três propriedades do `truncate` precisam cair juntas: só o `white-space` deixaria
+     o `overflow: hidden` cortando na segunda linha. */
+  .tabela-rolagem .descricao-conta,
+  .tabela-detalhe .descricao-conta {
+    overflow: visible !important;
+    text-overflow: clip !important;
     white-space: normal !important;
   }
 

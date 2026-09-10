@@ -4,6 +4,8 @@ import { Fragment, useEffect, useRef } from "react";
 import { formatarPercentual, formatarValor } from "@/lib/formato";
 import { paraBr } from "@/lib/periodos";
 import { cn } from "@/lib/cn";
+import { colunaDoTotal, igual, nomeDaLinha, rotuloDaColuna } from "@/lib/colunaDoTotal";
+import { MenuExportar } from "@/components/dre-gerencial/MenuExportar";
 import type {
   DetalheCliente,
   DetalheImposto,
@@ -43,6 +45,9 @@ export function ModalDetalhe({
   erro,
   onFechar,
   onAbrirEmNovaAba,
+  onImprimir,
+  onExcel,
+  excelOcupado,
   avisoDaAba,
 }: {
   aberto: boolean;
@@ -58,7 +63,28 @@ export function ModalDetalhe({
   onFechar: () => void;
   /** `null` na composição dos totalizadores: não há consulta para levar para outra aba. */
   onAbrirEmNovaAba: (() => void) | null;
-  /** Falha ao preparar a outra aba. Fica ao lado do botão até o modal fechar. */
+  /**
+   * Imprimir daqui **abre a página dedicada e manda imprimir lá**, em vez de chamar
+   * `window.print()` no diálogo.
+   *
+   * O motivo é do navegador: um `<dialog>` aberto vive na *top layer*, e conteúdo da top
+   * layer **não se fragmenta entre páginas** — sairia a primeira folha e o resto cortado,
+   * que numa lista de 15 mil clientes é o pior defeito possível. A página dedicada é HTML
+   * em fluxo normal: pagina, e o cabeçalho se repete.
+   *
+   * `null` na composição, pelo mesmo motivo de `onAbrirEmNovaAba` — ela não é um
+   * detalhamento guardado, é aritmética sobre a tabela que está atrás do diálogo.
+   */
+  onImprimir: (() => void) | null;
+  /**
+   * Exporta o detalhamento para Excel — **daqui mesmo**, sem passar pela outra aba.
+   *
+   * Diferente da impressão: planilha não tem folha nem paginação, então o `<dialog>` não
+   * atrapalha. Os dados já estão carregados; é só montar o arquivo.
+   */
+  onExcel: (() => void) | null;
+  excelOcupado?: boolean;
+  /** Falha ao preparar a outra aba, ou ao gerar o Excel. Fica até o modal fechar. */
   avisoDaAba: string | null;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
@@ -108,6 +134,17 @@ export function ModalDetalhe({
           </div>
 
           <div className="flex shrink-0 items-center gap-2">
+            {/* Mesma condição do botão de nova aba: sem detalhamento carregado não há o
+                que exportar. */}
+            {onImprimir && dados && !carregando && !erro && (
+              <MenuExportar
+                onImprimir={onImprimir}
+                onExcel={onExcel}
+                excelOcupado={excelOcupado}
+                avisoDaImpressao="Abre em nova aba e imprime de lá — o diálogo não pagina no papel"
+              />
+            )}
+
             {/* Só aparece quando há o que levar. Com a consulta em andamento ou em erro,
                 não existe detalhamento para abrir em lugar nenhum. */}
             {onAbrirEmNovaAba && dados && !carregando && !erro && (
@@ -169,7 +206,14 @@ export function ModalDetalhe({
             </p>
           )}
 
-          {composicao && <TabelaComposicao {...composicao} />}
+          {composicao && (
+            <>
+              {/* A composição não passa pela API, então não passa por `CorpoDoDetalhe`
+                  tampouco — a origem do total tem que ser dita aqui. */}
+              <OrigemDoTotal linha={linha} coluna="Valor" />
+              <TabelaComposicao {...composicao} nome={nomeDaLinha(linha)} />
+            </>
+          )}
 
           {!composicao && dados && !carregando && !erro && (
             <CorpoDoDetalhe dados={dados} linha={linha} />
@@ -222,25 +266,39 @@ export function CorpoDoDetalhe({
   dados: Detalhamento;
   linha: { descricao: string; valor: number } | null;
 }) {
+  const nome = nomeDaLinha(linha);
+  const coluna = colunaDoTotal(dados.tipo, nome);
+
   return (
     <>
       <ResumoDoCalculo dados={dados} linha={linha} />
-      <Conteudo dados={dados} />
+      <OrigemDoTotal linha={linha} coluna={coluna} />
+      <Conteudo dados={dados} coluna={coluna} nome={nome} />
     </>
   );
 }
 
-function Conteudo({ dados }: { dados: Detalhamento }) {
+function Conteudo({
+  dados,
+  coluna,
+  nome,
+}: {
+  dados: Detalhamento;
+  /** O rótulo da coluna que soma no valor da célula clicada — ver `colunaDoTotal`. */
+  coluna: string | null;
+  /** O nome da linha do DRE, sem o sinal, para anunciar a coluna. */
+  nome: string | null;
+}) {
   if (dados.tipo === "receita-por-cliente") {
-    return <TabelaClientes linhas={dados.clientes ?? []} />;
+    return <TabelaClientes linhas={dados.clientes ?? []} coluna={coluna} nome={nome} />;
   }
   if (dados.tipo === "devolucao-por-motivo") {
-    return <TabelaMotivos linhas={dados.motivos ?? []} />;
+    return <TabelaMotivos linhas={dados.motivos ?? []} coluna={coluna} nome={nome} />;
   }
   if (dados.tipo === "imposto-por-produto") {
-    return <TabelaImpostos linhas={dados.impostos ?? []} />;
+    return <TabelaImpostos linhas={dados.impostos ?? []} coluna={coluna} nome={nome} />;
   }
-  return <TabelaLancamentos linhas={dados.lancamentos ?? []} />;
+  return <TabelaLancamentos linhas={dados.lancamentos ?? []} coluna={coluna} nome={nome} />;
 }
 
 /**
@@ -276,7 +334,8 @@ function ResumoDoCalculo({
 
   return (
     <section className="border-b border-[var(--border)] bg-[var(--surface-2)] px-5 py-4">
-      <h3 className="text-[length:var(--fs-rotulo)] font-semibold tracking-[0.14em] text-[var(--text-secondary)] uppercase">
+      {/* Mesmo peso e mesma cor dos cabeçalhos de coluna: é o título de um bloco. */}
+      <h3 className="text-[length:var(--fs-rotulo)] font-bold tracking-[0.14em] text-[var(--text-primary)] uppercase">
         Como se chega no total
       </h3>
 
@@ -383,7 +442,11 @@ function operandos(
  * discordarem, é defeito de apuração, e esconder isso somando o que está na tela seria
  * apagar justamente o sinal.
  */
-function TabelaComposicao({ total, parcelas }: Composicao) {
+function TabelaComposicao({
+  total,
+  parcelas,
+  nome,
+}: Composicao & { nome: string | null }) {
   const diferenca = total - soma(parcelas, (p) => p.valor);
 
   /**
@@ -400,7 +463,7 @@ function TabelaComposicao({ total, parcelas }: Composicao) {
     <table className="w-full border-collapse text-[length:var(--fs-base)]">
       <Cabecalho>
         <th className={cn(TH, "col-identidade text-left")}>Linha</th>
-        <th className={cn(TH, "text-right")}>Valor</th>
+        <ThNum rotulo="Valor" coluna="Valor" nome={nome} />
       </Cabecalho>
 
       <tbody>
@@ -444,7 +507,8 @@ function TabelaComposicao({ total, parcelas }: Composicao) {
         <td className={cn(TD, "col-identidade")}>
           {parcelas.length} {parcelas.length === 1 ? "parcela" : "parcelas"}
         </td>
-        <td className={NUM}>{formatarValor(total)}</td>
+        {/* Aqui a coluna do total é sempre esta — a composição só tem uma de valor. */}
+        <td className={cn(NUM, "text-[var(--primary)]")}>{formatarValor(total)}</td>
       </Total>
     </table>
   );
@@ -458,8 +522,29 @@ function Vazio() {
   );
 }
 
-const TH =
-  "px-3 py-[var(--celula-y)] text-[length:var(--fs-rotulo)] font-medium tracking-[0.14em] text-[var(--text-muted)] uppercase whitespace-nowrap";
+/**
+ * O cabeçalho sem a cor, para quem precisa pintá-lo de outra.
+ *
+ * **`cn` não resolve conflito entre classes Tailwind** — é concatenação, e no CSS gerado
+ * quem ganha é a ordem da folha, não a do atributo. Somar `text-[var(--primary)]` a um `TH`
+ * que já traz `text-[var(--text-muted)]` não muda cor nenhuma; foi o que aconteceu na
+ * primeira versão do destaque, e o cabeçalho ficou cinza sem erro nenhum aparecer.
+ */
+/**
+ * **Negrito nos cabeçalhos**, por decisão do Gabriel em 10/09/2026: eles precisam se
+ * separar dos dados, e `font-medium` (500) contra o 400 do corpo era diferença que só
+ * aparecia lado a lado.
+ *
+ * **A cor sobe junto, de `--text-muted` para `--text-primary`** — e isso foi medido na tela,
+ * não escolhido no escuro. Com o cabeçalho em `--text-secondary`, os números do corpo
+ * ficavam em `rgb(241,245,249)` e o cabeçalho em `rgb(203,213,225)`: no tema escuro, mais
+ * claro é o que salta, então o cabeçalho continuava **atrás** do dado por mais negrito que
+ * tivesse. Igualando a cor, o que separa os dois passa a ser peso, caixa alta e
+ * letter-spacing, e o cabeçalho vem para a frente.
+ */
+const TH_BASE =
+  "px-3 py-[var(--celula-y)] text-[length:var(--fs-rotulo)] font-bold tracking-[0.14em] uppercase whitespace-nowrap";
+const TH = `${TH_BASE} text-[var(--text-primary)]`;
 const TD = "px-3 py-[var(--celula-y)] whitespace-nowrap";
 const NUM = `${TD} tabular text-right`;
 
@@ -488,6 +573,93 @@ const soma = <T,>(linhas: readonly T[], campo: (l: T) => number) =>
   linhas.reduce((s, l) => s + campo(l), 0);
 
 /**
+ * Diz, em uma linha, de onde vem o número que estava na tabela do DRE.
+ *
+ * Fica **acima** da tabela porque a pergunta aparece antes da rolagem: quem abriu o
+ * detalhamento do ST quer saber, na primeira olhada, qual das colunas de dinheiro é a que
+ * dá os 344 mil da tela anterior.
+ */
+function OrigemDoTotal({
+  linha,
+  coluna,
+}: {
+  linha: { descricao: string } | null;
+  coluna: string | null;
+}) {
+  const nome = nomeDaLinha(linha);
+  if (!linha || !coluna || nome === null) return null;
+
+  return (
+    <p className="border-b border-[var(--border)] bg-[var(--surface-2)] px-5 py-2.5 text-[length:var(--fs-apoio)] text-[var(--text-secondary)]">
+      O valor de{" "}
+      <strong className="font-semibold text-[var(--text-primary)]">{linha.descricao}</strong> na
+      tabela do DRE é a soma da coluna{" "}
+      <strong className="font-semibold text-[var(--primary)]">
+        {rotuloDaColuna(coluna, nome)}
+      </strong>
+      .
+    </p>
+  );
+}
+
+/**
+ * `<th>` de coluna numérica, que se anuncia quando é ela que fecha o total.
+ *
+ * O nome da linha do DRE entra **acima** do rótulo, não no lugar dele: quem confere contra
+ * a 9815 procura a coluna pelo nome que ela sempre teve, e trocar `Líquido` por `ST` faria
+ * a coluna sumir para esse olhar.
+ */
+function ThNum({
+  rotulo,
+  coluna,
+  nome,
+}: {
+  rotulo: string;
+  coluna: string | null;
+  nome: string | null;
+}) {
+  const eOTotal = coluna === rotulo;
+  const prefixo = eOTotal && nome !== null && !igual(nome, rotulo) ? `(${nome})` : null;
+
+  return (
+    <th
+      className={cn(
+        TH_BASE,
+        "text-right",
+        eOTotal ? "text-[var(--primary)]" : "text-[var(--text-primary)]",
+      )}
+      title={
+        eOTotal && nome !== null
+          ? `A soma desta coluna é o valor de ${nome} na tabela do DRE.`
+          : undefined
+      }
+    >
+      {prefixo && <span className="block">{prefixo}</span>}
+      {rotulo}
+    </th>
+  );
+}
+
+/** Célula de rodapé: o mesmo destaque do cabeçalho, para o olho ligar as duas pontas. */
+const totalDe = (coluna: string | null, rotulo: string) =>
+  cn(NUM, coluna === rotulo && "text-[var(--primary)]");
+
+/**
+ * `% part.` — duas casas na tela, uma no papel.
+ *
+ * Mesmo par de `%AV` e `%AH` na tabela do DRE: as duas grafias vivem no DOM e o CSS
+ * escolhe, em vez de um estado trocado no `beforeprint` que um `Ctrl+P` direto não espera.
+ */
+function ParteDoTotal({ valor }: { valor: number | null }) {
+  return (
+    <>
+      <span className="so-na-tela">{formatarPercentual(valor, 2)}</span>
+      <span className="so-no-papel">{formatarPercentual(valor, 1)}</span>
+    </>
+  );
+}
+
+/**
  * Célula que identifica a linha, e a única que fica parada na rolagem lateral.
  *
  * Código e nome moram **na mesma célula**, não em duas colunas fixas lado a lado. Duas
@@ -502,7 +674,9 @@ function Identidade({ codigo, nome }: { codigo: React.ReactNode; nome: string })
         <span className="tabular shrink-0 text-[length:var(--fs-apoio)] text-[var(--text-muted)]">
           {codigo}
         </span>
-        <span className="truncate" title={nome}>
+        {/* `descricao-conta` deixa o `@media print` desligar o corte: no papel não há
+            hover para ler o `title`, e nome cortado com reticências é dado perdido. */}
+        <span className="descricao-conta truncate" title={nome}>
           {nome}
         </span>
       </div>
@@ -510,7 +684,15 @@ function Identidade({ codigo, nome }: { codigo: React.ReactNode; nome: string })
   );
 }
 
-function TabelaClientes({ linhas }: { linhas: readonly DetalheCliente[] }) {
+function TabelaClientes({
+  linhas,
+  coluna,
+  nome,
+}: {
+  linhas: readonly DetalheCliente[];
+  coluna: string | null;
+  nome: string | null;
+}) {
   if (linhas.length === 0) return <Vazio />;
 
   return (
@@ -519,17 +701,22 @@ function TabelaClientes({ linhas }: { linhas: readonly DetalheCliente[] }) {
         <th className={cn(TH, "col-identidade text-left")}>Cliente</th>
         <th className={cn(TH, "text-left")}>Cidade</th>
         <th className={cn(TH, "text-right")}>Notas</th>
-        <th className={cn(TH, "text-right")}>Receita bruta</th>
-        <th className={cn(TH, "text-right")}>Desconto</th>
-        <th className={cn(TH, "text-right")}>Devolução</th>
-        <th className={cn(TH, "text-right")}>Custo líq.</th>
-        <th className={cn(TH, "text-right")}>Receita líq.</th>
+        <ThNum rotulo="Receita bruta" coluna={coluna} nome={nome} />
+        <ThNum rotulo="Desconto" coluna={coluna} nome={nome} />
+        <ThNum rotulo="Devolução" coluna={coluna} nome={nome} />
+        <ThNum rotulo="Custo líq." coluna={coluna} nome={nome} />
+        <ThNum rotulo="Receita líq." coluna={coluna} nome={nome} />
       </Cabecalho>
       <tbody>
         {linhas.map((c) => (
           <tr key={c.codCli} className="border-b border-[var(--border)] odd:bg-[var(--zebra)] hover:bg-[var(--surface-2)]">
             <Identidade codigo={c.codCli} nome={c.cliente} />
-            <td className={cn(TD, "max-w-[12rem] truncate")} title={c.cidade}>{c.cidade}</td>
+            <td
+              className={cn(TD, "descricao-conta max-w-[12rem] truncate")}
+              title={c.cidade}
+            >
+              {c.cidade}
+            </td>
             <td className={NUM}>{c.qdeNf}</td>
             <td className={NUM}>{formatarValor(c.receitaBruta)}</td>
             <td className={NUM}>{formatarValor(c.desconto)}</td>
@@ -543,11 +730,21 @@ function TabelaClientes({ linhas }: { linhas: readonly DetalheCliente[] }) {
         <td className={cn(TD, "col-identidade")}>{linhas.length} clientes</td>
         <td className={TD} />
         <td className={NUM}>{soma(linhas, (c) => c.qdeNf)}</td>
-        <td className={NUM}>{formatarValor(soma(linhas, (c) => c.receitaBruta))}</td>
-        <td className={NUM}>{formatarValor(soma(linhas, (c) => c.desconto))}</td>
-        <td className={NUM}>{formatarValor(soma(linhas, (c) => c.devolucao))}</td>
-        <td className={NUM}>{formatarValor(soma(linhas, (c) => c.custoLiq))}</td>
-        <td className={NUM}>{formatarValor(soma(linhas, (c) => c.receitaLiquida))}</td>
+        <td className={totalDe(coluna, "Receita bruta")}>
+          {formatarValor(soma(linhas, (c) => c.receitaBruta))}
+        </td>
+        <td className={totalDe(coluna, "Desconto")}>
+          {formatarValor(soma(linhas, (c) => c.desconto))}
+        </td>
+        <td className={totalDe(coluna, "Devolução")}>
+          {formatarValor(soma(linhas, (c) => c.devolucao))}
+        </td>
+        <td className={totalDe(coluna, "Custo líq.")}>
+          {formatarValor(soma(linhas, (c) => c.custoLiq))}
+        </td>
+        <td className={totalDe(coluna, "Receita líq.")}>
+          {formatarValor(soma(linhas, (c) => c.receitaLiquida))}
+        </td>
       </Total>
     </table>
   );
@@ -597,7 +794,15 @@ function CulpaRca({ valor }: { valor: string | null }) {
  * **`Vendas` e `Devoluções` somam imposto + FECP no mesmo número**, como a apuração faz.
  * Separar os dois aqui daria uma tela que não fecha com a linha que ela detalha.
  */
-function TabelaImpostos({ linhas }: { linhas: readonly DetalheImposto[] }) {
+function TabelaImpostos({
+  linhas,
+  coluna,
+  nome,
+}: {
+  linhas: readonly DetalheImposto[];
+  coluna: string | null;
+  nome: string | null;
+}) {
   if (linhas.length === 0) return <Vazio />;
 
   return (
@@ -607,7 +812,7 @@ function TabelaImpostos({ linhas }: { linhas: readonly DetalheImposto[] }) {
         <th className={cn(TH, "text-right")}>Notas</th>
         <th className={cn(TH, "text-right")}>Vendas</th>
         <th className={cn(TH, "text-right")}>Devoluções</th>
-        <th className={cn(TH, "text-right")}>Líquido</th>
+        <ThNum rotulo="Líquido" coluna={coluna} nome={nome} />
         <th className={cn(TH, "text-right")}>% part.</th>
       </Cabecalho>
       <tbody>
@@ -621,7 +826,9 @@ function TabelaImpostos({ linhas }: { linhas: readonly DetalheImposto[] }) {
             <td className={NUM}>{formatarValor(i.vendas)}</td>
             <td className={NUM}>{formatarValor(i.devolucoes)}</td>
             <td className={cn(NUM, "font-semibold")}>{formatarValor(i.liquido)}</td>
-            <td className={NUM}>{formatarPercentual(i.pPart, 2)}</td>
+            <td className={NUM}>
+              <ParteDoTotal valor={i.pPart} />
+            </td>
           </tr>
         ))}
       </tbody>
@@ -630,14 +837,26 @@ function TabelaImpostos({ linhas }: { linhas: readonly DetalheImposto[] }) {
         <td className={NUM}>{soma(linhas, (i) => i.qdeNf)}</td>
         <td className={NUM}>{formatarValor(soma(linhas, (i) => i.vendas))}</td>
         <td className={NUM}>{formatarValor(soma(linhas, (i) => i.devolucoes))}</td>
-        <td className={NUM}>{formatarValor(soma(linhas, (i) => i.liquido))}</td>
-        <td className={NUM}>{formatarPercentual(soma(linhas, (i) => i.pPart), 2)}</td>
+        <td className={totalDe(coluna, "Líquido")}>
+          {formatarValor(soma(linhas, (i) => i.liquido))}
+        </td>
+        <td className={NUM}>
+          <ParteDoTotal valor={soma(linhas, (i) => i.pPart)} />
+        </td>
       </Total>
     </table>
   );
 }
 
-function TabelaMotivos({ linhas }: { linhas: readonly DetalheMotivo[] }) {
+function TabelaMotivos({
+  linhas,
+  coluna,
+  nome,
+}: {
+  linhas: readonly DetalheMotivo[];
+  coluna: string | null;
+  nome: string | null;
+}) {
   if (linhas.length === 0) return <Vazio />;
 
   return (
@@ -646,7 +865,7 @@ function TabelaMotivos({ linhas }: { linhas: readonly DetalheMotivo[] }) {
         <th className={cn(TH, "col-identidade text-left")}>Motivo</th>
         <th className={cn(TH, "text-left")}>Culpa RCA</th>
         <th className={cn(TH, "text-right")}>Notas</th>
-        <th className={cn(TH, "text-right")}>Devolução</th>
+        <ThNum rotulo="Devolução" coluna={coluna} nome={nome} />
         <th className={cn(TH, "text-right")}>% part.</th>
       </Cabecalho>
       <tbody>
@@ -668,7 +887,9 @@ function TabelaMotivos({ linhas }: { linhas: readonly DetalheMotivo[] }) {
             <td className={NUM}>{formatarValor(m.vlDevolucao)}</td>
             {/* Duas casas: o valor vem arredondado assim da consulta, e é o que a
                 9815 mostra nesta coluna. */}
-            <td className={NUM}>{formatarPercentual(m.pPart, 2)}</td>
+            <td className={NUM}>
+              <ParteDoTotal valor={m.pPart} />
+            </td>
           </tr>
         ))}
       </tbody>
@@ -676,8 +897,12 @@ function TabelaMotivos({ linhas }: { linhas: readonly DetalheMotivo[] }) {
         <td className={cn(TD, "col-identidade")}>{linhas.length} motivos</td>
         <td className={TD} />
         <td className={NUM}>{soma(linhas, (m) => m.qdeNf)}</td>
-        <td className={NUM}>{formatarValor(soma(linhas, (m) => m.vlDevolucao))}</td>
-        <td className={NUM}>{formatarPercentual(soma(linhas, (m) => m.pPart), 2)}</td>
+        <td className={totalDe(coluna, "Devolução")}>
+          {formatarValor(soma(linhas, (m) => m.vlDevolucao))}
+        </td>
+        <td className={NUM}>
+          <ParteDoTotal valor={soma(linhas, (m) => m.pPart)} />
+        </td>
       </Total>
     </table>
   );
@@ -779,7 +1004,15 @@ function agrupar(linhas: readonly DetalheLancamento[]): CentroAgrupado[] {
   return centros;
 }
 
-function TabelaLancamentos({ linhas }: { linhas: readonly DetalheLancamento[] }) {
+function TabelaLancamentos({
+  linhas,
+  coluna,
+  nome,
+}: {
+  linhas: readonly DetalheLancamento[];
+  coluna: string | null;
+  nome: string | null;
+}) {
   if (linhas.length === 0) return <Vazio />;
 
   const centros = agrupar(linhas);
@@ -787,18 +1020,22 @@ function TabelaLancamentos({ linhas }: { linhas: readonly DetalheLancamento[] })
   return (
     <table className="w-full border-collapse text-[length:var(--fs-base)]">
       <Cabecalho>
-        {COLUNAS.map((c, i) => (
-          <th
-            key={c.rotulo}
-            className={cn(
-              TH,
-              c.numerica ? "text-right" : "text-left",
-              i === 0 && "col-identidade",
-            )}
-          >
-            {c.rotulo}
-          </th>
-        ))}
+        {COLUNAS.map((c, i) =>
+          c.rotulo === coluna ? (
+            <ThNum key={c.rotulo} rotulo={c.rotulo} coluna={coluna} nome={nome} />
+          ) : (
+            <th
+              key={c.rotulo}
+              className={cn(
+                TH,
+                c.numerica ? "text-right" : "text-left",
+                i === 0 && "col-identidade",
+              )}
+            >
+              {c.rotulo}
+            </th>
+          ),
+        )}
       </Cabecalho>
 
       <tbody>
@@ -823,7 +1060,9 @@ function TabelaLancamentos({ linhas }: { linhas: readonly DetalheLancamento[] })
                         <td
                           key={c.rotulo}
                           className={cn(
-                            c.numerica ? NUM : cn(TD, "max-w-[22rem] truncate"),
+                            c.numerica
+                              ? NUM
+                              : cn(TD, "descricao-conta max-w-[22rem] truncate"),
                             j === 0 && "col-identidade",
                             c.rotulo === "V. Pago" &&
                               (l.vPago < 0
@@ -853,7 +1092,9 @@ function TabelaLancamentos({ linhas }: { linhas: readonly DetalheLancamento[] })
       <Total>
         <td className={cn(TD, "col-identidade")}>{linhas.length} lançamentos</td>
         <td className={TD} />
-        <td className={NUM}>{formatarValor(soma(linhas, (l) => l.vPago))}</td>
+        <td className={totalDe(coluna, "V. Pago")}>
+          {formatarValor(soma(linhas, (l) => l.vPago))}
+        </td>
         <td className={TD} colSpan={COLUNAS.length - 3} />
       </Total>
     </table>
@@ -878,9 +1119,12 @@ function LinhaDeGrupo({ nivel, rotulo }: { nivel: 1 | 2; rotulo: string }) {
         <span
           className={cn(
             "grupo-fixo inline-block px-3 py-[var(--celula-y)] whitespace-nowrap",
+            // Os dois níveis em negrito: são cabeçalhos, como os de coluna. O que os separa
+            // entre si passa a ser o recuo e a cor, não o peso — dois pesos diferentes
+            // competiriam com a distinção que importa, a de cabeçalho contra dado.
             nivel === 1
-              ? "font-semibold text-[var(--text-primary)]"
-              : "pl-8 text-[var(--text-secondary)]",
+              ? "font-bold text-[var(--text-primary)]"
+              : "pl-8 font-bold text-[var(--text-secondary)]",
           )}
         >
           {rotulo}

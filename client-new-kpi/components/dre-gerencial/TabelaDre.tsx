@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ModalMoverLinha, type MovimentoPendente } from "./ModalMoverLinha";
 import { ModalDetalhe } from "./ModalDetalhe";
 import { useDetalhe } from "@/hooks/useDreGerencial";
+import { useExportarDetalhe } from "@/hooks/useExportarDetalhe";
 import { recorteDoMes } from "@/lib/periodos";
 import { useOrdemSalva } from "@/hooks/useOrdemSalva";
 import { passoDeRolagem } from "@/lib/rolagemAutomatica";
@@ -12,10 +13,9 @@ import { cn } from "@/lib/cn";
 import { formatarPercentual, formatarValor } from "@/lib/formato";
 import {
   aplicarOrdem,
-  blocoDe,
   descreverPosicao,
   linhasAfetadas,
-  moverIntervalo,
+  mover,
   ordemPersonalizada,
   saiuDoBloco,
 } from "@/lib/ordemLinhas";
@@ -28,11 +28,14 @@ import type { FiltroApuracao, LinhaDre, PeriodoDre } from "@/types/dre-gerencial
  */
 const CELULA = "px-[var(--celula-x)] py-[var(--celula-y)]";
 
-/** Fatia da tabela sendo arrastada, em índices da lista completa. */
-interface Arrasto {
-  inicio: number;
-  fim: number;
-}
+/**
+ * **Arrastar move uma linha, sempre.**
+ *
+ * Até 09/09/2026 um totalizador levava consigo o bloco que ele encabeça, com um
+ * interruptor na barra para desligar isso. Removido por decisão do Gabriel: mover o bloco
+ * inteiro num gesto muda a leitura de várias linhas de uma vez, e num relatório onde a
+ * posição sugere o que compõe o quê, é efeito grande demais para um arraste.
+ */
 
 export function TabelaDre({
   periodos,
@@ -52,7 +55,8 @@ export function TabelaDre({
   // qual tudo aqui é medido. `ordenadas` é o que a pessoa vê.
   const ordenadas = useMemo(() => aplicarOrdem(linhas, ordem), [linhas, ordem]);
 
-  const [arrasto, setArrasto] = useState<Arrasto | null>(null);
+  /** Índice, na lista completa, da linha sendo arrastada. */
+  const [arrasto, setArrasto] = useState<number | null>(null);
   const [alvo, setAlvo] = useState<number | null>(null);
 
   const rolagem = useRef<HTMLDivElement>(null);
@@ -61,13 +65,14 @@ export function TabelaDre({
   const [pendente, setPendente] = useState<
     (MovimentoPendente & { nova: LinhaDre[] }) | null
   >(null);
-  const [arrastarBloco, setArrastarBloco] = useState(true);
   /**
    * Falha ao guardar o detalhamento para a outra aba. Raro, mas silêncio seria pior: a
    * pessoa clicaria de novo achando que não pegou o clique.
    */
   const [avisoDaAba, setAvisoDaAba] = useState<string | null>(null);
   const [anuncio, setAnuncio] = useState("");
+
+  const { exportar, exportando, erro: erroExcel } = useExportarDetalhe();
 
   const consultaDetalhe = useDetalhe();
   const [detalhe, setDetalhe] = useState<{
@@ -101,20 +106,6 @@ export function TabelaDre({
     [ordenadas, mostrarZeradas],
   );
 
-  /**
-   * Quantas linhas da fatia a pessoa realmente vê. Com as zeradas escondidas, uma fatia
-   * de 5 pode mostrar 4 — anunciar 5 mandaria conferir uma linha que não está na tela.
-   * A escondida viaja junto de qualquer forma; isso é comportamento, não aviso.
-   */
-  const tamanhoVisivel = useCallback(
-    (fatia: Arrasto) =>
-      visiveis.filter((v) => {
-        const i = ordenadas.findIndex((l) => l.chaveOrdem === v.chaveOrdem);
-        return i >= fatia.inicio && i < fatia.fim;
-      }).length,
-    [visiveis, ordenadas],
-  );
-
   const indiceCompleto = useCallback(
     (chaveOrdem: string) => ordenadas.findIndex((l) => l.chaveOrdem === chaveOrdem),
     [ordenadas],
@@ -126,19 +117,14 @@ export function TabelaDre({
    * é o caminho mais curto para a pessoa aprender a confirmar sem ler.
    */
   const aplicar = useCallback(
-    (fatia: Arrasto, destino: number) => {
-      const nova = moverIntervalo(ordenadas, fatia.inicio, fatia.fim, destino);
+    (indice: number, destino: number) => {
+      const nova = mover(ordenadas, indice, destino);
       if (!ordemPersonalizada(ordenadas, nova)) return;
 
-      const cabeca = ordenadas[fatia.inicio];
-      if (!cabeca) return;
+      const linha = ordenadas[indice];
+      if (!linha) return;
 
-      const tamanho = tamanhoVisivel(fatia);
-      const nomeCurto = cabeca.descricao.trim();
-      const oQue =
-        tamanho > 1
-          ? `o bloco de ${nomeCurto}, com ${tamanho} linhas`
-          : `a linha ${nomeCurto}`;
+      const nomeCurto = linha.descricao.trim();
 
       // Só o que a pessoa consegue ver. Citar uma linha escondida manda conferir algo
       // que não está na tela; quando ela reaparecer, o selo dela já estará aceso.
@@ -149,40 +135,26 @@ export function TabelaDre({
       // Mexer num totalizador sempre pergunta, mesmo quando nenhuma despesa muda de
       // leitura — é a linha que ancora o bloco, e foi o caso que o Gabriel pediu para
       // nunca passar direto.
-      const mexeuEmCalculada = ordenadas
-        .slice(fatia.inicio, fatia.fim)
-        .some((l) => l.calculada);
-
-      if (afetadas.length === 0 && !mexeuEmCalculada) {
+      if (afetadas.length === 0 && !linha.calculada) {
         salvar(nova.map((l) => l.chaveOrdem));
         setAnuncio(
-          `${nomeCurto} movida para a posição ${nova.findIndex((l) => l.chaveOrdem === cabeca.chaveOrdem) + 1}.`,
+          `${nomeCurto} movida para a posição ${nova.findIndex((l) => l.chaveOrdem === linha.chaveOrdem) + 1}.`,
         );
         return;
       }
 
       setPendente({
         nova,
-        oQue,
-        deOnde: descreverPosicao(ordenadas, fatia.inicio),
+        oQue: `a linha ${nomeCurto}`,
+        deOnde: descreverPosicao(ordenadas, indice),
         paraOnde: descreverPosicao(
           nova,
-          nova.findIndex((l) => l.chaveOrdem === cabeca.chaveOrdem),
+          nova.findIndex((l) => l.chaveOrdem === linha.chaveOrdem),
         ),
         afetadas: afetadas.map((l) => l.descricao.trim()),
       });
     },
-    [linhas, ordenadas, salvar, tamanhoVisivel, visiveis],
-  );
-
-  /** A fatia que sai junto quando o puxador da linha `indice` é usado. */
-  const fatiaDe = useCallback(
-    (indice: number): Arrasto => {
-      const linha = ordenadas[indice];
-      if (arrastarBloco && linha?.calculada) return blocoDe(ordenadas, indice);
-      return { inicio: indice, fim: indice + 1 };
-    },
-    [ordenadas, arrastarBloco],
+    [linhas, ordenadas, salvar, visiveis],
   );
 
   /**
@@ -197,23 +169,21 @@ export function TabelaDre({
    */
   const moverPorTeclado = useCallback(
     (indice: number, direcao: -1 | 1) => {
-      const fatia = fatiaDe(indice);
-
       const fora = visiveis
         .map((v) => indiceCompleto(v.chaveOrdem))
-        .filter((i) => i < fatia.inicio || i >= fatia.fim);
+        .filter((i) => i !== indice);
 
       if (direcao === -1) {
-        const acima = fora.filter((i) => i < fatia.inicio).at(-1);
+        const acima = fora.filter((i) => i < indice).at(-1);
         if (acima === undefined) return;
-        aplicar(fatia, acima);
+        aplicar(indice, acima);
       } else {
-        const abaixo = fora.find((i) => i >= fatia.fim);
+        const abaixo = fora.find((i) => i > indice);
         if (abaixo === undefined) return;
-        aplicar(fatia, abaixo + 1);
+        aplicar(indice, abaixo + 1);
       }
     },
-    [fatiaDe, visiveis, indiceCompleto, aplicar],
+    [visiveis, indiceCompleto, aplicar],
   );
 
   /**
@@ -358,29 +328,61 @@ export function TabelaDre({
    * `noopener` porque a página nova não tem nada a fazer com esta. É o padrão de segurança
    * para abrir aba, e nada aqui depende de `window.opener`.
    */
-  const abrirEmNovaAba = useCallback(() => {
-    if (!detalhe || !consultaDetalhe.data) return;
+  const levarParaPagina = useCallback(
+    (imprimir: boolean) => {
+      if (!detalhe || !consultaDetalhe.data) return;
 
-    const id = guardar({
+      const id = guardar({
+        titulo: detalhe.titulo,
+        periodo: detalhe.periodo,
+        linha: detalhe.linha,
+        dados: consultaDetalhe.data,
+      });
+
+      // Sem armazenamento não há como o dado atravessar, e a aba nova abriria vazia.
+      // Melhor dizer aqui, com o detalhamento ainda na tela, do que lá com a tela branca.
+      if (id === null) {
+        setAvisoDaAba(
+          "O navegador recusou guardar o detalhamento, provavelmente por falta de espaço. " +
+            "Ele continua aberto aqui.",
+        );
+        return;
+      }
+
+      setAvisoDaAba(null);
+      const destino = `/dre-gerencial/detalhe/${id}${imprimir ? "?imprimir=1" : ""}`;
+      window.open(destino, "_blank", "noopener");
+    },
+    [detalhe, consultaDetalhe.data],
+  );
+
+  const abrirEmNovaAba = useCallback(() => levarParaPagina(false), [levarParaPagina]);
+
+  /**
+   * Imprimir **pela página dedicada**, não pelo diálogo.
+   *
+   * Um `<dialog>` aberto vive na *top layer* do navegador, e conteúdo da top layer **não
+   * se fragmenta entre páginas**: `window.print()` daqui sairia com a primeira folha e o
+   * resto cortado — numa lista de 15 mil clientes, o pior defeito possível. A página é
+   * HTML em fluxo normal, então pagina e repete o cabeçalho.
+   */
+  const imprimirEmNovaAba = useCallback(() => levarParaPagina(true), [levarParaPagina]);
+
+  /**
+   * O Excel sai **daqui**, sem passar pela outra aba.
+   *
+   * Planilha não tem folha nem paginação, então o `<dialog>` não atrapalha — o que impede
+   * a impressão de sair do modal não vale para um arquivo. E os dados já estão carregados.
+   */
+  const exportarExcel = useCallback(() => {
+    if (!detalhe || !consultaDetalhe.data) return;
+    exportar({
       titulo: detalhe.titulo,
       periodo: detalhe.periodo,
       linha: detalhe.linha,
       dados: consultaDetalhe.data,
     });
-
-    // Sem armazenamento não há como o dado atravessar, e a aba nova abriria vazia. Melhor
-    // dizer aqui, com o detalhamento ainda na tela, do que lá com a tela em branco.
-    if (id === null) {
-      setAvisoDaAba(
-        "O navegador recusou guardar o detalhamento, provavelmente por falta de espaço. " +
-          "Ele continua aberto aqui.",
-      );
-      return;
-    }
-
-    setAvisoDaAba(null);
-    window.open(`/dre-gerencial/detalhe/${id}`, "_blank", "noopener");
-  }, [detalhe, consultaDetalhe.data]);
+  }, [detalhe, consultaDetalhe.data, exportar]);
 
   const fecharDetalhe = useCallback(() => {
     setDetalhe(null);
@@ -427,7 +429,9 @@ export function TabelaDre({
 
   return (
     <>
-      <div className="nao-imprime flex flex-wrap items-center justify-between gap-x-6 gap-y-2 border-b border-[var(--border)] px-4 py-2">
+      {/* `barra-reordenar` sai em dispositivo de toque: ela explica um gesto de mouse e
+          um atalho de teclado, e o celular não tem nenhum dos dois. */}
+      <div className="barra-reordenar nao-imprime flex flex-wrap items-center justify-between gap-x-6 gap-y-2 border-b border-[var(--border)] px-4 py-2">
         <p className="text-[length:var(--fs-apoio)] text-[var(--text-muted)]">
           Arraste pelo punho{" "}
           <span aria-hidden className="text-[var(--text-secondary)]">
@@ -438,16 +442,6 @@ export function TabelaDre({
         </p>
 
         <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
-          <label className="flex cursor-pointer items-center gap-2.5 text-[length:var(--fs-apoio)] text-[var(--text-secondary)]">
-            <input
-              type="checkbox"
-              checked={arrastarBloco}
-              onChange={(e) => setArrastarBloco(e.target.checked)}
-              className="size-4 accent-[var(--primary)]"
-            />
-            Totalizador arrasta o bloco inteiro
-          </label>
-
           {personalizada && (
             <button
               type="button"
@@ -515,16 +509,13 @@ export function TabelaDre({
                   maiorAv={maiorAv}
                   multiMes={multiMes}
                   deslocada={deslocadas.has(linha.chaveOrdem)}
-                  arrastando={
-                    arrasto !== null && indice >= arrasto.inicio && indice < arrasto.fim
-                  }
+                  arrastando={arrasto === indice}
                   indicadorAcima={indicador === linha.chaveOrdem}
                   indicadorAbaixo={indicador === null && linha === visiveis.at(-1)}
-                  tamanhoDaFatia={tamanhoVisivel(fatiaDe(indice))}
-                  onArrastarInicio={() => setArrasto(fatiaDe(indice))}
+                  onArrastarInicio={() => setArrasto(indice)}
                   onArrastarSobre={(destino) => setAlvo(destino)}
                   onSoltar={(destino) => {
-                    if (arrasto) aplicar(arrasto, destino);
+                    if (arrasto !== null) aplicar(arrasto, destino);
                     setArrasto(null);
                     setAlvo(null);
                     ponteiroY.current = null;
@@ -577,7 +568,12 @@ export function TabelaDre({
         // A composição dos totalizadores não vai para página: ela é aritmética sobre
         // linhas que estão na tabela atrás do modal, e fora daqui perde a referência.
         onAbrirEmNovaAba={composicao ? null : abrirEmNovaAba}
-        avisoDaAba={avisoDaAba}
+        onImprimir={composicao ? null : imprimirEmNovaAba}
+        // A composição não tem Excel pelo mesmo motivo de não ter página: ela é aritmética
+        // sobre as linhas da tabela atrás do modal, e a tabela inteira já exporta.
+        onExcel={composicao || !detalhe || !consultaDetalhe.data ? null : exportarExcel}
+        excelOcupado={exportando}
+        avisoDaAba={avisoDaAba ?? erroExcel}
       />
     </>
   );
@@ -623,7 +619,6 @@ function Linha({
   arrastando,
   indicadorAcima,
   indicadorAbaixo,
-  tamanhoDaFatia,
   onArrastarInicio,
   onArrastarSobre,
   onSoltar,
@@ -639,7 +634,6 @@ function Linha({
   arrastando: boolean;
   indicadorAcima: boolean;
   indicadorAbaixo: boolean;
-  tamanhoDaFatia: number;
   onArrastarInicio: () => void;
   onArrastarSobre: (destino: number) => void;
   onSoltar: (destino: number) => void;
@@ -658,6 +652,17 @@ function Linha({
 
   return (
     <tr
+      /**
+       * A identidade da linha no DOM, para a exportação saber **a ordem e a seleção que
+       * estão na tela** — a pessoa pode ter arrastado linhas e escondido as zeradas.
+       *
+       * Ler isto do DOM em vez de levantar o estado da ordem para a página é a troca
+       * deliberada: a alternativa era mover o `useOrdemSalva` e o cálculo de visíveis para
+       * fora deste componente, refatorando o dono de três estados para servir a um botão.
+       * O DOM já é a fonte que a impressão usa — ela imprime o que está renderizado —, e
+       * assim o Excel e o papel não têm como discordar.
+       */
+      data-chave={linha.chaveOrdem}
       onDragOver={(e) => {
         e.preventDefault();
         e.dataTransfer.dropEffect = "move";
@@ -708,11 +713,7 @@ function Linha({
                 onTeclado(1);
               }
             }}
-            aria-label={
-              tamanhoDaFatia > 1
-                ? `Mover o bloco de ${nome}, com ${tamanhoDaFatia} linhas. Alt com seta para cima ou para baixo.`
-                : `Mover ${nome}. Alt com seta para cima ou para baixo.`
-            }
+            aria-label={`Mover ${nome}. Alt com seta para cima ou para baixo.`}
             className="puxador shrink-0"
           >
             <span aria-hidden>⠿</span>
@@ -727,7 +728,11 @@ function Linha({
           />
           <span
             className={cn(
-              "truncate",
+              // `truncate` corta com reticências, o que na tela é certo — a coluna é fixa
+              // e o `title` mostra o resto. No papel não há hover, e uma conta cortada
+              // vira relatório que não se lê: a classe existe para o `@media print`
+              // desligar o corte e deixar o nome quebrar em duas linhas.
+              "descricao-conta truncate",
               linha.totalizadora
                 ? "font-semibold text-[var(--text-primary)]"
                 : "text-[var(--text-secondary)]",
@@ -869,8 +874,10 @@ function BarraAv({ percentual, maior }: { percentual: number | null; maior: numb
 
   return (
     <div className="flex flex-col items-end gap-0.5">
+      {/* Mesmo par do `%AH`: três casas na tela, uma no papel. Ver `Variacao`. */}
       <span className="tabular text-[length:var(--fs-apoio)] text-[var(--text-secondary)]">
-        {formatarPercentual(percentual)}
+        <span className="so-na-tela">{formatarPercentual(percentual)}</span>
+        <span className="so-no-papel">{formatarPercentual(percentual, 1)}</span>
       </span>
       {/* A classe existe para a impressão poder apagar a barra: no papel ela é
           decoração que custa uma linha de altura por célula, e o número está do lado. */}
@@ -895,6 +902,14 @@ function BarraAv({ percentual, maior }: { percentual: number | null; maior: numb
 /**
  * `%AH` — variação sobre o mês anterior. Verde sobe, vermelho desce, sem seta:
  * o sinal já diz a direção e a seta só competiria com ele.
+ *
+ * **Duas grafias do mesmo número, e o CSS escolhe qual sai.** Na tela, três casas como a
+ * 9815; no papel, inteiro — `19,474` viram `19`, quatro caracteres a menos numa coluna que
+ * se repete a cada mês.
+ *
+ * Os dois textos vão no DOM em vez de um estado trocado no `beforeprint`. Aquele evento é
+ * onde a impressão já nos enganou uma vez, e um `Ctrl+P` direto não espera por re-render:
+ * com os dois presentes, o que sai no papel não depende de nada acontecer na hora certa.
  */
 function Variacao({ percentual }: { percentual: number | null }) {
   if (percentual === null) {
@@ -904,7 +919,8 @@ function Variacao({ percentual }: { percentual: number | null }) {
   return (
     <span className={percentual < 0 ? "text-[var(--negative)]" : "text-[var(--positive)]"}>
       {percentual > 0 ? "+" : ""}
-      {formatarPercentual(percentual)}
+      <span className="so-na-tela">{formatarPercentual(percentual)}</span>
+      <span className="so-no-papel">{formatarPercentual(percentual, 1)}</span>
     </span>
   );
 }
@@ -914,10 +930,29 @@ function Variacao({ percentual }: { percentual: number | null }) {
  * diz a mesma coisa pelo lado do que a linha é, e não pelo que ela deixa de fazer.
  * O cadastro e a regra continuam idênticos — muda só a palavra na tela.
  */
+/**
+ * O selo das linhas que não somam.
+ *
+ * **Duas grafias, e a tela escolhe.** Em celular a palavra inteira ocupava mais que o nome
+ * que ela qualifica: numa coluna de 188px, `(-) ST` era empurrado para duas linhas com o
+ * selo no meio. `INFO` diz o mesmo em quatro letras, e o `title` guarda a frase completa
+ * para quem passar o ponteiro ou usar leitor de tela.
+ *
+ * O texto acessível é sempre o longo — quem ouve a tela não deve receber a abreviação.
+ */
 function SeloInformativo() {
   return (
-    <span className="shrink-0 rounded-[var(--radius-sm)] bg-[var(--warning-glow)] px-1.5 py-0.5 text-[length:var(--fs-rotulo)] font-semibold tracking-[0.1em] text-[var(--warning)] uppercase">
-      Informativo
+    <span
+      title="Informativo — esta linha não entra nos totalizadores"
+      className="shrink-0 rounded-[var(--radius-sm)] bg-[var(--warning-glow)] px-1.5 py-0.5 text-[length:var(--fs-rotulo)] font-semibold tracking-[0.1em] text-[var(--warning)] uppercase"
+    >
+      <span className="sr-only">Informativo</span>
+      <span aria-hidden className="selo-longo">
+        Informativo
+      </span>
+      <span aria-hidden className="selo-curto">
+        Info
+      </span>
     </span>
   );
 }

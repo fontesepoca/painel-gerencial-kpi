@@ -25,8 +25,13 @@ export function formatarValor(valor: number): string {
  * **Três casas por padrão**, como a 9815 usa em `%AV` e `%AH`. O `%PART` da devolução
  * pede duas, também como ela: aquele valor já vem arredondado em duas casas pela consulta,
  * e a terceira seria sempre zero — precisão que o número não tem.
+ *
+ * **Uma casa existe para o papel.** Na impressão com quatro meses, `19,474` gasta seis
+ * caracteres de uma folha onde 12px decidem se a última coluna sai cortada, e a terceira
+ * casa de uma variação percentual não muda decisão nenhuma. `19,5` guarda a ordem de
+ * grandeza e o sentido do arredondamento, que é o que se lê num relatório impresso.
  */
-export function formatarPercentual(valor: number | null, casas: 2 | 3 = 3): string {
+export function formatarPercentual(valor: number | null, casas: 0 | 1 | 2 | 3 = 3): string {
   if (valor === null) return "";
   const texto = valor.toFixed(casas).replace(".", ",").replace("-", "");
   return valor < 0 ? `(${texto})` : texto;

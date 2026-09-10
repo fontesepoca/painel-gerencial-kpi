@@ -133,62 +133,33 @@ export function linhasAfetadas<T extends LinhaOrdenavel>(
 }
 
 /**
- * O bloco que começa em `indice`, como intervalo `[inicio, fim)`.
- *
- * Uma calculada **encabeça** o seu bloco: ela mais as linhas não-calculadas que vêm
- * logo abaixo, até a próxima calculada. É por isso que "tudo do LUCRO LIQUIDO" é
- * LUCRO LIQUIDO com as órfãs que o seguem, e não as despesas acima dele.
- *
- * Linha não-calculada não encabeça bloco nenhum — ela é o próprio bloco, de uma linha só.
- */
-export function blocoDe<T extends LinhaOrdenavel>(
-  linhas: readonly T[],
-  indice: number,
-): { inicio: number; fim: number } {
-  const cabeca = linhas[indice];
-  if (!cabeca?.calculada) return { inicio: indice, fim: indice + 1 };
-
-  let fim = indice + 1;
-  while (fim < linhas.length && !linhas[fim]?.calculada) fim++;
-
-  return { inicio: indice, fim };
-}
-
-/**
- * Move a fatia `[inicio, fim)` para a posição `destino`, contada na lista **original**.
+ * Move a linha de `de` para `para`, com o destino contado na lista **original**.
  *
  * Contar o destino na lista original é o que deixa a conta legível de fora: quem chama
- * está olhando para a tabela na tela, não para uma lista intermediária sem a fatia.
+ * está olhando para a tabela na tela, não para uma lista intermediária sem a linha.
  * O ajuste de índice acontece aqui, num lugar só.
  *
- * **`destino` é "antes da linha que hoje ocupa esse índice".** Soltar uma linha logo
- * abaixo dela mesma (`destino === fim`) é ficar parada, e é o que se espera de um
- * arraste curto que não chegou a atravessar ninguém.
+ * **`para` é "antes da linha que hoje ocupa esse índice".** Soltar uma linha logo abaixo
+ * dela mesma (`para === de + 1`) é ficar parada, e é o que se espera de um arraste curto
+ * que não chegou a atravessar ninguém.
+ *
+ * **Uma linha, nunca um bloco.** Havia aqui um `moverIntervalo` que movia a fatia
+ * `[inicio, fim)`, usado para um totalizador levar consigo o bloco que ele encabeça, mais
+ * um `blocoDe` que calculava essa fatia. Removidos por decisão do Gabriel em 09/09/2026:
+ * mover várias linhas num gesto muda a leitura de todas elas de uma vez, e num relatório
+ * onde a posição sugere o que compõe o quê, é efeito grande demais para um arraste.
  */
-export function moverIntervalo<T>(
-  lista: readonly T[],
-  inicio: number,
-  fim: number,
-  destino: number,
-): T[] {
-  const tamanho = fim - inicio;
-  if (tamanho <= 0 || inicio < 0 || fim > lista.length) return [...lista];
-
-  const fatia = lista.slice(inicio, fim);
-  const restante = [...lista.slice(0, inicio), ...lista.slice(fim)];
-
-  // Soltar dentro da própria fatia não é movimento: volta para onde estava.
-  const alvo =
-    destino <= inicio ? destino : destino >= fim ? destino - tamanho : inicio;
-
-  restante.splice(Math.max(0, Math.min(restante.length, alvo)), 0, ...fatia);
-  return restante;
-}
-
-/** Move uma linha só. Caso particular de <see cref="moverIntervalo"/>. */
 export function mover<T>(lista: readonly T[], de: number, para: number): T[] {
   if (de < 0 || de >= lista.length) return [...lista];
-  return moverIntervalo(lista, de, de + 1, para);
+
+  const linha = lista[de] as T;
+  const restante = [...lista.slice(0, de), ...lista.slice(de + 1)];
+
+  // Soltar em cima de si mesma não é movimento: volta para onde estava.
+  const alvo = para <= de ? para : para - 1;
+
+  restante.splice(Math.max(0, Math.min(restante.length, alvo)), 0, linha);
+  return restante;
 }
 
 /**

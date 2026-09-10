@@ -1,14 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { AppShell } from "@/components/layout/AppShell";
 import { FiltrosDre } from "@/components/dre-gerencial/FiltrosDre";
 import { TabelaDre } from "@/components/dre-gerencial/TabelaDre";
+import { FolhaDaImpressao } from "@/components/dre-gerencial/impressao";
+import { MenuExportar } from "@/components/dre-gerencial/MenuExportar";
+import { exportarApuracao } from "@/lib/exportarExcel";
 import { useApuracao, useFiliais } from "@/hooks/useDreGerencial";
 import { cn } from "@/lib/cn";
 import { formatarDataIso, formatarDuracao } from "@/lib/formato";
 import { periodoPadrao } from "@/lib/periodos";
-import type { FiltroApuracao } from "@/types/dre-gerencial";
+import type { Apuracao, FiltroApuracao } from "@/types/dre-gerencial";
 
 export default function DreGerencialPage() {
   const filiais = useFiliais();
@@ -36,11 +39,51 @@ export default function DreGerencialPage() {
     return () => window.removeEventListener("keydown", aoTeclar);
   }, [expandida]);
 
+  /**
+   * Exporta a apuração para `.xlsx`, **na ordem e na seleção que estão na tela**.
+   *
+   * A ordem vem do DOM (`tr[data-chave]`), não da resposta da API: quem arrastou linhas e
+   * escondeu as zeradas quer o arquivo do que está vendo, e é o mesmo critério da
+   * impressão, que imprime o que está renderizado.
+   *
+   * O erro **aparece**, em vez de o clique não fazer nada: o `import()` do xlsx passa pela
+   * rede na primeira vez, e um clique silencioso faria a pessoa clicar de novo.
+   */
+  const [exportando, setExportando] = useState(false);
+  const [erroExportar, setErroExportar] = useState<string | null>(null);
+
+  const exportar = useCallback(async (apuracao: Apuracao) => {
+    setExportando(true);
+    setErroExportar(null);
+    try {
+      const chaves = [...document.querySelectorAll<HTMLElement>("tr[data-chave]")]
+        .map((tr) => tr.dataset.chave)
+        .filter((c): c is string => !!c);
+
+      const porChave = new Map(apuracao.linhas.map((l) => [l.chaveOrdem, l]));
+      const naTela = chaves
+        .map((c) => porChave.get(c))
+        .filter((l): l is (typeof apuracao.linhas)[number] => l !== undefined);
+
+      // Sem nenhuma linha reconhecida no DOM, exporta a apuração como veio — melhor um
+      // arquivo na ordem do cadastro que nenhum arquivo.
+      await exportarApuracao(apuracao, naTela.length > 0 ? naTela : apuracao.linhas);
+    } catch (e) {
+      setErroExportar(
+        e instanceof Error
+          ? `Não foi possível gerar o Excel: ${e.message}`
+          : "Não foi possível gerar o Excel.",
+      );
+    } finally {
+      setExportando(false);
+    }
+  }, []);
+
   const [filtro, setFiltro] = useState<FiltroApuracao>(() => ({
     filiais: [],
     ...periodoPadrao(),
     regime: "competencia",
-    analise: "grupo-contas",
+    analise: "ccusto-principal",
   }));
 
   const dados = apuracao.data;
@@ -84,7 +127,9 @@ export default function DreGerencialPage() {
           // A altura da tabela deixa de ser chutada: esta secao pega o que sobra da
           // coluna, e a rolagem interna dela se ajusta sozinha a qualquer janela.
           <>
-          <FolhaDaImpressao meses={dados.periodos.length} />
+          <FolhaDaImpressao
+            folha={dados.periodos.length === 1 ? "a4-em-pe" : "a3-deitada"}
+          />
 
           <section
             className={cn(
@@ -112,8 +157,12 @@ export default function DreGerencialPage() {
                 </p>
               </div>
 
-              <div className="nao-imprime flex items-center gap-4">
-                <label className="flex cursor-pointer items-center gap-2.5 text-[length:var(--fs-apoio)] text-[var(--text-secondary)]">
+              {/* `flex-wrap` e `whitespace-nowrap` juntos: em tela de celular o rótulo
+                  quebrava em três linhas para caber ao lado dos botões, com 85px de largura
+                  e 68px de altura. Inteiro, ele desce para a própria linha quando não cabe,
+                  que é a quebra que o olho espera. */}
+              <div className="nao-imprime flex flex-wrap items-center gap-x-4 gap-y-2">
+                <label className="flex cursor-pointer items-center gap-2.5 text-[length:var(--fs-apoio)] whitespace-nowrap text-[var(--text-secondary)]">
                   <input
                     type="checkbox"
                     checked={mostrarZeradas}
@@ -128,9 +177,24 @@ export default function DreGerencialPage() {
                   onAlternar={() => setExpandida((e) => !e)}
                 />
 
-                <BotaoImprimir />
+                <MenuExportar
+                  onImprimir={() => window.print()}
+                  onExcel={() => exportar(dados)}
+                  excelOcupado={exportando}
+                />
               </div>
             </div>
+
+            {/* Largura cheia, abaixo dos controles: uma falha silenciosa faria a pessoa
+                clicar em exportar de novo achando que o clique não pegou. */}
+            {erroExportar && (
+              <p
+                role="status"
+                className="nao-imprime border-b border-[var(--border)] px-4 py-2 text-[length:var(--fs-apoio)] text-[var(--negative)]"
+              >
+                {erroExportar}
+              </p>
+            )}
 
             {dados.avisos.length > 0 && (
               <div className="border-b border-[var(--border)] px-5 py-3">
@@ -225,66 +289,6 @@ function BotaoExpandir({
       {expandida ? "Voltar ao normal" : "Tela cheia"}
     </button>
   );
-}
-
-/**
- * Manda imprimir. O que muda a página é o bloco `@media print` do `globals.css` —
- * este botão só dispara, e `Ctrl+P` passa exatamente pelo mesmo caminho.
- *
- * Existe porque nem todo mundo lembra do atalho, e porque a tela não parece um
- * documento imprimível: ver o botão é o que diz que a tabela sai inteira no papel.
- */
-function BotaoImprimir() {
-  return (
-    <button
-      type="button"
-      onClick={() => window.print()}
-      title="Imprimir a tabela inteira (Ctrl+P faz o mesmo)"
-      className="flex shrink-0 cursor-pointer items-center gap-2 rounded-[var(--radius-sm)] border border-[var(--border)] px-2.5 py-1.5 text-[length:var(--fs-apoio)] font-medium text-[var(--text-secondary)] hover:border-[var(--border-strong)] hover:text-[var(--text-primary)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)]"
-    >
-      <svg
-        aria-hidden
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        className="size-4 shrink-0"
-      >
-        <path d="M6 9V3h12v6" />
-        <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
-        <path d="M6 14h12v7H6z" />
-      </svg>
-      Imprimir
-    </button>
-  );
-}
-
-/**
- * Escreve o tamanho da folha de impressão, conforme o número de meses apurados.
- *
- * **Por que não está no `globals.css`.** `@page` não aceita variável CSS no `size`, e as
- * duas formas de contornar isso falharam, as duas com o mesmo sintoma — A4 em pé com a
- * tabela cortada:
- *
- * 1. `size: A2 landscape` não vale nada: **`A2` não existe** na especificação. Os nomes
- *    param no A3, e nome desconhecido invalida a declaração inteira.
- * 2. Páginas nomeadas (`page: folha-larga`) têm suporte irregular.
- *
- * Aqui não há nome de página nem palavra-chave de tamanho: só dois comprimentos em
- * milímetros, que é a forma que a especificação garante. `594mm 420mm` é largura por
- * altura — deitado é escrever a maior primeiro, sem depender de `landscape`.
- *
- * As medidas de fonte continuam no CSS, nas classes `folha-media` e `folha-larga`.
- */
-function FolhaDaImpressao({ meses }: { meses: number }) {
-  // A2 foi testada e descartada em 03/09/2026: além de o nome não existir em CSS, é
-  // formato que a empresa não imprime. Fica A4 em pé para um mês e A3 deitada para o
-  // resto, e o que se ajusta ao número de colunas é a fonte, não a folha.
-  const tamanho = meses === 1 ? "210mm 297mm" : "420mm 297mm";
-
-  return <style>{`@page { size: ${tamanho}; }`}</style>;
 }
 
 function Inicial() {
