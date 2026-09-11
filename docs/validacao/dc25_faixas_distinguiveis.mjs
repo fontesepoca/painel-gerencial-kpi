@@ -127,6 +127,74 @@ for (const tema of ["escuro", "claro"]) {
   console.log(`  par mais parecido: ${pior.par}, ΔE2000 ${pior.d.toFixed(1)}`);
 }
 
+// ── 3. o realce da linha sob o ponteiro ──────────────────────────────────────
+//
+// Percorrer uma tabela de vinte colunas é seguir uma linha até o fim sem perder de vista
+// de que conta ela é. O realce precisa aparecer sobre os TRÊS fundos que a tabela tem —
+// linha comum, linha zebrada e totalizadora, esta última com a mesma cor do bloco de
+// total — e em cada combinação de tema com modo de leitura.
+//
+// **Duas regressões já aconteceram aqui, e as duas passavam por tela funcionando:**
+// o realce pintava `background-color` com a MESMA cor das totalizadoras (invisível nelas
+// e nas células do bloco de total, que têm fundo próprio); e o token ficou definido só
+// onde `--zebra` é redefinido, de modo que o tema claro sem leitura ampliada herdava o
+// realce do tema escuro — branco sobre branco.
+console.log("\nREALCE DA LINHA SOB O PONTEIRO");
+
+const PERCEPTIVEL = 3;
+const DISCRETO = 8;
+
+/** Os quatro estados que a tela pode ter, com o seletor que define o realce em cada um. */
+const ESTADOS = [
+  { nome: "escuro · padrão", seletor: ":root", fundo: [12, 18, 32], zebra: null, surface2: [16, 24, 40] },
+  { nome: "escuro · ampliada", seletor: 'html\\[data-leitura="ampliada"\\]', fundo: [12, 18, 32], zebra: [255, 255, 255, 0.022], surface2: [16, 24, 40] },
+  { nome: "claro · padrão", seletor: 'html\\[data-tema="claro"\\]', fundo: [255, 255, 255], zebra: null, surface2: [241, 245, 249] },
+  { nome: "claro · ampliada", seletor: 'html\\[data-tema="claro"\\]\\[data-leitura="ampliada"\\]', fundo: [255, 255, 255], zebra: [15, 23, 42, 0.03], surface2: [241, 245, 249] },
+];
+
+/** O valor de `--realce-linha` que vale num estado: o último definido até o bloco dele. */
+function realceDe(seletor) {
+  const bloco = new RegExp(`\\n${seletor} \\{([\\s\\S]*?)\\n\\}`);
+  const m = css.match(bloco);
+  if (!m) throw new Error(`bloco ${seletor} não encontrado no globals.css`);
+
+  const token = m[1].match(/--realce-linha:\s*rgb\(([\d\s]+)\s*\/\s*([\d.]+)\)/);
+  if (!token) return null; // herda de quem veio antes
+
+  const [r, g, b] = token[1].trim().split(/\s+/).map(Number);
+  return { rgb: [r, g, b], alpha: Number(token[2]) };
+}
+
+// A herança em cascata: um estado sem token próprio usa o do estado anterior. É
+// exatamente assim que o navegador resolve, e foi assim que o claro herdou o branco.
+let herdado = null;
+for (const estado of ESTADOS) {
+  const proprio = realceDe(estado.seletor);
+  const realce = proprio ?? herdado;
+  if (proprio) herdado = proprio;
+
+  ok(realce !== null, `${estado.nome}: nenhum realce definido nem herdado`);
+  if (!realce) continue;
+
+  const fundos = {
+    "linha comum": estado.fundo,
+    "totalizadora / total": estado.surface2,
+  };
+  if (estado.zebra) {
+    fundos["linha zebrada"] = compor(estado.zebra.slice(0, 3), estado.zebra[3], estado.fundo);
+  }
+
+  const medidas = Object.entries(fundos).map(([nome, fundo]) => {
+    const realcado = compor(realce.rgb, realce.alpha, fundo);
+    const d = deltaE2000Rgb(realcado, fundo);
+    ok(d >= PERCEPTIVEL, `${estado.nome} / ${nome}: realce de ΔE ${d.toFixed(1)}, mínimo ${PERCEPTIVEL}`);
+    ok(d <= DISCRETO, `${estado.nome} / ${nome}: realce de ΔE ${d.toFixed(1)}, máximo ${DISCRETO}`);
+    return `${nome} ${d.toFixed(1)}`;
+  });
+
+  console.log(`  ${estado.nome.padEnd(18)} ${medidas.join("   ")}`);
+}
+
 console.log(
   falhas === 0
     ? `\n✓ dc25: ${n}/${n} conferências passaram.`

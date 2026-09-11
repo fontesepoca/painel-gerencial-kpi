@@ -98,6 +98,7 @@ colunas por mês, mais o bloco de total.
 | Valor negativo | vermelho, entre parênteses, como no Winthor |
 | `INFORMATIVO` | marcador nas linhas que não entram nos totais — a 9815 escreve `NÃO SOMA` |
 | Números | fonte monoespaçada tabular, alinhados à direita |
+| Linha sob o ponteiro | realce na linha **inteira**, inclusive a coluna fixa e o bloco de total |
 
 **Uma cor por coluna, no título.** Com mais de um mês, cada cabeçalho de período ganha uma
 faixa de fundo levemente colorida — Junho em rosa, Julho em verde, e assim por diante. Com

@@ -74,6 +74,7 @@
   --celula-x: 0.75rem;
   --barra-av-h: 2px;
   --zebra: transparent;
+  --realce-linha: rgb(255 255 255 / 0.07);
   --peso-numero: 400;
 
   /* ── Layout ── */
@@ -142,6 +143,12 @@ html[data-tema="claro"] {
   --negative: #be123c;
   --warning: #b45309;
 
+  /* O realce da linha sob o ponteiro. Precisa estar AQUI, e não só no bloco da leitura
+     ampliada: o tema claro não redefine `--zebra` — ela só existe no modo ampliado —, e
+     sem esta linha o token do tema escuro escorregava para cá, pintando branco sobre
+     branco. Medido em ΔE2000 4,8 sobre os três fundos da tabela. */
+  --realce-linha: rgb(15 23 42 / 0.10);
+
   --shadow-card:
     0 1px 2px rgb(15 23 42 / 0.06), 0 4px 12px rgb(15 23 42 / 0.08);
   --shadow-float:
@@ -189,6 +196,7 @@ html[data-leitura="ampliada"] {
   --celula-x: 1rem;
   --barra-av-h: 4px;
   --zebra: rgb(255 255 255 / 0.022);
+  --realce-linha: rgb(255 255 255 / 0.07);
   --peso-numero: 500;
 
   --text-secondary: #cbd5e1;
@@ -205,6 +213,7 @@ html[data-leitura="ampliada"] {
    do tema escuro para uma tela clara, e o contraste inverteria. */
 html[data-tema="claro"][data-leitura="ampliada"] {
   --zebra: rgb(15 23 42 / 0.03);
+  --realce-linha: rgb(15 23 42 / 0.10);
   --text-secondary: #1e293b;
   --text-muted: #475569;
   --border: rgb(15 23 42 / 0.14);
@@ -701,7 +710,6 @@ tbody tr:nth-child(odd) > .celula-descricao {
   background-image: linear-gradient(var(--zebra), var(--zebra));
 }
 
-tbody tr:hover > .celula-descricao,
 tbody tr.linha-totalizadora > .celula-descricao {
   background-color: var(--surface-2);
 }
@@ -1389,5 +1397,44 @@ html[data-tema="claro"] .tabela-rolagem thead th.faixa-mes-4 {
 @media print {
   .tabela-rolagem thead th[class*="faixa-mes-"] {
     background-image: none !important;
+  }
+}
+
+/* ── A LINHA SOB O PONTEIRO ──────────────────────────────────────────────────
+
+   Percorrer uma tabela de vinte colunas com o olho é seguir uma linha até o fim
+   sem perder de vista de que conta ela é. O realce é o que torna isso possível,
+   e ele precisa valer para a linha INTEIRA — inclusive a coluna de descrição,
+   que é fixa, e o bloco de total, que tem fundo próprio.
+
+   **O realce era invisível em três lugares**, reportado pelo Gabriel em
+   11/09/2026. O hover pintava `background-color: var(--surface-2)` — a MESMA cor
+   que as linhas totalizadoras já têm, então RECEITA BRUTA, RECEITAS LIQUIDAS e
+   LUCRO BRUTO não mudavam nada. E as células do bloco de total têm fundo próprio,
+   que cobria o da linha.
+
+   A saída é a mesma da zebra, logo acima: o realce entra como IMAGEM de fundo,
+   um gradiente sólido que se SOMA à cor opaca em vez de substituí-la. Assim ele
+   aparece igual sobre os três fundos, e a totalizadora continua mais escura que
+   as vizinhas enquanto está realçada.
+
+   A intensidade foi medida em ΔE2000, não escolhida no olho: 5,1 no tema escuro e
+   4,8 no claro, sobre linha comum, linha zebrada e totalizadora. Abaixo de 3 o
+   realce some em alguma delas; acima de 6 ele pisca ao passar o mouse pela tabela.
+
+   O seletor repete `.celula-descricao` para empatar com a regra da zebra — que é
+   `tbody tr:nth-child(odd) > .celula-descricao`, de mesma especificidade. Em
+   empate vence quem vem depois, e é por isso que este bloco fica no fim. */
+.tabela-rolagem tbody tr:hover > td,
+.tabela-rolagem tbody tr:hover > .celula-descricao {
+  background-image: linear-gradient(var(--realce-linha), var(--realce-linha));
+}
+
+/* Em dispositivo de toque não existe ponteiro pairando: o `:hover` fica GRUDADO na
+   última linha tocada, e o realce vira um destaque permanente que engana. */
+@media (hover: none) and (pointer: coarse) {
+  .tabela-rolagem tbody tr:hover > td,
+  .tabela-rolagem tbody tr:hover > .celula-descricao {
+    background-image: none;
   }
 }

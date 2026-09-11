@@ -923,7 +923,9 @@ function Linha({
         // Faixa zebrada: transparente no modo padrão, sutil no ampliado. Serve para
         // o olho não pular de linha ao atravessar uma tabela larga.
         "odd:bg-[var(--zebra)]",
-        "hover:bg-[var(--surface-2)]",
+        // O realce do ponteiro mora no CSS, no bloco A LINHA SOB O PONTEIRO: ele precisa
+        // alcançar a coluna fixa e o bloco de total, que têm fundo próprio, e um utilitário
+        // de `background-color` na linha não chega lá.
         linha.totalizadora && "linha-totalizadora bg-[var(--surface-2)]",
         arrastando && "linha-arrastando",
         indicadorAcima && "alvo-acima",
