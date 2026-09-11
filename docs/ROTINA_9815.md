@@ -487,6 +487,48 @@ totalizador nenhum** — é o que a tela marca como `INFORMATIVO`.
 linhas zeradas do corpo (`VERBAS P&G`, `% SALDO FINAL`, …) somem. O filtro de zeradas vale
 para as linhas parametrizadas, não para as órfãs.
 
+### O que esconde uma linha: **nem lançamento, nem valor**
+
+As duas condições. Uma linha some da tela apenas quando não tem lançamento em `PCLANC` **e**
+fecha em zero em todas as colunas — que é o mesmo critério da 9815 ao montar a estrutura,
+`where VPAGO <> 0 or qdereg <> 0`.
+
+Os dois lados da regra existem por um caso real cada um:
+
+| Linha | Lançamentos | Valor | Aparece? |
+|---|---:|---:|---|
+| `DESCONTO FUNCIONÁRIOS` | 16 | 0,00 | **sim** — a 9815 esconde por ausência de movimento, não por valor zero |
+| `RECEITA VENDA ATIVO` | 0 | 225.000,00 | **sim** — desde 11/09/2026 |
+
+**O segundo caso era um defeito nosso, e dos piores.** Até 11/09/2026 a regra olhava só a
+contagem de lançamentos, e a linha injetada de `PCPREST` traz `0 as QdeReg` — fielmente,
+porque a 9815 escreve isso. Resultado: na filial 28, agosto/2026, a linha sumia com
+225.000,00 dentro dela.
+
+O que tornava o defeito grave não era a linha faltando: era a **contradição silenciosa**. Os
+225.000,00 continuavam somados no `LUCRO LIQUIDO`, que a tela mostrava em 2.240.410,65 — o
+valor certo, o mesmo da 9815 —, enquanto as linhas visíveis somavam 225 mil a menos. Quem
+conferisse a tabela à mão chegaria a um número diferente do total impresso logo abaixo, e
+nada na tela explicava a diferença.
+
+A condição do valor é avaliada **por coluna**, não pela soma do período: uma conta com
+`+100` num mês e `(100)` no outro soma zero e teve movimento nos dois.
+
+### Linha com valor e sem lançamento não abre detalhamento
+
+O duplo clique de uma linha não calculada consulta `PCLANC`, e é justamente de lá que o
+valor da venda de ativo **não** vem. Assim que a linha voltou a aparecer, o gesto passaria a
+abrir uma tela vazia sobre 225.000,00 — e quem vê isso uma vez desconfia do resto da tabela.
+
+A condição é a **contagem de lançamentos**, não a chave da linha: a injeção entra com uma
+chave diferente em cada dimensão — `400` em Grupo de Contas, `85` em C. Custo Principal,
+`8501` em Conta Gerencial —, e escrever as quatro aqui seria manter quatro listas em dia.
+
+Conferido na dc23 (**24/24**), nas quatro dimensões, com o mesmo valor chegando por nomes
+diferentes: `Outras Receitas`, `RECEITA VENDA ATIVO` e `Receita Com Venda De Ativo`. A
+filial 7 entra como contraprova — lá não há venda de ativo no período, e nenhuma linha nova
+apareceu.
+
 ---
 
 ## 11. Duas armadilhas da validação contra a 9815

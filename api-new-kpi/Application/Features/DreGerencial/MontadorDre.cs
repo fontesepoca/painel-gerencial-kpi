@@ -91,6 +91,13 @@ public static class MontadorDre
 
             var somaPeriodo = valores.Sum(v => v.Valor);
 
+            // Quantos lancamentos de PCLANC a linha tem no periodo. Decide DUAS coisas: se
+            // a linha aparece com "Mostrar contas zeradas" desmarcada, e se ela abre
+            // detalhamento — que consulta exatamente essa tabela.
+            var qdeLancamentos = qtdDespesa.GetValueOrDefault(
+                (l.Estrutura.CodGruConta, l.Estrutura.AntesRo,
+                 l.Estrutura.AntesLl, l.Estrutura.AntesLf));
+
             return new LinhaDreDto(
                 Id: l.Estrutura.Id,
                 ChaveOrdem: chavesOrdem[indice],
@@ -105,12 +112,28 @@ public static class MontadorDre
                 Calculada: l.Calculada,
                 NaoSoma: EhNaoSoma(l),
                 // Calculada aparece sempre: cabecalho e totalizadores nao dependem de movimento.
-                SemMovimento: !l.Calculada && qtdDespesa.GetValueOrDefault(
-                    (l.Estrutura.CodGruConta, l.Estrutura.AntesRo,
-                     l.Estrutura.AntesLl, l.Estrutura.AntesLf)) == 0,
+                //
+                // SEM LANCAMENTO **E** SEM VALOR. As duas condicoes, e a segunda entrou em
+                // 11/09/2026 por causa de RECEITA VENDA ATIVO: a linha injetada de PCPREST
+                // traz "0 as QdeReg" — fielmente, porque a 9815 faz igual —, entao contar
+                // so lancamento escondia 225.000,00 na filial 28.
+                //
+                // Escondia a LINHA, nao o valor: ele continuava dentro do LUCRO LIQUIDO, e a
+                // tela mostrava um total que nao fechava com as linhas visiveis. E o pior
+                // tipo de defeito desta rotina, porque nada na tela denuncia.
+                //
+                // E o mesmo criterio que a 9815 usa para montar a estrutura —
+                // "where VPAGO <> 0 or qdereg <> 0" —, e ele preserva o caso oposto, ja
+                // conferido: DESCONTO FUNCIONARIOS fecha em 0,00 com 16 lancamentos e
+                // continua aparecendo.
+                SemMovimento: !l.Calculada
+                    && qdeLancamentos == 0
+                    // Por COLUNA, e nao pela soma do periodo: uma conta com +100 num mes e
+                    // -100 no outro soma zero e teve movimento nos dois.
+                    && valores.All(v => v.Valor == 0m),
                 Zerada: valores.All(v => v.Valor == 0m),
                 Cor: CorDelphi.ParaCss(l.Estrutura.Cor),
-                Detalhe: ResolverDetalhe(l),
+                Detalhe: ResolverDetalhe(l, qdeLancamentos),
                 Composicao: ResolverComposicao(l, linhas, chavesOrdem));
         }).ToList();
 
@@ -140,8 +163,25 @@ public static class MontadorDre
     ///
     /// <para>Entre as calculadas só três abrem, e essas sim vão por rótulo: não há flag que
     /// distinga RECEITA BRUTA de CMV LIQ.</para>
+    ///
+    /// <para><b>Linha com valor e nenhum lançamento não abre nada.</b> O detalhamento de
+    /// lançamentos consulta <c>PCLANC</c>, e existe pelo menos uma linha do DRE cujo valor
+    /// não nasce lá: <c>RECEITA VENDA ATIVO</c> vem do bloco injetado de
+    /// <c>PCNFSAID</c>/<c>PCPREST</c>, com <c>0 as QdeReg</c>. Abrir o duplo clique nela
+    /// devolveria uma tela vazia sobre uma linha de 225.000,00 — e quem viu isso uma vez
+    /// passa a desconfiar do resto da tabela.</para>
+    ///
+    /// <para>A condição é a contagem, não a chave da linha. Ligar isso a <c>85</c> exigiria
+    /// repetir aqui as quatro chaves que a injeção usa — uma por dimensão — e manter as
+    /// quatro em dia. <b>Fica registrado o limite:</b> se algum dia a mesma linha juntar
+    /// lançamento de <c>PCLANC</c> com a injeção de <c>PCPREST</c>, a contagem passa de zero
+    /// e o detalhamento volta a abrir, mostrando só a parte que veio de <c>PCLANC</c>. Ver
+    /// `docs/DIVERGENCIAS.md`.</para>
     /// </summary>
-    private static DetalheDisponivelDto? ResolverDetalhe(LinhaEmMontagem l)
+    /// <param name="qdeLancamentos">
+    /// Quantos lançamentos de <c>PCLANC</c> a linha tem no período inteiro.
+    /// </param>
+    private static DetalheDisponivelDto? ResolverDetalhe(LinhaEmMontagem l, int qdeLancamentos)
     {
         if (l.Calculada)
         {
@@ -173,6 +213,9 @@ public static class MontadorDre
                 _   => null,
             };
         }
+
+        // Sem lançamento em PCLANC não há detalhamento de lançamentos para abrir.
+        if (qdeLancamentos == 0) return null;
 
         var bloco = l.Estrutura.AntesRo == "S" ? "operacional"
                   : l.Estrutura.AntesLl == "S" ? "pos-operacional"
