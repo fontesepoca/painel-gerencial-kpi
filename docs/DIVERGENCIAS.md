@@ -21,7 +21,7 @@ a aprovação do Gabriel.
 | [2](#2-a-filial-única-no-subselect-de-centro-de-custo) | Filial única no `CCC` | C. Custo Principal | R$ 2,56 mi em 2 meses | **corrigida** em 31/08/2026 |
 | [3](#3-centro-de-custo-simples-não-tem-referência) | Sem referência | Centro de Custo | não mensurável | validação manual pendente |
 | [4](#4-correção-deliberada-o-detalhamento-agora-fecha-com-a-linha-do-dre) | Detalhamento não fecha com a linha | todas as linhas que abrem duplo clique | R$ 3,56 mi em 1 mês, mais estorno de baixa e contas escondidas | **corrigida de propósito** em 01–02/09/2026 · 162/162 |
-| [6](#6-a-linha-receita-venda-ativo-sumia-da-tela--11092026) | `RECEITA VENDA ATIVO` escondida | todas | R$ 225 mil em 1 mês na filial 28 | **corrigida** em 11/09/2026 · dc23 24/24 |
+| [6](#6-a-linha-receita-venda-ativo-sumia-da-tela--11092026) | `RECEITA VENDA ATIVO` escondida | todas | R$ 225 mil em 1 mês na filial 28 | **corrigida** em 11/09/2026 · dc23 24/24, dc24 69/69 |
 
 ---
 
@@ -1584,22 +1584,44 @@ A correção usa o critério que a própria 9815 aplica ao montar a estrutura,
 valor. O caso oposto, já conferido, continua valendo — `DESCONTO FUNCIONÁRIOS` fecha em 0,00
 com 16 lançamentos e aparece.
 
-### O defeito irmão, evitado junto
+### O "defeito irmão" não existia, e eu criei um no lugar dele
 
-Assim que a linha voltasse, o duplo clique nela abriria o detalhamento de lançamentos, que
-consulta `PCLANC` — e não é de lá que esses 225.000,00 vêm. Seria uma tela vazia sobre uma
-linha de 225 mil. Linha com valor e nenhum lançamento deixou de oferecer detalhamento.
+Ao corrigir a linha escondida, supus que o duplo clique abriria uma tela vazia: o
+detalhamento de lançamentos consulta `PCLANC`, e não é de lá que esses 225.000,00 vêm.
+Acrescentei uma guarda tirando o detalhamento de toda linha sem lançamento.
 
-### Limite conhecido
+**Não verifiquei a consulta antes de decidir.** `DreDetalheQueries.Lancamentos` já tinha o
+mesmo `union all` de `PCNFSAID`/`PCPREST` da 9815 — inclusive documentado nos binds da
+própria função, `{2} filiais da venda de ativo`. A guarda desligou um detalhamento que
+funcionava, e ficou no ar por cerca de vinte minutos, até o Gabriel mandar a exportação da
+9815 com a tela cheia de dados.
 
-A condição está presa à **contagem de lançamentos**, não à chave da linha — a injeção usa uma
-chave diferente por dimensão (`400`, `85`, `8501`) e manter as quatro em dia seria convite a
-esquecer uma.
+A lição é de método, não de código: **uma suposição sobre o que uma consulta faz é barata de
+conferir e cara de errar.** O custo aqui foi baixo porque o Gabriel tinha o dado à mão.
 
-**Se algum dia a mesma linha juntar lançamento de `PCLANC` com a injeção de `PCPREST`**, a
-contagem passa de zero e o detalhamento volta a abrir — mostrando só a parte que veio de
-`PCLANC`, e sem nada dizendo que falta o resto. Não foi observado em nenhuma das quatro
-dimensões na filial 28; fica registrado como o caminho pelo qual isto pode voltar.
+### O detalhamento, conferido campo a campo
+
+`receita_venda.xlsx` traz um lançamento só, e é ele que as quatro dimensões devolvem:
+
+| Campo | Valor |
+|---|---|
+| Rec.Num. | 0 |
+| Índice | A |
+| Histórico | CHASSI C/ MOTOR E CAB. 10/11 CH 9534N8242BR118465 |
+| V. Pago | 225.000,00 |
+| Nota / Prest. | 400 / 1 |
+| Fornecedor | TOP AGRONEGOCIOS LTDA (174697) |
+| Func. Lanc | LORRANI.BEATRIZ |
+| Num. Trans / Banco | 3081026 / 168 |
+| As quatro datas | 25/08/2026 |
+
+O histórico é o campo a vigiar: ele não vem de `PCLANC.HISTORICO` como todos os outros, e
+sim do produto do CIAP (`max(PCPRODCIAP.DESCRICAO)`). Se esse subselect quebrar, a linha
+continua somando certo e aparece **sem descrição** — defeito que a soma não denuncia.
+
+A chave do recorte muda por dimensão (`400`, `85`, `4000004`, `8501`), e apuração e
+detalhamento precisam usar a mesma: basta uma divergir para a tela abrir vazia numa dimensão
+só. dc24, **69/69**, cobre as quatro.
 
 ### Conferido
 

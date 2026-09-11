@@ -26,6 +26,18 @@ const FILTRO = {
   analise: "ccusto-principal",
 };
 
+/**
+ * A chave da linha injetada de PCPREST em cada dimensão — os `union all` de
+ * `DreGerencialQueries`. São quatro chaves diferentes para a mesma linha, e é por isso que
+ * conferir uma dimensão só não basta.
+ */
+const CHAVE_DA_INJECAO = {
+  "grupo-contas": "400",
+  "ccusto-principal": "85",
+  "conta-gerencial": "4000004",
+  "centro-custo": "8501",
+};
+
 /** Os quatro números do print da 9815 de 11/09/2026, 09:56. */
 const DA_9815 = {
   "RESULTADO OPERACIONAL": 2015344.94,
@@ -82,9 +94,10 @@ ok(ativo !== undefined, "a linha existe na resposta");
 ok(ativo?.semMovimento === false, "a linha NÃO está marcada como sem movimento — é o que a escondia");
 console.log(`  semMovimento: ${ativo?.semMovimento}  ·  zerada: ${ativo?.zerada}`);
 
-// Sem lançamento em PCLANC não há detalhamento a abrir: a tela abriria vazia sobre uma
-// linha de 225 mil, e quem vê isso uma vez desconfia do resto da tabela.
-ok(ativo?.detalhe === null, "a linha não promete detalhamento que não existe");
+// E ela ABRE detalhamento, como na 9815: a consulta de lançamentos tem o mesmo `union all`
+// de PCNFSAID/PCPREST que alimenta a linha. Esteve bloqueada por algumas horas em
+// 11/09/2026, por uma guarda que supunha o contrário sem verificar — ver dc24.
+ok(ativo?.detalhe?.tipo === "lancamentos", "a linha abre detalhamento de lançamentos");
 console.log(`  detalhe: ${JSON.stringify(ativo?.detalhe)}`);
 
 // ── 3. A INVARIANTE — o que este arquivo existe para proteger ────────────────
@@ -157,10 +170,12 @@ for (const c of cenarios) {
   const ocultasComValor = d.linhas.filter((l) => l.semMovimento && l.valores.some((v) => v.valor !== 0));
   ok(ocultasComValor.length === 0, `${c.rotulo}: ${ocultasComValor.length} linha(s) oculta(s) com valor`);
 
-  // A linha da venda de ativo é reconhecida pelo que ela É — valor sem lançamento —, e não
-  // pelo nome, que muda a cada dimensão.
+  // A linha da venda de ativo é reconhecida pela CHAVE, que é o que a injeção define em
+  // cada dimensão. O nome muda ("Outras Receitas", "RECEITA VENDA ATIVO", "Receita Com
+  // Venda De Ativo") e não serve de identificador.
+  const chave = CHAVE_DA_INJECAO[c.filtro.analise ?? "ccusto-principal"];
   const injetadas = d.linhas.filter(
-    (l) => !l.calculada && l.detalhe === null && l.valores.some((v) => v.valor !== 0),
+    (l) => l.chave === chave && l.valores.some((v) => v.valor !== 0),
   );
   const total = injetadas.reduce((s, l) => s + l.total.valor, 0);
 

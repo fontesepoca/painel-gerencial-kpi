@@ -514,20 +514,28 @@ nada na tela explicava a diferença.
 A condição do valor é avaliada **por coluna**, não pela soma do período: uma conta com
 `+100` num mês e `(100)` no outro soma zero e teve movimento nos dois.
 
-### Linha com valor e sem lançamento não abre detalhamento
+### A venda de ativo abre detalhamento como qualquer outra linha
 
-O duplo clique de uma linha não calculada consulta `PCLANC`, e é justamente de lá que o
-valor da venda de ativo **não** vem. Assim que a linha voltou a aparecer, o gesto passaria a
-abrir uma tela vazia sobre 225.000,00 — e quem vê isso uma vez desconfia do resto da tabela.
+`DreDetalheQueries.Lancamentos` traz o **mesmo `union all` de `PCNFSAID`/`PCPREST`** que
+alimenta a linha na apuração — a 9815 faz igual, e a injeção sai no formato de lançamento:
+`RECNUM 0`, índice `A`, o cliente no lugar do fornecedor, e o histórico vindo do **CIAP**
+(`max(PCPRODCIAP.DESCRICAO)`), que é um caminho que nenhum outro lançamento usa.
 
-A condição é a **contagem de lançamentos**, não a chave da linha: a injeção entra com uma
-chave diferente em cada dimensão — `400` em Grupo de Contas, `85` em C. Custo Principal,
-`8501` em Conta Gerencial —, e escrever as quatro aqui seria manter quatro listas em dia.
+> **Um erro meu, corrigido no mesmo dia.** Ao consertar a linha escondida, acrescentei uma
+> guarda que tirava o detalhamento de toda linha sem lançamento em `PCLANC`, supondo — **sem
+> verificar** — que a consulta só sabia ler essa tabela e abriria vazia. Ela já tinha o
+> `union all`. A guarda desligou um detalhamento que funcionava e saiu assim que o Gabriel
+> mandou a exportação da 9815 mostrando a tela cheia.
 
-Conferido na dc23 (**24/24**), nas quatro dimensões, com o mesmo valor chegando por nomes
-diferentes: `Outras Receitas`, `RECEITA VENDA ATIVO` e `Receita Com Venda De Ativo`. A
-filial 7 entra como contraprova — lá não há venda de ativo no período, e nenhuma linha nova
-apareceu.
+A chave do recorte é diferente em cada dimensão — `400`, `85`, `4000004`, `8501` — e a
+apuração e o detalhamento precisam usar **a mesma**: basta uma divergir para a tela abrir
+vazia numa dimensão só, que é o tipo de defeito que ninguém encontra por acaso.
+
+Conferido na dc24 (**69/69**): o lançamento inteiro, campo a campo, contra
+`receita_venda.xlsx` — histórico, nota 400, prestação 1, `TOP AGRONEGOCIOS LTDA`, matrícula
+174697, transação 3081026, banco 168 e as quatro datas em 25/08/2026 —, nas quatro
+dimensões, mais o fechamento com a célula do DRE. E na dc23 (**24/24**), com a filial 7 como
+contraprova.
 
 ---
 
