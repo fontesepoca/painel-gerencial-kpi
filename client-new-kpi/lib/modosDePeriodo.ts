@@ -197,13 +197,31 @@ function resumirBloco(periodos: PeriodoDre[], bloco: number): string {
 }
 
 /**
- * A variação entre os dois lados: quanto mudou, e em que proporção.
+ * A variação entre os dois lados: quanto a linha **cresceu ou encolheu**, e em que proporção.
  *
  * **No comparativo, compara a SOMA de cada intervalo**, e não a primeira contra a última
  * coluna. É o que permite os dois lados terem tamanhos diferentes — três meses de 2025
  * contra quatro de 2026 —, e é a pergunta que o modo existe para responder.
  *
  * Nos outros modos continua sendo primeira contra última coluna.
+ *
+ * ── A convenção de sinal, e por que ela não é `para − de` ──
+ *
+ * No DRE, dedução e despesa chegam **negativas**. Uma devolução que cresce vai de −1.000.000
+ * para −1.127.178,73, e `para − de` dá **−127.178,73**: a subtração crua diz "negativo" para
+ * uma linha que aumentou, e a tela mostrava `(127.178,73)` — que se lê como redução.
+ *
+ * Pior, isso **contradizia a coluna `AH %` ao lado**, que usa a fórmula da 9815
+ * (`valor / anterior − 1`) e devolve **+12,7%** para essa mesma devolução. A mesma linha,
+ * a mesma direção, com sinais opostos em duas colunas vizinhas — e cores opostas, porque a
+ * regra de cor foi calibrada para a convenção do `AH %`.
+ *
+ * Aqui a variação passa a falar a mesma língua do `AH %`: **o sinal diz se a linha cresceu
+ * ou encolheu**, não o que a subtração crua deu. A devolução que aumenta sai `+127.178,73`,
+ * e `lerVariacao` a pinta de desfavorável, porque crescer é ruim numa linha negativa.
+ *
+ * O sentido vem do **total da linha**, o mesmo que a cor usa — assim o número e a cor nunca
+ * podem discordar.
  *
  * `percentual` é `null` quando a base é zero: dividir por zero devolveria infinito, e uma
  * conta que saiu de nada para alguma coisa não tem percentual que a descreva. O valor
@@ -236,10 +254,16 @@ export function variacao(
     para = valores.at(-1)!.valor;
   }
 
-  const absoluta = para - de;
+  // Receita e resultado são positivos; dedução, custo e despesa, negativos. É o sinal do
+  // total que diz de que lado esta linha está — e, portanto, o que "crescer" significa nela.
+  const total = valores.reduce((s, v) => s + v.valor, 0);
+  const sentido = Math.sign(total) || Math.sign(de) || Math.sign(para) || 1;
+
   return {
-    absoluta,
-    percentual: de === 0 ? null : (absoluta / Math.abs(de)) * 100,
+    absoluta: (para - de) * sentido,
+    // A MESMA fórmula do `AH %` no montador (`valor / anterior − 1`), e não uma variante
+    // com módulo: duas colunas percentuais lado a lado precisam concordar no sinal.
+    percentual: de === 0 ? null : (para / de - 1) * 100,
   };
 }
 

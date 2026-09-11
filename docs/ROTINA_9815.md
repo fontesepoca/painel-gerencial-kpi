@@ -1512,6 +1512,33 @@ duas contas diferentes, e com dois anos elas coincidem.
 O bloco de variação **não abre detalhamento**: uma variação é a subtração de duas células
 que já estão na tela, e não existe lançamento nenhum "dentro" dela.
 
+#### O sinal da variação segue o `AH %`, e não a subtração crua
+
+No DRE, dedução e despesa chegam **negativas**. Uma devolução que cresce vai de −1.000.000
+para −1.127.178,73, e `para − de` dá **−127.178,73**: a subtração diz "negativo" para uma
+linha que aumentou, e a tela mostrava `(127.178,73)` — que se lê como redução.
+
+Pior: isso **contradizia a coluna `AH %` ao lado**, que usa a fórmula da 9815
+(`valor / anterior − 1`) e devolve **+12,7%** para a mesma devolução. A mesma linha, a mesma
+direção, com sinais opostos em duas colunas vizinhas — e **cores opostas**, porque a regra de
+cor (§3.2) foi calibrada para a convenção do `AH %`. Reportado pelo Gabriel em 11/09/2026,
+comparando 2024 com 2025: o `AH %` vermelho ao lado de um Δ verde.
+
+A variação passou a falar a mesma língua: **o sinal diz se a linha cresceu ou encolheu**.
+A devolução que aumenta sai `+127.178,73` e é pintada de desfavorável, porque crescer é má
+notícia numa linha negativa. O sentido vem do **total da linha**, o mesmo que a cor usa, para
+o número e a cor não poderem discordar.
+
+| Linha | De | Para | Δ exibido | Cor |
+|---|---:|---:|---:|---|
+| Devolução aumentou | (1.000.000,00) | (1.127.178,73) | **+127.178,73** | desfavorável |
+| Devolução encolheu | (1.127.178,73) | (1.000.000,00) | (127.178,73) | favorável |
+| Receita caiu | 100,00 | 75,00 | (25,00) | desfavorável |
+| Receita subiu | 100,00 | 125,00 | +25,00 | favorável |
+
+O percentual usa exatamente `para / de − 1`, a fórmula do montador — e não uma variante com
+módulo no denominador, que era o que fazia os sinais divergirem. Conferido na dc20 (52/52).
+
 Sem percentual quando a base é zero — uma conta que saiu de nada para alguma coisa não tem
 proporção que a descreva, e o valor absoluto ao lado já diz o quanto.
 

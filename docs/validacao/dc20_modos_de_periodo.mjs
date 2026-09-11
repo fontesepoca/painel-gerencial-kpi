@@ -27,6 +27,7 @@ import {
   usaSegundoIntervalo,
   variacao,
 } from "../../client-new-kpi/lib/modosDePeriodo.ts";
+import { lerVariacao } from "../../client-new-kpi/lib/leituraDaVariacao.ts";
 
 let n = 0;
 const eq = (achou, esperado, oque) => {
@@ -141,39 +142,83 @@ eq(
 
 // ── a variação ───────────────────────────────────────────────────────────────
 //
-// A conferência que importa: no comparativo ela compara a SOMA de cada lado. Comparar a
-// primeira contra a última coluna daria -50 aqui (10 contra ... ), um número plausível e
-// completamente errado.
+// Duas coisas são conferidas aqui, e as duas já falharam.
+//
+// 1. No comparativo ela compara a SOMA de cada lado. Comparar a primeira contra a última
+//    coluna dá outro número — na dc26, com dado real, os dois saem com SINAIS OPOSTOS.
+//
+// 2. O SINAL segue a convenção do AH %: positivo quando a linha CRESCE, seja ela receita
+//    ou despesa. A subtração crua diria "negativo" para uma devolução que aumentou, e a
+//    tela mostrava (127.178,73) em verde ao lado de um AH % vermelho — a mesma linha, a
+//    mesma direção, contradizendo-se em duas colunas vizinhas. Reportado pelo Gabriel em
+//    11/09/2026, comparando 2024 com 2025.
+const arredondar = (v) =>
+  v === null
+    ? null
+    : {
+        absoluta: Math.round(v.absoluta * 100) / 100,
+        percentual: v.percentual === null ? null : Math.round(v.percentual * 1000) / 1000,
+      };
+
 const valores = [
   { valor: 100 }, { valor: 100 }, { valor: 100 }, // bloco 0 = 300
   { valor: 50 }, { valor: 50 }, { valor: 50 }, { valor: 50 }, // bloco 1 = 200
 ];
+eq(
+  arredondar(variacao(valores, COMPARATIVO, "comparar-anos")),
+  { absoluta: -100, percentual: -33.333 },
+  "soma de um lado contra a soma do outro, com tamanhos diferentes",
+);
+
+// ── O CASO DO GABRIEL: devolução que aumenta ─────────────────────────────────
+//
+// Dedução chega negativa. Ela ficou 127.178,73 MAIOR, e é isso que a tela precisa dizer —
+// com o mesmo sinal que o AH % dá, e com a cor de má notícia.
 {
-  // Arredondado: `(-100/300)*100` e `-100/3` diferem na última casa do ponto flutuante, e
-  // essa diferença não é o que este teste existe para vigiar.
-  const v = variacao(valores, COMPARATIVO, "comparar-anos");
+  const doisAnos = [coluna("2024", 0), coluna("2025", 0)];
+  const v = arredondar(variacao([{ valor: -1000000 }, { valor: -1127178.73 }], doisAnos, "anos"));
+
+  eq(v.absoluta, 127178.73, "a devolução CRESCEU: o número sai positivo, não entre parênteses");
+  eq(v.percentual, 12.718, "e o percentual é positivo, como o AH % da mesma linha");
   eq(
-    { absoluta: v.absoluta, percentual: Math.round(v.percentual * 1000) / 1000 },
-    { absoluta: -100, percentual: -33.333 },
-    "soma de um lado contra a soma do outro, com tamanhos diferentes",
+    lerVariacao(v.absoluta, -2127178.73),
+    "desfavoravel",
+    "crescer numa linha negativa é má notícia — vermelho, e não verde",
   );
 }
+
+// A mesma linha encolhendo: número negativo e boa notícia.
+{
+  const doisAnos = [coluna("2024", 0), coluna("2025", 0)];
+  const v = arredondar(variacao([{ valor: -1127178.73 }, { valor: -1000000 }], doisAnos, "anos"));
+  eq(v.absoluta, -127178.73, "a devolução encolheu: número negativo");
+  eq(lerVariacao(v.absoluta, -2127178.73), "favoravel", "e é boa notícia");
+}
+
+// Receita, o lado positivo do DRE: crescer é bom, cair é ruim.
 eq(
-  variacao([{ valor: 100 }, { valor: 75 }], [coluna("2025", 0), coluna("2026", 0)], "anos"),
+  arredondar(variacao([{ valor: 100 }, { valor: 75 }], [coluna("2025", 0), coluna("2026", 0)], "anos")),
   { absoluta: -25, percentual: -25 },
-  "no modo por ano, primeira contra última",
+  "receita que cai: número negativo",
 );
+eq(lerVariacao(-25, 175), "desfavoravel", "e é má notícia");
 eq(
-  variacao(
-    [{ valor: -200 }, { valor: -100 }],
-    [coluna("2025", 0), coluna("2026", 0)],
-    "anos",
-  ),
-  { absoluta: 100, percentual: 50 },
-  "despesa que encolhe: o percentual usa o módulo da base, senão o sinal se inverte sozinho",
+  arredondar(variacao([{ valor: 100 }, { valor: 125 }], [coluna("2025", 0), coluna("2026", 0)], "anos")),
+  { absoluta: 25, percentual: 25 },
+  "receita que sobe: número positivo",
 );
+eq(lerVariacao(25, 225), "favoravel", "e é boa notícia");
+
+// Despesa que encolhe — o caso simétrico ao do Gabriel.
 eq(
-  variacao([{ valor: 0 }, { valor: 500 }], [coluna("2025", 0), coluna("2026", 0)], "anos"),
+  arredondar(variacao([{ valor: -200 }, { valor: -100 }], [coluna("2025", 0), coluna("2026", 0)], "anos")),
+  { absoluta: -100, percentual: -50 },
+  "despesa que encolhe: número negativo, e o percentual acompanha o AH %",
+);
+eq(lerVariacao(-100, -300), "favoravel", "gastar menos é boa notícia");
+
+eq(
+  arredondar(variacao([{ valor: 0 }, { valor: 500 }], [coluna("2025", 0), coluna("2026", 0)], "anos")),
   { absoluta: 500, percentual: null },
   "sair de zero não tem percentual que descreva — o valor absoluto continua valendo",
 );
