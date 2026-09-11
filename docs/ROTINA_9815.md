@@ -111,6 +111,43 @@ Usar a receita líquida nas cinco deduções daria 8,659 no lugar de 7,742 em AB
 
 **`AH %`:** compara com o mês anterior do período; com um mês só, `0,00`.
 
+**A cor do `AH %` julga o efeito no resultado, não o sinal do número.** Decisão do Gabriel
+em 11/09/2026, replicando o que a 9815 sempre fez:
+
+| Linha | `AH %` | Leitura |
+|---|---|---|
+| `(+) RECEITA BRUTA` | `+4,424` | favorável — receita subiu |
+| `(+) RECEITA BRUTA` | `(5,636)` | desfavorável — receita caiu |
+| `(-) DEVOLUCAO` | `(9,778)` | **favorável** — devolução caiu |
+| `(-) DEVOLUCAO` | `+42,766` | desfavorável — devolução subiu |
+
+A devolução é o caso que define a regra: `(9,778)` é um número negativo, entre parênteses,
+e é a melhor notícia da coluna. Até 11/09/2026 a tela pintava de vermelho tudo que fosse
+negativo, e com isso invertia a leitura de **metade da tabela** — toda dedução e toda
+despesa.
+
+**O sentido sai do sinal do valor da linha**, não de uma lista de contas: no DRE, receita e
+resultado chegam positivos, e dedução, custo e despesa chegam negativos. A estrutura já
+separa o que é bom crescer do que é ruim crescer, e uma lista de nomes envelheceria a cada
+conta nova no cadastro. A regra cabe numa frase — *favorável quando o `AH %` tem o mesmo
+sinal do valor da linha* — e se estende ao prejuízo, que é o caso que ninguém quer ver e
+que precisa ler certo: resultado negativo ficando mais negativo dá `AH %` positivo, mesmo
+sinal do valor, e sai desfavorável.
+
+O sentido vem do **total do período**, não do valor da coluna: uma conta que oscila de sinal
+entre dois meses trocaria de cor no meio da tabela se cada coluna se julgasse sozinha.
+
+**Zero é neutro**, e aqui divergimos da 9815 de propósito: a primeira coluna traz `0,00` por
+não haver mês anterior (§13), e pintá-la com a cor de "favorável" anunciaria uma boa notícia
+em todas as linhas de uma coluna inteira, sem nada ter acontecido.
+
+**A cor não carrega a informação sozinha.** Cada célula julgada leva `title` com *Efeito
+favorável/desfavorável ao resultado* — sem isso, quem lê em tons de cinza vê `(9,778)` e
+conclui o oposto. O sinal do número mostra a direção; a cor, o juízo.
+
+Conferido na dc22: **60/60**, com as 19 linhas da exportação de junho a agosto de 2026 e a
+cor que a rotina antiga deu a cada célula.
+
 ### 3.3 Estados
 
 | Estado | Comportamento |

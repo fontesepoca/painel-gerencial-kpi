@@ -10,6 +10,7 @@ import { useOrdemSalva } from "@/hooks/useOrdemSalva";
 import { passoDeRolagem } from "@/lib/rolagemAutomatica";
 import { guardar } from "@/lib/detalheAberto";
 import { cn } from "@/lib/cn";
+import { descreverVariacao, lerVariacao } from "@/lib/leituraDaVariacao";
 import { formatarPercentual, formatarValor } from "@/lib/formato";
 import {
   aplicarOrdem,
@@ -764,6 +765,7 @@ function Linha({
           av={v.percentualAv}
           ah={v.percentualAh}
           mostrarAh={multiMes}
+          totalDaLinha={linha.total.valor}
           maiorAv={maiorAv}
           destaque={linha.totalizadora}
           onDetalhe={onDetalhe ? () => onDetalhe(v.mesAno) : null}
@@ -776,6 +778,7 @@ function Linha({
           av={linha.total.percentualAv}
           media={linha.total.media}
           maiorAv={maiorAv}
+          totalDaLinha={linha.total.valor}
           destaque={linha.totalizadora}
           onDetalhe={onDetalhe ? () => onDetalhe(null) : null}
           total
@@ -794,6 +797,7 @@ function BlocoMes({
   maiorAv,
   destaque,
   total,
+  totalDaLinha,
   onDetalhe,
 }: {
   valor: number;
@@ -804,6 +808,13 @@ function BlocoMes({
   maiorAv: number;
   destaque: boolean;
   total?: boolean;
+  /**
+   * O total da linha no período, de onde sai o sentido do `%AH`.
+   *
+   * Vem o total, e não o valor desta coluna: uma conta que oscila de sinal entre dois meses
+   * trocaria de cor no meio da tabela se cada coluna se julgasse sozinha.
+   */
+  totalDaLinha: number;
   onDetalhe: (() => void) | null;
 }) {
   const celula = cn(CELULA, "whitespace-nowrap tabular", destaque && "font-semibold");
@@ -854,7 +865,7 @@ function BlocoMes({
         </td>
       ) : mostrarAh ? (
         <td className={cn(celula, "text-right")}>
-          <Variacao percentual={ah ?? null} />
+          <Variacao percentual={ah ?? null} valorDaLinha={totalDaLinha} />
         </td>
       ) : (
         <td />
@@ -918,13 +929,45 @@ function BarraAv({ percentual, maior }: { percentual: number | null; maior: numb
  * onde a impressão já nos enganou uma vez, e um `Ctrl+P` direto não espera por re-render:
  * com os dois presentes, o que sai no papel não depende de nada acontecer na hora certa.
  */
-function Variacao({ percentual }: { percentual: number | null }) {
+/**
+ * A variação sobre a coluna anterior.
+ *
+ * **A cor julga o efeito no resultado, não o sinal do número** — ver `lerVariacao`. Até
+ * 11/09/2026 esta célula pintava de vermelho tudo que fosse negativo, e com isso dizia que
+ * devolução caindo era má notícia. A 9815 sempre fez o contrário, e é o comportamento dela
+ * que vale aqui.
+ *
+ * O sinal continua no número: a cor diz se é bom, o sinal diz para onde foi. São duas
+ * informações diferentes e a célula mostra as duas.
+ */
+function Variacao({
+  percentual,
+  valorDaLinha,
+}: {
+  percentual: number | null;
+  /** O total da linha no período — é dele que sai o sentido. */
+  valorDaLinha: number;
+}) {
   if (percentual === null) {
     return <span className="text-[var(--text-muted)]">—</span>;
   }
 
+  const leitura = lerVariacao(percentual, valorDaLinha);
+
   return (
-    <span className={percentual < 0 ? "text-[var(--negative)]" : "text-[var(--positive)]"}>
+    <span
+      // A frase existe para quem não distingue as cores: o sinal do número mostra a
+      // direção, nunca o juízo, e sem ela `(9,778)` lido em cinza diz o oposto do que a
+      // célula quer dizer.
+      title={descreverVariacao(leitura)}
+      className={
+        leitura === "favoravel"
+          ? "text-[var(--positive)]"
+          : leitura === "desfavoravel"
+            ? "text-[var(--negative)]"
+            : "text-[var(--text-muted)]"
+      }
+    >
       {percentual > 0 ? "+" : ""}
       <span className="so-na-tela">{formatarPercentual(percentual)}</span>
       <span className="so-no-papel">{formatarPercentual(percentual, 1)}</span>
