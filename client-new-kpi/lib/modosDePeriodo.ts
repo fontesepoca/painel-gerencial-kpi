@@ -285,3 +285,37 @@ function umAnoAntes(iso: string): string {
   const diaValido = Math.min(dia, ultimo);
   return `${anterior}-${`${mes}`.padStart(2, "0")}-${`${diaValido}`.padStart(2, "0")}`;
 }
+
+/**
+ * Os rótulos das colunas, **garantidamente distintos**.
+ *
+ * No comparativo os dois lados podem cair no mesmo mês — comparar 28/08–03/09 com
+ * 05/09–11/09 põe `Setembro/2026` duas vezes no cabeçalho, e nada na tabela diz qual é
+ * qual. Quando isso acontece, o rótulo passa a levar os dias: `Set 01–03/2026`.
+ *
+ * **Só quando há repetição.** O caso comum é comparar anos diferentes, onde `Janeiro/2025` e
+ * `Janeiro/2026` já se distinguem sozinhos — acrescentar dias a todos encheria o cabeçalho
+ * de números para resolver um problema que não existe ali.
+ */
+export function rotulosDistintos(periodos: PeriodoDre[]): string[] {
+  const vezes = new Map<string, number>();
+  for (const p of periodos) vezes.set(p.rotulo, (vezes.get(p.rotulo) ?? 0) + 1);
+
+  return periodos.map((p) =>
+    (vezes.get(p.rotulo) ?? 0) > 1 ? comOsDias(p) : p.rotulo,
+  );
+}
+
+/** `Set 01–03/2026` — mês curto, os dias do recorte e o ano. */
+function comOsDias(p: PeriodoDre): string {
+  const dia = (iso: string) => iso.slice(8, 10);
+  const [ano, , ] = p.dataInicio.split("-");
+  const mes = p.rotulo.slice(0, 3);
+  return `${mes} ${dia(p.dataInicio)}–${dia(p.dataFim)}/${ano}`;
+}
+
+/** Esta coluna abre um bloco novo? É onde a tabela precisa de um corte visível. */
+export function abreBloco(periodos: PeriodoDre[], indice: number): boolean {
+  if (indice === 0) return false;
+  return (periodos[indice]?.bloco ?? 0) !== (periodos[indice - 1]?.bloco ?? 0);
+}

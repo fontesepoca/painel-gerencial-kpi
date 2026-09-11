@@ -11,6 +11,7 @@ import { useApuracao, useFiliais } from "@/hooks/useDreGerencial";
 import { cn } from "@/lib/cn";
 import { formatarDataIso, formatarDuracao } from "@/lib/formato";
 import { descreverFiliais } from "@/lib/filiaisApuradas";
+import { estimativaDeTempo, impedimento } from "@/lib/modosDePeriodo";
 import { periodoPadrao } from "@/lib/periodos";
 import type { Apuracao, FiltroApuracao } from "@/types/dre-gerencial";
 
@@ -263,7 +264,9 @@ export default function DreGerencialPage() {
           </>
         )}
 
-        {!dados && !apuracao.isPending && !apuracao.isError && <Inicial />}
+        {!dados && !apuracao.isPending && !apuracao.isError && (
+          <Inicial motivo={impedimento(filtro)} estimativa={estimativaDeTempo(filtro)} />
+        )}
       </div>
     </AppShell>
   );
@@ -336,6 +339,11 @@ function BotaoExpandir({
 function descreverColunas(dados: Apuracao): string {
   const n = dados.periodos.length;
   if (dados.modo === "anos") return `${n} ${n === 1 ? "coluna" : "colunas"} por ano`;
+
+  // No comparativo "3 meses" engana: são três COLUNAS mensais repartidas entre dois
+  // intervalos, e o leitor entenderia um período contínuo de três meses.
+  if (dados.modo === "comparar-anos") return `${n} ${n === 1 ? "coluna" : "colunas"} em 2 intervalos`;
+
   return `${n} ${n === 1 ? "mês" : "meses"}`;
 }
 
@@ -368,14 +376,34 @@ function descreverPeriodo(dados: Apuracao): string {
   return `${formatarDataIso(dados.dataInicio)} a ${formatarDataIso(dados.dataFim)}`;
 }
 
-function Inicial() {
+/**
+ * A tela antes da primeira apuração — e o lugar onde o que falta preencher é dito.
+ *
+ * **Aqui, e não no filtro.** Uma linha de aviso sob a grade empurra o botão Apurar e cresce
+ * o header, que é altura tirada da tabela; e "escolha ao menos uma filial" é o estado normal
+ * de quem acabou de abrir a tela, não um erro que mereça alarme junto dos controles. Aqui há
+ * espaço de sobra, e é para cá que o olho vai quando a tabela ainda não existe.
+ *
+ * O botão desabilitado continua carregando o mesmo texto no `title`, para quem estiver com
+ * o ponteiro lá.
+ */
+function Inicial({
+  motivo,
+  estimativa,
+}: {
+  motivo: string | null;
+  estimativa: string | null;
+}) {
   return (
     <div className="rounded-[var(--radius-lg)] border border-dashed border-[var(--border-strong)] px-6 py-16 text-center">
       <p className="text-[length:var(--fs-base)] text-[var(--text-secondary)]">
-        Escolha as filiais e o período, e clique em Apurar.
+        {motivo ?? "Escolha as filiais e o período, e clique em Apurar."}
       </p>
       <p className="mt-2 text-[length:var(--fs-apoio)] text-[var(--text-muted)]">
-        A apuração percorre todo o período no banco e leva de alguns segundos a alguns minutos.
+        {/* O impedimento tem precedência sobre a estimativa: não faz sentido anunciar
+            quanto vai demorar algo que ainda não pode rodar. */}
+        {(motivo === null && estimativa) ||
+          "A apuração percorre todo o período no banco e leva de alguns segundos a alguns minutos."}
       </p>
     </div>
   );

@@ -285,7 +285,15 @@ body {
   }
 }
 
-/* 1360px. O corte esteve em 1440 por um tempo, calibrado contra a falha medida em
+/* MEDIDO EM 11/09/2026, e por isso o Tipo de Análise tem mínimos diferentes por modo
+   de leitura: o maior rótulo, C. Custo Principal, pede 163px na leitura padrão e 195px
+   na ampliada, já contados os 48px de recuo e seta. O mínimo era 12rem (192px) nos dois —
+   ou seja, na ampliada o campo estava 3px ABAIXO do próprio conteúdo, e só não truncava
+   porque a grade lhe dava mais que o mínimo quando havia espaço. Agora são 11rem (176px)
+   no padrão e 12.5rem (200px) na ampliada, os dois com folga sobre o medido, e o que sobra
+   vai para o Período.
+
+   1360px. O corte esteve em 1440 por um tempo, calibrado contra a falha medida em
    1280 — e ninguém tinha testado o intervalo entre os dois. Custava caro: num
    notebook de 1366 a grade quebrava em três linhas e comia 218px de altura, contra
    76px em uma linha só. Com a tabela ocupando o que sobra da janela, esses 142px
@@ -300,8 +308,8 @@ body {
 @media (min-width: 1360px) {
   .grade-filtros {
     grid-template-columns:
-      minmax(11rem, 1fr) minmax(13rem, 0.9fr) minmax(12rem, 1fr)
-      minmax(27rem, 1.3fr) auto;
+      minmax(11rem, 1fr) minmax(13rem, 0.9fr) minmax(11rem, 0.9fr)
+      minmax(27rem, 1.4fr) auto;
   }
 }
 
@@ -1327,5 +1335,18 @@ html[data-tema="claro"] .tabela-rolagem thead th.faixa-mes-4 { background-image:
 @media print {
   .tabela-rolagem thead th[class*="faixa-mes-"] {
     background-image: none !important;
+  }
+}
+
+/* ── O TIPO DE ANÁLISE NA LEITURA AMPLIADA ───────────────────────────────────
+
+   Com a fonte maior, `C. Custo Principal` pede 195px contra os 176px que a grade
+   reserva no modo padrão. O mínimo sobe só aqui — medido, não estimado: 147px de
+   texto mais 48px entre recuo e seta. Ver a nota na `.grade-filtros`. */
+@media (min-width: 1360px) {
+  html[data-leitura="ampliada"] .grade-filtros {
+    grid-template-columns:
+      minmax(11rem, 1fr) minmax(13rem, 0.9fr) minmax(12.5rem, 0.9fr)
+      minmax(27rem, 1.4fr) auto;
   }
 }

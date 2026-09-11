@@ -8,9 +8,11 @@ import { useDetalhe } from "@/hooks/useDreGerencial";
 import { useExportarDetalhe } from "@/hooks/useExportarDetalhe";
 import { paraBr } from "@/lib/periodos";
 import {
+  abreBloco,
   mostraVariacao,
   recorteLongo,
   rotuloDaVariacao,
+  rotulosDistintos,
   variacao,
 } from "@/lib/modosDePeriodo";
 import { useOrdemSalva } from "@/hooks/useOrdemSalva";
@@ -520,6 +522,10 @@ export function TabelaDre({
   const variacaoNoFim = mostraVariacao(modo, periodos);
   const colunasDoFim = variacaoNoFim ? 2 : 3;
 
+  // Dois lados do comparativo podem cair no mesmo mês — 28/08–03/09 contra 05/09–11/09 põe
+  // `Setembro/2026` duas vezes no cabeçalho. Aí, e só aí, o rótulo passa a levar os dias.
+  const rotulos = rotulosDistintos(periodos);
+
   // Escala das barras de %AV: a maior proporção abaixo de 100 define a largura cheia.
   // Sem isso, 26% e 73% ficariam quase indistinguíveis perto das Receitas Líquidas.
   const maiorAv = Math.max(
@@ -576,15 +582,21 @@ export function TabelaDre({
                     key={p.mesAno}
                     colSpan={3}
                     className={cn(
-                      "border-l border-[var(--border)] px-[var(--celula-x)] pt-3 pb-1 text-center text-[length:var(--fs-rotulo)] font-semibold tracking-[0.14em] text-[var(--text-secondary)] uppercase",
+                      "px-[var(--celula-x)] pt-3 pb-1 text-center text-[length:var(--fs-rotulo)] font-semibold tracking-[0.14em] text-[var(--text-secondary)] uppercase",
                       // Uma cor por mês, para o olho não perder de vista a que coluna
                       // pertence o número que está lendo — ver o bloco FAIXA DE COR POR
                       // COLUNA em globals.css. O ciclo de quatro recomeça longe o bastante
                       // para duas faixas iguais nunca se compararem na mesma tela.
                       faixaDoMes(i),
+                      // A virada de intervalo ganha a MESMA borda do bloco de total: é uma
+                      // divisão da mesma natureza, e sem ela os dois lados da comparação se
+                      // misturam num campo contínuo de colunas.
+                      abreBloco(periodos, i)
+                        ? "border-l-2 border-[var(--border-strong)]"
+                        : "border-l border-[var(--border)]",
                     )}
                   >
-                    {p.rotulo}
+                    {rotulos[i]}
                   </th>
                 ))}
                 <th
