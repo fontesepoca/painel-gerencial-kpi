@@ -150,10 +150,11 @@ export function FiltrosDre({
           title={motivo ?? undefined}
           className={cn(
             "h-[var(--altura-controle)] w-full rounded-[var(--radius-md)] px-6 text-[length:var(--fs-base)] font-medium whitespace-nowrap xl:w-auto",
-            // Sem `h-full`: com os chips de ano, a linha da grade fica com duas alturas de
-            // controle e o botão esticava para 90px, virando um retângulo azul que não
-            // parece mais um botão.
-            "transition-colors duration-[var(--dur-fast)]",
+            // `h-full` para o botão ocupar a célula inteira da grade — rótulo mais controle
+            // —, que é como ele sempre foi e o que o deixa com a presença de ação principal.
+            // Nos modos com mais de uma linha de controles ele acompanha a altura; é o preço
+            // de preencher a célula, e preferível a um botão flutuando no meio dela.
+            "transition-colors duration-[var(--dur-fast)] h-full",
             podeApurar
               ? "bg-[var(--primary)] text-white hover:brightness-110"
               : "cursor-not-allowed bg-[var(--surface-3)] text-[var(--text-muted)]",
@@ -213,11 +214,7 @@ function CampoPeriodo({
         <div className="flex items-center gap-2">
           {/* À esquerda das datas: o botão qualifica o período que vem depois dele, e é
               onde o Gabriel pediu. O menu abre alinhado por aqui, e não pela direita. */}
-          <MenuDePeriodo
-            modo={filtro.modo}
-            onModo={trocarModo}
-            onAtalho={(dataInicio, dataFim) => onMudar({ ...filtro, dataInicio, dataFim })}
-          />
+          <MenuDePeriodo modo={filtro.modo} onModo={trocarModo} />
 
           {usaDatas(filtro.modo) && (
             <>
@@ -240,6 +237,14 @@ function CampoPeriodo({
                 onChange={(e) => onMudar({ ...filtro, dataFim: e.target.value })}
                 className={cn(CAMPO, "tabular")}
               />
+              {/* Os atalhos ficam onde sempre estiveram, à direita da data final. Só no
+                  modo mensal: "Ano passado" e "Últimos 3 meses" mexem no intervalo inteiro,
+                  e no comparativo isso desalinharia os dois lados sem avisar. */}
+              {filtro.modo === "meses" && (
+                <AtalhosDePeriodo
+                  onEscolher={(dataInicio, dataFim) => onMudar({ ...filtro, dataInicio, dataFim })}
+                />
+              )}
             </>
           )}
 
@@ -317,33 +322,20 @@ function Campo({
 }
 
 /**
- * O período, inteiro, atrás de **um** botão.
+ * Como as colunas são formadas, atrás de um botão de ícone à esquerda das datas.
  *
- * Ele faz duas coisas que antes eram dois controles lado a lado: escolhe **como as colunas
- * são formadas** e oferece os **atalhos de intervalo**. Juntá-las não foi arrumação — foi a
- * única forma de caber.
- *
- * **A conta que levou a isto.** O seletor de modo precisava de uns 40px na linha das datas,
- * e não havia de onde tirar: medido em 11/09/2026, o maior rótulo do Tipo de Análise —
- * `C. Custo Principal` — pede 195px na leitura ampliada contra os 192px que a grade
- * reserva, ou seja, aquele campo já estava 3px abaixo do próprio conteúdo. Espremer ali
- * teria truncado a palavra. Um botão a mais custaria altura do header, que é o que sai da
- * tabela.
- *
- * As duas coisas respondem à mesma pergunta — *qual período, e como ele vira colunas* —, e
- * quem abre o menu para trocar de modo encontra os atalhos no mesmo lugar.
- *
- * Os atalhos aparecem **só no modo mensal**: "Ano passado" mexeria no intervalo inteiro, e
- * no comparativo isso desalinharia os dois lados sem avisar.
+ * **Vizinho do relógio dos atalhos, não fundido com ele.** Os dois chegaram a virar um menu
+ * só, por eu supor que não havia espaço para ambos — a medição que sustentava isso era do
+ * campo *Tipo de Análise*, e não deste. O campo Período tem 27rem de mínimo e precisa de uns
+ * 400px para dois botões de 40px, duas datas e a seta: os dois cabem, e são coisas
+ * diferentes. Modo é estrutura da tabela; atalho é um intervalo pronto.
  */
 function MenuDePeriodo({
   modo,
   onModo,
-  onAtalho,
 }: {
   modo: ModoPeriodo;
   onModo: (modo: ModoPeriodo) => void;
-  onAtalho: (dataInicio: string, dataFim: string) => void;
 }) {
   const [aberto, setAberto] = useState(false);
   const caixa = useRef<HTMLDivElement>(null);
@@ -392,7 +384,6 @@ function MenuDePeriodo({
           role="menu"
           className="absolute top-full left-0 z-20 mt-1 w-[min(22rem,90vw)] rounded-[var(--radius-lg)] border border-[var(--border-strong)] bg-[var(--surface-2)] p-2 shadow-[var(--shadow-float)]"
         >
-          <TituloDoMenu>Colunas</TituloDoMenu>
           {MODOS.map((m) => (
             <button
               key={m.valor}
@@ -417,51 +408,9 @@ function MenuDePeriodo({
             </button>
           ))}
 
-          {modo === "meses" && (
-            <>
-              <div className="my-2 border-t border-[var(--border)]" />
-              <TituloDoMenu>Atalhos</TituloDoMenu>
-              {/* Cada opção MOSTRA o intervalo que vai aplicar. "Últimos 3 meses" pode
-                  significar três meses completos ou os noventa dias anteriores, e nenhuma
-                  das duas leituras é óbvia — exibir `01/05/2026 a 31/07/2026` encerra a
-                  dúvida sem precisar de legenda.
-
-                  A lista é calculada a cada abertura, e não uma vez na montagem: uma tela
-                  deixada aberta durante a virada da meia-noite ofereceria o "ontem" de
-                  ontem. */}
-              {atalhosPeriodo().map((a) => (
-                <button
-                  key={a.id}
-                  type="button"
-                  role="menuitem"
-                  onClick={() => {
-                    onAtalho(a.dataInicio, a.dataFim);
-                    setAberto(false);
-                  }}
-                  className="flex w-full flex-col gap-0.5 rounded-[var(--radius-sm)] px-3 py-[var(--celula-y)] text-left hover:bg-[var(--surface-3)]"
-                >
-                  <span className="text-[length:var(--fs-base)] text-[var(--text-primary)]">
-                    {a.rotulo}
-                  </span>
-                  <span className="tabular text-[length:var(--fs-apoio)] text-[var(--text-muted)]">
-                    {paraBr(a.dataInicio)}
-                    {a.dataInicio !== a.dataFim && ` a ${paraBr(a.dataFim)}`}
-                  </span>
-                </button>
-              ))}
-            </>
-          )}
         </div>
       )}
     </div>
-  );
-}
-
-function TituloDoMenu({ children }: { children: React.ReactNode }) {
-  return (
-    <p className="px-3 pt-1 pb-1.5 text-[length:var(--fs-rotulo)] font-semibold tracking-[0.14em] text-[var(--text-muted)] uppercase">
-      {children}
-    </p>
   );
 }
 
@@ -713,5 +662,109 @@ function ChipsDeAno({
         );
       })}
     </div>
+  );
+}
+
+/**
+ * Atalhos de período, atrás de um relógio ao lado das datas.
+ *
+ * Cada opção **mostra o intervalo que vai aplicar**. "Últimos 3 meses" pode significar
+ * três meses completos ou os noventa dias anteriores, e nenhuma das duas leituras é
+ * óbvia — exibir `01/05/2026 a 31/07/2026` encerra a dúvida sem precisar de legenda.
+ *
+ * A lista é calculada a cada abertura, não uma vez na montagem: uma tela deixada
+ * aberta durante a virada da meia-noite ofereceria o "ontem" de ontem.
+ */
+function AtalhosDePeriodo({
+  onEscolher,
+}: {
+  onEscolher: (dataInicio: string, dataFim: string) => void;
+}) {
+  const [aberto, setAberto] = useState(false);
+  const caixa = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!aberto) return;
+    const fechar = (e: MouseEvent) => {
+      if (caixa.current && !caixa.current.contains(e.target as Node))
+        setAberto(false);
+    };
+    const esc = (e: KeyboardEvent) => e.key === "Escape" && setAberto(false);
+    document.addEventListener("mousedown", fechar);
+    document.addEventListener("keydown", esc);
+    return () => {
+      document.removeEventListener("mousedown", fechar);
+      document.removeEventListener("keydown", esc);
+    };
+  }, [aberto]);
+
+  return (
+    <div ref={caixa} className="relative shrink-0">
+      <button
+        type="button"
+        onClick={() => setAberto((a) => !a)}
+        aria-expanded={aberto}
+        aria-haspopup="menu"
+        aria-label="Atalhos de período"
+        title="Atalhos de período"
+        className={cn(
+          "grid aspect-square h-[var(--altura-controle)] place-items-center rounded-[var(--radius-md)]",
+          "border border-[var(--border-strong)] bg-[var(--surface-2)]",
+          "transition-colors duration-[var(--dur-fast)]",
+          aberto
+            ? "border-[var(--primary)] text-[var(--text-primary)]"
+            : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]",
+        )}
+      >
+        <Relogio />
+      </button>
+
+      {aberto && (
+        <div
+          role="menu"
+          className="absolute top-full right-0 z-20 mt-1 w-[min(20rem,90vw)] rounded-[var(--radius-lg)] border border-[var(--border-strong)] bg-[var(--surface-2)] p-2 shadow-[var(--shadow-float)]"
+        >
+          {atalhosPeriodo().map((a) => (
+            <button
+              key={a.id}
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                onEscolher(a.dataInicio, a.dataFim);
+                setAberto(false);
+              }}
+              className="flex w-full flex-col gap-0.5 rounded-[var(--radius-sm)] px-3 py-[var(--celula-y)] text-left hover:bg-[var(--surface-3)]"
+            >
+              <span className="text-[length:var(--fs-base)] text-[var(--text-primary)]">
+                {a.rotulo}
+              </span>
+              <span className="tabular text-[length:var(--fs-apoio)] text-[var(--text-muted)]">
+                {paraBr(a.dataInicio)}
+                {a.dataInicio !== a.dataFim && ` a ${paraBr(a.dataFim)}`}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Relógio em traço, herdando a cor e a espessura do botão. */
+function Relogio() {
+  return (
+    <svg
+      aria-hidden
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.75"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="size-[1.25em]"
+    >
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7v5l3 2" />
+    </svg>
   );
 }
