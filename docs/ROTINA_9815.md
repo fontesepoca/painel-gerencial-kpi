@@ -109,10 +109,31 @@ coisas — sinal do valor, juízo da variação (`AH %`) e o marcador do cadastr
 com presença competiria com os números ou sugeriria um quarto significado. Estas não dizem
 nada: só separam.
 
-Oito matizes a 45° um do outro, ciclando. O ciclo é pela **posição na tabela**, não pelo mês
-do calendário: o que precisa ser distinto são colunas vizinhas, e amarrar a cor ao mês faria
-dois meses próximos no ciclo saírem quase iguais — além de não significar nada no modo por
-ano, onde coluna não é mês.
+**Quatro cores, e a conta que decidiu isso.** A primeira versão tinha oito matizes a 45°, e
+saiu com Julho e Agosto quase iguais no tema claro. Medindo em ΔE2000 a cor **composta sobre
+a superfície**, o motivo apareceu — e não era o matiz, era a aritmética:
+
+| Faixas | Separação mínima entre elas | Presença contra o fundo |
+|---|---|---|
+| 4 | 10,2 | **10,7** |
+| 5 | 10,1 | 20,0 |
+| 8 | 10,2 | 31,4 — e impossível no tema escuro |
+
+Separar N cores translúcidas exige alpha, e alpha é exatamente o que as tira de "leves".
+Oito faixas distinguíveis custariam **três vezes** a presença de quatro: deixariam de ser
+fundo e passariam a competir com o dado, que é o oposto do pedido.
+
+O ciclo é pela **posição na tabela**, não pelo mês do calendário — o que precisa ser distinto
+são colunas vizinhas, e amarrar a cor ao mês não significaria nada no modo por ano, onde
+coluna não é mês. Com quatro cores, vizinhas nunca repetem; num período de seis meses a
+primeira volta na quinta coluna, longe da origem.
+
+> **A primeira medição aprovou as cores erradas.** Medidas em CIE76, aquelas duas faixas
+> davam ΔE 9 — acima do limiar que eu tinha adotado — enquanto o olho as via iguais. CIE76
+> erra exatamente onde este problema vive: cores claras e pouco saturadas. A régua passou a
+> ser CIEDE2000, e a dc25 **prova a fórmula** contra os 14 casos de referência de Sharma, Wu
+> e Dalal (2005) antes de medir qualquer faixa — uma métrica errada escolhe cores erradas sem
+> nada acusar, que foi precisamente o que aconteceu.
 
 > **Uma armadilha do cabeçalho fixo.** A faixa é pintada com `background-image`, e não com
 > `background`. O `thead` é `sticky` e precisa de fundo **opaco** (`.tabela-rolagem thead
@@ -172,6 +193,9 @@ conclui o oposto. O sinal do número mostra a direção; a cor, o juízo.
 
 Conferido na dc22: **60/60**, com as 19 linhas da exportação de junho a agosto de 2026 e a
 cor que a rotina antiga deu a cada célula.
+
+As faixas das colunas são vigiadas pela dc25 (**25/25**), que lê o `globals.css` de verdade:
+mexer numa cor sem rodar a medição reabre o defeito que originou tudo.
 
 ### 3.3 Estados
 

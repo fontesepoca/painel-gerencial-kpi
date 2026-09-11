@@ -485,7 +485,7 @@ export function TabelaDre({
                       "border-l border-[var(--border)] px-[var(--celula-x)] pt-3 pb-1 text-center text-[length:var(--fs-rotulo)] font-semibold tracking-[0.14em] text-[var(--text-secondary)] uppercase",
                       // Uma cor por mês, para o olho não perder de vista a que coluna
                       // pertence o número que está lendo — ver o bloco FAIXA DE COR POR
-                      // COLUNA em globals.css. O ciclo de oito recomeça longe o bastante
+                      // COLUNA em globals.css. O ciclo de quatro recomeça longe o bastante
                       // para duas faixas iguais nunca se compararem na mesma tela.
                       faixaDoMes(i),
                     )}
@@ -615,13 +615,13 @@ function ColunasCabecalho({ mostrarAh, total }: { mostrarAh?: boolean; total?: b
 /**
  * A classe de cor do cabeçalho de um mês, pela posição na tabela.
  *
- * O ciclo é de oito, e não uma cor por mês do calendário: o que precisa ser distinto são
+ * O ciclo é de quatro, e não uma cor por mês do calendário: o que precisa ser distinto são
  * colunas VIZINHAS na tela, não janeiro em relação a janeiro. Amarrar a cor ao mês faria
  * um recorte de junho a julho sair com duas faixas quase iguais, se os dois meses caíssem
  * perto no ciclo — e não resolveria nada no modo por ano, onde coluna não é mês.
  */
 function faixaDoMes(indice: number): string {
-  return `faixa-mes-${(indice % 8) + 1}`;
+  return `faixa-mes-${(indice % 4) + 1}`;
 }
 
 function Th({ className, children }: { className?: string; children?: React.ReactNode }) {
