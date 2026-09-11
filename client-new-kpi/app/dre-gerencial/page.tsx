@@ -10,6 +10,7 @@ import { exportarApuracao } from "@/lib/exportarExcel";
 import { useApuracao, useFiliais } from "@/hooks/useDreGerencial";
 import { cn } from "@/lib/cn";
 import { formatarDataIso, formatarDuracao } from "@/lib/formato";
+import { descreverFiliais } from "@/lib/filiaisApuradas";
 import { periodoPadrao } from "@/lib/periodos";
 import type { Apuracao, FiltroApuracao } from "@/types/dre-gerencial";
 
@@ -88,6 +89,11 @@ export default function DreGerencialPage() {
 
   const dados = apuracao.data;
 
+  // As filiais da APURAÇÃO, não as do formulário: mexer no filtro depois de apurar não
+  // pode reescrever o cabeçalho do que já está na tela — é o mesmo cuidado que o
+  // detalhamento toma ao usar `dados` em vez de `filtro`.
+  const filiaisApuradas = descreverFiliais(dados?.filiais ?? [], filiais.data ?? []);
+
   return (
     // O nome da rotina vive só na trilha do cabeçalho. Um `h1` repetindo "DRE
     // Gerencial" logo abaixo dela custava duas linhas de altura para dizer o que já
@@ -151,9 +157,25 @@ export default function DreGerencialPage() {
                 <p className="mt-1 text-[length:var(--fs-apoio)] text-[var(--text-muted)]">
                   {formatarDataIso(dados.dataInicio)} a {formatarDataIso(dados.dataFim)} ·{" "}
                   {dados.regime === "caixa" ? "Caixa" : "Competência"} ·{" "}
-                  {dados.filiais.length} {dados.filiais.length === 1 ? "filial" : "filiais"} ·{" "}
+                  {/* O separador vai DENTRO do span: escondido, ele leva o ` · ` junto e a
+                      linha não fica com dois pontos seguidos. */}
+                  <span className="filiais-resumo">{filiaisApuradas.resumo} · </span>
                   {dados.periodos.length} {dados.periodos.length === 1 ? "mês" : "meses"} ·
                   apurado em {formatarDuracao(dados.duracaoMs)}
+                </p>
+
+                {/* Os nomes das filiais em linha própria, na tela cheia e no papel — ver o
+                    bloco FILIAIS APURADAS em globals.css.
+
+                    **Linha própria, e não mais um item da sequência acima.** Com dez
+                    filiais a lista empurrava os controles da direita para baixo e crescia
+                    o cabeçalho em 62px, que na tela cheia saem da tabela. Numa linha só
+                    dela, a lista cresce sem deslocar nada.
+
+                    Fica no DOM sempre, escondida por CSS, porque `Ctrl+P` não espera
+                    re-render — a mesma razão do par de `%AH` em `Variacao`. */}
+                <p className="filiais-descritas mt-0.5 text-[length:var(--fs-apoio)] text-[var(--text-muted)]">
+                  {filiaisApuradas.detalhe}
                 </p>
               </div>
 
@@ -221,6 +243,7 @@ export default function DreGerencialPage() {
                 regime: dados.regime,
                 analise: dados.analise,
               }}
+              filiaisApuradas={filiaisApuradas.detalhe}
             />
           </section>
           </>

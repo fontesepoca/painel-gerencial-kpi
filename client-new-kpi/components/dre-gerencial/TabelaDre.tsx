@@ -42,12 +42,18 @@ export function TabelaDre({
   linhas,
   mostrarZeradas,
   filtro,
+  filiaisApuradas,
 }: {
   periodos: PeriodoDre[];
   linhas: LinhaDre[];
   mostrarZeradas: boolean;
   /** Filiais, período, regime e dimensão da apuração — o detalhamento repete todos. */
   filtro: FiltroApuracao;
+  /**
+   * As filiais apuradas por extenso, para a página dedicada imprimir. Chega pronta de
+   * quem apurou — ver `descreverFiliais`.
+   */
+  filiaisApuradas: string;
 }) {
   const { ordem, salvar, limpar } = useOrdemSalva(filtro.analise);
 
@@ -337,6 +343,7 @@ export function TabelaDre({
         periodo: detalhe.periodo,
         linha: detalhe.linha,
         dados: consultaDetalhe.data,
+        filiais: filiaisApuradas,
       });
 
       // Sem armazenamento não há como o dado atravessar, e a aba nova abriria vazia.
@@ -353,7 +360,7 @@ export function TabelaDre({
       const destino = `/dre-gerencial/detalhe/${id}${imprimir ? "?imprimir=1" : ""}`;
       window.open(destino, "_blank", "noopener");
     },
-    [detalhe, consultaDetalhe.data],
+    [detalhe, consultaDetalhe.data, filiaisApuradas],
   );
 
   const abrirEmNovaAba = useCallback(() => levarParaPagina(false), [levarParaPagina]);

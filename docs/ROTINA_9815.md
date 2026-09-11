@@ -868,7 +868,41 @@ bloco `@media print` do `globals.css`, e o botão só chama `window.print()`.
 | Cromo da aplicação | sidebar, trilha, filtros, barra de reordenação e botões saem via `.nao-imprime` |
 | Quebra | `break-inside: avoid` na linha: metade dos valores numa folha é linha lida errado |
 
-### 17.2 A folha e a fonte, por número de colunas
+### 17.2 O papel diz QUAIS filiais foram apuradas
+
+Na tela normal o cabeçalho conta — `2 filiais` —, e isso basta para quem acabou de
+preencher o filtro. **No papel e na tela cheia ele lista**, com nome e código:
+
+```
+01/09/2026 a 03/09/2026 · Competência · 1 mês · apurado em 21 s
+Filiais: EPC-MAT (7), EPC-ES (12)
+```
+
+Um DRE impresso circula, é arquivado e é conferido semanas depois, quando ninguém lembra o
+que foi marcado. O código vai junto porque é por ele que se confere contra o Winthor, e
+porque distingue unidades de nome parecido. Quando são todas as do cadastro o texto diz
+isso — `Filiais (todas as 10): …` —, que é o que a lista sozinha não revela.
+
+**Em linha própria, e não como mais um item da sequência.** Na primeira versão a lista
+entrava entre o regime e a contagem de meses; com dez filiais ela empurrava os controles da
+direita para baixo e o cabeçalho ia de 76px para 138px — 62px que, na tela cheia, saem da
+tabela. Numa linha só dela, medido com as mesmas dez: **76px, controles no lugar, sem
+rolagem lateral**.
+
+**Quem escolhe é o CSS, não um estado de React** (bloco FILIAIS APURADAS no fim do
+`globals.css`). As duas formas ficam no DOM e `@media print` troca qual aparece — `Ctrl+P`
+não espera re-render, que é a mesma razão do par de `%AH` em `Variacao`. As regras ficam
+**no fim do arquivo** porque disputam `display` com utilitários de mesma especificidade, e
+em empate vence quem vem depois.
+
+`display: revert`, e não `block`: a mesma lição de `.so-no-papel` — a classe marca um
+`<p>`, e um valor fixo tiraria dele o display que o navegador já dá.
+
+Conferido na dc21 (13/13) e pela tela: a lista some e volta nos três estados, e a invariante
+que importa é que **a forma longa cita exatamente as mesmas filiais que a curta conta** —
+inclusive um código que o cadastro não conhece, que sai cru em vez de desaparecer.
+
+### 17.3 A folha e a fonte, por número de colunas
 
 Cada valor abaixo é o **maior que coube na medição** de 03/09/2026, com a tabela presa na
 largura útil da respectiva folha:
@@ -889,7 +923,7 @@ cabem maiores. Quem precisar de fonte maior nesse caso precisa de menos colunas 
 que muda o balanço de largura — provavelmente para melhor. A recalibragem depende de uma
 impressão nova com 3 e 4 meses.
 
-### 17.3 Os percentuais e a descrição, no papel
+### 17.4 Os percentuais e a descrição, no papel
 
 Três diferenças entre a tela e a folha, e todas nascem da mesma restrição: no papel não há
 hover nem rolagem, e cada milímetro decide se a última coluna sai.
@@ -910,13 +944,25 @@ enganou este projeto uma vez, e um `Ctrl+P` direto não espera por re-render.
 herdada do pai. As três propriedades do `truncate` precisam cair juntas — derrubar só o
 `white-space` deixa o `overflow: hidden` cortando na segunda linha.
 
-### 17.4 A impressão do detalhamento
+### 17.5 A impressão do detalhamento
 
 **O botão do modal abre a página dedicada e manda imprimir lá.** Um `<dialog>` aberto vive
 na *top layer* do navegador, e conteúdo da top layer **não se fragmenta entre páginas**:
 `window.print()` no modal sairia com a primeira folha e o resto cortado, o que numa lista de
 15 mil clientes é o pior defeito possível. A página é HTML em fluxo normal — pagina, e o
 cabeçalho se repete. O parâmetro `?imprimir=1` é o que dispara o diálogo lá, uma vez só.
+
+**A página dedicada também diz as filiais**, e ali aparecem na tela e no papel — ao
+contrário do DRE, onde a tela normal fica com a contagem (§17.2). Esta página já é a versão
+de tela cheia do detalhamento: tem endereço próprio, é aberta para ler com calma e é
+impressa direto, e em nenhuma dessas situações quem lê tem o filtro à vista.
+
+**O texto atravessa junto do detalhamento**, em `DetalheAberto.filiais`, e não é
+reconstruído lá. O destino é outra aba, sem o cadastro de filiais em memória: mandá-la
+buscar custaria uma requisição só para reescrever uma frase que a aba de origem já tinha, e
+abriria a chance de as duas descreverem a mesma apuração com palavras diferentes. O campo é
+opcional — um detalhamento guardado antes desta mudança não o tem, e a página abre do mesmo
+jeito, sem a linha.
 
 **A folha e a fonte são decididas na hora de imprimir**, medindo a tabela — não há escala
 fixa por tela, e a ausência dela é o resultado de quatro tentativas.
@@ -977,7 +1023,7 @@ A tabela **não estica** para a largura da folha. Com `width: 100%` as colunas s
 e o olho atravessava um vão de papel branco para ligar o nome da conta ao número dela;
 encostadas à esquerda, ficam vizinhas.
 
-### 17.5 Duas armadilhas de `@page`, as duas com o mesmo sintoma
+### 17.6 Duas armadilhas de `@page`, as duas com o mesmo sintoma
 
 Ambas produzem **A4 em pé com a tabela cortada**, que é o que se vê quando a regra de
 tamanho é descartada:
@@ -1005,6 +1051,10 @@ Botão `⛶ Tela cheia` ao lado de "Mostrar contas zeradas". A seção da tabela
 **Não usa o Fullscreen API do navegador.** O `requestFullscreen` esconde a barra do sistema
 e a do navegador — num relatório financeiro isso tira as referências de onde a pessoa está —
 e sai com qualquer `Esc`, inclusive o que ela deu para fechar o detalhamento.
+
+O cabeçalho troca a contagem de filiais pela **lista com nome e código**, como no papel —
+ver §17.2. Aqui sobra largura, e quem está com a tabela cobrindo a tela costuma estar
+conferindo.
 
 O `Esc` daqui **só sai quando não há modal aberto**. O detalhamento é um `<dialog>` e fecha
 no `Esc` sozinho; sem a guarda, um `Esc` fecharia os dois e quem só queria fechar o detalhe

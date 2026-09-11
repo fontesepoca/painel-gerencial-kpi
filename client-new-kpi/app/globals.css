@@ -1215,3 +1215,46 @@ tr:focus-within .tem-detalhe .valor-clicavel {
     break-inside: avoid;
   }
 }
+
+/* ── FILIAIS APURADAS ────────────────────────────────────────────────────────
+
+   O cabeçalho da tabela carrega as duas formas de dizer quais filiais entraram —
+   `3 filiais` e a lista com nome e código —, e é aqui que se escolhe qual aparece.
+
+   **Por que no CSS e não num estado de React.** A impressão precisa da forma longa,
+   e `Ctrl+P` não espera re-render: quem decide tem que ser uma regra que já está
+   valendo quando o navegador monta a página. É o mesmo mecanismo do par de `%AH`
+   em `Variacao`, pela mesma razão.
+
+   **Por que no fim do arquivo.** Estas regras disputam `display` com utilitários de
+   mesma especificidade, e em empate quem vence é quem vem depois. Regras de tela
+   pequena já foram escritas três vezes neste arquivo antes de alguém reparar que o
+   problema era a posição, não o seletor.
+
+   A forma curta é a da tela normal: o cabeçalho divide a linha com os controles, e
+   dez nomes de filial empurrariam tudo para uma segunda linha — altura que sai da
+   tabela. Na tela cheia e no papel sobra largura, e a pergunta muda: um DRE impresso
+   circula e é conferido semanas depois, quando ninguém lembra o que foi marcado. */
+.filiais-descritas {
+  display: none;
+}
+
+/* `.tabela-expandida` está na `<section>`, acima do cabeçalho — daí o descendente.
+   Dois seletores de classe vencem o `display: none` de um só, sem `!important`. */
+.tabela-expandida .filiais-descritas {
+  display: revert;
+}
+
+.tabela-expandida .filiais-resumo {
+  display: none;
+}
+
+@media print {
+  .filiais-descritas {
+    display: revert !important;
+  }
+
+  .filiais-resumo {
+    display: none !important;
+  }
+}
