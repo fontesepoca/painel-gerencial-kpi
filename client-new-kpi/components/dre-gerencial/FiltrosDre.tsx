@@ -4,11 +4,22 @@ import { useEffect, useId, useRef, useState } from "react";
 import { cn } from "@/lib/cn";
 import { atalhosPeriodo, paraBr } from "@/lib/periodos";
 import {
+  MAXIMO_DE_ANOS,
+  MODOS,
+  ancorarNoPrimeiroAno,
+  anosOferecidos,
+  estimativaDeTempo,
+  impedimento,
+  usaAnos,
+  usaDatas,
+} from "@/lib/modosDePeriodo";
+import {
   ANALISES,
   REGIMES,
   type Analise,
   type Filial,
   type FiltroApuracao,
+  type ModoPeriodo,
   type Regime,
 } from "@/types/dre-gerencial";
 
@@ -63,11 +74,17 @@ export function FiltrosDre({
   onMudar: (filtro: FiltroApuracao) => void;
   onApurar: () => void;
 }) {
-  const podeApurar = filtro.filiais.length > 0 && !apurando;
+  // O que impede a apuração, em texto. Aparece sob a grade em vez de ficar só como botão
+  // apagado: "escolha ao menos um ano" é a diferença entre corrigir em dois segundos e
+  // ficar clicando num botão que não responde.
+  const motivo = impedimento(filtro);
+  const podeApurar = motivo === null && !apurando;
+  const estimativa = estimativaDeTempo(filtro);
 
   return (
-    // O gabarito da grade mora em `globals.css`, na classe `.grade-filtros` —
-    // os mínimos foram medidos e dependem do modo de leitura. Ver o comentário lá.
+    <>
+    {/* O gabarito da grade mora em `globals.css`, na classe `.grade-filtros` —
+        os mínimos foram medidos e dependem do modo de leitura. Ver o comentário lá. */}
     <section className="grade-filtros">
       <Campo rotulo="Filial">
         <SeletorFiliais
@@ -118,34 +135,7 @@ export function FiltrosDre({
         </div>
       </Campo>
 
-      <Campo rotulo="Período">
-        <div className="flex items-center gap-2">
-          <input
-            type="date"
-            aria-label="Data inicial"
-            value={filtro.dataInicio}
-            max={filtro.dataFim}
-            onChange={(e) => onMudar({ ...filtro, dataInicio: e.target.value })}
-            className={cn(CAMPO, "tabular")}
-          />
-          <span aria-hidden className="text-[var(--text-muted)]">
-            →
-          </span>
-          <input
-            type="date"
-            aria-label="Data final"
-            value={filtro.dataFim}
-            min={filtro.dataInicio}
-            onChange={(e) => onMudar({ ...filtro, dataFim: e.target.value })}
-            className={cn(CAMPO, "tabular")}
-          />
-          <AtalhosDePeriodo
-            onEscolher={(dataInicio, dataFim) =>
-              onMudar({ ...filtro, dataInicio, dataFim })
-            }
-          />
-        </div>
-      </Campo>
+      <CampoPeriodo filtro={filtro} onMudar={onMudar} />
 
       <Campo>
         <button
@@ -154,7 +144,10 @@ export function FiltrosDre({
           disabled={!podeApurar}
           className={cn(
             "h-[var(--altura-controle)] w-full rounded-[var(--radius-md)] px-6 text-[length:var(--fs-base)] font-medium whitespace-nowrap xl:w-auto",
-            "transition-colors duration-[var(--dur-fast)] h-full",
+            // Sem `h-full`: com os chips de ano, a linha da grade fica com duas alturas de
+            // controle e o botão esticava para 90px, virando um retângulo azul que não
+            // parece mais um botão.
+            "transition-colors duration-[var(--dur-fast)]",
             podeApurar
               ? "bg-[var(--primary)] text-white hover:brightness-110"
               : "cursor-not-allowed bg-[var(--surface-3)] text-[var(--text-muted)]",
@@ -164,6 +157,206 @@ export function FiltrosDre({
         </button>
       </Campo>
     </section>
+
+    {/* Uma linha só, e só quando há o que dizer. O impedimento tem precedência sobre a
+        estimativa: não faz sentido anunciar quanto vai demorar algo que ainda não pode
+        rodar. */}
+    {(motivo || estimativa) && (
+      <p
+        role="status"
+        className={cn(
+          "mt-3 text-[length:var(--fs-apoio)]",
+          motivo ? "text-[var(--warning)]" : "text-[var(--text-muted)]",
+        )}
+      >
+        {motivo ?? estimativa}
+      </p>
+    )}
+    </>
+  );
+}
+
+/**
+ * O campo Período — e, no lugar do resto do rótulo, as abas que escolhem o modo.
+ *
+ * **As abas ficam onde o efeito delas acontece.** Um sexto campo na grade quebraria a
+ * calibragem de cinco colunas, medida contra telas de 1366px, e custaria uma linha de
+ * altura — que nesta tela sai da tabela. A linha do rótulo já existia, com uma palavra só,
+ * e o modo é exatamente uma qualificação do período: as abas dizem o que este campo
+ * significa agora.
+ *
+ * Cada modo mostra apenas os controles que usa. O modo `anos` não exibe datas porque não
+ * as usa — dois campos de data visíveis e inertes ensinariam que o filtro mente.
+ */
+function CampoPeriodo({
+  filtro,
+  onMudar,
+}: {
+  filtro: FiltroApuracao;
+  onMudar: (filtro: FiltroApuracao) => void;
+}) {
+  const rotuloId = useId();
+
+  // Toda mudança passa pela ancoragem: no comparativo as datas seguem o primeiro ano
+  // escolhido, para o campo nunca exibir um recorte que não é nenhuma das colunas.
+  const mudar = (parcial: Partial<FiltroApuracao>) =>
+    onMudar(ancorarNoPrimeiroAno({ ...filtro, ...parcial }));
+
+  return (
+    <div role="group" aria-labelledby={rotuloId} className="flex min-w-0 flex-col gap-2">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <span id={rotuloId} className={ROTULO}>
+          Período
+        </span>
+        <AbasDeModo valor={filtro.modo} onMudar={(modo) => mudar({ modo })} />
+      </div>
+
+      <div className="flex flex-col gap-2">
+        {usaDatas(filtro.modo) && (
+          <div className="flex items-center gap-2">
+            <input
+              type="date"
+              aria-label="Data inicial"
+              value={filtro.dataInicio}
+              max={filtro.dataFim}
+              onChange={(e) => mudar({ dataInicio: e.target.value })}
+              className={cn(CAMPO, "tabular")}
+            />
+            <span aria-hidden className="text-[var(--text-muted)]">
+              →
+            </span>
+            <input
+              type="date"
+              aria-label="Data final"
+              value={filtro.dataFim}
+              min={filtro.dataInicio}
+              onChange={(e) => mudar({ dataFim: e.target.value })}
+              className={cn(CAMPO, "tabular")}
+            />
+            {/* Atalhos só no modo mensal: "Ano passado" e "Últimos 3 meses" mexem no ano
+                das datas, e no comparativo quem manda no ano são os chips. */}
+            {filtro.modo === "meses" && (
+              <AtalhosDePeriodo
+                onEscolher={(dataInicio, dataFim) => mudar({ dataInicio, dataFim })}
+              />
+            )}
+          </div>
+        )}
+
+        {usaAnos(filtro.modo) && (
+          <ChipsDeAno escolhidos={filtro.anos} onMudar={(anos) => mudar({ anos })} />
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * As três abas de modo, ocupando a linha do rótulo.
+ *
+ * `radiogroup`, não `tablist`: não há painéis irmãos entre os quais alternar, há uma
+ * escolha entre três valores — e é a semântica de rádio que faz o leitor de tela anunciar
+ * "1 de 3".
+ */
+function AbasDeModo({
+  valor,
+  onMudar,
+}: {
+  valor: ModoPeriodo;
+  onMudar: (modo: ModoPeriodo) => void;
+}) {
+  return (
+    <div role="radiogroup" aria-label="Modo do período" className="flex items-center gap-1">
+      {MODOS.map((m) => {
+        const ativo = m.valor === valor;
+        return (
+          <button
+            key={m.valor}
+            type="button"
+            role="radio"
+            aria-checked={ativo}
+            // O nome acessível é o rótulo, não a explicação. Sem o `aria-label`, a árvore
+            // de acessibilidade anunciava "Uma coluna por mês do intervalo" no lugar de
+            // "Meses" — o `title` acaba servindo de nome quando existe, e um botão cujo
+            // nome é uma frase inteira não se diferencia dos irmãos numa leitura por voz.
+            aria-label={m.rotulo}
+            title={m.explicacao}
+            onClick={() => onMudar(m.valor)}
+            className={cn(
+              "rounded-[var(--radius-sm)] px-2 py-0.5 text-[length:var(--fs-rotulo)] font-medium tracking-[0.08em] uppercase",
+              "transition-colors duration-[var(--dur-fast)]",
+              ativo
+                ? "bg-[var(--surface-hover)] text-[var(--text-primary)]"
+                : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]",
+            )}
+          >
+            {m.rotulo}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/**
+ * Os anos das colunas.
+ *
+ * Chips e não lista suspensa: são poucos, a escolha é múltipla, e ver os anos disponíveis
+ * de uma vez é mais rápido do que abrir uma lista para marcar dois deles.
+ *
+ * Ao bater o teto, os não escolhidos ficam **desabilitados e explicados** em vez de apenas
+ * recusarem o clique. O limite não é capricho — cada ano é uma varredura da base inteira —,
+ * e é essa frase que o faz parecer razoável.
+ */
+function ChipsDeAno({
+  escolhidos,
+  onMudar,
+}: {
+  escolhidos: number[];
+  onMudar: (anos: number[]) => void;
+}) {
+  const cheio = escolhidos.length >= MAXIMO_DE_ANOS;
+
+  const alternar = (ano: number) =>
+    onMudar(
+      escolhidos.includes(ano)
+        ? escolhidos.filter((a) => a !== ano)
+        : [...escolhidos, ano].sort((a, b) => a - b),
+    );
+
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      {anosOferecidos().map((ano) => {
+        const marcado = escolhidos.includes(ano);
+        const bloqueado = cheio && !marcado;
+        return (
+          <button
+            key={ano}
+            type="button"
+            role="checkbox"
+            aria-checked={marcado}
+            disabled={bloqueado}
+            title={
+              bloqueado
+                ? `No máximo ${MAXIMO_DE_ANOS} anos — cada ano é uma varredura da base.`
+                : undefined
+            }
+            onClick={() => alternar(ano)}
+            className={cn(
+              "tabular rounded-[var(--radius-md)] border px-2.5 py-1.5 text-[length:var(--fs-base)]",
+              "transition-colors duration-[var(--dur-fast)]",
+              marcado
+                ? "border-[var(--primary)] bg-[var(--primary)] text-white"
+                : bloqueado
+                  ? "cursor-not-allowed border-[var(--border)] text-[var(--text-muted)] opacity-50"
+                  : "border-[var(--border-strong)] bg-[var(--surface-2)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]",
+            )}
+          >
+            {ano}
+          </button>
+        );
+      })}
+    </div>
   );
 }
 

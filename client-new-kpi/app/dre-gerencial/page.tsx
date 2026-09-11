@@ -79,11 +79,16 @@ export default function DreGerencialPage() {
     }
   }, []);
 
+  // O mês corrente, em colunas mensais: o recorte que a tela sempre abriu, e que os modos
+  // de ano não deslocaram. `anos` começa vazio de propósito — um ano pré-escolhido seria
+  // uma consulta de minutos esperando um clique distraído no Apurar.
   const [filtro, setFiltro] = useState<FiltroApuracao>(() => ({
     filiais: [],
     ...periodoPadrao(),
     regime: "competencia",
     analise: "ccusto-principal",
+    modo: "meses",
+    anos: [],
   }));
 
   const dados = apuracao.data;
@@ -149,11 +154,16 @@ export default function DreGerencialPage() {
                   Visão gerencial
                 </h2>
                 <p className="mt-1 text-[length:var(--fs-apoio)] text-[var(--text-muted)]">
-                  {formatarDataIso(dados.dataInicio)} a {formatarDataIso(dados.dataFim)} ·{" "}
+                  {/* No modo por ano inteiro o intervalo do filtro não descreve o que foi
+                      apurado — quem manda são as colunas. Repetir "01/09 a 10/09" ao lado
+                      de colunas 2025 e 2026 seria informação errada no lugar de honesto. */}
+                  {dados.modo === "anos"
+                    ? `${dados.periodos.length === 1 ? "Ano" : "Anos"} ${dados.periodos.map((p) => p.rotulo).join(", ")}`
+                    : `${formatarDataIso(dados.dataInicio)} a ${formatarDataIso(dados.dataFim)}`}{" "}
+                  ·{" "}
                   {dados.regime === "caixa" ? "Caixa" : "Competência"} ·{" "}
                   {dados.filiais.length} {dados.filiais.length === 1 ? "filial" : "filiais"} ·{" "}
-                  {dados.periodos.length} {dados.periodos.length === 1 ? "mês" : "meses"} ·
-                  apurado em {formatarDuracao(dados.duracaoMs)}
+                  {descreverColunas(dados)} · apurado em {formatarDuracao(dados.duracaoMs)}
                 </p>
               </div>
 
@@ -220,7 +230,13 @@ export default function DreGerencialPage() {
                 dataFim: dados.dataFim,
                 regime: dados.regime,
                 analise: dados.analise,
+                // O detalhamento é sempre de UMA coluna, e a coluna já traz o próprio
+                // recorte em datas. Mandar o modo junto faria o servidor reabrir a
+                // consulta em várias colunas de novo, dentro de um detalhe.
+                modo: "meses",
+                anos: [],
               }}
+              modo={dados.modo}
             />
           </section>
           </>
@@ -289,6 +305,17 @@ function BotaoExpandir({
       {expandida ? "Voltar ao normal" : "Tela cheia"}
     </button>
   );
+}
+
+/**
+ * Quantas colunas, e do quê. "3 meses" só está certo no modo mensal — nos outros a
+ * contagem é de anos, e chamar de mês uma coluna que cobre doze deles é o tipo de rótulo
+ * que faz alguém desconfiar do número ao lado.
+ */
+function descreverColunas(dados: Apuracao): string {
+  const n = dados.periodos.length;
+  if (dados.modo === "meses") return `${n} ${n === 1 ? "mês" : "meses"}`;
+  return `${n} ${n === 1 ? "coluna" : "colunas"} por ano`;
 }
 
 function Inicial() {

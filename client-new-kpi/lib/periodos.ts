@@ -80,36 +80,11 @@ export function atalhosPeriodo(hoje: Date = new Date()): AtalhoPeriodo[] {
   ];
 }
 
-/**
- * Recorte de um mês da tabela, para o detalhamento do duplo clique.
- *
- * `mesAno` vem da API como `mm/yyyy`. O intervalo devolvido é o mês **cruzado com o
- * período apurado**, nunca o mês calendário solto: apurando de 01/08 a 27/08, clicar em
- * agosto detalha 01/08 a 27/08. Detalhar o mês inteiro mostraria lançamentos que não
- * entraram na célula clicada, e o total da tela deixaria de bater com ela — que é
- * exatamente o defeito da 9815 que decidimos corrigir.
- *
- * Devolve `null` se o mês não intersecta o período. Não deveria acontecer, já que as
- * colunas nascem do próprio período, mas devolver um intervalo invertido seria pior:
- * o banco aceita e responde vazio, e some sem erro.
- */
-export function recorteDoMes(
-  mesAno: string,
-  dataInicio: string,
-  dataFim: string,
-): { dataInicio: string; dataFim: string } | null {
-  const [mes, ano] = mesAno.split("/").map(Number);
-  if (!mes || !ano) return null;
-
-  const primeiro = paraIso(new Date(ano, mes - 1, 1));
-  const ultimo = paraIso(ultimoDia(ano, mes - 1));
-
-  // Comparação de texto funciona em `yyyy-MM-dd`: a ordem lexicográfica é a cronológica.
-  const inicio = primeiro > dataInicio ? primeiro : dataInicio;
-  const fim = ultimo < dataFim ? ultimo : dataFim;
-
-  return inicio > fim ? null : { dataInicio: inicio, dataFim: fim };
-}
+/* O recorte de um mês para o duplo clique morava aqui, em `recorteDoMes`. Saiu em
+   10/09/2026: a conta partia de `mm/yyyy` e só funcionava enquanto coluna fosse sinônimo
+   de mês — numa coluna `2026` devolveria janeiro. Hoje cada coluna traz o próprio recorte
+   do servidor, que é o único que sabe recortar uma coluna que não é um mês. A regra
+   continua a mesma e agora vive em `RecorteDre.RecorteDoMes`, na API. */
 
 /** Mês corrente, do dia 1 até hoje — o recorte que a tela abre. */
 export function periodoPadrao(hoje: Date = new Date()) {
