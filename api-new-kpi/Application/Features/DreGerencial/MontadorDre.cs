@@ -87,7 +87,15 @@ public static class MontadorDre
                 // a mais em ABAT./DESC., por exemplo. Half-to-even e o padrao do .NET e e o
                 // que a rotina faz: media -1.477.974,065 vira ,06 e -110.608,085 vira ,08.
                 var valor = Arredondar(valoresPorColuna[c.Chave][indice]);
-                var anterior = i == 0
+
+                // A coluna anterior DO MESMO BLOCO. No comparativo, a primeira coluna do
+                // segundo intervalo não tem anterior — compará-la com a última do primeiro
+                // poria Jan/26 contra Mar/25, dois meses sem relação nenhuma, e o número
+                // sairia grande e sem sentido bem onde a comparação começa.
+                //
+                // Nos modos meses e anos todas as colunas são do bloco 0, e a sequência
+                // continua contínua: é assim que um ano compara com o ano anterior.
+                var anterior = i == 0 || colunas[i - 1].Bloco != c.Bloco
                     ? (decimal?)null
                     : Arredondar(valoresPorColuna[colunas[i - 1].Chave][indice]);
 
@@ -135,7 +143,7 @@ public static class MontadorDre
             // detalhamento. Derivar do mês da coluna deixa de funcionar quando a coluna é um
             // ano ou um trecho dele.
             Periodos: colunas
-                .Select(c => new PeriodoDto(c.Chave, c.Rotulo, c.DataInicio, c.DataFim))
+                .Select(c => new PeriodoDto(c.Chave, c.Rotulo, c.DataInicio, c.DataFim, c.Bloco))
                 .ToList(),
             Linhas: resultado,
             Avisos: avisos,

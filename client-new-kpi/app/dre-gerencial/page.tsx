@@ -154,12 +154,10 @@ export default function DreGerencialPage() {
                   Visão gerencial
                 </h2>
                 <p className="mt-1 text-[length:var(--fs-apoio)] text-[var(--text-muted)]">
-                  {/* No modo por ano inteiro o intervalo do filtro não descreve o que foi
-                      apurado — quem manda são as colunas. Repetir "01/09 a 10/09" ao lado
-                      de colunas 2025 e 2026 seria informação errada no lugar de honesto. */}
-                  {dados.modo === "anos"
-                    ? `${dados.periodos.length === 1 ? "Ano" : "Anos"} ${dados.periodos.map((p) => p.rotulo).join(", ")}`
-                    : `${formatarDataIso(dados.dataInicio)} a ${formatarDataIso(dados.dataFim)}`}{" "}
+                  {/* O intervalo do filtro só descreve o que foi apurado no modo mensal. Por
+                      ano inteiro quem manda são as colunas; no comparativo são DOIS
+                      intervalos, e citar só o primeiro esconderia metade da apuração. */}
+                  {descreverPeriodo(dados)}{" "}
                   ·{" "}
                   {dados.regime === "caixa" ? "Caixa" : "Competência"} ·{" "}
                   {dados.filiais.length} {dados.filiais.length === 1 ? "filial" : "filiais"} ·{" "}
@@ -314,8 +312,37 @@ function BotaoExpandir({
  */
 function descreverColunas(dados: Apuracao): string {
   const n = dados.periodos.length;
-  if (dados.modo === "meses") return `${n} ${n === 1 ? "mês" : "meses"}`;
-  return `${n} ${n === 1 ? "coluna" : "colunas"} por ano`;
+  if (dados.modo === "anos") return `${n} ${n === 1 ? "coluna" : "colunas"} por ano`;
+  return `${n} ${n === 1 ? "mês" : "meses"}`;
+}
+
+/**
+ * O período apurado, em texto — e ele muda de forma conforme o modo.
+ *
+ * No comparativo são **dois** intervalos: citar só o primeiro descreveria metade da
+ * apuração, e quem lesse o cabeçalho não saberia contra o que a tabela está comparando.
+ * As datas saem das próprias colunas, que é o que o servidor de fato apurou.
+ */
+function descreverPeriodo(dados: Apuracao): string {
+  if (dados.modo === "anos") {
+    const rotulos = dados.periodos.map((p) => p.rotulo).join(", ");
+    return `${dados.periodos.length === 1 ? "Ano" : "Anos"} ${rotulos}`;
+  }
+
+  const intervalo = (bloco: number) => {
+    const colunas = dados.periodos.filter((p) => p.bloco === bloco);
+    const inicio = colunas[0]?.dataInicio;
+    const fim = colunas.at(-1)?.dataFim;
+    return inicio && fim ? `${formatarDataIso(inicio)} a ${formatarDataIso(fim)}` : null;
+  };
+
+  if (dados.modo === "comparar-anos") {
+    const a = intervalo(0);
+    const b = intervalo(1);
+    if (a && b) return `${a}  vs  ${b}`;
+  }
+
+  return `${formatarDataIso(dados.dataInicio)} a ${formatarDataIso(dados.dataFim)}`;
 }
 
 function Inicial() {

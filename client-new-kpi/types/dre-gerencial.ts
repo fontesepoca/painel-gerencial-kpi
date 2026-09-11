@@ -23,7 +23,7 @@ export type Analise =
  *
  * - `meses` — uma coluna por mês do intervalo. É o padrão e o comportamento de sempre.
  * - `anos` — uma coluna por ano inteiro, de 01/01 a 31/12.
- * - `comparar-anos` — o mesmo dia e mês do intervalo, repetido em cada ano.
+ * - `comparar-anos` — **dois intervalos livres**, cada um aberto em colunas mensais.
  */
 export type ModoPeriodo = "meses" | "anos" | "comparar-anos";
 
@@ -39,10 +39,16 @@ export interface FiltroApuracao {
   analise: Analise;
   modo: ModoPeriodo;
   /**
-   * Os anos das colunas nos dois modos de comparação. Ignorado no modo mensal — e guardado
-   * mesmo assim, para quem alterna entre os modos não perder a escolha no caminho.
+   * Os anos das colunas no modo `anos`. Ignorado nos outros — e guardado mesmo assim, para
+   * quem alterna entre os modos não perder a escolha no caminho.
    */
   anos: number[];
+  /**
+   * O SEGUNDO intervalo do comparativo, em ISO. Livre em relação ao primeiro: não precisa
+   * ter o mesmo tamanho nem os mesmos meses.
+   */
+  comparacaoInicio?: string;
+  comparacaoFim?: string;
 }
 
 /**
@@ -61,6 +67,12 @@ export interface PeriodoDre {
   rotulo: string;
   dataInicio: string;
   dataFim: string;
+  /**
+   * O grupo de colunas a que esta pertence — `0` e `1` no comparativo, sempre `0` nos
+   * outros modos. Separa os dois lados na tela e é o que faz o `%AH` parar na virada de
+   * intervalo, em vez de comparar Jan/26 com Mar/25.
+   */
+  bloco: number;
 }
 
 export interface ValorMes {

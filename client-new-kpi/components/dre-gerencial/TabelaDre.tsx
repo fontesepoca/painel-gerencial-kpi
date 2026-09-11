@@ -506,9 +506,10 @@ export function TabelaDre({
   // vazio. O nome fala em mês porque no modo mensal é isso que uma coluna é.
   const multiMes = periodos.length > 1;
 
-  // Nos modos de ano o bloco final mostra VARIAÇÃO, não total: somar 2025 com 2026 dá um
-  // número que ninguém usa, e a média entre dois anos, menos ainda. Ver `mostraVariacao`.
-  const variacaoNoFim = mostraVariacao(modo, periodos.length);
+  // Nos modos de comparação o bloco final mostra VARIAÇÃO, não total: somar 2025 com 2026,
+  // ou janeiro de 2025 com junho de 2026, dá um número que ninguém usa. Ver
+  // `mostraVariacao`.
+  const variacaoNoFim = mostraVariacao(modo, periodos);
   const colunasDoFim = variacaoNoFim ? 2 : 3;
 
   // Escala das barras de %AV: a maior proporção abaixo de 100 define a largura cheia.
@@ -575,10 +576,11 @@ export function TabelaDre({
                   colSpan={colunasDoFim}
                   className="border-l border-[var(--border-strong)] bg-[var(--surface-2)] px-[var(--celula-x)] pt-3 pb-1 text-center text-[length:var(--fs-rotulo)] font-semibold tracking-[0.14em] text-[var(--text-primary)] uppercase"
                 >
-                  {/* `2025 → 2026` em vez de "Variação": com três anos a comparação é da
-                      primeira coluna para a última, e o rótulo é a única coisa que revela
-                      isso — a coluna `AH %` compara com a anterior, que é outra conta. */}
-                  {variacaoNoFim ? rotuloDaVariacao(periodos) : "Total"}
+                  {/* `Jan–Mar/2025 → Jun–Set/2026` em vez de "Variação": no comparativo os
+                      dois lados são intervalos INTEIROS, e sem o rótulo quem olha a coluna Δ
+                      supõe que ela compara os dois últimos meses — que é outra conta, a da
+                      coluna `AH %`. */}
+                  {variacaoNoFim ? rotuloDaVariacao(modo, periodos) : "Total"}
                 </th>
               </tr>
             )}
@@ -606,6 +608,8 @@ export function TabelaDre({
                   maiorAv={maiorAv}
                   multiMes={multiMes}
                   variacaoNoFim={variacaoNoFim}
+                  periodos={periodos}
+                  modo={modo}
                   deslocada={deslocadas.has(linha.chaveOrdem)}
                   arrastando={arrasto === indice}
                   indicadorAcima={indicador === linha.chaveOrdem}
@@ -718,8 +722,12 @@ function ColunasCabecalhoVariacao() {
  * A diferença entre a primeira e a última coluna: em reais e em proporção.
  *
  * **Não abre detalhamento**, ao contrário do bloco de total. Uma variação é a subtração de
- * duas células que já estão na tela — não existe lançamento nenhum "dentro" dela, e abrir
+ * dois números que já estão na tela — não existe lançamento nenhum "dentro" dela, e abrir
  * uma consulta a partir daqui prometeria uma origem que não há.
+ *
+ * No comparativo, os dois números são a **soma de cada intervalo**, e não a primeira contra
+ * a última coluna: é o que permite os lados terem tamanhos diferentes, três meses de 2025
+ * contra quatro de 2026.
  *
  * A cor segue o sinal do número, e só isso: uma despesa que cresce é negativa para o
  * resultado, mas pintá-la de vermelho exigiria saber o sentido de cada linha do DRE —
@@ -727,9 +735,14 @@ function ColunasCabecalhoVariacao() {
  */
 function BlocoVariacao({
   valores,
+  periodos,
+  modo,
   destaque,
 }: {
   valores: { valor: number }[];
+  /** Para saber a que bloco cada valor pertence — é o que separa os dois lados. */
+  periodos: PeriodoDre[];
+  modo: ModoPeriodo;
   destaque: boolean;
 }) {
   const celula = cn(
@@ -738,7 +751,7 @@ function BlocoVariacao({
     destaque && "font-semibold",
   );
 
-  const v = variacao(valores);
+  const v = variacao(valores, periodos, modo);
 
   if (!v) {
     return (
@@ -791,6 +804,8 @@ function Linha({
   maiorAv,
   multiMes,
   variacaoNoFim,
+  periodos,
+  modo,
   deslocada,
   arrastando,
   indicadorAcima,
@@ -808,6 +823,9 @@ function Linha({
   multiMes: boolean;
   /** O bloco final desta linha é variação em vez de total. */
   variacaoNoFim: boolean;
+  /** As colunas e o modo, para a variação saber separar os dois lados da comparação. */
+  periodos: PeriodoDre[];
+  modo: ModoPeriodo;
   deslocada: boolean;
   arrastando: boolean;
   indicadorAcima: boolean;
@@ -943,7 +961,12 @@ function Linha({
 
       {multiMes &&
         (variacaoNoFim ? (
-          <BlocoVariacao valores={linha.valores} destaque={linha.totalizadora} />
+          <BlocoVariacao
+            valores={linha.valores}
+            periodos={periodos}
+            modo={modo}
+            destaque={linha.totalizadora}
+          />
         ) : (
           <BlocoMes
             valor={linha.total.valor}

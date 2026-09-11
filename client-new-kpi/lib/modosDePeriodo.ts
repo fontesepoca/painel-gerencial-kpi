@@ -20,7 +20,7 @@ const ANOS_OFERECIDOS = 6;
 export const MODOS: ReadonlyArray<{
   valor: ModoPeriodo;
   rotulo: string;
-  /** Uma frase, mostrada sob os controles: o que as colunas vão ser. */
+  /** Uma frase, mostrada sob o rótulo no menu: o que as colunas vão ser. */
   explicacao: string;
 }> = [
   {
@@ -31,14 +31,17 @@ export const MODOS: ReadonlyArray<{
   {
     valor: "anos",
     rotulo: "Anos",
-    explicacao: "Uma coluna por ano inteiro, de 01/01 a 31/12.",
+    explicacao: "Uma coluna por ano inteiro, somando os doze meses.",
   },
   {
     valor: "comparar-anos",
-    rotulo: "Comparar anos",
-    explicacao: "O mesmo intervalo de dias, repetido em cada ano escolhido.",
+    rotulo: "Comparar períodos",
+    explicacao: "Dois intervalos lado a lado, cada um aberto em meses.",
   },
 ];
+
+export const rotuloDoModo = (modo: ModoPeriodo) =>
+  MODOS.find((m) => m.valor === modo)?.rotulo ?? "Meses";
 
 /** Os anos que o seletor oferece, do mais recente para trás. */
 export function anosOferecidos(hoje: Date = new Date()): number[] {
@@ -46,15 +49,8 @@ export function anosOferecidos(hoje: Date = new Date()): number[] {
   return Array.from({ length: ANOS_OFERECIDOS }, (_, i) => atual - i);
 }
 
-/**
- * O modo usa a lista de anos? O mensal ignora.
- *
- * Escrito por inclusão, e não como `!== "meses"`, pelo mesmo motivo que `RecorteDre` trata
- * modo desconhecido como mensal: uma resposta sem `modo` — de uma API mais velha que este
- * front, ou de um teste que monta o objeto à mão — cairia no ramo dos anos e ligaria o
- * bloco de variação numa apuração mensal. Foi o que a dc13 pegou.
- */
-export const usaAnos = (modo: ModoPeriodo) => modo === "anos" || modo === "comparar-anos";
+/** O modo usa a lista de anos? Só o modo `anos`, desde 11/09/2026. */
+export const usaAnos = (modo: ModoPeriodo) => modo === "anos";
 
 /**
  * O modo usa as datas do campo Período?
@@ -63,6 +59,9 @@ export const usaAnos = (modo: ModoPeriodo) => modo === "anos" || modo === "compa
  * influenciam nada seria mentir sobre o que o filtro faz.
  */
 export const usaDatas = (modo: ModoPeriodo) => modo !== "anos";
+
+/** O modo tem um SEGUNDO intervalo — o lado direito da comparação. */
+export const usaSegundoIntervalo = (modo: ModoPeriodo) => modo === "comparar-anos";
 
 /**
  * O que impede este filtro de ser apurado, ou `null` se nada impede.
@@ -79,19 +78,40 @@ export function impedimento(filtro: FiltroApuracao): string | null {
     }
   }
 
+  if (usaSegundoIntervalo(filtro.modo)) {
+    // As mesmas regras do primeiro intervalo, ditas do lado de cá para a pessoa não
+    // descobrir o limite depois de esperar a consulta.
+    if (!filtro.comparacaoInicio || !filtro.comparacaoFim) {
+      return "Preencha o segundo intervalo da comparação.";
+    }
+    if (filtro.comparacaoFim < filtro.comparacaoInicio) {
+      return "No segundo intervalo, a data final não pode ser anterior à inicial.";
+    }
+    if (mesesEntre(filtro.comparacaoInicio, filtro.comparacaoFim) > 12) {
+      return "O segundo intervalo não pode passar de 12 meses.";
+    }
+  }
+
   return null;
+}
+
+/** Meses cheios entre duas datas ISO, para o teto de 12. */
+function mesesEntre(inicio: string, fim: string): number {
+  const [ai, mi] = inicio.split("-").map(Number);
+  const [af, mf] = fim.split("-").map(Number);
+  if (!ai || !mi || !af || !mf) return 0;
+  return (af - ai) * 12 + (mf - mi);
 }
 
 /**
  * Quanto isto deve demorar, em texto.
  *
  * <b>Os números são medidos, não estimados de cabeça.</b> Um ano inteiro numa filial levou
- * de 4,5 a 6,8 minutos com o cache frio (dc19), e os anos rodam em paralelo — o custo de
- * dois anos é o do ano mais lento, mais cerca de um minuto (dc18). Mais filiais aumentam a
- * varredura, então o texto fala em "por filial" e não promete um número exato.
+ * de 4,5 a 6,8 minutos com o cache frio (dc19), e os recortes rodam em paralelo — o custo de
+ * dois é o do mais lento, mais cerca de um minuto (dc18).
  *
- * Devolve `null` quando a espera é curta o bastante para não valer aviso: o modo mensal de
- * um mês responde em segundos, e um aviso ali só ensinaria a ignorar avisos.
+ * Devolve `null` quando a espera é curta o bastante para não valer aviso: um aviso que
+ * aparece sempre só ensina a ignorar avisos.
  */
 export function estimativaDeTempo(filtro: FiltroApuracao): string | null {
   if (filtro.modo === "anos") {
@@ -103,10 +123,14 @@ export function estimativaDeTempo(filtro: FiltroApuracao): string | null {
           "de 4 a 7 minutos por filial, com algum acréscimo. A tela fica esperando.";
   }
 
-  if (filtro.modo === "comparar-anos" && filtro.anos.length > 0) {
-    const dias = diasEntre(filtro.dataInicio, filtro.dataFim);
-    if (dias === null || dias < 45) return null;
-    return "Recortes longos em vários anos passam de um minuto. A tela fica esperando.";
+  if (filtro.modo === "comparar-anos" && filtro.comparacaoInicio && filtro.comparacaoFim) {
+    // O comparativo custa duas apurações mensais, rodando ao mesmo tempo. Só vira assunto
+    // quando os intervalos são longos.
+    const dias =
+      (diasEntre(filtro.dataInicio, filtro.dataFim) ?? 0) +
+      (diasEntre(filtro.comparacaoInicio, filtro.comparacaoFim) ?? 0);
+    if (dias < 120) return null;
+    return "Os dois intervalos são consultados ao mesmo tempo, mas juntos passam de quatro meses — a espera vai a minutos.";
   }
 
   return null;
@@ -123,49 +147,99 @@ function diasEntre(inicio: string, fim: string): number | null {
 /**
  * O bloco final da tabela mostra **variação** em vez de total?
  *
- * Sim nos modos de ano, e a razão é que o total deixa de significar alguma coisa ali:
- * somar 2025 com 2026 dá um número que ninguém usa, e a média entre dois anos, menos
- * ainda. O que se quer ao pôr dois anos lado a lado é a diferença — em reais e em
- * percentual.
+ * Sim quando há dois blocos de colunas — o comparativo —, e sim no modo por ano com mais de
+ * uma coluna. Nos dois casos somar tudo dá um número que ninguém usa: 2025 mais 2026, ou
+ * janeiro de 2025 mais junho de 2026.
  *
- * Precisa de **duas colunas no mínimo**: com um ano só não há de que variar, e aí o bloco
- * final volta a ser o total, como no modo mensal.
+ * No modo mensal o total continua sendo total, que é o que a 9815 mostra.
  */
-export const mostraVariacao = (modo: ModoPeriodo, colunas: number) =>
-  usaAnos(modo) && colunas >= 2;
+export function mostraVariacao(modo: ModoPeriodo, periodos: PeriodoDre[]): boolean {
+  if (modo === "comparar-anos") return blocos(periodos).length === 2;
+  if (modo === "anos") return periodos.length >= 2;
+  return false;
+}
+
+/** Os blocos presentes, em ordem. `[0]` fora do comparativo. */
+export function blocos(periodos: PeriodoDre[]): number[] {
+  return [...new Set(periodos.map((p) => p.bloco ?? 0))].sort((a, b) => a - b);
+}
 
 /**
- * O rótulo do bloco de variação, dizendo entre o que e o quê: `2024 → 2026`.
+ * O rótulo do bloco de variação, dizendo entre o que e o quê.
  *
- * Com três anos a variação é da primeira coluna para a última, e o rótulo é a única coisa
- * que revela isso — sem ele, quem apura três anos supõe que a comparação é com o ano
- * anterior, que é o que a coluna `AH %` já mostra.
+ * No comparativo, os dois lados são intervalos inteiros — `Jan–Mar/2025 → Jun–Set/2026` —,
+ * e não duas colunas. Sem isso, quem olha a coluna Δ supõe que ela compara os dois últimos
+ * meses, que é outra conta.
  */
-export function rotuloDaVariacao(periodos: PeriodoDre[]): string {
+export function rotuloDaVariacao(modo: ModoPeriodo, periodos: PeriodoDre[]): string {
+  if (modo === "comparar-anos") {
+    const lados = blocos(periodos).map((b) => resumirBloco(periodos, b));
+    return lados.length === 2 ? `${lados[0]} → ${lados[1]}` : "Variação";
+  }
+
   const primeiro = periodos[0];
   const ultimo = periodos.at(-1);
   if (!primeiro || !ultimo || primeiro === ultimo) return "Variação";
   return `${primeiro.rotulo} → ${ultimo.rotulo}`;
 }
 
+/** `Jan–Mar/2025` a partir das colunas de um bloco; `Jan/2025` quando é um mês só. */
+function resumirBloco(periodos: PeriodoDre[], bloco: number): string {
+  const doBloco = periodos.filter((p) => (p.bloco ?? 0) === bloco);
+  const primeiro = doBloco[0];
+  const ultimo = doBloco.at(-1);
+  if (!primeiro) return "";
+  if (!ultimo || primeiro === ultimo) return primeiro.rotulo;
+
+  const curto = (rotulo: string) => rotulo.slice(0, 3);
+  const ano = ultimo.rotulo.split("/")[1] ?? "";
+  return `${curto(primeiro.rotulo)}–${curto(ultimo.rotulo)}/${ano}`;
+}
+
 /**
- * A variação entre a primeira e a última coluna: quanto mudou, e em que proporção.
+ * A variação entre os dois lados: quanto mudou, e em que proporção.
  *
- * `percentual` é `null` quando a base é zero — dividir por zero devolveria infinito, e uma
+ * **No comparativo, compara a SOMA de cada intervalo**, e não a primeira contra a última
+ * coluna. É o que permite os dois lados terem tamanhos diferentes — três meses de 2025
+ * contra quatro de 2026 —, e é a pergunta que o modo existe para responder.
+ *
+ * Nos outros modos continua sendo primeira contra última coluna.
+ *
+ * `percentual` é `null` quando a base é zero: dividir por zero devolveria infinito, e uma
  * conta que saiu de nada para alguma coisa não tem percentual que a descreva. O valor
- * absoluto continua valendo, e é ele que a tela mostra nesse caso.
+ * absoluto continua valendo.
  */
 export function variacao(
-  valores: { valor: number }[],
+  valores: readonly { valor: number }[],
+  periodos: PeriodoDre[],
+  modo: ModoPeriodo,
 ): { absoluta: number; percentual: number | null } | null {
-  const primeiro = valores[0];
-  const ultimo = valores.at(-1);
-  if (!primeiro || !ultimo || valores.length < 2) return null;
+  if (valores.length < 2) return null;
 
-  const absoluta = ultimo.valor - primeiro.valor;
+  let de: number;
+  let para: number;
+
+  if (modo === "comparar-anos") {
+    const grupos = blocos(periodos);
+    if (grupos.length !== 2) return null;
+
+    const somaDoBloco = (bloco: number) =>
+      valores.reduce(
+        (s, v, i) => ((periodos[i]?.bloco ?? 0) === bloco ? s + v.valor : s),
+        0,
+      );
+
+    de = somaDoBloco(grupos[0]!);
+    para = somaDoBloco(grupos[1]!);
+  } else {
+    de = valores[0]!.valor;
+    para = valores.at(-1)!.valor;
+  }
+
+  const absoluta = para - de;
   return {
     absoluta,
-    percentual: primeiro.valor === 0 ? null : (absoluta / Math.abs(primeiro.valor)) * 100,
+    percentual: de === 0 ? null : (absoluta / Math.abs(de)) * 100,
   };
 }
 
@@ -174,7 +248,7 @@ export function variacao(
  *
  * Detalhar um ano inteiro é a consulta mais cara da rotina rodando sobre doze meses, e
  * quem clica duas vezes numa célula não espera iniciar algo de minutos. A pergunta é feita
- * pelo tamanho do recorte, não pelo modo: um comparativo de dez dias não precisa avisar.
+ * pelo tamanho do recorte, não pelo modo.
  */
 export function recorteLongo(periodo: { dataInicio: string; dataFim: string }): boolean {
   const dias = diasEntre(periodo.dataInicio, periodo.dataFim);
@@ -182,34 +256,32 @@ export function recorteLongo(periodo: { dataInicio: string; dataFim: string }): 
 }
 
 /**
- * Ajusta as datas ao menor ano escolhido, no modo comparativo.
+ * O segundo intervalo sugerido quando alguém entra no comparativo: **o mesmo recorte, um
+ * ano antes**.
  *
- * <b>Para o campo de data nunca mostrar um recorte que não existe.</b> Ali só o dia e o
- * mês contam — o servidor repete esse molde em cada ano —, e um `<input type="date">` é
- * obrigado a exibir um ano de qualquer jeito. Deixá-lo em 2026 enquanto as colunas são
- * 2024 e 2025 faz o campo dizer uma coisa e a tabela mostrar outra; ancorá-lo no primeiro
- * ano da comparação faz o campo exibir a primeira coluna de verdade.
+ * É a comparação que se pede num DRE nove vezes em dez, e deixar os campos vazios obrigaria
+ * a digitar duas datas antes de ver qualquer coisa. Continua sendo só uma sugestão — os dois
+ * intervalos são livres, e mexer num não mexe no outro.
  *
- * 29 de fevereiro é preso ao último dia do mês, a mesma regra de `RecorteDre.NoAno` — sem
- * isso, mover um recorte bissexto para um ano comum criaria uma data inexistente.
+ * 29 de fevereiro é preso ao último dia do mês: criar 29/02 num ano comum devolveria uma
+ * data inválida, e o campo mostraria vazio sem explicar por quê.
  */
-export function ancorarNoPrimeiroAno(filtro: FiltroApuracao): FiltroApuracao {
-  if (filtro.modo !== "comparar-anos" || filtro.anos.length === 0) return filtro;
-
-  const ano = Math.min(...filtro.anos);
-  const dataInicio = noAno(ano, filtro.dataInicio);
-  const dataFim = noAno(ano, filtro.dataFim);
-
-  if (dataInicio === filtro.dataInicio && dataFim === filtro.dataFim) return filtro;
-  return { ...filtro, dataInicio, dataFim };
+export function intervaloSugerido(filtro: FiltroApuracao): {
+  comparacaoInicio: string;
+  comparacaoFim: string;
+} {
+  return {
+    comparacaoInicio: umAnoAntes(filtro.dataInicio),
+    comparacaoFim: umAnoAntes(filtro.dataFim),
+  };
 }
 
-/** O mesmo dia e mês, no ano pedido. */
-function noAno(ano: number, iso: string): string {
-  const [, mes, dia] = iso.split("-").map(Number);
-  if (!mes || !dia) return iso;
+function umAnoAntes(iso: string): string {
+  const [ano, mes, dia] = iso.split("-").map(Number);
+  if (!ano || !mes || !dia) return iso;
 
-  const ultimo = new Date(ano, mes, 0).getDate();
+  const anterior = ano - 1;
+  const ultimo = new Date(anterior, mes, 0).getDate();
   const diaValido = Math.min(dia, ultimo);
-  return `${ano}-${`${mes}`.padStart(2, "0")}-${`${diaValido}`.padStart(2, "0")}`;
+  return `${anterior}-${`${mes}`.padStart(2, "0")}-${`${diaValido}`.padStart(2, "0")}`;
 }

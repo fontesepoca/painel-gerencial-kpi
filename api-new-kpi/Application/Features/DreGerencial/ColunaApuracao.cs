@@ -14,8 +14,9 @@ namespace Epoca.Kpi.Api.Application.Features.DreGerencial;
 ///   <item><b>Meses</b> — uma coluna por mês do intervalo. Igual ao que sempre foi, e
 ///   continua sendo o padrão da tela.</item>
 ///   <item><b>Anos</b> — uma coluna por ano, cada uma somando os doze meses.</item>
-///   <item><b>Comparar anos</b> — uma coluna por ano, cada uma somando os meses do mesmo
-///   recorte de dia e mês.</item>
+///   <item><b>Comparar anos</b> — <b>dois intervalos livres</b>, cada um aberto em colunas
+///   mensais. Os dois não precisam ter o mesmo tamanho nem os mesmos meses: comparar
+///   janeiro–março de 2025 com junho–setembro de 2026 é um pedido válido.</item>
 /// </list>
 ///
 /// <para><b>Por que cada coluna carrega os próprios dados.</b> Nos dois modos novos, cada
@@ -49,10 +50,23 @@ namespace Epoca.Kpi.Api.Application.Features.DreGerencial;
 /// O faturamento do recorte, já somado. <c>null</c> quando o recorte não teve movimento —
 /// e a coluna aparece zerada, que é o comportamento da 9815.
 /// </param>
+/// <param name="Bloco">
+/// A que grupo de colunas esta pertence. <b>É o que faz o <c>%AH</c> parar na virada de
+/// intervalo.</b>
+///
+/// <para>Com as colunas <c>Jan/25 Fev/25 Mar/25 Jan/26 Fev/26 Mar/26</c>, um <c>%AH</c>
+/// sequencial compararia Jan/26 com Mar/25 — dois meses que não têm relação nenhuma, e o
+/// número sairia grande e sem sentido bem na coluna que abre a comparação. Cada intervalo
+/// é um bloco, e a variação só olha para trás dentro do próprio.</para>
+///
+/// <para>Nos modos <c>meses</c> e <c>anos</c> todas as colunas ficam no bloco <c>0</c>: lá
+/// a sequência é contínua de propósito, e é assim que o ano compara com o ano anterior.</para>
+/// </param>
 public sealed record ColunaApuracao(
     string Chave,
     string Rotulo,
     DateOnly DataInicio,
     DateOnly DataFim,
     IReadOnlyList<DespesaDre> Despesas,
-    FaturamentoDre? Faturamento);
+    FaturamentoDre? Faturamento,
+    int Bloco = 0);

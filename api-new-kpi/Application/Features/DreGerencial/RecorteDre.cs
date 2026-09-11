@@ -25,8 +25,9 @@ namespace Epoca.Kpi.Api.Application.Features.DreGerencial;
 ///   </item>
 ///   <item>
 ///     <term><c>comparar-anos</c></term>
-///     <description>Um recorte por ano, com o mesmo dia e mês de início e fim, cada um
-///     virando <b>uma coluna</b>.</description>
+///     <description><b>Dois recortes livres</b>, cada um aberto em <b>colunas mensais</b>,
+///     como o modo <c>meses</c> faz. Os dois não precisam ter o mesmo tamanho nem os mesmos
+///     meses.</description>
 ///   </item>
 /// </list>
 ///
@@ -43,19 +44,19 @@ namespace Epoca.Kpi.Api.Application.Features.DreGerencial;
 /// </param>
 /// <param name="Chave">Identidade da coluna quando o recorte é uma coluna só.</param>
 /// <param name="Rotulo">Cabeçalho da coluna quando o recorte é uma coluna só.</param>
+/// <param name="Bloco">
+/// O grupo a que as colunas deste recorte pertencem. Separa os dois lados do comparativo,
+/// e é o que impede o <c>%AH</c> de comparar a primeira coluna do segundo intervalo com a
+/// última do primeiro. Ver <see cref="ColunaApuracao.Bloco"/>.
+/// </param>
 public sealed record RecorteDre(
     DateOnly DataInicio,
     DateOnly DataFim,
     bool PorMes,
     string? Chave = null,
-    string? Rotulo = null)
+    string? Rotulo = null,
+    int Bloco = 0)
 {
-    private static readonly string[] MesesCurtos =
-    [
-        "Jan", "Fev", "Mar", "Abr", "Mai", "Jun",
-        "Jul", "Ago", "Set", "Out", "Nov", "Dez",
-    ];
-
     /// <summary>
     /// Traduz o filtro nos recortes a consultar.
     ///
@@ -79,9 +80,20 @@ public sealed record RecorteDre(
                     Rotulo: a.ToString()))
                 .ToList(),
 
-            "comparar-anos" => anos
-                .Select(a => DoRecorteAnual(filtro, a))
-                .ToList(),
+            // Dois recortes mensais, um por lado da comparação. `PorMes: true` é o ponto:
+            // cada intervalo se abre nas próprias colunas de mês, e a tela fica com
+            // `Jan/25 Fev/25 Mar/25 | Jan/26 Fev/26 Mar/26` em vez de duas colunas
+            // agregadas — que era o desenho anterior, e respondia só à pergunta "o mesmo
+            // período, um ano depois".
+            "comparar-anos" =>
+            [
+                new RecorteDre(filtro.DataInicio, filtro.DataFim, PorMes: true, Bloco: 0),
+                new RecorteDre(
+                    filtro.ComparacaoInicio!.Value,
+                    filtro.ComparacaoFim!.Value,
+                    PorMes: true,
+                    Bloco: 1),
+            ],
 
             _ => [new RecorteDre(filtro.DataInicio, filtro.DataFim, PorMes: true)],
         };
@@ -95,10 +107,19 @@ public sealed record RecorteDre(
     /// as colunas e decidir o que mostrar no bloco final — se adivinhasse pelo formato da
     /// chave, acertaria hoje e erraria no dia em que um modo novo aparecesse.</para>
     /// </summary>
-    public static string ModoEfetivo(DespesasFiltroDto filtro) =>
-        filtro.Modo is "anos" or "comparar-anos" && AnosValidos(filtro).Count > 0
-            ? filtro.Modo
-            : "meses";
+    public static string ModoEfetivo(DespesasFiltroDto filtro) => filtro.Modo switch
+    {
+        "anos" when AnosValidos(filtro).Count > 0 => "anos",
+
+        // Comparação com um lado só não é comparação: sem o segundo intervalo, ou com ele
+        // invertido, cai no mensal — que apura exatamente o primeiro intervalo, e é o
+        // resultado menos surpreendente para quem montou o filtro pela metade.
+        "comparar-anos" when filtro.ComparacaoInicio is { } inicio
+                          && filtro.ComparacaoFim is { } fim
+                          && inicio <= fim => "comparar-anos",
+
+        _ => "meses",
+    };
 
     private static List<int> AnosValidos(DespesasFiltroDto filtro) =>
         (filtro.Anos ?? [])
@@ -107,37 +128,13 @@ public sealed record RecorteDre(
             .OrderBy(a => a)
             .ToList();
 
-    /// <summary>
-    /// O mesmo dia e mês, no ano pedido.
-    ///
-    /// <para><b>29 de fevereiro precisa de cuidado.</b> Comparar 01/01–29/02 de um ano
-    /// bissexto com o mesmo recorte num ano comum criaria uma data que não existe; o dia é
-    /// preso ao último do mês. Sem isso, um recorte válido em 2024 derruba a apuração de
-    /// 2025 com exceção de data.</para>
-    /// </summary>
-    private static RecorteDre DoRecorteAnual(DespesasFiltroDto filtro, int ano)
-    {
-        var inicio = NoAno(ano, filtro.DataInicio);
-        var fim = NoAno(ano, filtro.DataFim);
+    /* O recorte anual — o mesmo dia e mês repetido em cada ano escolhido — morava aqui, com
+       o cuidado de prender 29 de fevereiro ao último dia do mês. Saiu em 11/09/2026, quando
+       o comparativo passou a receber DOIS INTERVALOS LIVRES: a regra de repetir o molde em
+       vários anos deixou de existir, e com ela a necessidade de tratar o ano bissexto.
 
-        var mesInicio = MesesCurtos[inicio.Month - 1];
-        var mesFim = MesesCurtos[fim.Month - 1];
-
-        // `Jan–Mar/2026` quando o recorte cruza meses; `Set/2026` quando é um mês só.
-        var rotulo = inicio.Month == fim.Month
-            ? $"{mesInicio}/{ano}"
-            : $"{mesInicio}–{mesFim}/{ano}";
-
-        return new RecorteDre(
-            DataInicio: inicio,
-            DataFim: fim,
-            PorMes: false,
-            Chave: $"{ano}:{inicio.Month:D2}-{fim.Month:D2}",
-            Rotulo: rotulo);
-    }
-
-    private static DateOnly NoAno(int ano, DateOnly molde) =>
-        new(ano, molde.Month, Math.Min(molde.Day, DateTime.DaysInMonth(ano, molde.Month)));
+       Se um dia voltar um modo de "mesmo período, N anos depois", o cuidado com 29/02 volta
+       junto: criar 29/02 num ano comum derruba a apuração inteira com exceção de data. */
 
     /// <summary>
     /// As colunas deste recorte, com os dados que acabaram de ser consultados.
@@ -161,7 +158,8 @@ public sealed record RecorteDre(
                     DataInicio: DataInicio,
                     DataFim: DataFim,
                     Despesas: despesas,
-                    Faturamento: FaturamentoDre.Somar(Chave ?? "", faturamentoPorMes)),
+                    Faturamento: FaturamentoDre.Somar(Chave ?? "", faturamentoPorMes),
+                    Bloco: Bloco),
             ];
         }
 
@@ -173,12 +171,18 @@ public sealed record RecorteDre(
 
         return PeriodoDre.Entre(DataInicio, DataFim)
             .Select(p => new ColunaApuracao(
-                Chave: p.MesAno,
+                // A chave leva o bloco quando há mais de um. Sem isso, comparar dois
+                // intervalos que se sobrepõem — jan–mar/2025 contra fev–abr/2025, um pedido
+                // estranho mas legítimo — produziria duas colunas com a mesma chave, e o
+                // montador indexa os valores por ela: uma sobrescreveria a outra em
+                // silêncio, com a tela mostrando o mesmo número duas vezes.
+                Chave: Bloco == 0 ? p.MesAno : $"{Bloco}:{p.MesAno}",
                 Rotulo: p.Rotulo,
                 DataInicio: RecorteDoMes(p.MesAno, DataInicio, inicio: true),
                 DataFim: RecorteDoMes(p.MesAno, DataFim, inicio: false),
                 Despesas: porMes.GetValueOrDefault(p.MesAno, []),
-                Faturamento: faturamento.GetValueOrDefault(p.MesAno)))
+                Faturamento: faturamento.GetValueOrDefault(p.MesAno),
+                Bloco: Bloco))
             .ToList();
     }
 

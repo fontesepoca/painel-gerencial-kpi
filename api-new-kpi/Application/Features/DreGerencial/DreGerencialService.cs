@@ -208,17 +208,38 @@ public sealed class DreGerencialService
             return "O período não pode passar de 12 meses.";
         }
 
-        // Teto de três anos nos modos de comparação — decisão do Gabriel em 10/09/2026.
+        // Teto de três anos — decisão do Gabriel em 10/09/2026. Vale só para o modo
+        // `anos`: lá cada coluna é uma varredura de doze meses, e um ano de uma filial
+        // custou 316 s medidos. Três cobre a comparação de triênio, que é o que se pede num
+        // DRE; acima disso o tempo cresce mais rápido que o valor da informação.
         //
-        // Um ano de uma filial custou 316 s medidos, e as consultas dos anos rodam em
-        // paralelo: três anos são três varreduras simultâneas da base. Três cobre a
-        // comparação de triênio, que é o que se pede num DRE; acima disso o tempo cresce
-        // mais rápido que o valor da informação.
+        // O comparativo NÃO entra neste teto desde 11/09/2026: ele deixou de repetir um
+        // molde em N anos e passou a ter dois intervalos livres, cada um custando o mesmo
+        // que uma apuração mensal comum. Dois intervalos de três meses são mais baratos que
+        // um único ano.
         var anos = filtro.Anos?.Distinct().Count() ?? 0;
-        if (filtro.Modo is "anos" or "comparar-anos" && anos > MaximoDeAnos)
+        if (filtro.Modo is "anos" && anos > MaximoDeAnos)
         {
             return $"Escolha no máximo {MaximoDeAnos} anos para comparar — " +
                    $"foram {anos}. Cada ano é uma varredura da base.";
+        }
+
+        // O segundo intervalo do comparativo passa pelas MESMAS regras do primeiro. Sem
+        // isto, um intervalo B invertido ou de cinco anos entraria por uma porta que o A
+        // tem fechada — e o erro apareceria como consulta eterna, não como mensagem.
+        if (filtro.Modo == "comparar-anos"
+            && filtro.ComparacaoInicio is { } inicio2
+            && filtro.ComparacaoFim is { } fim2)
+        {
+            if (fim2 < inicio2)
+            {
+                return "No segundo intervalo, a data final não pode ser anterior à inicial.";
+            }
+
+            if (inicio2.AddMonths(12) < fim2)
+            {
+                return "O segundo intervalo não pode passar de 12 meses.";
+            }
         }
 
         return null;

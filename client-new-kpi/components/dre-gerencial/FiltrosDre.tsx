@@ -6,12 +6,14 @@ import { atalhosPeriodo, paraBr } from "@/lib/periodos";
 import {
   MAXIMO_DE_ANOS,
   MODOS,
-  ancorarNoPrimeiroAno,
   anosOferecidos,
   estimativaDeTempo,
   impedimento,
+  intervaloSugerido,
+  rotuloDoModo,
   usaAnos,
   usaDatas,
+  usaSegundoIntervalo,
 } from "@/lib/modosDePeriodo";
 import {
   ANALISES,
@@ -177,16 +179,16 @@ export function FiltrosDre({
 }
 
 /**
- * O campo Período — e, no lugar do resto do rótulo, as abas que escolhem o modo.
+ * O campo Período: o seletor de modo, as datas e — no comparativo — o segundo intervalo.
  *
- * **As abas ficam onde o efeito delas acontece.** Um sexto campo na grade quebraria a
- * calibragem de cinco colunas, medida contra telas de 1366px, e custaria uma linha de
- * altura — que nesta tela sai da tabela. A linha do rótulo já existia, com uma palavra só,
- * e o modo é exatamente uma qualificação do período: as abas dizem o que este campo
- * significa agora.
+ * **O modo mora num botão com menu, ao lado esquerdo das datas.** A primeira versão punha
+ * três abas na linha do rótulo; elas empurravam a grade para baixo, esticavam o botão
+ * Apurar e ocupavam espaço permanente para uma escolha que quase nunca muda. Um botão de
+ * ícone gasta o mesmo que o relógio dos atalhos, que já estava ali fazendo um trabalho
+ * parecido.
  *
- * Cada modo mostra apenas os controles que usa. O modo `anos` não exibe datas porque não
- * as usa — dois campos de data visíveis e inertes ensinariam que o filtro mente.
+ * O botão **diz em que modo está** quando não é o padrão: só o ícone deixaria a tela mudar
+ * de significado sem nada visível dizendo por quê.
  */
 function CampoPeriodo({
   filtro,
@@ -197,29 +199,85 @@ function CampoPeriodo({
 }) {
   const rotuloId = useId();
 
-  // Toda mudança passa pela ancoragem: no comparativo as datas seguem o primeiro ano
-  // escolhido, para o campo nunca exibir um recorte que não é nenhuma das colunas.
-  const mudar = (parcial: Partial<FiltroApuracao>) =>
-    onMudar(ancorarNoPrimeiroAno({ ...filtro, ...parcial }));
+  /**
+   * Entrar no comparativo **sugere** o mesmo recorte um ano antes, se ainda não houver
+   * segundo intervalo. Dois campos vazios obrigariam a digitar duas datas antes de ver
+   * qualquer coisa, e "o mesmo período do ano passado" é o que se pede num DRE nove vezes
+   * em dez. Continua sendo sugestão: os dois intervalos são livres.
+   */
+  const trocarModo = (modo: ModoPeriodo) => {
+    const base = { ...filtro, modo };
+    onMudar(
+      usaSegundoIntervalo(modo) && !base.comparacaoInicio
+        ? { ...base, ...intervaloSugerido(base) }
+        : base,
+    );
+  };
 
   return (
     <div role="group" aria-labelledby={rotuloId} className="flex min-w-0 flex-col gap-2">
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        <span id={rotuloId} className={ROTULO}>
-          Período
-        </span>
-        <AbasDeModo valor={filtro.modo} onMudar={(modo) => mudar({ modo })} />
-      </div>
+      <span id={rotuloId} className={ROTULO}>
+        Período
+      </span>
 
       <div className="flex flex-col gap-2">
-        {usaDatas(filtro.modo) && (
+        <div className="flex items-center gap-2">
+          <SeletorDeModo valor={filtro.modo} onMudar={trocarModo} />
+
+          {usaDatas(filtro.modo) && (
+            <>
+              <input
+                type="date"
+                aria-label={usaSegundoIntervalo(filtro.modo) ? "Data inicial do primeiro intervalo" : "Data inicial"}
+                value={filtro.dataInicio}
+                max={filtro.dataFim}
+                onChange={(e) => onMudar({ ...filtro, dataInicio: e.target.value })}
+                className={cn(CAMPO, "tabular")}
+              />
+              <span aria-hidden className="text-[var(--text-muted)]">
+                →
+              </span>
+              <input
+                type="date"
+                aria-label={usaSegundoIntervalo(filtro.modo) ? "Data final do primeiro intervalo" : "Data final"}
+                value={filtro.dataFim}
+                min={filtro.dataInicio}
+                onChange={(e) => onMudar({ ...filtro, dataFim: e.target.value })}
+                className={cn(CAMPO, "tabular")}
+              />
+              {/* Atalhos só no modo mensal: "Ano passado" e "Últimos 3 meses" mexem no
+                  intervalo inteiro, e no comparativo isso desalinharia os dois lados sem
+                  avisar. */}
+              {filtro.modo === "meses" && (
+                <AtalhosDePeriodo
+                  onEscolher={(dataInicio, dataFim) => onMudar({ ...filtro, dataInicio, dataFim })}
+                />
+              )}
+            </>
+          )}
+
+          {usaAnos(filtro.modo) && (
+            <ChipsDeAno escolhidos={filtro.anos} onMudar={(anos) => onMudar({ ...filtro, anos })} />
+          )}
+        </div>
+
+        {/* O segundo intervalo, em linha própria e alinhado com o primeiro. Os dois são
+            INDEPENDENTES: mexer num não mexe no outro, que era o defeito da versão
+            anterior — lá, trocar o ano de um lado arrastava o outro junto. */}
+        {usaSegundoIntervalo(filtro.modo) && (
           <div className="flex items-center gap-2">
+            <span
+              className="grid h-[var(--altura-controle)] w-[var(--altura-controle)] shrink-0 place-items-center text-[length:var(--fs-rotulo)] font-semibold tracking-[0.08em] text-[var(--text-muted)] uppercase"
+              aria-hidden
+            >
+              vs
+            </span>
             <input
               type="date"
-              aria-label="Data inicial"
-              value={filtro.dataInicio}
-              max={filtro.dataFim}
-              onChange={(e) => mudar({ dataInicio: e.target.value })}
+              aria-label="Data inicial do segundo intervalo"
+              value={filtro.comparacaoInicio ?? ""}
+              max={filtro.comparacaoFim}
+              onChange={(e) => onMudar({ ...filtro, comparacaoInicio: e.target.value })}
               className={cn(CAMPO, "tabular")}
             />
             <span aria-hidden className="text-[var(--text-muted)]">
@@ -227,24 +285,13 @@ function CampoPeriodo({
             </span>
             <input
               type="date"
-              aria-label="Data final"
-              value={filtro.dataFim}
-              min={filtro.dataInicio}
-              onChange={(e) => mudar({ dataFim: e.target.value })}
+              aria-label="Data final do segundo intervalo"
+              value={filtro.comparacaoFim ?? ""}
+              min={filtro.comparacaoInicio}
+              onChange={(e) => onMudar({ ...filtro, comparacaoFim: e.target.value })}
               className={cn(CAMPO, "tabular")}
             />
-            {/* Atalhos só no modo mensal: "Ano passado" e "Últimos 3 meses" mexem no ano
-                das datas, e no comparativo quem manda no ano são os chips. */}
-            {filtro.modo === "meses" && (
-              <AtalhosDePeriodo
-                onEscolher={(dataInicio, dataFim) => mudar({ dataInicio, dataFim })}
-              />
-            )}
           </div>
-        )}
-
-        {usaAnos(filtro.modo) && (
-          <ChipsDeAno escolhidos={filtro.anos} onMudar={(anos) => mudar({ anos })} />
         )}
       </div>
     </div>
@@ -252,49 +299,116 @@ function CampoPeriodo({
 }
 
 /**
- * As três abas de modo, ocupando a linha do rótulo.
+ * O modo do período, atrás de um botão com menu.
  *
- * `radiogroup`, não `tablist`: não há painéis irmãos entre os quais alternar, há uma
- * escolha entre três valores — e é a semântica de rádio que faz o leitor de tela anunciar
- * "1 de 3".
+ * Mesma mecânica do relógio dos atalhos — clique fora e `Esc` fecham —, porque os dois
+ * ficam lado a lado e comportamento diferente em botões vizinhos é o que faz uma tela
+ * parecer remendada.
+ *
+ * O ícone são três colunas de alturas diferentes: o que este controle decide é justamente
+ * **como as colunas da tabela são formadas**.
  */
-function AbasDeModo({
+function SeletorDeModo({
   valor,
   onMudar,
 }: {
   valor: ModoPeriodo;
   onMudar: (modo: ModoPeriodo) => void;
 }) {
+  const [aberto, setAberto] = useState(false);
+  const caixa = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!aberto) return;
+    const fechar = (e: MouseEvent) => {
+      if (caixa.current && !caixa.current.contains(e.target as Node)) setAberto(false);
+    };
+    const esc = (e: KeyboardEvent) => e.key === "Escape" && setAberto(false);
+    document.addEventListener("mousedown", fechar);
+    document.addEventListener("keydown", esc);
+    return () => {
+      document.removeEventListener("mousedown", fechar);
+      document.removeEventListener("keydown", esc);
+    };
+  }, [aberto]);
+
+  // No modo padrão o botão é só o ícone; fora dele, leva o nome do modo. Sem isso a tabela
+  // mudaria de significado com a tela inteira parecendo a mesma.
+  const padrao = valor === "meses";
+
   return (
-    <div role="radiogroup" aria-label="Modo do período" className="flex items-center gap-1">
-      {MODOS.map((m) => {
-        const ativo = m.valor === valor;
-        return (
-          <button
-            key={m.valor}
-            type="button"
-            role="radio"
-            aria-checked={ativo}
-            // O nome acessível é o rótulo, não a explicação. Sem o `aria-label`, a árvore
-            // de acessibilidade anunciava "Uma coluna por mês do intervalo" no lugar de
-            // "Meses" — o `title` acaba servindo de nome quando existe, e um botão cujo
-            // nome é uma frase inteira não se diferencia dos irmãos numa leitura por voz.
-            aria-label={m.rotulo}
-            title={m.explicacao}
-            onClick={() => onMudar(m.valor)}
-            className={cn(
-              "rounded-[var(--radius-sm)] px-2 py-0.5 text-[length:var(--fs-rotulo)] font-medium tracking-[0.08em] uppercase",
-              "transition-colors duration-[var(--dur-fast)]",
-              ativo
-                ? "bg-[var(--surface-hover)] text-[var(--text-primary)]"
-                : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]",
-            )}
-          >
-            {m.rotulo}
-          </button>
-        );
-      })}
+    <div ref={caixa} className="relative shrink-0">
+      <button
+        type="button"
+        onClick={() => setAberto((a) => !a)}
+        aria-expanded={aberto}
+        aria-haspopup="menu"
+        aria-label={`Modo do período: ${rotuloDoModo(valor)}`}
+        title="Como as colunas são formadas"
+        className={cn(
+          "flex h-[var(--altura-controle)] items-center gap-2 rounded-[var(--radius-md)] border px-2.5",
+          "text-[length:var(--fs-apoio)] font-medium whitespace-nowrap",
+          "transition-colors duration-[var(--dur-fast)]",
+          padrao
+            ? "border-[var(--border-strong)] bg-[var(--surface-2)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+            : "border-[var(--primary)] bg-[var(--primary-ring)] text-[var(--text-primary)]",
+          aberto && "border-[var(--primary)]",
+        )}
+      >
+        <IconeColunas />
+        {!padrao && rotuloDoModo(valor)}
+      </button>
+
+      {aberto && (
+        <div
+          role="menu"
+          className="absolute top-full left-0 z-20 mt-1 w-[min(22rem,90vw)] rounded-[var(--radius-lg)] border border-[var(--border-strong)] bg-[var(--surface-2)] p-2 shadow-[var(--shadow-float)]"
+        >
+          {MODOS.map((m) => (
+            <button
+              key={m.valor}
+              type="button"
+              role="menuitemradio"
+              aria-checked={m.valor === valor}
+              onClick={() => {
+                onMudar(m.valor);
+                setAberto(false);
+              }}
+              className={cn(
+                "flex w-full flex-col gap-0.5 rounded-[var(--radius-sm)] px-3 py-[var(--celula-y)] text-left",
+                m.valor === valor ? "bg-[var(--surface-3)]" : "hover:bg-[var(--surface-3)]",
+              )}
+            >
+              <span className="text-[length:var(--fs-base)] text-[var(--text-primary)]">
+                {m.rotulo}
+              </span>
+              <span className="text-[length:var(--fs-apoio)] text-[var(--text-muted)]">
+                {m.explicacao}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
+  );
+}
+
+/** Três colunas de alturas diferentes — o que este botão decide é como elas se formam. */
+function IconeColunas() {
+  return (
+    <svg
+      aria-hidden
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      className="size-[1.15em] shrink-0"
+    >
+      <path d="M5 20V10" />
+      <path d="M12 20V4" />
+      <path d="M19 20v-7" />
+    </svg>
   );
 }
 

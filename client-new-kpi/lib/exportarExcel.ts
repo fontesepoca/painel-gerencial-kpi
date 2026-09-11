@@ -32,8 +32,8 @@ import type { Apuracao, LinhaDre } from "@/types/dre-gerencial";
  * que a tela deixou de mostrar por não significar nada.
  */
 function blocoFinal(dados: Apuracao) {
-  return mostraVariacao(dados.modo, dados.periodos.length)
-    ? { variacao: true as const, largura: 2, rotulo: rotuloDaVariacao(dados.periodos) }
+  return mostraVariacao(dados.modo, dados.periodos)
+    ? { variacao: true as const, largura: 2, rotulo: rotuloDaVariacao(dados.modo, dados.periodos) }
     : { variacao: false as const, largura: 3, rotulo: "Total" };
 }
 
@@ -71,7 +71,7 @@ export function matrizDaApuracao(dados: Apuracao, linhas: readonly LinhaDre[]): 
     }
 
     if (multiMes && fim.variacao) {
-      const v = variacao(linha.valores);
+      const v = variacao(linha.valores, dados.periodos, dados.modo);
       celulas.push(num(v?.absoluta ?? null, MOEDA), num(v?.percentual ?? null, PERCENTUAL_3));
     } else if (multiMes) {
       celulas.push(
@@ -96,6 +96,20 @@ export function nomeDoArquivo(dados: Apuracao): string {
   if (dados.modo === "anos") {
     return `DRE_${dados.analise}_${dados.periodos.map((p) => p.rotulo).join("_")}`;
   }
+
+  // No comparativo o nome cita os DOIS intervalos: só o primeiro faria dois arquivos de
+  // comparações diferentes saírem com o mesmo nome, e quem arquiva não teria como
+  // distinguir um do outro.
+  const segundo = dados.periodos.filter((p) => p.bloco === 1);
+  const inicio2 = segundo[0]?.dataInicio;
+  const fim2 = segundo.at(-1)?.dataFim;
+  if (dados.modo === "comparar-anos" && inicio2 && fim2) {
+    return (
+      `DRE_${dados.analise}_${dados.dataInicio}_a_${dados.dataFim}` +
+      `_vs_${inicio2}_a_${fim2}`
+    );
+  }
+
   return `DRE_${dados.analise}_${dados.dataInicio}_a_${dados.dataFim}`;
 }
 

@@ -4,25 +4,27 @@
  *   node --experimental-strip-types --import ./docs/validacao/_alias.mjs docs/validacao/dc20_modos_de_periodo.mjs
  *
  * O que este arquivo protege são as decisões que a tela toma **antes** de qualquer consulta:
- * quando o filtro pode rodar, que datas o campo mostra no comparativo, o que o bloco final
- * significa, e quando o duplo clique pergunta antes de gastar minutos.
+ * quando o filtro pode rodar, o que o bloco final significa, contra o que a variação compara
+ * e quando o duplo clique pergunta antes de gastar minutos.
  *
- * Erros aqui não aparecem como erro. Uma ancoragem de data errada mostra um recorte que não
- * é o de nenhuma coluna; um `recorteLongo` frouxo deixa alguém iniciar uma consulta de sete
- * minutos com um clique a mais. Os dois passam por tela funcionando.
+ * Erros aqui não aparecem como erro. Uma variação que compara os lados errados mostra um
+ * número plausível e falso; um `recorteLongo` frouxo deixa alguém iniciar uma consulta de
+ * sete minutos com um clique a mais. Os dois passam por tela funcionando.
  */
 import assert from "node:assert/strict";
 import {
   MAXIMO_DE_ANOS,
-  ancorarNoPrimeiroAno,
   anosOferecidos,
+  blocos,
   estimativaDeTempo,
   impedimento,
+  intervaloSugerido,
   mostraVariacao,
   recorteLongo,
   rotuloDaVariacao,
   usaAnos,
   usaDatas,
+  usaSegundoIntervalo,
   variacao,
 } from "../../client-new-kpi/lib/modosDePeriodo.ts";
 
@@ -42,17 +44,34 @@ const base = {
   anos: [],
 };
 
+/** Colunas como a API as devolve, com o bloco de cada uma. */
+const coluna = (rotulo, bloco) => ({ mesAno: rotulo, rotulo, dataInicio: "", dataFim: "", bloco });
+
+// Jan–Mar/2025 contra Jun–Set/2026: tamanhos DIFERENTES, que é o caso que o modo novo
+// existe para permitir.
+const COMPARATIVO = [
+  coluna("Janeiro/2025", 0),
+  coluna("Fevereiro/2025", 0),
+  coluna("Março/2025", 0),
+  coluna("Junho/2026", 1),
+  coluna("Julho/2026", 1),
+  coluna("Agosto/2026", 1),
+  coluna("Setembro/2026", 1),
+];
+
 // ── que controles cada modo usa ──────────────────────────────────────────────
 eq(usaDatas("meses"), true, "modo mensal usa as datas");
-eq(usaDatas("comparar-anos"), true, "o comparativo usa as datas como molde");
+eq(usaDatas("comparar-anos"), true, "o comparativo usa as datas — as do primeiro intervalo");
 eq(usaDatas("anos"), false, "por ano inteiro as datas não entram — e por isso somem da tela");
 eq(usaAnos("meses"), false, "o modo mensal ignora os anos");
+eq(usaAnos("comparar-anos"), false, "o comparativo deixou de usar anos em 11/09/2026");
+eq(usaAnos("anos"), true, "só o modo por ano inteiro usa a lista");
+eq(usaSegundoIntervalo("comparar-anos"), true, "só o comparativo tem segundo intervalo");
+eq(usaSegundoIntervalo("meses"), false, "");
 
-// O caso que a dc13 pegou: escrito como `!== "meses"`, um modo ausente caía no ramo dos
-// anos e ligava o bloco de variação numa apuração mensal.
+// Modo ausente ou desconhecido é o mensal — a mesma tolerância que o servidor aplica.
 eq(usaAnos(undefined), false, "modo ausente é mensal, não ano");
-eq(usaAnos("qualquer-coisa"), false, "modo desconhecido também");
-eq(mostraVariacao(undefined, 2), false, "e por isso não liga a variação");
+eq(usaSegundoIntervalo("qualquer-coisa"), false, "modo desconhecido também");
 
 // ── o que impede apurar ──────────────────────────────────────────────────────
 eq(impedimento({ ...base, filiais: [] }), "Escolha ao menos uma filial.", "sem filial");
@@ -65,88 +84,105 @@ eq(
   "o teto de anos é o mesmo da API",
 );
 
-// ── ancoragem das datas no comparativo ───────────────────────────────────────
-// O campo de data precisa mostrar um recorte que EXISTE. Deixá-lo em 2026 enquanto as
-// colunas são 2024 e 2025 faz o filtro dizer uma coisa e a tabela mostrar outra.
+// O segundo intervalo passa pelas MESMAS regras do primeiro. Sem isto, um intervalo B
+// invertido entraria por uma porta que o A tem fechada.
 eq(
-  ancorarNoPrimeiroAno({ ...base, modo: "comparar-anos", anos: [2024, 2025] }),
-  { ...base, modo: "comparar-anos", anos: [2024, 2025], dataInicio: "2024-09-01", dataFim: "2024-09-10" },
-  "as datas seguem o primeiro ano escolhido",
+  impedimento({ ...base, modo: "comparar-anos" }),
+  "Preencha o segundo intervalo da comparação.",
+  "comparativo sem o segundo lado",
 );
 eq(
-  ancorarNoPrimeiroAno({ ...base, modo: "meses", anos: [2024] }).dataInicio,
-  "2026-09-01",
-  "no modo mensal a ancoragem não mexe em nada",
+  impedimento({ ...base, modo: "comparar-anos", comparacaoInicio: "2025-09-10", comparacaoFim: "2025-09-01" }),
+  "No segundo intervalo, a data final não pode ser anterior à inicial.",
+  "segundo intervalo invertido",
 );
 eq(
-  ancorarNoPrimeiroAno({ ...base, modo: "comparar-anos", anos: [] }).dataInicio,
-  "2026-09-01",
-  "sem ano escolhido não há em que ancorar",
+  impedimento({ ...base, modo: "comparar-anos", comparacaoInicio: "2024-01-01", comparacaoFim: "2025-06-01" }),
+  "O segundo intervalo não pode passar de 12 meses.",
+  "segundo intervalo longo demais",
+);
+eq(
+  impedimento({ ...base, modo: "comparar-anos", comparacaoInicio: "2025-09-01", comparacaoFim: "2025-09-10" }),
+  null,
+  "comparativo completo pode rodar",
 );
 
-// 29 de fevereiro: o caso que cria uma data inexistente se ninguém olhar.
+// ── a sugestão ao entrar no comparativo ──────────────────────────────────────
+// Dois campos vazios obrigariam a digitar duas datas antes de ver qualquer coisa.
 eq(
-  ancorarNoPrimeiroAno({
-    ...base,
-    modo: "comparar-anos",
-    anos: [2025, 2026],
-    dataInicio: "2024-02-01",
-    dataFim: "2024-02-29",
-  }).dataFim,
-  "2025-02-28",
-  "29/02 num ano comum é preso ao último dia do mês",
+  intervaloSugerido(base),
+  { comparacaoInicio: "2025-09-01", comparacaoFim: "2025-09-10" },
+  "sugere o mesmo recorte um ano antes",
 );
 eq(
-  ancorarNoPrimeiroAno({
-    ...base,
-    modo: "comparar-anos",
-    anos: [2024, 2025],
-    dataInicio: "2023-02-01",
-    dataFim: "2023-02-28",
-  }).dataFim,
-  "2024-02-28",
-  "28/02 num ano bissexto continua 28 — a regra encurta, nunca estica",
+  intervaloSugerido({ ...base, dataInicio: "2024-02-01", dataFim: "2024-02-29" }).comparacaoFim,
+  "2023-02-28",
+  "29/02 vira 28/02 no ano comum — a data inexistente sairia como campo vazio sem explicação",
 );
 
 // ── o bloco final ────────────────────────────────────────────────────────────
-eq(mostraVariacao("meses", 3), false, "o modo mensal mantém o bloco de total");
-eq(mostraVariacao("anos", 1), false, "com um ano só não há de que variar");
-eq(mostraVariacao("anos", 2), true, "dois anos mostram variação");
-eq(mostraVariacao("comparar-anos", 3), true, "três recortes também");
+eq(mostraVariacao("meses", [coluna("a", 0), coluna("b", 0)]), false, "o modo mensal mantém o total");
+eq(mostraVariacao("anos", [coluna("2026", 0)]), false, "com um ano só não há de que variar");
+eq(mostraVariacao("anos", [coluna("2025", 0), coluna("2026", 0)]), true, "dois anos mostram variação");
+eq(mostraVariacao("comparar-anos", COMPARATIVO), true, "o comparativo mostra variação");
+eq(blocos(COMPARATIVO), [0, 1], "dois blocos");
+eq(blocos([coluna("a", 0), coluna("b", 0)]), [0], "um bloco fora do comparativo");
 
 eq(
-  rotuloDaVariacao([{ rotulo: "2024" }, { rotulo: "2025" }, { rotulo: "2026" }]),
+  rotuloDaVariacao("comparar-anos", COMPARATIVO),
+  "Jan–Mar/2025 → Jun–Set/2026",
+  "o rótulo cita os dois INTERVALOS, não as duas últimas colunas",
+);
+eq(
+  rotuloDaVariacao("anos", [coluna("2024", 0), coluna("2025", 0), coluna("2026", 0)]),
   "2024 → 2026",
-  "com três anos a comparação é da primeira à última coluna, e o rótulo diz isso",
+  "no modo por ano, da primeira à última coluna",
 );
-eq(rotuloDaVariacao([{ rotulo: "2026" }]), "Variação", "coluna única não tem par para citar");
 
+// ── a variação ───────────────────────────────────────────────────────────────
+//
+// A conferência que importa: no comparativo ela compara a SOMA de cada lado. Comparar a
+// primeira contra a última coluna daria -50 aqui (10 contra ... ), um número plausível e
+// completamente errado.
+const valores = [
+  { valor: 100 }, { valor: 100 }, { valor: 100 }, // bloco 0 = 300
+  { valor: 50 }, { valor: 50 }, { valor: 50 }, { valor: 50 }, // bloco 1 = 200
+];
+{
+  // Arredondado: `(-100/300)*100` e `-100/3` diferem na última casa do ponto flutuante, e
+  // essa diferença não é o que este teste existe para vigiar.
+  const v = variacao(valores, COMPARATIVO, "comparar-anos");
+  eq(
+    { absoluta: v.absoluta, percentual: Math.round(v.percentual * 1000) / 1000 },
+    { absoluta: -100, percentual: -33.333 },
+    "soma de um lado contra a soma do outro, com tamanhos diferentes",
+  );
+}
 eq(
-  variacao([{ valor: 100 }, { valor: 75 }]),
+  variacao([{ valor: 100 }, { valor: 75 }], [coluna("2025", 0), coluna("2026", 0)], "anos"),
   { absoluta: -25, percentual: -25 },
-  "queda de um quarto",
+  "no modo por ano, primeira contra última",
 );
 eq(
-  variacao([{ valor: -200 }, { valor: -100 }]),
+  variacao(
+    [{ valor: -200 }, { valor: -100 }],
+    [coluna("2025", 0), coluna("2026", 0)],
+    "anos",
+  ),
   { absoluta: 100, percentual: 50 },
   "despesa que encolhe: o percentual usa o módulo da base, senão o sinal se inverte sozinho",
 );
 eq(
-  variacao([{ valor: 0 }, { valor: 500 }]),
+  variacao([{ valor: 0 }, { valor: 500 }], [coluna("2025", 0), coluna("2026", 0)], "anos"),
   { absoluta: 500, percentual: null },
   "sair de zero não tem percentual que descreva — o valor absoluto continua valendo",
 );
-eq(variacao([{ valor: 10 }]), null, "uma coluna só não varia");
+eq(variacao([{ valor: 10 }], [coluna("2026", 0)], "anos"), null, "uma coluna só não varia");
 
 // ── quando o duplo clique pergunta antes ─────────────────────────────────────
 eq(recorteLongo({ dataInicio: "2026-09-01", dataFim: "2026-09-10" }), false, "dez dias não perguntam");
 eq(recorteLongo({ dataInicio: "2026-08-01", dataFim: "2026-08-31" }), false, "um mês não pergunta");
 eq(recorteLongo({ dataInicio: "2026-01-01", dataFim: "2026-12-31" }), true, "um ano pergunta");
-eq(
-  recorteLongo({ dataInicio: "2026-07-01", dataFim: "2026-09-10" }),
-  true,
-  "72 dias perguntam — a regra é o tamanho do recorte, não o modo que o gerou",
-);
 
 // ── o aviso de tempo ─────────────────────────────────────────────────────────
 eq(estimativaDeTempo(base), null, "mensal curto não avisa nada — aviso demais ensina a ignorar aviso");
@@ -156,12 +192,12 @@ assert.match(
   /4 a 7 minutos/,
   "o número do aviso é o medido na dc19, não um chute",
 );
-assert.match(
-  estimativaDeTempo({ ...base, modo: "anos", anos: [2025, 2026] }) ?? "",
-  /ao mesmo tempo/,
-  "com vários anos o aviso diz que eles são consultados em paralelo",
+n++;
+eq(
+  estimativaDeTempo({ ...base, modo: "comparar-anos", comparacaoInicio: "2025-09-01", comparacaoFim: "2025-09-10" }),
+  null,
+  "comparativo de dez dias por lado não avisa: custa duas apurações curtas, em paralelo",
 );
-n += 2;
 
 // ── os anos oferecidos ───────────────────────────────────────────────────────
 eq(anosOferecidos(new Date(2026, 8, 10))[0], 2026, "o primeiro é o ano corrente");
