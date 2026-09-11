@@ -31,6 +31,30 @@ public sealed class DreGerencialRepository : IDreGerencialRepository
         return filiais.ToList();
     }
 
+    /// <summary>
+    /// Quanto tempo dar a uma consulta de apuração, conforme o tamanho do recorte.
+    ///
+    /// <para><b>Um número fixo não servia.</b> As consultas desta rotina não crescem em
+    /// linha reta com o período: a de faturamento foi medida em 16,9 s para um mês e 115 s
+    /// para dois. Os 600 s que havia aqui foram calibrados para "quatro meses com folga" —
+    /// e o modo <c>anos</c>, criado depois, pede DOZE de uma vez.</para>
+    ///
+    /// <para>Um ano inteiro numa filial levou 407 s medidos (dc19), e dois anos rodam em
+    /// paralelo disputando a mesma base. Foi assim que apareceu o primeiro
+    /// <c>TaskCanceledException</c> da rotina, em 11/09/2026, apurando 2025 e 2026 juntos.
+    /// </para>
+    ///
+    /// <para>120 s por mês, com piso de 600 s — para não encurtar nenhum caso que já
+    /// funcionava — e teto de 2400 s. <b>O teto existe porque timeout também é proteção:</b>
+    /// uma consulta que passa de quarenta minutos segurando uma conexão do pool não está
+    /// demorando, está travada.</para>
+    /// </summary>
+    private static int FolegoDaApuracao(DateOnly inicio, DateOnly fim)
+    {
+        var meses = ((fim.Year - inicio.Year) * 12) + fim.Month - inicio.Month + 1;
+        return Math.Clamp(meses * 120, 600, 2400);
+    }
+
     public async Task<IReadOnlyList<LinhaEstruturaDre>> ObterEstruturaAsync(
         IReadOnlyList<string> filiais,
         DateOnly dataInicio,
@@ -107,12 +131,13 @@ public sealed class DreGerencialRepository : IDreGerencialRepository
         using var conexao = await _conexoes.CriarConexaoAsync(cancellationToken);
 
         // No trace levou ~2,2 s. Agora varre PCLANC no bloco de orfas, entao merece
-        // o mesmo folego das demais consultas de apuracao.
+        // o mesmo folego das demais consultas de apuracao — que cresce com o periodo,
+        // ver `FolegoDaApuracao`.
         var linhas = await conexao.QueryAsync<LinhaEstruturaDre>(
             new CommandDefinition(
                 sql,
                 parametros,
-                commandTimeout: 600,
+                commandTimeout: FolegoDaApuracao(dataInicio, dataFim),
                 cancellationToken: cancellationToken));
 
         return linhas.ToList();
@@ -174,13 +199,13 @@ public sealed class DreGerencialRepository : IDreGerencialRepository
 
         using var conexao = await _conexoes.CriarConexaoAsync(cancellationToken);
 
-        // No trace a consulta levou ~3,3 s com 3 filiais e 1 mês. Com 18 filiais e 4 meses
-        // o custo cresce; 600 s dá folga sem pendurar indefinidamente.
+        // No trace a consulta levou ~3,3 s com 3 filiais e 1 mês, e o custo cresce com o
+        // período — daí o fôlego sair de `FolegoDaApuracao` e não de um número fixo.
         var despesas = await conexao.QueryAsync<DespesaDre>(
             new CommandDefinition(
                 sql,
                 parametros,
-                commandTimeout: 600,
+                commandTimeout: FolegoDaApuracao(dataInicio, dataFim),
                 cancellationToken: cancellationToken));
 
         return despesas.ToList();
@@ -233,12 +258,13 @@ public sealed class DreGerencialRepository : IDreGerencialRepository
         using var conexao = await _conexoes.CriarConexaoAsync(cancellationToken);
 
         // A consulta mais cara da rotina: 16,9 s por mês no trace de 1 mês e 115 s no de
-        // 2 meses. 600 s cobre 4 meses com folga.
+        // 2 meses — ou seja, ela NÃO cresce em linha reta com o período. O fôlego acompanha
+        // o recorte; ver `FolegoDaApuracao`.
         var faturamento = await conexao.QueryAsync<FaturamentoDre>(
             new CommandDefinition(
                 sql,
                 parametros,
-                commandTimeout: 600,
+                commandTimeout: FolegoDaApuracao(dataInicio, dataFim),
                 cancellationToken: cancellationToken));
 
         // Mês sem movimento simplesmente não aparece. Quem monta o DRE gera a lista de

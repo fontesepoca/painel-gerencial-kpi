@@ -1473,6 +1473,32 @@ tempo na tela. Fica registrado o risco: uma apuração por ano pode receber erro
 a consulta ainda viva no Oracle. `docs/validacao/_postar.mjs` contorna isso **para os
 scripts de medição**, e só para eles.
 
+#### O primeiro cancelamento de verdade — 11/09/2026
+
+Apurando 2025 e 2026 no modo por ano, a API respondeu com
+`TaskCanceledException` vinda de `ObterFaturamentoPorMesAsync`. Duas causas explicam esse
+mesmo erro, e **não dá para saber qual foi só pelo rastro que ele deixou**:
+
+| Causa | Quem cancela | O que corrigir |
+|---|---|---|
+| O cliente desistiu — recarregou a tela, fechou a aba | `HttpContext.RequestAborted` | nada; é rotina numa espera de minutos |
+| `commandTimeout` do ODP.NET | o próprio driver | o fôlego da consulta |
+
+As duas foram atacadas.
+
+**O fôlego virou função do período.** `FolegoDaApuracao` dá 120 s por mês, com piso de 600 s
+e teto de 2400 s. Os 600 s fixos que havia nas três consultas de apuração foram calibrados
+para *"quatro meses com folga"* — e o modo `anos`, criado depois, pede **doze de uma vez**.
+A consulta de faturamento não cresce em linha reta com o período: 16,9 s para um mês, 115 s
+para dois. O teto existe porque timeout também é proteção: uma consulta de mais de quarenta
+minutos segurando uma conexão do pool não está demorando, está travada.
+
+**O middleware passou a distinguir as duas.** Cancelamento do cliente sai como
+`Information` — não é erro nosso, e enchia o log de stack trace para um evento normal;
+cancelamento por tempo limite sai como `Warning` e devolve **504** com uma mensagem que diz
+o que fazer: reduzir o período ou as filiais. Antes, os dois apareciam como *"Erro não
+tratado"*, indistinguíveis.
+
 ### 21.5 O bloco final: total ou variação
 
 Nos modos de ano, o bloco final da tabela deixa de ser **Total · Média** e passa a ser
