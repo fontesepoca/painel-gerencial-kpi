@@ -99,6 +99,31 @@ colunas por mês, mais o bloco de total.
 | `INFORMATIVO` | marcador nas linhas que não entram nos totais — a 9815 escreve `NÃO SOMA` |
 | Números | fonte monoespaçada tabular, alinhados à direita |
 
+**Uma cor por coluna, no título.** Com mais de um mês, cada cabeçalho de período ganha uma
+faixa de fundo levemente colorida — Junho em rosa, Julho em verde, e assim por diante. Com
+três meses são nove colunas de números seguidas, e sem uma âncora horizontal o olho perde de
+vista a que mês pertence o número que está lendo.
+
+São **leves de propósito**, e ficam só no cabeçalho. Nesta tela a cor já significa três
+coisas — sinal do valor, juízo da variação (`AH %`) e o marcador do cadastro —, e um fundo
+com presença competiria com os números ou sugeriria um quarto significado. Estas não dizem
+nada: só separam.
+
+Oito matizes a 45° um do outro, ciclando. O ciclo é pela **posição na tabela**, não pelo mês
+do calendário: o que precisa ser distinto são colunas vizinhas, e amarrar a cor ao mês faria
+dois meses próximos no ciclo saírem quase iguais — além de não significar nada no modo por
+ano, onde coluna não é mês.
+
+> **Uma armadilha do cabeçalho fixo.** A faixa é pintada com `background-image`, e não com
+> `background`. O `thead` é `sticky` e precisa de fundo **opaco** (`.tabela-rolagem thead
+> th`), senão os números do corpo aparecem através dele ao rolar. Uma faixa declarada como
+> `background` perderia a disputa por especificidade — e vencer seria pior: a cor é
+> translúcida, então substituiria o fundo opaco e devolveria exatamente esse defeito. O
+> gradiente sólido pinta **por cima** do fundo, que continua vindo da outra regra.
+
+No papel a faixa sai: a impressão já separa os meses por borda, e oito retângulos de cor por
+folha gastariam tinta para repetir o que a borda diz.
+
 **Base do `AV %` — são DUAS bases**, verificado em 28/08/2026:
 
 | Linhas | Base |

@@ -1258,3 +1258,66 @@ tr:focus-within .tem-detalhe .valor-clicavel {
     display: none !important;
   }
 }
+
+/* ── FAIXA DE COR POR COLUNA ─────────────────────────────────────────────────
+
+   Com vários meses lado a lado, a tabela vira um campo de números sem referência
+   horizontal: o olho atravessa três colunas de `Valor · AV % · AH %` por mês e
+   perde de vista a qual mês pertence o número que está lendo. A faixa colorida no
+   título devolve essa âncora.
+
+   **Leves de propósito.** O dado é preto, vermelho e verde; um fundo com presença
+   competiria com ele e, pior, sugeriria significado — nesta tela a cor já quer
+   dizer sinal do valor, juízo da variação e marcador do cadastro. Estas não dizem
+   nada, só separam. Daí o alpha baixo, e por isso ficam no CABEÇALHO e não nas
+   células.
+
+   Oito matizes, a 45° um do outro, para meses vizinhos nunca caírem em tons
+   parecidos. Acima de oito colunas o ciclo recomeça — a repetição fica a oito
+   colunas de distância, longe do alcance de uma comparação visual.
+
+   ── Por que `background-image`, e não `background` ──
+
+   O cabeçalho é `sticky`, e `.tabela-rolagem thead th` lhe dá `background:
+   var(--surface-1)` — fundo OPACO, sem o qual os números do corpo aparecem
+   através dele enquanto a tabela rola.
+
+   Uma faixa declarada como `background` disputaria essa propriedade e perderia:
+   `.faixa-mes-1` é 0,1,0 contra 0,1,2. E vencer na marra seria pior — a cor da
+   faixa é translúcida, então ela SUBSTITUIRIA o fundo opaco e devolveria o defeito
+   dos números atravessando o cabeçalho.
+
+   O gradiente sólido resolve os dois: pinta a cor POR CIMA do fundo opaco, que
+   continua vindo da outra regra. O seletor repete `.tabela-rolagem thead th` só
+   para ganhar a especificidade que o shorthand `background` daquela regra tem —
+   sem isso ele zeraria o `background-image` aqui declarado. */
+.tabela-rolagem thead th.faixa-mes-1 { background-image: linear-gradient(rgb(251 113 133 / 0.13), rgb(251 113 133 / 0.13)); }
+.tabela-rolagem thead th.faixa-mes-2 { background-image: linear-gradient(rgb(52 211 153 / 0.13), rgb(52 211 153 / 0.13)); }
+.tabela-rolagem thead th.faixa-mes-3 { background-image: linear-gradient(rgb(96 165 250 / 0.13), rgb(96 165 250 / 0.13)); }
+.tabela-rolagem thead th.faixa-mes-4 { background-image: linear-gradient(rgb(251 191 36 / 0.14), rgb(251 191 36 / 0.14)); }
+.tabela-rolagem thead th.faixa-mes-5 { background-image: linear-gradient(rgb(192 132 252 / 0.13), rgb(192 132 252 / 0.13)); }
+.tabela-rolagem thead th.faixa-mes-6 { background-image: linear-gradient(rgb(34 211 238 / 0.13), rgb(34 211 238 / 0.13)); }
+.tabela-rolagem thead th.faixa-mes-7 { background-image: linear-gradient(rgb(251 146 60 / 0.13), rgb(251 146 60 / 0.13)); }
+.tabela-rolagem thead th.faixa-mes-8 { background-image: linear-gradient(rgb(163 230 53 / 0.14), rgb(163 230 53 / 0.14)); }
+
+/* O bloco acima é o ESCURO, que é o tema padrão desta aplicação. As duas famílias
+   não são a mesma cor com alpha diferente: no escuro os tons partem das variantes
+   claras (rgb 251 113 133), no claro das escuras (rgb 244 63 94) — trocar isso faz
+   a faixa sumir num tema ou virar bloco de cor no outro. */
+html[data-tema="claro"] .tabela-rolagem thead th.faixa-mes-1 { background-image: linear-gradient(rgb(244 63 94 / 0.09), rgb(244 63 94 / 0.09)); }
+html[data-tema="claro"] .tabela-rolagem thead th.faixa-mes-2 { background-image: linear-gradient(rgb(16 185 129 / 0.10), rgb(16 185 129 / 0.10)); }
+html[data-tema="claro"] .tabela-rolagem thead th.faixa-mes-3 { background-image: linear-gradient(rgb(59 130 246 / 0.09), rgb(59 130 246 / 0.09)); }
+html[data-tema="claro"] .tabela-rolagem thead th.faixa-mes-4 { background-image: linear-gradient(rgb(245 158 11 / 0.12), rgb(245 158 11 / 0.12)); }
+html[data-tema="claro"] .tabela-rolagem thead th.faixa-mes-5 { background-image: linear-gradient(rgb(168 85 247 / 0.09), rgb(168 85 247 / 0.09)); }
+html[data-tema="claro"] .tabela-rolagem thead th.faixa-mes-6 { background-image: linear-gradient(rgb(6 182 212 / 0.10), rgb(6 182 212 / 0.10)); }
+html[data-tema="claro"] .tabela-rolagem thead th.faixa-mes-7 { background-image: linear-gradient(rgb(249 115 22 / 0.10), rgb(249 115 22 / 0.10)); }
+html[data-tema="claro"] .tabela-rolagem thead th.faixa-mes-8 { background-image: linear-gradient(rgb(132 204 22 / 0.12), rgb(132 204 22 / 0.12)); }
+
+/* No papel a faixa sai: a impressão já separa os meses por borda, e oito retângulos
+   de cor por folha gastariam tinta para repetir o que a borda diz. `background-image`
+   e não `background`, para não mexer no fundo que o cabeçalho fixo precisa ter. */
+@media print {
+  .tabela-rolagem thead th[class*="faixa-mes-"] {
+    background-image: none !important;
+  }
+}
