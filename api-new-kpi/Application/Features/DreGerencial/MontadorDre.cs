@@ -108,6 +108,12 @@ public static class MontadorDre
 
             var somaPeriodo = valores.Sum(v => v.Valor);
 
+            // Quantos lancamentos de PCLANC a linha tem no periodo. Decide a visibilidade
+            // com "Mostrar contas zeradas" desmarcada — junto com o valor, ver abaixo.
+            var qdeLancamentos = qtdDespesa.GetValueOrDefault(
+                (l.Estrutura.CodGruConta, l.Estrutura.AntesRo,
+                 l.Estrutura.AntesLl, l.Estrutura.AntesLf));
+
             return new LinhaDreDto(
                 Id: l.Estrutura.Id,
                 ChaveOrdem: chavesOrdem[indice],
@@ -123,9 +129,25 @@ public static class MontadorDre
                 Calculada: l.Calculada,
                 NaoSoma: EhNaoSoma(l),
                 // Calculada aparece sempre: cabecalho e totalizadores nao dependem de movimento.
-                SemMovimento: !l.Calculada && qtdDespesa.GetValueOrDefault(
-                    (l.Estrutura.CodGruConta, l.Estrutura.AntesRo,
-                     l.Estrutura.AntesLl, l.Estrutura.AntesLf)) == 0,
+                //
+                // SEM LANCAMENTO **E** SEM VALOR. As duas condicoes, e a segunda entrou em
+                // 11/09/2026 por causa de RECEITA VENDA ATIVO: a linha injetada de PCPREST
+                // traz "0 as QdeReg" — fielmente, porque a 9815 faz igual —, entao contar
+                // so lancamento escondia 225.000,00 na filial 28.
+                //
+                // Escondia a LINHA, nao o valor: ele continuava dentro do LUCRO LIQUIDO, e a
+                // tela mostrava um total que nao fechava com as linhas visiveis. E o pior
+                // tipo de defeito desta rotina, porque nada na tela denuncia.
+                //
+                // E o mesmo criterio que a 9815 usa para montar a estrutura —
+                // "where VPAGO <> 0 or qdereg <> 0" —, e ele preserva o caso oposto, ja
+                // conferido: DESCONTO FUNCIONARIOS fecha em 0,00 com 16 lancamentos e
+                // continua aparecendo.
+                SemMovimento: !l.Calculada
+                    && qdeLancamentos == 0
+                    // Por COLUNA, e nao pela soma do periodo: uma conta com +100 num mes e
+                    // -100 no outro soma zero e teve movimento nos dois.
+                    && valores.All(v => v.Valor == 0m),
                 Zerada: valores.All(v => v.Valor == 0m),
                 Cor: CorDelphi.ParaCss(l.Estrutura.Cor),
                 Detalhe: ResolverDetalhe(l),
@@ -164,6 +186,14 @@ public static class MontadorDre
     ///
     /// <para>Entre as calculadas só três abrem, e essas sim vão por rótulo: não há flag que
     /// distinga RECEITA BRUTA de CMV LIQ.</para>
+    ///
+    /// <para><b>Linha sem lançamento em PCLANC abre detalhamento do mesmo jeito.</b> Em
+    /// 11/09/2026 esta função ganhou uma guarda que devolvia <c>null</c> quando a linha não
+    /// tinha lançamento, supondo que o detalhamento só sabia consultar <c>PCLANC</c> e que
+    /// <c>RECEITA VENDA ATIVO</c> abriria uma tela vazia. <b>A suposição estava errada:</b>
+    /// <see cref="DreDetalheQueries.Lancamentos"/> já trazia o mesmo <c>union all</c> de
+    /// <c>PCNFSAID</c>/<c>PCPREST</c> que a 9815 usa, e a guarda passou a esconder um
+    /// detalhamento que funcionava. Ela saiu no mesmo dia.</para>
     /// </summary>
     private static DetalheDisponivelDto? ResolverDetalhe(LinhaEmMontagem l)
     {

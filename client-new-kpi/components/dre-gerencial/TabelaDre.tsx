@@ -17,6 +17,7 @@ import { useOrdemSalva } from "@/hooks/useOrdemSalva";
 import { passoDeRolagem } from "@/lib/rolagemAutomatica";
 import { guardar } from "@/lib/detalheAberto";
 import { cn } from "@/lib/cn";
+import { descreverVariacao, lerVariacao } from "@/lib/leituraDaVariacao";
 import { formatarPercentual, formatarValor } from "@/lib/formato";
 import {
   aplicarOrdem,
@@ -77,6 +78,7 @@ export function TabelaDre({
   mostrarZeradas,
   filtro,
   modo,
+  filiaisApuradas,
 }: {
   periodos: PeriodoDre[];
   linhas: LinhaDre[];
@@ -85,6 +87,11 @@ export function TabelaDre({
   filtro: FiltroApuracao;
   /** O modo que formou as colunas. Decide o bloco final: total ou variação. */
   modo: ModoPeriodo;
+  /**
+   * As filiais apuradas por extenso, para a página dedicada imprimir. Chega pronta de
+   * quem apurou — ver `descreverFiliais`.
+   */
+  filiaisApuradas: string;
 }) {
   const { ordem, salvar, limpar } = useOrdemSalva(filtro.analise);
 
@@ -424,6 +431,7 @@ export function TabelaDre({
         periodo: detalhe.periodo,
         linha: detalhe.linha,
         dados: consultaDetalhe.data,
+        filiais: filiaisApuradas,
       });
 
       // Sem armazenamento não há como o dado atravessar, e a aba nova abriria vazia.
@@ -440,7 +448,7 @@ export function TabelaDre({
       const destino = `/dre-gerencial/detalhe/${id}${imprimir ? "?imprimir=1" : ""}`;
       window.open(destino, "_blank", "noopener");
     },
-    [detalhe, consultaDetalhe.data],
+    [detalhe, consultaDetalhe.data, filiaisApuradas],
   );
 
   const abrirEmNovaAba = useCallback(() => levarParaPagina(false), [levarParaPagina]);
@@ -563,11 +571,18 @@ export function TabelaDre({
             {multiMes && (
               <tr className="border-b border-[var(--border)]">
                 <th className="celula-descricao" />
-                {periodos.map((p) => (
+                {periodos.map((p, i) => (
                   <th
                     key={p.mesAno}
                     colSpan={3}
-                    className="border-l border-[var(--border)] px-[var(--celula-x)] pt-3 pb-1 text-center text-[length:var(--fs-rotulo)] font-semibold tracking-[0.14em] text-[var(--text-secondary)] uppercase"
+                    className={cn(
+                      "border-l border-[var(--border)] px-[var(--celula-x)] pt-3 pb-1 text-center text-[length:var(--fs-rotulo)] font-semibold tracking-[0.14em] text-[var(--text-secondary)] uppercase",
+                      // Uma cor por mês, para o olho não perder de vista a que coluna
+                      // pertence o número que está lendo — ver o bloco FAIXA DE COR POR
+                      // COLUNA em globals.css. O ciclo de quatro recomeça longe o bastante
+                      // para duas faixas iguais nunca se compararem na mesma tela.
+                      faixaDoMes(i),
+                    )}
                   >
                     {p.rotulo}
                   </th>
@@ -729,20 +744,24 @@ function ColunasCabecalhoVariacao() {
  * a última coluna: é o que permite os lados terem tamanhos diferentes, três meses de 2025
  * contra quatro de 2026.
  *
- * A cor segue o sinal do número, e só isso: uma despesa que cresce é negativa para o
- * resultado, mas pintá-la de vermelho exigiria saber o sentido de cada linha do DRE —
- * e errar isso é pior do que não colorir.
+ * **A cor julga o efeito no resultado**, como no `%AH` — ver `lerVariacao`. Uma despesa
+ * que cresce tem Δ negativo e é má notícia; uma receita que cresce tem Δ positivo e é boa.
+ * Colorir pelo sinal faria este bloco contradizer a coluna `AH %` ao lado dele, dizendo o
+ * oposto sobre a mesma linha.
  */
 function BlocoVariacao({
   valores,
   periodos,
   modo,
+  totalDaLinha,
   destaque,
 }: {
   valores: { valor: number }[];
   /** Para saber a que bloco cada valor pertence — é o que separa os dois lados. */
   periodos: PeriodoDre[];
   modo: ModoPeriodo;
+  /** O total da linha no período: é dele que sai o sentido, receita ou despesa. */
+  totalDaLinha: number;
   destaque: boolean;
 }) {
   const celula = cn(
@@ -764,25 +783,44 @@ function BlocoVariacao({
     );
   }
 
+  // O Δ em reais é julgado pela mesma regra do %AH: favorável quando tem o mesmo sinal do
+  // valor da linha. Receita subindo é boa; despesa subindo, que aqui aparece como Δ
+  // negativo porque despesa é negativa, é má.
+  const leitura = lerVariacao(v.absoluta, totalDaLinha);
   const cor =
-    v.absoluta < 0
-      ? "text-[var(--negative)]"
-      : v.absoluta === 0
-        ? "text-[var(--text-muted)]"
-        : "text-[var(--text-primary)]";
+    leitura === "favoravel"
+      ? "text-[var(--positive)]"
+      : leitura === "desfavoravel"
+        ? "text-[var(--negative)]"
+        : "text-[var(--text-muted)]";
 
   return (
     <>
-      <td className={cn(celula, "border-l border-[var(--border-strong)]", cor)}>
+      <td
+        title={descreverVariacao(leitura)}
+        className={cn(celula, "border-l border-[var(--border-strong)]", cor)}
+      >
         {formatarValor(v.absoluta)}
       </td>
       <td className={celula}>
         {/* Sem percentual quando a base é zero: uma conta que saiu de nada para alguma
             coisa não tem proporção que a descreva, e o valor ao lado já diz o quanto. */}
-        <Variacao percentual={v.percentual} />
+        <Variacao percentual={v.percentual} valorDaLinha={totalDaLinha} />
       </td>
     </>
   );
+}
+
+/**
+ * A classe de cor do cabeçalho de um mês, pela posição na tabela.
+ *
+ * O ciclo é de quatro, e não uma cor por mês do calendário: o que precisa ser distinto são
+ * colunas VIZINHAS na tela, não janeiro em relação a janeiro. Amarrar a cor ao mês faria
+ * um recorte de junho a julho sair com duas faixas quase iguais, se os dois meses caíssem
+ * perto no ciclo — e não resolveria nada no modo por ano, onde coluna não é mês.
+ */
+function faixaDoMes(indice: number): string {
+  return `faixa-mes-${(indice % 4) + 1}`;
 }
 
 function Th({ className, children }: { className?: string; children?: React.ReactNode }) {
@@ -953,6 +991,7 @@ function Linha({
           av={v.percentualAv}
           ah={v.percentualAh}
           mostrarAh={multiMes}
+          totalDaLinha={linha.total.valor}
           maiorAv={maiorAv}
           destaque={linha.totalizadora}
           onDetalhe={onDetalhe ? () => onDetalhe(v.mesAno) : null}
@@ -965,6 +1004,7 @@ function Linha({
             valores={linha.valores}
             periodos={periodos}
             modo={modo}
+            totalDaLinha={linha.total.valor}
             destaque={linha.totalizadora}
           />
         ) : (
@@ -973,6 +1013,7 @@ function Linha({
             av={linha.total.percentualAv}
             media={linha.total.media}
             maiorAv={maiorAv}
+            totalDaLinha={linha.total.valor}
             destaque={linha.totalizadora}
             onDetalhe={onDetalhe ? () => onDetalhe(null) : null}
             total
@@ -991,6 +1032,7 @@ function BlocoMes({
   maiorAv,
   destaque,
   total,
+  totalDaLinha,
   onDetalhe,
 }: {
   valor: number;
@@ -1001,6 +1043,13 @@ function BlocoMes({
   maiorAv: number;
   destaque: boolean;
   total?: boolean;
+  /**
+   * O total da linha no período, de onde sai o sentido do `%AH`.
+   *
+   * Vem o total, e não o valor desta coluna: uma conta que oscila de sinal entre dois meses
+   * trocaria de cor no meio da tabela se cada coluna se julgasse sozinha.
+   */
+  totalDaLinha: number;
   onDetalhe: (() => void) | null;
 }) {
   const celula = cn(CELULA, "whitespace-nowrap tabular", destaque && "font-semibold");
@@ -1051,7 +1100,7 @@ function BlocoMes({
         </td>
       ) : mostrarAh ? (
         <td className={cn(celula, "text-right")}>
-          <Variacao percentual={ah ?? null} />
+          <Variacao percentual={ah ?? null} valorDaLinha={totalDaLinha} />
         </td>
       ) : (
         <td />
@@ -1115,13 +1164,45 @@ function BarraAv({ percentual, maior }: { percentual: number | null; maior: numb
  * onde a impressão já nos enganou uma vez, e um `Ctrl+P` direto não espera por re-render:
  * com os dois presentes, o que sai no papel não depende de nada acontecer na hora certa.
  */
-function Variacao({ percentual }: { percentual: number | null }) {
+/**
+ * A variação sobre a coluna anterior.
+ *
+ * **A cor julga o efeito no resultado, não o sinal do número** — ver `lerVariacao`. Até
+ * 11/09/2026 esta célula pintava de vermelho tudo que fosse negativo, e com isso dizia que
+ * devolução caindo era má notícia. A 9815 sempre fez o contrário, e é o comportamento dela
+ * que vale aqui.
+ *
+ * O sinal continua no número: a cor diz se é bom, o sinal diz para onde foi. São duas
+ * informações diferentes e a célula mostra as duas.
+ */
+function Variacao({
+  percentual,
+  valorDaLinha,
+}: {
+  percentual: number | null;
+  /** O total da linha no período — é dele que sai o sentido. */
+  valorDaLinha: number;
+}) {
   if (percentual === null) {
     return <span className="text-[var(--text-muted)]">—</span>;
   }
 
+  const leitura = lerVariacao(percentual, valorDaLinha);
+
   return (
-    <span className={percentual < 0 ? "text-[var(--negative)]" : "text-[var(--positive)]"}>
+    <span
+      // A frase existe para quem não distingue as cores: o sinal do número mostra a
+      // direção, nunca o juízo, e sem ela `(9,778)` lido em cinza diz o oposto do que a
+      // célula quer dizer.
+      title={descreverVariacao(leitura)}
+      className={
+        leitura === "favoravel"
+          ? "text-[var(--positive)]"
+          : leitura === "desfavoravel"
+            ? "text-[var(--negative)]"
+            : "text-[var(--text-muted)]"
+      }
+    >
       {percentual > 0 ? "+" : ""}
       <span className="so-na-tela">{formatarPercentual(percentual)}</span>
       <span className="so-no-papel">{formatarPercentual(percentual, 1)}</span>

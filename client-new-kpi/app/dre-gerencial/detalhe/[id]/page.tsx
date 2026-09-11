@@ -103,6 +103,21 @@ export default function DetalhePage({ params }: { params: Promise<{ id: string }
               <p className="so-no-papel mt-1 text-[length:var(--fs-apoio)] text-[var(--text-secondary)]">
                 {paraBr(detalhe.periodo.dataInicio)} a {paraBr(detalhe.periodo.dataFim)}
               </p>
+
+              {/* As filiais aparecem NAS DUAS, tela e papel — ao contrário do DRE, onde a
+                  tela normal fica com a contagem. Esta página já é a versão de tela cheia
+                  do detalhamento: tem endereço próprio, é aberta para ler com calma e é
+                  impressa direto, e em nenhuma dessas situações quem lê tem o filtro à
+                  vista.
+
+                  Sem o campo, nada aparece: um detalhamento guardado antes desta mudança
+                  não tem o texto, e uma linha vazia com "Filiais:" seria pior do que
+                  linha nenhuma. */}
+              {detalhe.filiais && (
+                <p className="mt-1 text-[length:var(--fs-apoio)] text-[var(--text-secondary)]">
+                  {detalhe.filiais}
+                </p>
+              )}
             </div>
 
             <div className="nao-imprime flex shrink-0 items-center gap-2">

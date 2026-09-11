@@ -31,6 +31,18 @@ export interface DetalheAberto {
   /** A célula clicada, para o resumo do cálculo se conferir contra ela. */
   linha: { descricao: string; valor: number };
   dados: Detalhamento;
+  /**
+   * As filiais apuradas, já escritas — `Filiais: EPC-MAT (7), EPC-ES (12)`.
+   *
+   * **Vai o texto pronto, e não os códigos.** A página de destino é outra aba, sem o
+   * cadastro de filiais em memória; mandá-la buscar de novo custaria uma requisição só
+   * para reescrever uma frase que a aba de origem já tinha — e abriria a chance de as
+   * duas abas descreverem a mesma apuração com palavras diferentes.
+   *
+   * Opcional porque um detalhamento guardado antes desta mudança não tem o campo, e a
+   * página precisa abrir mesmo assim.
+   */
+  filiais?: string;
 }
 
 const PREFIXO = "epoca:detalhe:";

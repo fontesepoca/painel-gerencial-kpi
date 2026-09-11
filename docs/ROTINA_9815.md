@@ -99,6 +99,52 @@ colunas por mês, mais o bloco de total.
 | `INFORMATIVO` | marcador nas linhas que não entram nos totais — a 9815 escreve `NÃO SOMA` |
 | Números | fonte monoespaçada tabular, alinhados à direita |
 
+**Uma cor por coluna, no título.** Com mais de um mês, cada cabeçalho de período ganha uma
+faixa de fundo levemente colorida — Junho em rosa, Julho em verde, e assim por diante. Com
+três meses são nove colunas de números seguidas, e sem uma âncora horizontal o olho perde de
+vista a que mês pertence o número que está lendo.
+
+São **leves de propósito**, e ficam só no cabeçalho. Nesta tela a cor já significa três
+coisas — sinal do valor, juízo da variação (`AH %`) e o marcador do cadastro —, e um fundo
+com presença competiria com os números ou sugeriria um quarto significado. Estas não dizem
+nada: só separam.
+
+**Quatro cores, e a conta que decidiu isso.** A primeira versão tinha oito matizes a 45°, e
+saiu com Julho e Agosto quase iguais no tema claro. Medindo em ΔE2000 a cor **composta sobre
+a superfície**, o motivo apareceu — e não era o matiz, era a aritmética:
+
+| Faixas | Separação mínima entre elas | Presença contra o fundo |
+|---|---|---|
+| 4 | 10,2 | **10,7** |
+| 5 | 10,1 | 20,0 |
+| 8 | 10,2 | 31,4 — e impossível no tema escuro |
+
+Separar N cores translúcidas exige alpha, e alpha é exatamente o que as tira de "leves".
+Oito faixas distinguíveis custariam **três vezes** a presença de quatro: deixariam de ser
+fundo e passariam a competir com o dado, que é o oposto do pedido.
+
+O ciclo é pela **posição na tabela**, não pelo mês do calendário — o que precisa ser distinto
+são colunas vizinhas, e amarrar a cor ao mês não significaria nada no modo por ano, onde
+coluna não é mês. Com quatro cores, vizinhas nunca repetem; num período de seis meses a
+primeira volta na quinta coluna, longe da origem.
+
+> **A primeira medição aprovou as cores erradas.** Medidas em CIE76, aquelas duas faixas
+> davam ΔE 9 — acima do limiar que eu tinha adotado — enquanto o olho as via iguais. CIE76
+> erra exatamente onde este problema vive: cores claras e pouco saturadas. A régua passou a
+> ser CIEDE2000, e a dc25 **prova a fórmula** contra os 14 casos de referência de Sharma, Wu
+> e Dalal (2005) antes de medir qualquer faixa — uma métrica errada escolhe cores erradas sem
+> nada acusar, que foi precisamente o que aconteceu.
+
+> **Uma armadilha do cabeçalho fixo.** A faixa é pintada com `background-image`, e não com
+> `background`. O `thead` é `sticky` e precisa de fundo **opaco** (`.tabela-rolagem thead
+> th`), senão os números do corpo aparecem através dele ao rolar. Uma faixa declarada como
+> `background` perderia a disputa por especificidade — e vencer seria pior: a cor é
+> translúcida, então substituiria o fundo opaco e devolveria exatamente esse defeito. O
+> gradiente sólido pinta **por cima** do fundo, que continua vindo da outra regra.
+
+No papel a faixa sai: a impressão já separa os meses por borda, e oito retângulos de cor por
+folha gastariam tinta para repetir o que a borda diz.
+
 **Base do `AV %` — são DUAS bases**, verificado em 28/08/2026:
 
 | Linhas | Base |
@@ -110,6 +156,46 @@ colunas por mês, mais o bloco de total.
 Usar a receita líquida nas cinco deduções daria 8,659 no lugar de 7,742 em ABAT./DESC.
 
 **`AH %`:** compara com o mês anterior do período; com um mês só, `0,00`.
+
+**A cor do `AH %` julga o efeito no resultado, não o sinal do número.** Decisão do Gabriel
+em 11/09/2026, replicando o que a 9815 sempre fez:
+
+| Linha | `AH %` | Leitura |
+|---|---|---|
+| `(+) RECEITA BRUTA` | `+4,424` | favorável — receita subiu |
+| `(+) RECEITA BRUTA` | `(5,636)` | desfavorável — receita caiu |
+| `(-) DEVOLUCAO` | `(9,778)` | **favorável** — devolução caiu |
+| `(-) DEVOLUCAO` | `+42,766` | desfavorável — devolução subiu |
+
+A devolução é o caso que define a regra: `(9,778)` é um número negativo, entre parênteses,
+e é a melhor notícia da coluna. Até 11/09/2026 a tela pintava de vermelho tudo que fosse
+negativo, e com isso invertia a leitura de **metade da tabela** — toda dedução e toda
+despesa.
+
+**O sentido sai do sinal do valor da linha**, não de uma lista de contas: no DRE, receita e
+resultado chegam positivos, e dedução, custo e despesa chegam negativos. A estrutura já
+separa o que é bom crescer do que é ruim crescer, e uma lista de nomes envelheceria a cada
+conta nova no cadastro. A regra cabe numa frase — *favorável quando o `AH %` tem o mesmo
+sinal do valor da linha* — e se estende ao prejuízo, que é o caso que ninguém quer ver e
+que precisa ler certo: resultado negativo ficando mais negativo dá `AH %` positivo, mesmo
+sinal do valor, e sai desfavorável.
+
+O sentido vem do **total do período**, não do valor da coluna: uma conta que oscila de sinal
+entre dois meses trocaria de cor no meio da tabela se cada coluna se julgasse sozinha.
+
+**Zero é neutro**, e aqui divergimos da 9815 de propósito: a primeira coluna traz `0,00` por
+não haver mês anterior (§13), e pintá-la com a cor de "favorável" anunciaria uma boa notícia
+em todas as linhas de uma coluna inteira, sem nada ter acontecido.
+
+**A cor não carrega a informação sozinha.** Cada célula julgada leva `title` com *Efeito
+favorável/desfavorável ao resultado* — sem isso, quem lê em tons de cinza vê `(9,778)` e
+conclui o oposto. O sinal do número mostra a direção; a cor, o juízo.
+
+Conferido na dc22: **60/60**, com as 19 linhas da exportação de junho a agosto de 2026 e a
+cor que a rotina antiga deu a cada célula.
+
+As faixas das colunas são vigiadas pela dc25 (**25/25**), que lê o `globals.css` de verdade:
+mexer numa cor sem rodar a medição reabre o defeito que originou tudo.
 
 ### 3.3 Estados
 
@@ -449,6 +535,56 @@ totalizador nenhum** — é o que a tela marca como `INFORMATIVO`.
 `CONTRATO DE MUTUO` aparece com `0,00` mesmo na exportação **sem** contas zeradas, enquanto
 linhas zeradas do corpo (`VERBAS P&G`, `% SALDO FINAL`, …) somem. O filtro de zeradas vale
 para as linhas parametrizadas, não para as órfãs.
+
+### O que esconde uma linha: **nem lançamento, nem valor**
+
+As duas condições. Uma linha some da tela apenas quando não tem lançamento em `PCLANC` **e**
+fecha em zero em todas as colunas — que é o mesmo critério da 9815 ao montar a estrutura,
+`where VPAGO <> 0 or qdereg <> 0`.
+
+Os dois lados da regra existem por um caso real cada um:
+
+| Linha | Lançamentos | Valor | Aparece? |
+|---|---:|---:|---|
+| `DESCONTO FUNCIONÁRIOS` | 16 | 0,00 | **sim** — a 9815 esconde por ausência de movimento, não por valor zero |
+| `RECEITA VENDA ATIVO` | 0 | 225.000,00 | **sim** — desde 11/09/2026 |
+
+**O segundo caso era um defeito nosso, e dos piores.** Até 11/09/2026 a regra olhava só a
+contagem de lançamentos, e a linha injetada de `PCPREST` traz `0 as QdeReg` — fielmente,
+porque a 9815 escreve isso. Resultado: na filial 28, agosto/2026, a linha sumia com
+225.000,00 dentro dela.
+
+O que tornava o defeito grave não era a linha faltando: era a **contradição silenciosa**. Os
+225.000,00 continuavam somados no `LUCRO LIQUIDO`, que a tela mostrava em 2.240.410,65 — o
+valor certo, o mesmo da 9815 —, enquanto as linhas visíveis somavam 225 mil a menos. Quem
+conferisse a tabela à mão chegaria a um número diferente do total impresso logo abaixo, e
+nada na tela explicava a diferença.
+
+A condição do valor é avaliada **por coluna**, não pela soma do período: uma conta com
+`+100` num mês e `(100)` no outro soma zero e teve movimento nos dois.
+
+### A venda de ativo abre detalhamento como qualquer outra linha
+
+`DreDetalheQueries.Lancamentos` traz o **mesmo `union all` de `PCNFSAID`/`PCPREST`** que
+alimenta a linha na apuração — a 9815 faz igual, e a injeção sai no formato de lançamento:
+`RECNUM 0`, índice `A`, o cliente no lugar do fornecedor, e o histórico vindo do **CIAP**
+(`max(PCPRODCIAP.DESCRICAO)`), que é um caminho que nenhum outro lançamento usa.
+
+> **Um erro meu, corrigido no mesmo dia.** Ao consertar a linha escondida, acrescentei uma
+> guarda que tirava o detalhamento de toda linha sem lançamento em `PCLANC`, supondo — **sem
+> verificar** — que a consulta só sabia ler essa tabela e abriria vazia. Ela já tinha o
+> `union all`. A guarda desligou um detalhamento que funcionava e saiu assim que o Gabriel
+> mandou a exportação da 9815 mostrando a tela cheia.
+
+A chave do recorte é diferente em cada dimensão — `400`, `85`, `4000004`, `8501` — e a
+apuração e o detalhamento precisam usar **a mesma**: basta uma divergir para a tela abrir
+vazia numa dimensão só, que é o tipo de defeito que ninguém encontra por acaso.
+
+Conferido na dc24 (**69/69**): o lançamento inteiro, campo a campo, contra
+`receita_venda.xlsx` — histórico, nota 400, prestação 1, `TOP AGRONEGOCIOS LTDA`, matrícula
+174697, transação 3081026, banco 168 e as quatro datas em 25/08/2026 —, nas quatro
+dimensões, mais o fechamento com a célula do DRE. E na dc23 (**24/24**), com a filial 7 como
+contraprova.
 
 ---
 
@@ -868,7 +1004,41 @@ bloco `@media print` do `globals.css`, e o botão só chama `window.print()`.
 | Cromo da aplicação | sidebar, trilha, filtros, barra de reordenação e botões saem via `.nao-imprime` |
 | Quebra | `break-inside: avoid` na linha: metade dos valores numa folha é linha lida errado |
 
-### 17.2 A folha e a fonte, por número de colunas
+### 17.2 O papel diz QUAIS filiais foram apuradas
+
+Na tela normal o cabeçalho conta — `2 filiais` —, e isso basta para quem acabou de
+preencher o filtro. **No papel e na tela cheia ele lista**, com nome e código:
+
+```
+01/09/2026 a 03/09/2026 · Competência · 1 mês · apurado em 21 s
+Filiais: EPC-MAT (7), EPC-ES (12)
+```
+
+Um DRE impresso circula, é arquivado e é conferido semanas depois, quando ninguém lembra o
+que foi marcado. O código vai junto porque é por ele que se confere contra o Winthor, e
+porque distingue unidades de nome parecido. Quando são todas as do cadastro o texto diz
+isso — `Filiais (todas as 10): …` —, que é o que a lista sozinha não revela.
+
+**Em linha própria, e não como mais um item da sequência.** Na primeira versão a lista
+entrava entre o regime e a contagem de meses; com dez filiais ela empurrava os controles da
+direita para baixo e o cabeçalho ia de 76px para 138px — 62px que, na tela cheia, saem da
+tabela. Numa linha só dela, medido com as mesmas dez: **76px, controles no lugar, sem
+rolagem lateral**.
+
+**Quem escolhe é o CSS, não um estado de React** (bloco FILIAIS APURADAS no fim do
+`globals.css`). As duas formas ficam no DOM e `@media print` troca qual aparece — `Ctrl+P`
+não espera re-render, que é a mesma razão do par de `%AH` em `Variacao`. As regras ficam
+**no fim do arquivo** porque disputam `display` com utilitários de mesma especificidade, e
+em empate vence quem vem depois.
+
+`display: revert`, e não `block`: a mesma lição de `.so-no-papel` — a classe marca um
+`<p>`, e um valor fixo tiraria dele o display que o navegador já dá.
+
+Conferido na dc21 (13/13) e pela tela: a lista some e volta nos três estados, e a invariante
+que importa é que **a forma longa cita exatamente as mesmas filiais que a curta conta** —
+inclusive um código que o cadastro não conhece, que sai cru em vez de desaparecer.
+
+### 17.3 A folha e a fonte, por número de colunas
 
 Cada valor abaixo é o **maior que coube na medição** de 03/09/2026, com a tabela presa na
 largura útil da respectiva folha:
@@ -889,7 +1059,7 @@ cabem maiores. Quem precisar de fonte maior nesse caso precisa de menos colunas 
 que muda o balanço de largura — provavelmente para melhor. A recalibragem depende de uma
 impressão nova com 3 e 4 meses.
 
-### 17.3 Os percentuais e a descrição, no papel
+### 17.4 Os percentuais e a descrição, no papel
 
 Três diferenças entre a tela e a folha, e todas nascem da mesma restrição: no papel não há
 hover nem rolagem, e cada milímetro decide se a última coluna sai.
@@ -910,13 +1080,25 @@ enganou este projeto uma vez, e um `Ctrl+P` direto não espera por re-render.
 herdada do pai. As três propriedades do `truncate` precisam cair juntas — derrubar só o
 `white-space` deixa o `overflow: hidden` cortando na segunda linha.
 
-### 17.4 A impressão do detalhamento
+### 17.5 A impressão do detalhamento
 
 **O botão do modal abre a página dedicada e manda imprimir lá.** Um `<dialog>` aberto vive
 na *top layer* do navegador, e conteúdo da top layer **não se fragmenta entre páginas**:
 `window.print()` no modal sairia com a primeira folha e o resto cortado, o que numa lista de
 15 mil clientes é o pior defeito possível. A página é HTML em fluxo normal — pagina, e o
 cabeçalho se repete. O parâmetro `?imprimir=1` é o que dispara o diálogo lá, uma vez só.
+
+**A página dedicada também diz as filiais**, e ali aparecem na tela e no papel — ao
+contrário do DRE, onde a tela normal fica com a contagem (§17.2). Esta página já é a versão
+de tela cheia do detalhamento: tem endereço próprio, é aberta para ler com calma e é
+impressa direto, e em nenhuma dessas situações quem lê tem o filtro à vista.
+
+**O texto atravessa junto do detalhamento**, em `DetalheAberto.filiais`, e não é
+reconstruído lá. O destino é outra aba, sem o cadastro de filiais em memória: mandá-la
+buscar custaria uma requisição só para reescrever uma frase que a aba de origem já tinha, e
+abriria a chance de as duas descreverem a mesma apuração com palavras diferentes. O campo é
+opcional — um detalhamento guardado antes desta mudança não o tem, e a página abre do mesmo
+jeito, sem a linha.
 
 **A folha e a fonte são decididas na hora de imprimir**, medindo a tabela — não há escala
 fixa por tela, e a ausência dela é o resultado de quatro tentativas.
@@ -977,7 +1159,7 @@ A tabela **não estica** para a largura da folha. Com `width: 100%` as colunas s
 e o olho atravessava um vão de papel branco para ligar o nome da conta ao número dela;
 encostadas à esquerda, ficam vizinhas.
 
-### 17.5 Duas armadilhas de `@page`, as duas com o mesmo sintoma
+### 17.6 Duas armadilhas de `@page`, as duas com o mesmo sintoma
 
 Ambas produzem **A4 em pé com a tabela cortada**, que é o que se vê quando a regra de
 tamanho é descartada:
@@ -1005,6 +1187,10 @@ Botão `⛶ Tela cheia` ao lado de "Mostrar contas zeradas". A seção da tabela
 **Não usa o Fullscreen API do navegador.** O `requestFullscreen` esconde a barra do sistema
 e a do navegador — num relatório financeiro isso tira as referências de onde a pessoa está —
 e sai com qualquer `Esc`, inclusive o que ela deu para fechar o detalhamento.
+
+O cabeçalho troca a contagem de filiais pela **lista com nome e código**, como no papel —
+ver §17.2. Aqui sobra largura, e quem está com a tabela cobrindo a tela costuma estar
+conferindo.
 
 O `Esc` daqui **só sai quando não há modal aberto**. O detalhamento é um `<dialog>` e fecha
 no `Esc` sozinho; sem a guarda, um `Esc` fecharia os dois e quem só queria fechar o detalhe

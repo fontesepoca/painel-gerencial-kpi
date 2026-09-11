@@ -21,6 +21,7 @@ a aprovação do Gabriel.
 | [2](#2-a-filial-única-no-subselect-de-centro-de-custo) | Filial única no `CCC` | C. Custo Principal | R$ 2,56 mi em 2 meses | **corrigida** em 31/08/2026 |
 | [3](#3-centro-de-custo-simples-não-tem-referência) | Sem referência | Centro de Custo | não mensurável | validação manual pendente |
 | [4](#4-correção-deliberada-o-detalhamento-agora-fecha-com-a-linha-do-dre) | Detalhamento não fecha com a linha | todas as linhas que abrem duplo clique | R$ 3,56 mi em 1 mês, mais estorno de baixa e contas escondidas | **corrigida de propósito** em 01–02/09/2026 · 162/162 |
+| [6](#6-a-linha-receita-venda-ativo-sumia-da-tela--11092026) | `RECEITA VENDA ATIVO` escondida | todas | R$ 225 mil em 1 mês na filial 28 | **corrigida** em 11/09/2026 · dc23 24/24, dc24 69/69 |
 
 ---
 
@@ -1540,3 +1541,92 @@ Três leituras do mesmo cenário, em minutos: **1.137.050,01** (planilha), **1.1
 transportadora está emitindo CT-e agora. É a armadilha 2 — a base viva — e o alvo de
 comparação num período que inclui hoje muda enquanto se mede. Para conferir contra a 9815,
 usar período **fechado**.
+
+
+---
+
+## 6. A linha RECEITA VENDA ATIVO sumia da tela — 11/09/2026
+
+**Defeito nosso, corrigido.** Não era divergência de valor: o número sempre esteve certo. A
+linha é que não aparecia, e o total continuava contando com ela.
+
+### O sintoma
+
+Filial 28, agosto/2026, competência, C. Custo Principal. A 9815 mostra:
+
+| Linha | Valor |
+|---|---:|
+| RESULTADO OPERACIONAL | 2.015.344,94 |
+| RECEITAS FINANCEIRAS | 65,71 |
+| **RECEITA VENDA ATIVO** | **225.000,00** |
+| LUCRO LIQUIDO | 2.240.410,65 |
+
+Nossa API devolvia **os quatro valores ao centavo**, inclusive os 225.000,00 — mas a linha
+vinha com `semMovimento: true`, e a tela esconde tudo que tem essa marca enquanto *Mostrar
+contas zeradas* está desmarcada.
+
+### Por que era pior do que uma linha faltando
+
+Os 225.000,00 continuavam somados no `LUCRO LIQUIDO`. A tela mostrava 2.240.410,65 — o valor
+certo — sobre um conjunto de linhas visíveis que somava 225 mil a menos. **Quem conferisse à
+mão chegaria a um número diferente do total impresso logo abaixo, e nada na tela explicava a
+diferença.** Um valor errado alguém questiona; uma soma que não fecha sem motivo aparente
+corrói a confiança na tabela inteira.
+
+### A causa
+
+A linha vem do bloco injetado de `PCNFSAID`/`PCPREST` — o `union all` no fim da consulta de
+despesas —, e esse bloco traz `0 as QdeReg`. Fielmente: a 9815 escreve exatamente isso.
+Nossa regra de visibilidade olhava **só** a contagem de lançamentos.
+
+A correção usa o critério que a própria 9815 aplica ao montar a estrutura,
+`where VPAGO <> 0 or qdereg <> 0`: esconde apenas quando não há lançamento **e** não há
+valor. O caso oposto, já conferido, continua valendo — `DESCONTO FUNCIONÁRIOS` fecha em 0,00
+com 16 lançamentos e aparece.
+
+### O "defeito irmão" não existia, e eu criei um no lugar dele
+
+Ao corrigir a linha escondida, supus que o duplo clique abriria uma tela vazia: o
+detalhamento de lançamentos consulta `PCLANC`, e não é de lá que esses 225.000,00 vêm.
+Acrescentei uma guarda tirando o detalhamento de toda linha sem lançamento.
+
+**Não verifiquei a consulta antes de decidir.** `DreDetalheQueries.Lancamentos` já tinha o
+mesmo `union all` de `PCNFSAID`/`PCPREST` da 9815 — inclusive documentado nos binds da
+própria função, `{2} filiais da venda de ativo`. A guarda desligou um detalhamento que
+funcionava, e ficou no ar por cerca de vinte minutos, até o Gabriel mandar a exportação da
+9815 com a tela cheia de dados.
+
+A lição é de método, não de código: **uma suposição sobre o que uma consulta faz é barata de
+conferir e cara de errar.** O custo aqui foi baixo porque o Gabriel tinha o dado à mão.
+
+### O detalhamento, conferido campo a campo
+
+`receita_venda.xlsx` traz um lançamento só, e é ele que as quatro dimensões devolvem:
+
+| Campo | Valor |
+|---|---|
+| Rec.Num. | 0 |
+| Índice | A |
+| Histórico | CHASSI C/ MOTOR E CAB. 10/11 CH 9534N8242BR118465 |
+| V. Pago | 225.000,00 |
+| Nota / Prest. | 400 / 1 |
+| Fornecedor | TOP AGRONEGOCIOS LTDA (174697) |
+| Func. Lanc | LORRANI.BEATRIZ |
+| Num. Trans / Banco | 3081026 / 168 |
+| As quatro datas | 25/08/2026 |
+
+O histórico é o campo a vigiar: ele não vem de `PCLANC.HISTORICO` como todos os outros, e
+sim do produto do CIAP (`max(PCPRODCIAP.DESCRICAO)`). Se esse subselect quebrar, a linha
+continua somando certo e aparece **sem descrição** — defeito que a soma não denuncia.
+
+A chave do recorte muda por dimensão (`400`, `85`, `4000004`, `8501`), e apuração e
+detalhamento precisam usar a mesma: basta uma divergir para a tela abrir vazia numa dimensão
+só. dc24, **69/69**, cobre as quatro.
+
+### Conferido
+
+dc23, **24/24**, nas quatro dimensões — o mesmo valor chegando por nomes diferentes
+(`Outras Receitas`, `RECEITA VENDA ATIVO`, `Receita Com Venda De Ativo`) — mais a filial 7
+como contraprova, onde não há venda de ativo e nenhuma linha nova apareceu. A conferência
+principal é a **invariante**, não o valor de uma linha: *nenhuma linha escondida tem valor*.
+Visíveis na 28: 37 antes, 38 depois — exatamente uma a mais.
