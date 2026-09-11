@@ -32,7 +32,24 @@ public record DespesasFiltroDto(
     DateOnly DataInicio,
     DateOnly DataFim,
     string Regime,
-    string Analise);
+    string Analise,
+    /// <summary>
+    /// Como as colunas são formadas — ver <c>RecorteDre</c>.
+    ///
+    /// <para><c>meses</c> (ou ausente) é o padrão: uma coluna por mês do intervalo, que é o
+    /// comportamento de sempre. <c>anos</c> usa <see cref="Anos"/> e devolve uma coluna por
+    /// ano fechado. <c>comparar-anos</c> repete o dia e o mês de
+    /// <see cref="DataInicio"/>–<see cref="DataFim"/> em cada ano de <see cref="Anos"/>.
+    /// </para>
+    ///
+    /// <para>Opcional de propósito: cliente que não conhece o campo continua apurando como
+    /// antes.</para>
+    /// </summary>
+    string? Modo = null,
+    /// <summary>
+    /// Os anos das colunas, nos dois modos de comparação. Ignorado no modo mensal.
+    /// </summary>
+    IReadOnlyList<int>? Anos = null);
 
 /// <summary>
 /// Linha de despesa agregada. A identidade é a tupla completa, não `Chave` sozinha —
@@ -64,7 +81,21 @@ public record FaturamentoDto(
     decimal CofinsLiq);
 
 /// <summary>Um mês do período apurado.</summary>
-public record PeriodoDto(string MesAno, string Rotulo);
+/// <summary>
+/// Uma coluna da tabela.
+///
+/// <para><c>MesAno</c> guarda o nome de quando coluna era sempre um mês. Hoje é a
+/// <b>chave</b> da coluna — <c>09/2026</c> no modo mensal, <c>2026</c> por ano,
+/// <c>2026:01-03</c> no comparativo entre anos.</para>
+///
+/// <para><c>DataInicio</c> e <c>DataFim</c> são o recorte que o duplo clique usa. Vêm do
+/// servidor porque só ele sabe o recorte de uma coluna que não é um mês.</para>
+/// </summary>
+public record PeriodoDto(
+    string MesAno,
+    string Rotulo,
+    DateOnly DataInicio,
+    DateOnly DataFim);
 
 /// <summary>Valor de uma linha em um mês.</summary>
 public record ValorMesDto(
@@ -292,6 +323,14 @@ public record DetalheImpostoDto(
 public record ApuracaoDto(
     string Regime,
     string Analise,
+    /// <summary>
+    /// O modo que formou as colunas — <c>meses</c>, <c>anos</c> ou <c>comparar-anos</c>.
+    ///
+    /// <para>É o modo <b>efetivo</b>, não o pedido: um filtro de <c>anos</c> sem ano nenhum
+    /// volta daqui como <c>meses</c>, porque foi isso que a apuração fez. Ver
+    /// <c>RecorteDre.ModoEfetivo</c>.</para>
+    /// </summary>
+    string Modo,
     DateOnly DataInicio,
     DateOnly DataFim,
     IReadOnlyList<string> Filiais,
