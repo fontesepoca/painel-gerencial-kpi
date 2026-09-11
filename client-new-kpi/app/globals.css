@@ -298,7 +298,7 @@ body {
 
    **As frações importam tanto quanto os mínimos.** Filial em `0fr` não cresce além dos
    seus 11rem: ela guarda um resumo curto — "3 filiais" — e todo pixel que recebesse sairia
-   do Período. Tipo de Análise em `0.7fr` cresce pouco, pelo mesmo motivo. O Período leva
+   do Período. Tipo de Análise em `0.6fr` cresce pouco, pelo mesmo motivo. O Período leva
    `1.4fr` porque é o único campo cujo conteúdo é grande e variável: duas datas, um botão
    de modo, o relógio dos atalhos e, no comparativo, mais duas datas. Com as frações
    distribuídas por igual, as datas eram as primeiras a serem cortadas.
@@ -318,7 +318,7 @@ body {
 @media (min-width: 1360px) {
   .grade-filtros {
     grid-template-columns:
-      minmax(11rem, 0fr) minmax(13rem, 0.9fr) minmax(12.5rem, 0.7fr)
+      minmax(11rem, 0fr) minmax(13rem, 0.9fr) minmax(12.5rem, 0.6fr)
       minmax(27rem, 1.4fr) auto;
   }
 }

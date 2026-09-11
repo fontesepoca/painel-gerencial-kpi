@@ -88,82 +88,82 @@ export function FiltrosDre({
 
   return (
     <>
-    {/* O gabarito da grade mora em `globals.css`, na classe `.grade-filtros` —
+      {/* O gabarito da grade mora em `globals.css`, na classe `.grade-filtros` —
         os mínimos foram medidos e dependem do modo de leitura. Ver o comentário lá. */}
-    <section className="grade-filtros">
-      <Campo rotulo="Filial">
-        <SeletorFiliais
-          filiais={filiais}
-          carregando={carregandoFiliais}
-          selecionadas={filtro.filiais}
-          onMudar={(f) => onMudar({ ...filtro, filiais: f })}
-        />
-      </Campo>
+      <section className="grade-filtros">
+        <Campo rotulo="Filial">
+          <SeletorFiliais
+            filiais={filiais}
+            carregando={carregandoFiliais}
+            selecionadas={filtro.filiais}
+            onMudar={(f) => onMudar({ ...filtro, filiais: f })}
+          />
+        </Campo>
 
-      <Campo rotulo="Regime">
-        <Segmentado
-          opcoes={REGIMES.map((r) => ({
-            valor: r.valor,
-            rotulo: r.rotulo,
-            ativa: true,
-          }))}
-          valor={filtro.regime}
-          onMudar={(v) => onMudar({ ...filtro, regime: v as Regime })}
-        />
-      </Campo>
+        <Campo rotulo="Regime">
+          <Segmentado
+            opcoes={REGIMES.map((r) => ({
+              valor: r.valor,
+              rotulo: r.rotulo,
+              ativa: true,
+            }))}
+            valor={filtro.regime}
+            onMudar={(v) => onMudar({ ...filtro, regime: v as Regime })}
+          />
+        </Campo>
 
-      <Campo rotulo="Tipo de análise">
-        {/* `appearance-none` apaga a seta que o navegador desenha, e a nossa entra por
+        <Campo rotulo="Tipo de análise">
+          {/* `appearance-none` apaga a seta que o navegador desenha, e a nossa entra por
             cima — é o que faz este campo e o de filial terminarem iguais. O `pr-9` abre
             o espaço dela, e `pointer-events-none` deixa o clique atravessar para o
             `<select>`, senão clicar na seta não abriria a lista. */}
-        <div className="relative">
-          <select
-            value={filtro.analise}
-            onChange={(e) =>
-              onMudar({ ...filtro, analise: e.target.value as Analise })
-            }
-            className={cn(CAMPO, "appearance-none pr-9")}
-          >
-            {ANALISES.map((a) => (
-              <option key={a.valor} value={a.valor} disabled={!a.pronta}>
-                {a.rotulo}
-                {a.pronta ? "" : " — em breve"}
-              </option>
-            ))}
-          </select>
-          {/* 13px, não 12: a seta do filial fica dentro do botão, depois do `px-3` E da
+          <div className="relative">
+            <select
+              value={filtro.analise}
+              onChange={(e) =>
+                onMudar({ ...filtro, analise: e.target.value as Analise })
+              }
+              className={cn(CAMPO, "appearance-none pr-9")}
+            >
+              {ANALISES.map((a) => (
+                <option key={a.valor} value={a.valor} disabled={!a.pronta}>
+                  {a.rotulo}
+                  {a.pronta ? "" : " — em breve"}
+                </option>
+              ))}
+            </select>
+            {/* 13px, não 12: a seta do filial fica dentro do botão, depois do `px-3` E da
               borda de 1px, enquanto esta se posiciona pela caixa externa. Sem o pixel
               extra as duas terminam desalinhadas na vertical de quem compara os campos
               lado a lado. */}
-          <Seta className="pointer-events-none absolute top-1/2 right-[13px] -translate-y-1/2" />
-        </div>
-      </Campo>
+            <Seta className="pointer-events-none absolute top-1/2 right-[13px] -translate-y-1/2" />
+          </div>
+        </Campo>
 
-      <CampoPeriodo filtro={filtro} onMudar={onMudar} />
+        <CampoPeriodo filtro={filtro} onMudar={onMudar} />
 
-      <Campo>
-        <button
-          type="button"
-          onClick={onApurar}
-          disabled={!podeApurar}
-          title={motivo ?? undefined}
-          className={cn(
-            "h-[var(--altura-controle)] w-full rounded-[var(--radius-md)] px-6 text-[length:var(--fs-base)] font-medium whitespace-nowrap xl:w-auto",
-            // `h-full` para o botão ocupar a célula inteira da grade — rótulo mais controle
-            // —, que é como ele sempre foi e o que o deixa com a presença de ação principal.
-            // Nos modos com mais de uma linha de controles ele acompanha a altura; é o preço
-            // de preencher a célula, e preferível a um botão flutuando no meio dela.
-            "transition-colors duration-[var(--dur-fast)] h-full",
-            podeApurar
-              ? "bg-[var(--primary)] text-white hover:brightness-110"
-              : "cursor-not-allowed bg-[var(--surface-3)] text-[var(--text-muted)]",
-          )}
-        >
-          {apurando ? "Apurando…" : "Apurar"}
-        </button>
-      </Campo>
-    </section>
+        <Campo>
+          <button
+            type="button"
+            onClick={onApurar}
+            disabled={!podeApurar}
+            title={motivo ?? undefined}
+            className={cn(
+              "h-[var(--altura-controle)] w-full rounded-[var(--radius-md)] px-6 text-[length:var(--fs-base)] font-medium whitespace-nowrap xl:w-auto",
+              // `h-full` para o botão ocupar a célula inteira da grade — rótulo mais controle
+              // —, que é como ele sempre foi e o que o deixa com a presença de ação principal.
+              // Nos modos com mais de uma linha de controles ele acompanha a altura; é o preço
+              // de preencher a célula, e preferível a um botão flutuando no meio dela.
+              "transition-colors duration-[var(--dur-fast)] h-full",
+              podeApurar
+                ? "bg-[var(--primary)] text-white hover:brightness-110"
+                : "cursor-not-allowed bg-[var(--surface-3)] text-[var(--text-muted)]",
+            )}
+          >
+            {apurando ? "Apurando" : "Apurar"}
+          </button>
+        </Campo>
+      </section>
     </>
   );
 }
@@ -205,7 +205,11 @@ function CampoPeriodo({
   };
 
   return (
-    <div role="group" aria-labelledby={rotuloId} className="flex min-w-0 flex-col gap-2">
+    <div
+      role="group"
+      aria-labelledby={rotuloId}
+      className="flex min-w-0 flex-col gap-2"
+    >
       <span id={rotuloId} className={ROTULO}>
         Período
       </span>
@@ -220,10 +224,16 @@ function CampoPeriodo({
             <>
               <input
                 type="date"
-                aria-label={usaSegundoIntervalo(filtro.modo) ? "Data inicial do primeiro intervalo" : "Data inicial"}
+                aria-label={
+                  usaSegundoIntervalo(filtro.modo)
+                    ? "Data inicial do primeiro intervalo"
+                    : "Data inicial"
+                }
                 value={filtro.dataInicio}
                 max={filtro.dataFim}
-                onChange={(e) => onMudar({ ...filtro, dataInicio: e.target.value })}
+                onChange={(e) =>
+                  onMudar({ ...filtro, dataInicio: e.target.value })
+                }
                 className={cn(CAMPO, "tabular")}
               />
               <span aria-hidden className="text-[var(--text-muted)]">
@@ -231,10 +241,16 @@ function CampoPeriodo({
               </span>
               <input
                 type="date"
-                aria-label={usaSegundoIntervalo(filtro.modo) ? "Data final do primeiro intervalo" : "Data final"}
+                aria-label={
+                  usaSegundoIntervalo(filtro.modo)
+                    ? "Data final do primeiro intervalo"
+                    : "Data final"
+                }
                 value={filtro.dataFim}
                 min={filtro.dataInicio}
-                onChange={(e) => onMudar({ ...filtro, dataFim: e.target.value })}
+                onChange={(e) =>
+                  onMudar({ ...filtro, dataFim: e.target.value })
+                }
                 className={cn(CAMPO, "tabular")}
               />
               {/* Os atalhos ficam onde sempre estiveram, à direita da data final. Só no
@@ -242,14 +258,19 @@ function CampoPeriodo({
                   e no comparativo isso desalinharia os dois lados sem avisar. */}
               {filtro.modo === "meses" && (
                 <AtalhosDePeriodo
-                  onEscolher={(dataInicio, dataFim) => onMudar({ ...filtro, dataInicio, dataFim })}
+                  onEscolher={(dataInicio, dataFim) =>
+                    onMudar({ ...filtro, dataInicio, dataFim })
+                  }
                 />
               )}
             </>
           )}
 
           {usaAnos(filtro.modo) && (
-            <ChipsDeAno escolhidos={filtro.anos} onMudar={(anos) => onMudar({ ...filtro, anos })} />
+            <ChipsDeAno
+              escolhidos={filtro.anos}
+              onMudar={(anos) => onMudar({ ...filtro, anos })}
+            />
           )}
         </div>
 
@@ -269,7 +290,9 @@ function CampoPeriodo({
               aria-label="Data inicial do segundo intervalo"
               value={filtro.comparacaoInicio ?? ""}
               max={filtro.comparacaoFim}
-              onChange={(e) => onMudar({ ...filtro, comparacaoInicio: e.target.value })}
+              onChange={(e) =>
+                onMudar({ ...filtro, comparacaoInicio: e.target.value })
+              }
               className={cn(CAMPO, "tabular")}
             />
             <span aria-hidden className="text-[var(--text-muted)]">
@@ -280,7 +303,9 @@ function CampoPeriodo({
               aria-label="Data final do segundo intervalo"
               value={filtro.comparacaoFim ?? ""}
               min={filtro.comparacaoInicio}
-              onChange={(e) => onMudar({ ...filtro, comparacaoFim: e.target.value })}
+              onChange={(e) =>
+                onMudar({ ...filtro, comparacaoFim: e.target.value })
+              }
               className={cn(CAMPO, "tabular")}
             />
           </div>
@@ -343,7 +368,8 @@ function MenuDePeriodo({
   useEffect(() => {
     if (!aberto) return;
     const fechar = (e: MouseEvent) => {
-      if (caixa.current && !caixa.current.contains(e.target as Node)) setAberto(false);
+      if (caixa.current && !caixa.current.contains(e.target as Node))
+        setAberto(false);
     };
     const esc = (e: KeyboardEvent) => e.key === "Escape" && setAberto(false);
     document.addEventListener("mousedown", fechar);
@@ -396,7 +422,9 @@ function MenuDePeriodo({
               }}
               className={cn(
                 "flex w-full flex-col gap-0.5 rounded-[var(--radius-sm)] px-3 py-[var(--celula-y)] text-left",
-                m.valor === modo ? "bg-[var(--surface-3)]" : "hover:bg-[var(--surface-3)]",
+                m.valor === modo
+                  ? "bg-[var(--surface-3)]"
+                  : "hover:bg-[var(--surface-3)]",
               )}
             >
               <span className="text-[length:var(--fs-base)] text-[var(--text-primary)]">
@@ -407,7 +435,6 @@ function MenuDePeriodo({
               </span>
             </button>
           ))}
-
         </div>
       )}
     </div>
