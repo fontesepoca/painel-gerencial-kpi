@@ -24,6 +24,7 @@ a aprovação do Gabriel.
 | [6](#6-a-linha-receita-venda-ativo-sumia-da-tela--11092026) | `RECEITA VENDA ATIVO` escondida | todas | R$ 225 mil em 1 mês na filial 28 | **corrigida** em 11/09/2026 · dc23 24/24, dc24 69/69 |
 | [7](#7-a-devolução-de-cliente-especial-oculto--14092026) | Devolução de cliente com `mostra_dre = N` | todas | R$ 958,95 em 1 ano na filial 7 | **corrigida** em 14/09/2026 · 70/70 ao centavo |
 | [8](#8-o-último-centavo-do-modo-anos--14092026) | Arredondamento ao fundir 12 meses | todas, só no modo `anos` | 1 centavo por linha | **corrigida** em 14/09/2026 |
+| [9](#9-o-resultado-operacional-sai-do-subtotal-positivo--14092026) | `RESULTADO OPERACIONAL` a partir do `SUBTOTAL POSITIVO` | C. Custo Principal | R$ 3,22 mi em 2 meses | **a pedido** em 14/09/2026 · dc32 14/14 |
 
 ---
 
@@ -1708,3 +1709,95 @@ numa coluna de ano — e por isso o furo aparecia só no `anos`.
 
 Em 2025, filial 7: `ABAT./DESC.`, `PIS` e `COFINS` erraram um centavo; `RECEITA BRUTA` e
 `ST` escaparam por sorte do arredondamento.
+
+---
+
+## 9. O `RESULTADO OPERACIONAL` sai do `SUBTOTAL POSITIVO` — 14/09/2026
+
+**Afeta:** só **C. Custo Principal**, e só a linha `RESULTADO OPERACIONAL`.
+**Tamanho medido:** R$ 3.217.035,41 em 01/06 a 31/07/2026, filiais 7/12/25, competência.
+**Decisão:** divergir, a pedido do Gabriel em 14/09/2026.
+
+### O que mudou na tela
+
+`RATEIO DESP. CORPORATIVAS` e `VERBAS MARGEM` nascem no bloco pós-operacional, entre o
+`RESULTADO OPERACIONAL` e o `LUCRO LIQUIDO`. Elas sobem para logo abaixo do `LUCRO BRUTO`, e
+uma linha nova soma os três:
+
+```
+SUBTOTAL POSITIVO = LUCRO BRUTO + RATEIO DESP. CORPORATIVAS + VERBAS MARGEM
+```
+
+A ordem é aplicada em `MontadorDre.PromoverCreditos`, **não** no `ID` de `EPCPARDRE`: aquela
+tabela é do Winthor e a 9815 lê a mesma coluna — reordenar lá mudaria a rotina antiga junto.
+
+Em C. Custo Principal `RATEIO DESP. CORPORATIVAS` aparece **duas vezes, com o mesmo nome**:
+uma entre as despesas operacionais e outra entre os créditos. Sobe só a segunda, e o que a
+separa são as flags `AntesRo = 'N'` e `AntesLl = 'S'` — pelo rótulo é impossível.
+
+### O número que muda
+
+| | 9815 | Aqui |
+|---|---|---|
+| `RESULTADO OPERACIONAL` | `LUCRO BRUTO + Sub-Total` | `SUBTOTAL POSITIVO + Sub-Total` |
+
+Medido pela **nossa API** em 01/06 a 31/07/2026, filiais 7/12/25, competência — o cenário
+exportado da 9815 em `periodo_de_dois_meses_com_AH`:
+
+| Linha | Junho/2026 | Julho/2026 | Total |
+|---|---:|---:|---:|
+| LUCRO BRUTO | 13.910.162,18 | 14.342.336,00 | 28.252.498,18 |
+| VERBAS MARGEM | 1.041.633,41 | 577.090,00 | 1.618.723,41 |
+| RATEIO DESP. CORPORATIVAS | 694.843,00 | 903.469,00 | 1.598.312,00 |
+| **SUBTOTAL POSITIVO** | 15.646.638,59 | 15.822.895,00 | **31.469.533,59** |
+| Sub-Total Desp.Op. | (14.680.489,71) | (16.464.250,43) | (31.144.740,14) |
+| RESULTADO OPER. — antes | | | (2.892.241,96) |
+| **RESULTADO OPER. — agora** | 966.148,88 | (641.355,43) | **324.793,45** |
+| Total das Despesas | (11.861.551,49) | (14.281.737,73) | (26.143.289,22) |
+| LUCRO LIQUIDO | 2.048.610,69 | 60.598,27 | 2.109.208,96 |
+
+O `RESULTADO OPERACIONAL` sobe **R$ 3.217.035,41**, que é exatamente a soma dos dois créditos
+promovidos — como tem que ser.
+
+> **Não compare a tabela acima com a exportação da 9815 deste cenário.** O `LUCRO BRUTO` bate
+> ao centavo, mas as linhas de despesa de C. Custo Principal não batem, e isso é a
+> [divergência 2](#2-a-filial-única-no-subselect-de-centro-de-custo), não esta: a 9815
+> descobre os centros de custo olhando **uma filial só** e apaga linhas do relatório. O
+> `RESULTADO OPERACIONAL` que ela exporta para este cenário é 429.153,39, e o nosso **pela
+> regra antiga** já era (2.892.241,96) antes desta mudança.
+
+### O que **não** muda, e por quê
+
+`LUCRO BRUTO`, `Sub-Total`, `Total das Despesas` e `LUCRO LIQUIDO` continuam idênticos à
+9815. A promoção é de **posição, não de bloco**: as duas linhas mantêm `AntesLl = 'S'` e
+seguem dentro do `Total das Despesas` exatamente uma vez.
+
+O risco real da mudança é a **contagem dupla** — os créditos aparecem no subtotal de cima e
+continuam no `Total das Despesas`. O que prova que ela não acontece é a identidade:
+
+```
+LUCRO LIQUIDO = RESULTADO OPERACIONAL + Σ(pós-operacional restante)
+```
+
+Conferida ao centavo na exportação acima. É por isso que o `LUCRO LIQUIDO` continua saindo do
+`LUCRO BRUTO`, e não do `SUBTOTAL POSITIVO`.
+
+### O espaço que não era espaço
+
+`VERBAS MARGEM` está cadastrada com **espaço não separável** (U+00A0) entre as palavras. Um
+`Trim().ToUpper()` devolve uma string que *parece* `"VERBAS MARGEM"` em qualquer log e em
+qualquer depurador, e não é igual a ela — a promoção ficava pela metade, com o subtotal
+somando só o rateio, e nada na tela denunciava. `MontadorDre.Normalizar` passou a colapsar
+qualquer espaço em branco; a dc32 faz o mesmo, senão falharia pelo mesmo motivo.
+
+### Conferido
+
+[dc32](validacao/dc32_subtotal_positivo.mjs), **14 conferências**, em 14/09/2026: a ordem, o
+subtotal fechando em cada coluna e no total, a composição com as três parcelas, o
+`RESULTADO OPERACIONAL` saindo do subtotal, o `LUCRO LIQUIDO` inalterado e a identidade que
+prova a ausência de contagem dupla. Mais as outras duas dimensões, que não ganham a linha e
+mantêm o `RESULTADO OPERACIONAL` da 9815 ao centavo.
+
+A dc32 também confere que a **ocorrência operacional** do rateio continua antes do
+`Sub-Total`. Se a promoção tivesse pego a errada, uma despesa sairia de dentro do `Sub-Total`
+sem mudar o número dele — e nenhum total denunciaria.

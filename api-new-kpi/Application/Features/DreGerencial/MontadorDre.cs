@@ -25,6 +25,22 @@ public static class MontadorDre
     private const string ResultadoOperacional = "RESULTADO OPERACIONAL";
     private const string TotalDespesas = "TOTAL DAS DESPESAS";
     private const string LucroLiquido = "LUCRO LIQUIDO";
+    private const string SubtotalPositivo = "SUBTOTAL POSITIVO";
+
+    /// <summary>
+    /// As linhas de crédito que sobem para logo abaixo do `LUCRO BRUTO` — ver
+    /// <see cref="PromoverCreditos"/>.
+    ///
+    /// <para><b>Só em C. Custo Principal</b>, e só a ocorrência do bloco pós-operacional.
+    /// `RATEIO DESP. CORPORATIVAS` aparece <b>duas vezes</b> nessa dimensão, com o mesmo
+    /// nome: uma entre as despesas operacionais e outra entre os créditos. As duas flags
+    /// (<c>AntesRo = 'N'</c> e <c>AntesLl = 'S'</c>) são o que separa uma da outra — pelo
+    /// rótulo é impossível.</para>
+    /// </summary>
+    private static readonly HashSet<string> CreditosPromovidos =
+        ["RATEIO DESP. CORPORATIVAS", "VERBAS MARGEM"];
+
+    private const string AnaliseComCreditosPromovidos = "ccusto-principal";
 
     /// <summary>As cinco deduções têm `%AV` sobre a RECEITA BRUTA; o resto, sobre a LÍQUIDA.</summary>
     private static readonly HashSet<string> BaseReceitaBruta =
@@ -66,9 +82,11 @@ public static class MontadorDre
             .GroupBy(d => (d.GrupoConta, d.AntesRo, d.AntesLl, d.AntesLf))
             .ToDictionary(g => g.Key, g => g.Sum(d => d.QdeReg));
 
-        var linhas = estrutura
-            .Select(e => new LinhaEmMontagem(e, Normalizar(e.Grupo), e.CodGruConta.StartsWith('-')))
-            .ToList();
+        var linhas = PromoverCreditos(
+            estrutura
+                .Select(e => new LinhaEmMontagem(e, Normalizar(e.Grupo), e.CodGruConta.StartsWith('-')))
+                .ToList(),
+            filtro.Analise);
 
         // Cada coluna é montada por inteiro, de forma independente — inclusive os
         // totalizadores, que dependem só das linhas daquela coluna.
@@ -174,6 +192,100 @@ public static class MontadorDre
     }
 
     /// <summary>
+    /// Sobe os créditos para logo abaixo do `LUCRO BRUTO` e cria o `SUBTOTAL POSITIVO`.
+    ///
+    /// <para>Pedido do Gabriel em 14/09/2026, para C. Custo Principal. `RATEIO DESP.
+    /// CORPORATIVAS` e `VERBAS MARGEM` nascem no bloco pós-operacional, entre o `RESULTADO
+    /// OPERACIONAL` e o `LUCRO LIQUIDO`, e passam a aparecer junto do lucro que ajudam a
+    /// formar. A linha nova é a soma dos três.</para>
+    ///
+    /// <para><b>A ordem sai daqui, e não de `EPCPARDRE`.</b> A ordem de exibição é a coluna
+    /// `ID` daquela tabela — que é <b>do Winthor</b>, compartilhada com a 9815 e com quem
+    /// mais a leia. Reordenar no banco mudaria a rotina antiga junto; reordenar aqui muda só
+    /// a nossa tela.</para>
+    ///
+    /// <para><b>Muda um número, e um só: o `RESULTADO OPERACIONAL`.</b> Ele era
+    /// `LUCRO BRUTO + Sub-Total` e passa a ser `SUBTOTAL POSITIVO + Sub-Total`, para a tela
+    /// voltar a fechar lendo de cima para baixo — decisão do Gabriel na mesma conversa,
+    /// sabendo que isso o afasta da 9815. Registrado em `docs/DIVERGENCIAS.md`.</para>
+    ///
+    /// <para><b>O `LUCRO LIQUIDO` não muda, e não há contagem dupla</b>: ele é
+    /// `LUCRO BRUTO + Total das Despesas`, e as duas promovidas continuam com
+    /// <c>AntesLl = 'S'</c>, entrando no `Total das Despesas` exatamente uma vez. Vale a
+    /// identidade `LUCRO LIQUIDO = RESULTADO OPERACIONAL + Σ(pós-operacional restante)` —
+    /// as promovidas saem do lado direito e entram no esquerdo, e o total se conserva.</para>
+    ///
+    /// <para>Nas outras três dimensões a lista sai vazia, a linha nova não é criada e o
+    /// `RESULTADO OPERACIONAL` continua sendo `LUCRO BRUTO + Sub-Total` — porque
+    /// `SUBTOTAL POSITIVO = LUCRO BRUTO + Σ∅`.</para>
+    /// </summary>
+    private static List<LinhaEmMontagem> PromoverCreditos(
+        List<LinhaEmMontagem> linhas,
+        string analise)
+    {
+        if (!string.Equals(analise, AnaliseComCreditosPromovidos, StringComparison.OrdinalIgnoreCase))
+        {
+            return linhas;
+        }
+
+        static bool EhCredito(LinhaEmMontagem l) =>
+            !l.Calculada
+            && l.Estrutura.AntesRo == "N"
+            && l.Estrutura.AntesLl == "S"
+            && CreditosPromovidos.Contains(l.Rotulo);
+
+        var promovidas = linhas
+            .Where(EhCredito)
+            .Select(l => l with { Promovida = true })
+            .ToList();
+
+        // Sem as linhas no cadastro não há o que promover, e inventar um SUBTOTAL POSITIVO
+        // igual ao LUCRO BRUTO só acrescentaria uma linha repetida à tela.
+        if (promovidas.Count == 0) return linhas;
+
+        var destino = linhas.FindIndex(l => l.Calculada && l.Rotulo == LucroBruto);
+        if (destino < 0) return linhas;
+
+        var modelo = linhas[destino].Estrutura;
+        var subtotal = new LinhaEmMontagem(
+            new LinhaEstruturaDre
+            {
+                // `-5` é o primeiro código calculado livre: o cadastro usa de `-1` a `-4`.
+                // Ver `docs/SCHEMA_BANCO.md`.
+                Id = modelo.Id,
+                CodGruConta = "-5",
+                Grupo = "SUBTOTAL POSITIVO",
+                InfContas = "S",
+                Cor = modelo.Cor,
+                // Fora dos três blocos de propósito: totalizador não é parcela de
+                // totalizador nenhum, e marcar `AntesLl = 'S'` aqui somaria o LUCRO BRUTO
+                // de novo dentro do `Total das Despesas`.
+                AntesRo = "N",
+                AntesLl = "N",
+                AntesLf = "N",
+            },
+            SubtotalPositivo,
+            Calculada: true);
+
+        var resultado = new List<LinhaEmMontagem>(linhas.Count + 1);
+        foreach (var (linha, i) in linhas.Select((l, i) => (l, i)))
+        {
+            if (EhCredito(linha)) continue;
+
+            resultado.Add(linha);
+            if (i == destino)
+            {
+                // A ordem entre as promovidas é a do cadastro, não a da lista de nomes:
+                // quem lê a tela ao lado da 9815 encontra a mesma sequência relativa.
+                resultado.AddRange(promovidas);
+                resultado.Add(subtotal);
+            }
+        }
+
+        return resultado;
+    }
+
+    /// <summary>
     /// Qual detalhamento a linha abre com duplo clique — a lista que o Gabriel levantou na
     /// 9815 em 01/09/2026.
     ///
@@ -273,11 +385,23 @@ public static class MontadorDre
                 .Select(p => new ParcelaDto(chaves[p.i], p.x.Estrutura.Grupo.Trim(), 1))
                 .ToList();
 
+        List<ParcelaDto> Promovidas() =>
+            todas
+                .Select((x, i) => (x, i))
+                .Where(p => p.x.Promovida)
+                .Select(p => new ParcelaDto(chaves[p.i], p.x.Estrutura.Grupo.Trim(), 1))
+                .ToList();
+
         List<ParcelaDto?> partes = linha.Rotulo switch
         {
             // O CMV já chega negativo na linha, então aqui é soma, não subtração.
             LucroBruto => [PorRotulo(ReceitaLiquida), PorRotulo(CmvLiq)],
-            ResultadoOperacional => [PorRotulo(LucroBruto), PorRotulo(SubTotal)],
+            SubtotalPositivo => [PorRotulo(LucroBruto), .. Promovidas()],
+            // Parte do SUBTOTAL POSITIVO onde ele existe. Nas outras dimensões `PorRotulo`
+            // não acha a linha e a composição cai no LUCRO BRUTO — a mesma que sempre foi,
+            // e a mesma parcela que a fórmula usa lá em `MontarMes`.
+            ResultadoOperacional =>
+                [PorRotulo(SubtotalPositivo) ?? PorRotulo(LucroBruto), PorRotulo(SubTotal)],
             LucroLiquido => [PorRotulo(LucroBruto), PorRotulo(TotalDespesas)],
             _ => [],
         };
@@ -342,15 +466,26 @@ public static class MontadorDre
 
         var somaOperacional = 0m;
         var somaPosOperacional = 0m;
+        // Os créditos promovidos. Eles continuam dentro de `somaPosOperacional` — a promoção
+        // é de POSIÇÃO, não de bloco —, e é por isso que o `Total das Despesas` e o
+        // `LUCRO LIQUIDO` não mudam de valor. Ver `PromoverCreditos`.
+        var somaPromovida = 0m;
         for (var i = 0; i < linhas.Count; i++)
         {
             if (linhas[i].Calculada) continue;
             if (linhas[i].Estrutura.AntesRo == "S") somaOperacional += valores[i];
             else if (linhas[i].Estrutura.AntesLl == "S") somaPosOperacional += valores[i];
+
+            if (linhas[i].Promovida) somaPromovida += valores[i];
         }
 
         var lucroBruto = f?.LucroBruto ?? 0m;
         var totalDespesas = somaOperacional + somaPosOperacional;
+
+        // Nas dimensões sem promoção a soma é zero, e o SUBTOTAL POSITIVO — que nem existe
+        // como linha ali — vale o próprio LUCRO BRUTO. É o que mantém o RESULTADO
+        // OPERACIONAL delas idêntico ao da 9815 com uma fórmula só.
+        var subtotalPositivo = lucroBruto + somaPromovida;
 
         for (var i = 0; i < linhas.Count; i++)
         {
@@ -367,9 +502,13 @@ public static class MontadorDre
                 ReceitaLiquida => f?.ReceitaLiquida ?? 0m,
                 CmvLiq => -(f?.CmvLiq ?? 0m),
                 LucroBruto => lucroBruto,
+                SubtotalPositivo => subtotalPositivo,
                 SubTotal => somaOperacional,
-                ResultadoOperacional => lucroBruto + somaOperacional,
+                ResultadoOperacional => subtotalPositivo + somaOperacional,
                 TotalDespesas => totalDespesas,
+                // Continua saindo do LUCRO BRUTO, e não do SUBTOTAL POSITIVO: os créditos
+                // promovidos já estão dentro de `totalDespesas`, e somá-los aqui de novo
+                // pelo subtotal os contaria duas vezes.
                 LucroLiquido => lucroBruto + totalDespesas,
                 _ => Desconhecida(linhas[i], avisos),
             };
@@ -484,7 +623,30 @@ public static class MontadorDre
     /// </summary>
     private static decimal Arredondar(decimal valor) => Math.Round(valor, 2);
 
-    private static string Normalizar(string descricao) => descricao.Trim().ToUpperInvariant();
+    /// <summary>
+    /// O rótulo da linha em forma comparável: maiúsculas, sem espaço nas pontas e com
+    /// <b>qualquer sequência de espaços virando um só</b>.
+    ///
+    /// <para><b>A última parte não é preciosismo.</b> O cadastro tem `VERBAS MARGEM` escrito
+    /// com <b>espaço não separável</b> (U+00A0) no meio, e não com o espaço comum. Um
+    /// `Trim().ToUpper()` devolve uma string que <i>parece</i> `"VERBAS MARGEM"` em qualquer
+    /// log, em qualquer depurador e em qualquer tela — e não é igual a ela. A promoção dos
+    /// créditos ficou silenciosamente pela metade até isso aparecer, em 14/09/2026, numa
+    /// simulação da regra sobre a exportação da 9815.</para>
+    ///
+    /// <para><c>Split(null)</c> quebra por <c>char.IsWhiteSpace</c>, que inclui o U+00A0 —
+    /// é o que faz a colagem seguinte devolver o texto com espaços comuns.</para>
+    /// </summary>
+    private static string Normalizar(string descricao) =>
+        string.Join(' ', descricao.ToUpperInvariant().Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
 
-    private sealed record LinhaEmMontagem(LinhaEstruturaDre Estrutura, string Rotulo, bool Calculada);
+    /// <param name="Promovida">
+    /// Crédito que subiu para debaixo do LUCRO BRUTO e compõe o SUBTOTAL POSITIVO.
+    /// Ver <see cref="PromoverCreditos"/>.
+    /// </param>
+    private sealed record LinhaEmMontagem(
+        LinhaEstruturaDre Estrutura,
+        string Rotulo,
+        bool Calculada,
+        bool Promovida = false);
 }
