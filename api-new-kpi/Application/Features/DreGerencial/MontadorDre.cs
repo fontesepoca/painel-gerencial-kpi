@@ -49,11 +49,24 @@ public static class MontadorDre
         ["INDENIZACAO DE MERC. VENC. E AVARIA"];
 
     /// <summary>
-    /// A dimensão onde as duas regras acima valem. Elas citam as linhas <b>pelo nome</b>, e
-    /// os nomes são os desta dimensão: em Conta Gerencial a mesma conta se chama
-    /// `Verba Ind Merc Vencida e Avaria`, e em Grupo de Contas não existe.
+    /// A dimensão onde a promoção dos créditos vale. `RATEIO DESP. CORPORATIVAS` e
+    /// `VERBAS MARGEM` são os nomes desta dimensão; em Conta Gerencial as contas
+    /// equivalentes se chamam `Rateio Corporativo`, `Rateio Epoca ES` e
+    /// `Verba Composicao Margem`, e em Grupo de Contas não existem.
     /// </summary>
     private const string AnaliseComCreditosPromovidos = "ccusto-principal";
+
+    /// <summary>
+    /// As dimensões onde <see cref="InformativasPorPedido"/> vale.
+    ///
+    /// <para>Aqui o rótulo é <b>o mesmo nas duas</b> — o cadastro foi renomeado e
+    /// `INDENIZACAO DE MERC. VENC. E AVARIA` substituiu o antigo
+    /// `Verba Ind Merc Vencida e Avaria` que aparece nas exportações de referência. Ainda
+    /// assim a lista é explícita, e não "toda dimensão": Grupo de Contas não tem essa linha,
+    /// e o dia em que tiver deve ser uma decisão, não um efeito colateral.</para>
+    /// </summary>
+    private static readonly HashSet<string> AnalisesComInformativasPorPedido =
+        new(StringComparer.OrdinalIgnoreCase) { "ccusto-principal", "conta-gerencial" };
 
     /// <summary>As cinco deduções têm `%AV` sobre a RECEITA BRUTA; o resto, sobre a LÍQUIDA.</summary>
     private static readonly HashSet<string> BaseReceitaBruta =
@@ -209,7 +222,8 @@ public static class MontadorDre
     /// <summary>
     /// Tira `INDENIZACAO DE MERC. VENC. E AVARIA` dos totalizadores.
     ///
-    /// <para>Pedido do Gabriel em 14/09/2026, para C. Custo Principal. A linha nasce no bloco
+    /// <para>Pedido do Gabriel em 14/09/2026, para C. Custo Principal e — no mesmo dia —
+    /// para Conta Gerencial, onde a conta tem o mesmo nome. A linha nasce no bloco
     /// pós-operacional e somava no `Total das Despesas` e, por ele, no `LUCRO LIQUIDO`.
     /// Passa a receber o mesmo tratamento que `ST`, `PIS` e `COFINS` já têm no cabeçalho:
     /// <b>aparece com valor e não entra em conta nenhuma</b>.</para>
@@ -227,7 +241,7 @@ public static class MontadorDre
         List<LinhaEmMontagem> linhas,
         string analise)
     {
-        if (!string.Equals(analise, AnaliseComCreditosPromovidos, StringComparison.OrdinalIgnoreCase))
+        if (analise is null || !AnalisesComInformativasPorPedido.Contains(analise))
         {
             return linhas;
         }

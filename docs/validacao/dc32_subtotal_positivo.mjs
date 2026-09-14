@@ -228,8 +228,15 @@ console.log(linhaDoQuadro("LUCRO LIQUIDO", lucroLiquido));
 const movimento = total(subtotal) - total(lucro);
 console.log(`\n  o RESULTADO OPERACIONAL sobe ${fmt(movimento)} (= a soma dos créditos promovidos)`);
 
-// ── as outras dimensões não mudam ────────────────────────────────────────────
-for (const analise of ["grupo-contas", "conta-gerencial"]) {
+// ── as outras dimensões ──────────────────────────────────────────────────────
+//
+// Nenhuma delas tem a promoção dos créditos. A informativa vale também em Conta Gerencial,
+// onde a conta tem exatamente o mesmo nome — o cadastro foi renomeado e o
+// `Verba Ind Merc Vencida e Avaria` das exportações de referência não existe mais.
+for (const { analise, temInformativa } of [
+  { analise: "grupo-contas", temInformativa: false },
+  { analise: "conta-gerencial", temInformativa: true },
+]) {
   console.log(`\n${analise.toUpperCase()}\n`);
   const o = await apurar(analise);
   const linhas = o.linhas;
@@ -239,10 +246,39 @@ for (const analise of ["grupo-contas", "conta-gerencial"]) {
   const lb = achar(linhas, LUCRO_BRUTO);
   const st = achar(linhas, SUB_TOTAL);
   const ro = achar(linhas, RESULTADO);
+  const td = achar(linhas, TOTAL_DESPESAS);
+  const ll = achar(linhas, LUCRO_LIQUIDO);
   ok(
     bate(total(ro), total(lb) + total(st)),
     `RESULTADO OPERACIONAL continua LUCRO BRUTO + Sub-Total: ${fmt(total(ro))}`,
   );
+  ok(
+    bate(total(ll), total(lb) + total(td)),
+    `LUCRO LIQUIDO = LUCRO BRUTO + Total das Despesas: ${fmt(total(ll))}`,
+  );
+
+  const info = achar(linhas, INFORMATIVA);
+  ok(
+    (info !== null && info.naoSoma === true) === temInformativa,
+    temInformativa
+      ? `${INFORMATIVA} está marcada como informativa aqui também`
+      : `${INFORMATIVA} não é marcada nesta dimensão`,
+  );
+
+  // A mesma prova de que ela saiu da conta: o bloco pós-operacional visível, sem as
+  // informativas, mais o resultado operacional dá o lucro líquido.
+  if (info) {
+    const iRo = linhas.findIndex((x) => rotulo(x) === RESULTADO);
+    const iTd = linhas.findIndex((x) => rotulo(x) === TOTAL_DESPESAS);
+    const resto = linhas
+      .filter((l, i) => !l.calculada && !l.naoSoma && i > iRo && i < iTd)
+      .reduce((s, l) => s + total(l), 0);
+    ok(
+      bate(total(ll), total(ro) + resto),
+      "LUCRO LIQUIDO = RESULTADO OPERACIONAL + pós-operacional restante",
+    );
+    console.log(`\n  ${INFORMATIVA}: ${fmt(total(info))}`);
+  }
 }
 
 console.log(falhas === 0 ? "\n✓ dc32 passou" : `\n✗ ${falhas} falha(s)`);

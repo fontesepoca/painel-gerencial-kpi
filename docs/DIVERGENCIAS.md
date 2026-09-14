@@ -24,8 +24,8 @@ a aprovação do Gabriel.
 | [6](#6-a-linha-receita-venda-ativo-sumia-da-tela--11092026) | `RECEITA VENDA ATIVO` escondida | todas | R$ 225 mil em 1 mês na filial 28 | **corrigida** em 11/09/2026 · dc23 24/24, dc24 69/69 |
 | [7](#7-a-devolução-de-cliente-especial-oculto--14092026) | Devolução de cliente com `mostra_dre = N` | todas | R$ 958,95 em 1 ano na filial 7 | **corrigida** em 14/09/2026 · 70/70 ao centavo |
 | [8](#8-o-último-centavo-do-modo-anos--14092026) | Arredondamento ao fundir 12 meses | todas, só no modo `anos` | 1 centavo por linha | **corrigida** em 14/09/2026 |
-| [9](#9-o-resultado-operacional-sai-do-subtotal-positivo--14092026) | `RESULTADO OPERACIONAL` a partir do `SUBTOTAL POSITIVO` | C. Custo Principal | R$ 3,22 mi em 2 meses | **a pedido** em 14/09/2026 · dc32 18/18 |
-| [10](#10-indenizacao-de-merc-venc-e-avaria-vira-informativa--14092026) | `INDENIZACAO DE MERC. VENC. E AVARIA` não soma | C. Custo Principal | R$ 177 mil em 2 meses | **a pedido** em 14/09/2026 · dc32 18/18 |
+| [9](#9-o-resultado-operacional-sai-do-subtotal-positivo--14092026) | `RESULTADO OPERACIONAL` a partir do `SUBTOTAL POSITIVO` | C. Custo Principal | R$ 3,22 mi em 2 meses | **a pedido** em 14/09/2026 · dc32 24/24 |
+| [10](#10-indenizacao-de-merc-venc-e-avaria-vira-informativa--14092026) | `INDENIZACAO DE MERC. VENC. E AVARIA` não soma | C. Custo Principal e Conta Gerencial | R$ 177 mil em 2 meses | **a pedido** em 14/09/2026 · dc32 24/24 |
 
 ---
 
@@ -1799,7 +1799,7 @@ qualquer espaço em branco; a dc32 faz o mesmo, senão falharia pelo mesmo motiv
 
 ### Conferido
 
-[dc32](validacao/dc32_subtotal_positivo.mjs), **18 conferências**, em 14/09/2026: a ordem, o
+[dc32](validacao/dc32_subtotal_positivo.mjs), **24 conferências**, em 14/09/2026: a ordem, o
 subtotal fechando em cada coluna e no total, a composição com as três parcelas, o
 `RESULTADO OPERACIONAL` saindo do subtotal, o `LUCRO LIQUIDO` inalterado e a identidade que
 prova a ausência de contagem dupla. Mais as outras duas dimensões, que não ganham a linha e
@@ -1813,8 +1813,9 @@ sem mudar o número dele — e nenhum total denunciaria.
 
 ## 10. `INDENIZACAO DE MERC. VENC. E AVARIA` vira informativa — 14/09/2026
 
-**Afeta:** só **C. Custo Principal**. **Tamanho medido:** R$ 177.168,06 em 01/06 a
-31/07/2026, filiais 7/12/25, competência. **Decisão:** a pedido do Gabriel em 14/09/2026.
+**Afeta:** **C. Custo Principal** e **Conta Gerencial**. **Tamanho medido:** R$ 177.168,06 em
+01/06 a 31/07/2026, filiais 7/12/25, competência — o mesmo valor nas duas.
+**Decisão:** a pedido do Gabriel em 14/09/2026.
 
 A linha nasce no bloco pós-operacional e somava no `Total das Despesas` e, por ele, no
 `LUCRO LIQUIDO`. Passa a receber o mesmo tratamento que `ST`, `PIS` e `COFINS` já têm no
@@ -1840,17 +1841,29 @@ listada ali faria a conferência de quem soma à mão não fechar por exatamente
 **O detalhamento não muda:** os lançamentos existem e o duplo clique continua abrindo. O que
 mudou é de que soma ela participa, não de onde vem o valor.
 
-### Só nesta dimensão
+### As dimensões, e a que ficou de fora
 
-A regra cita a linha **pelo nome**, e o nome é o de C. Custo Principal. Em Conta Gerencial a
-mesma conta se chama `Verba Ind Merc Vencida e Avaria` e continua somando; em Grupo de Contas
-não existe.
+A regra cita a linha **pelo nome** — e o nome é **o mesmo** nas duas dimensões onde ela existe
+como linha própria. As exportações de referência trazem `Verba Ind Merc Vencida e Avaria` em
+Conta Gerencial, mas o cadastro foi renomeado desde então: hoje as duas dizem
+`INDENIZACAO DE MERC. VENC. E AVARIA`. Conferido na resposta da API, não na exportação.
+
+**Grupo de Contas não pode ser alinhada por nome.** Ali a conta não tem linha própria — ela
+está dentro de um grupo mais largo (`Despesas Adm e Vendas` e companhia). O `LUCRO LIQUIDO`
+dessa dimensão continua com os 177.168,06 dentro: **2.109.208,96 contra 1.932.040,90 das
+outras duas**, no mesmo cenário. Antes de hoje as três fechavam no mesmo número.
+
+Alinhar Grupo de Contas exigiria tirar **parte** de um grupo da soma, o que é outro problema:
+a linha continuaria mostrando o valor cheio e o total deixaria de bater com ela. Fica como
+pendência, não como decisão tomada.
 
 ### Conferido
 
-[dc32](validacao/dc32_subtotal_positivo.mjs), **18 conferências**, em 14/09/2026. Três são
-desta divergência — a linha marcada, ausente das parcelas do `Total das Despesas`, e com
-valor no período, sem o que a conferência seguinte não provaria nada.
+[dc32](validacao/dc32_subtotal_positivo.mjs), **24 conferências**, em 14/09/2026. Desta
+divergência são: a linha marcada em C. Custo Principal, ausente das parcelas do
+`Total das Despesas` e com valor no período — sem o que a conferência seguinte não provaria
+nada —, a mesma marca em Conta Gerencial, e a **ausência** dela em Grupo de Contas, para a
+dimensão que ficou de fora ficar de fora por decisão e não por esquecimento.
 
 A quarta é a identidade `LUCRO LIQUIDO = RESULTADO OPERACIONAL + Σ(pós-operacional
 restante)`, que passou a ignorar as linhas `naoSoma`: **se a informativa voltasse a somar,
