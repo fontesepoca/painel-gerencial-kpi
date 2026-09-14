@@ -18,18 +18,61 @@ export type Analise =
   | "ccusto-principal"
   | "centro-custo";
 
+/**
+ * Como as colunas são formadas. Espelha `RecorteDre` na API.
+ *
+ * - `meses` — uma coluna por mês do intervalo. É o padrão e o comportamento de sempre.
+ * - `anos` — uma coluna por ano inteiro, de 01/01 a 31/12.
+ * - `comparar-anos` — **dois intervalos livres**, cada um aberto em colunas mensais.
+ */
+export type ModoPeriodo = "meses" | "anos" | "comparar-anos";
+
 export interface FiltroApuracao {
   filiais: string[];
-  /** ISO yyyy-MM-dd. */
+  /**
+   * ISO yyyy-MM-dd. Continua sendo enviado nos modos de ano: em `comparar-anos` é o
+   * **molde** do recorte, e é dele que sai o dia e o mês repetidos em cada ano.
+   */
   dataInicio: string;
   dataFim: string;
   regime: Regime;
   analise: Analise;
+  modo: ModoPeriodo;
+  /**
+   * Os anos das colunas no modo `anos`. Ignorado nos outros — e guardado mesmo assim, para
+   * quem alterna entre os modos não perder a escolha no caminho.
+   */
+  anos: number[];
+  /**
+   * O SEGUNDO intervalo do comparativo, em ISO. Livre em relação ao primeiro: não precisa
+   * ter o mesmo tamanho nem os mesmos meses.
+   */
+  comparacaoInicio?: string;
+  comparacaoFim?: string;
 }
 
+/**
+ * Uma coluna da tabela.
+ *
+ * `mesAno` guarda o nome de quando coluna era sempre um mês. Hoje é a **chave** da
+ * coluna: `09/2026` no modo mensal, `2026` por ano, `2026:01-03` no comparativo.
+ *
+ * `dataInicio` e `dataFim` são o recorte que o duplo clique usa, e **vêm do servidor**:
+ * só ele sabe o recorte de uma coluna que não é um mês. O front chegou a calcular isso
+ * sozinho, com `recorteDoMes`, e essa conta só funciona enquanto coluna for sinônimo
+ * de mês.
+ */
 export interface PeriodoDre {
   mesAno: string;
   rotulo: string;
+  dataInicio: string;
+  dataFim: string;
+  /**
+   * O grupo de colunas a que esta pertence — `0` e `1` no comparativo, sempre `0` nos
+   * outros modos. Separa os dois lados na tela e é o que faz o `%AH` parar na virada de
+   * intervalo, em vez de comparar Jan/26 com Mar/25.
+   */
+  bloco: number;
 }
 
 export interface ValorMes {
@@ -124,8 +167,8 @@ export interface DetalheDisponivel {
 }
 
 /**
- * Filtro do detalhamento. As datas são as do **mês clicado recortado pelo período**, não
- * as da apuração inteira — ver `recorteDoMes` em `lib/periodos.ts`.
+ * Filtro do detalhamento. As datas são as da **coluna clicada**, não as da apuração
+ * inteira: cada `PeriodoDre` traz o próprio recorte, calculado pelo servidor.
  */
 export interface FiltroDetalhe extends FiltroApuracao {
   tipo: TipoDetalhe;
@@ -229,6 +272,8 @@ export interface Detalhamento {
 export interface Apuracao {
   regime: Regime;
   analise: Analise;
+  /** O modo que a API de fato usou, que nem sempre é o pedido. Ver `RecorteDre.ModoEfetivo`. */
+  modo: ModoPeriodo;
   dataInicio: string;
   dataFim: string;
   filiais: string[];

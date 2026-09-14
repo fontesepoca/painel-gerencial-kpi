@@ -4,11 +4,24 @@ import { useEffect, useId, useRef, useState } from "react";
 import { cn } from "@/lib/cn";
 import { atalhosPeriodo, paraBr } from "@/lib/periodos";
 import {
+  MAXIMO_DE_ANOS,
+  MODOS,
+  anosOferecidos,
+  estimativaDeTempo,
+  impedimento,
+  intervalosSugeridos,
+  rotuloDoModo,
+  usaAnos,
+  usaDatas,
+  usaSegundoIntervalo,
+} from "@/lib/modosDePeriodo";
+import {
   ANALISES,
   REGIMES,
   type Analise,
   type Filial,
   type FiltroApuracao,
+  type ModoPeriodo,
   type Regime,
 } from "@/types/dre-gerencial";
 
@@ -63,107 +76,269 @@ export function FiltrosDre({
   onMudar: (filtro: FiltroApuracao) => void;
   onApurar: () => void;
 }) {
-  const podeApurar = filtro.filiais.length > 0 && !apurando;
+  // O que impede a apuração, em texto. Aparece sob a grade em vez de ficar só como botão
+  // apagado: "escolha ao menos um ano" é a diferença entre corrigir em dois segundos e
+  // ficar clicando num botão que não responde.
+  // O que impede a apuração, em texto. NÃO aparece aqui: uma linha de aviso sob a grade
+  // empurra o botão Apurar e cresce o header — e "escolha ao menos uma filial" é o estado
+  // normal de quem acabou de abrir a tela, não um erro. Quem escreve isso é o corpo da
+  // página, onde há espaço; aqui ele fica no `title` do botão desabilitado.
+  const motivo = impedimento(filtro);
+  const podeApurar = motivo === null && !apurando;
 
   return (
-    // O gabarito da grade mora em `globals.css`, na classe `.grade-filtros` —
-    // os mínimos foram medidos e dependem do modo de leitura. Ver o comentário lá.
-    <section className="grade-filtros">
-      <Campo rotulo="Filial">
-        <SeletorFiliais
-          filiais={filiais}
-          carregando={carregandoFiliais}
-          selecionadas={filtro.filiais}
-          onMudar={(f) => onMudar({ ...filtro, filiais: f })}
-        />
-      </Campo>
+    <>
+      {/* O gabarito da grade mora em `globals.css`, na classe `.grade-filtros` —
+        os mínimos foram medidos e dependem do modo de leitura. Ver o comentário lá. */}
+      <section className="grade-filtros">
+        <Campo rotulo="Filial">
+          <SeletorFiliais
+            filiais={filiais}
+            carregando={carregandoFiliais}
+            selecionadas={filtro.filiais}
+            onMudar={(f) => onMudar({ ...filtro, filiais: f })}
+          />
+        </Campo>
 
-      <Campo rotulo="Regime">
-        <Segmentado
-          opcoes={REGIMES.map((r) => ({
-            valor: r.valor,
-            rotulo: r.rotulo,
-            ativa: true,
-          }))}
-          valor={filtro.regime}
-          onMudar={(v) => onMudar({ ...filtro, regime: v as Regime })}
-        />
-      </Campo>
+        <Campo rotulo="Regime">
+          <Segmentado
+            opcoes={REGIMES.map((r) => ({
+              valor: r.valor,
+              rotulo: r.rotulo,
+              ativa: true,
+            }))}
+            valor={filtro.regime}
+            onMudar={(v) => onMudar({ ...filtro, regime: v as Regime })}
+          />
+        </Campo>
 
-      <Campo rotulo="Tipo de análise">
-        {/* `appearance-none` apaga a seta que o navegador desenha, e a nossa entra por
+        <Campo rotulo="Tipo de análise">
+          {/* `appearance-none` apaga a seta que o navegador desenha, e a nossa entra por
             cima — é o que faz este campo e o de filial terminarem iguais. O `pr-9` abre
             o espaço dela, e `pointer-events-none` deixa o clique atravessar para o
             `<select>`, senão clicar na seta não abriria a lista. */}
-        <div className="relative">
-          <select
-            value={filtro.analise}
-            onChange={(e) =>
-              onMudar({ ...filtro, analise: e.target.value as Analise })
-            }
-            className={cn(CAMPO, "appearance-none pr-9")}
-          >
-            {ANALISES.map((a) => (
-              <option key={a.valor} value={a.valor} disabled={!a.pronta}>
-                {a.rotulo}
-                {a.pronta ? "" : " — em breve"}
-              </option>
-            ))}
-          </select>
-          {/* 13px, não 12: a seta do filial fica dentro do botão, depois do `px-3` E da
+          <div className="relative">
+            <select
+              value={filtro.analise}
+              onChange={(e) =>
+                onMudar({ ...filtro, analise: e.target.value as Analise })
+              }
+              className={cn(CAMPO, "appearance-none pr-9")}
+            >
+              {ANALISES.map((a) => (
+                <option key={a.valor} value={a.valor} disabled={!a.pronta}>
+                  {a.rotulo}
+                  {a.pronta ? "" : " — em breve"}
+                </option>
+              ))}
+            </select>
+            {/* 13px, não 12: a seta do filial fica dentro do botão, depois do `px-3` E da
               borda de 1px, enquanto esta se posiciona pela caixa externa. Sem o pixel
               extra as duas terminam desalinhadas na vertical de quem compara os campos
               lado a lado. */}
-          <Seta className="pointer-events-none absolute top-1/2 right-[13px] -translate-y-1/2" />
-        </div>
-      </Campo>
+            <Seta className="pointer-events-none absolute top-1/2 right-[13px] -translate-y-1/2" />
+          </div>
+        </Campo>
 
-      <Campo rotulo="Período">
+        <CampoPeriodo filtro={filtro} onMudar={onMudar} />
+
+        <Campo>
+          <button
+            type="button"
+            onClick={onApurar}
+            disabled={!podeApurar}
+            title={motivo ?? undefined}
+            className={cn(
+              "h-[var(--altura-controle)] w-full rounded-[var(--radius-md)] px-6 text-[length:var(--fs-base)] font-medium whitespace-nowrap xl:w-auto",
+              // `h-full` para o botão ocupar a célula inteira da grade — rótulo mais controle
+              // —, que é como ele sempre foi e o que o deixa com a presença de ação principal.
+              // Nos modos com mais de uma linha de controles ele acompanha a altura; é o preço
+              // de preencher a célula, e preferível a um botão flutuando no meio dela.
+              "transition-colors duration-[var(--dur-fast)] h-full",
+              podeApurar
+                ? "bg-[var(--primary)] text-white hover:brightness-110"
+                : "cursor-not-allowed bg-[var(--surface-3)] text-[var(--text-muted)]",
+            )}
+          >
+            {apurando ? "Apurando" : "Apurar"}
+          </button>
+        </Campo>
+      </section>
+    </>
+  );
+}
+
+/**
+ * O campo Período: o seletor de modo, as datas e — no comparativo — o segundo intervalo.
+ *
+ * **O modo mora num botão com menu, ao lado esquerdo das datas.** A primeira versão punha
+ * três abas na linha do rótulo; elas empurravam a grade para baixo, esticavam o botão
+ * Apurar e ocupavam espaço permanente para uma escolha que quase nunca muda. Um botão de
+ * ícone gasta o mesmo que o relógio dos atalhos, que já estava ali fazendo um trabalho
+ * parecido.
+ *
+ * O botão **diz em que modo está** quando não é o padrão: só o ícone deixaria a tela mudar
+ * de significado sem nada visível dizendo por quê.
+ */
+function CampoPeriodo({
+  filtro,
+  onMudar,
+}: {
+  filtro: FiltroApuracao;
+  onMudar: (filtro: FiltroApuracao) => void;
+}) {
+  const rotuloId = useId();
+
+  /**
+   * Entrar no comparativo **sugere os dois intervalos**, se ainda não houver segundo. Dois
+   * campos vazios obrigariam a digitar duas datas antes de ver qualquer coisa, e "o mesmo
+   * período do ano passado" é o que se pede num DRE nove vezes em dez.
+   *
+   * O período que estava na tela **desce para o segundo intervalo**, e o ano anterior ocupa
+   * o primeiro: a comparação se lê da esquerda para a direita, como o eixo do tempo.
+   * Continua sendo sugestão — os dois intervalos são livres.
+   */
+  const trocarModo = (modo: ModoPeriodo) => {
+    const base = { ...filtro, modo };
+
+    if (usaSegundoIntervalo(modo)) {
+      return onMudar(
+        base.comparacaoInicio ? base : { ...base, ...intervalosSugeridos(base) },
+      );
+    }
+
+    // SAIR do comparativo devolve o segundo intervalo para os campos de data. Sem isso a
+    // ida e volta rouba um ano de quem só foi espiar a comparação: o período que ele vê na
+    // tela é o primeiro intervalo, que agora é o ANTERIOR. O movimento é o inverso exato do
+    // de cima, e é o único que não deixa a pessoa num período que ela nunca digitou.
+    if (usaSegundoIntervalo(filtro.modo) && filtro.comparacaoInicio && filtro.comparacaoFim) {
+      return onMudar({
+        ...base,
+        dataInicio: filtro.comparacaoInicio,
+        dataFim: filtro.comparacaoFim,
+      });
+    }
+
+    onMudar(base);
+  };
+
+  return (
+    <div
+      role="group"
+      aria-labelledby={rotuloId}
+      className="flex min-w-0 flex-col gap-2"
+    >
+      <span id={rotuloId} className={ROTULO}>
+        Período
+      </span>
+
+      <div className="flex flex-col gap-2">
         <div className="flex items-center gap-2">
-          <input
-            type="date"
-            aria-label="Data inicial"
-            value={filtro.dataInicio}
-            max={filtro.dataFim}
-            onChange={(e) => onMudar({ ...filtro, dataInicio: e.target.value })}
-            className={cn(CAMPO, "tabular")}
-          />
-          <span aria-hidden className="text-[var(--text-muted)]">
-            →
-          </span>
-          <input
-            type="date"
-            aria-label="Data final"
-            value={filtro.dataFim}
-            min={filtro.dataInicio}
-            onChange={(e) => onMudar({ ...filtro, dataFim: e.target.value })}
-            className={cn(CAMPO, "tabular")}
-          />
-          <AtalhosDePeriodo
-            onEscolher={(dataInicio, dataFim) =>
-              onMudar({ ...filtro, dataInicio, dataFim })
-            }
-          />
-        </div>
-      </Campo>
+          {/* À esquerda das datas: o botão qualifica o período que vem depois dele, e é
+              onde o Gabriel pediu. O menu abre alinhado por aqui, e não pela direita. */}
+          <MenuDePeriodo modo={filtro.modo} onModo={trocarModo} />
 
-      <Campo>
-        <button
-          type="button"
-          onClick={onApurar}
-          disabled={!podeApurar}
-          className={cn(
-            "h-[var(--altura-controle)] w-full rounded-[var(--radius-md)] px-6 text-[length:var(--fs-base)] font-medium whitespace-nowrap xl:w-auto",
-            "transition-colors duration-[var(--dur-fast)] h-full",
-            podeApurar
-              ? "bg-[var(--primary)] text-white hover:brightness-110"
-              : "cursor-not-allowed bg-[var(--surface-3)] text-[var(--text-muted)]",
+          {usaDatas(filtro.modo) && (
+            <>
+              <input
+                type="date"
+                aria-label={
+                  usaSegundoIntervalo(filtro.modo)
+                    ? "Data inicial do primeiro intervalo"
+                    : "Data inicial"
+                }
+                value={filtro.dataInicio}
+                max={filtro.dataFim}
+                onChange={(e) =>
+                  onMudar({ ...filtro, dataInicio: e.target.value })
+                }
+                className={cn(CAMPO, "tabular")}
+              />
+              <span aria-hidden className="text-[var(--text-muted)]">
+                →
+              </span>
+              <input
+                type="date"
+                aria-label={
+                  usaSegundoIntervalo(filtro.modo)
+                    ? "Data final do primeiro intervalo"
+                    : "Data final"
+                }
+                value={filtro.dataFim}
+                min={filtro.dataInicio}
+                onChange={(e) =>
+                  onMudar({ ...filtro, dataFim: e.target.value })
+                }
+                className={cn(CAMPO, "tabular")}
+              />
+              {/* Os atalhos ficam onde sempre estiveram, à direita da data final — e no
+                  comparativo cada intervalo tem o seu, porque os dois são independentes.
+                  Um atalho mexe só no par de datas da própria linha. */}
+              <AtalhosDePeriodo
+                rotulo={
+                  usaSegundoIntervalo(filtro.modo)
+                    ? "Atalhos de período — primeiro intervalo"
+                    : "Atalhos de período"
+                }
+                onEscolher={(dataInicio, dataFim) =>
+                  onMudar({ ...filtro, dataInicio, dataFim })
+                }
+              />
+            </>
           )}
-        >
-          {apurando ? "Apurando…" : "Apurar"}
-        </button>
-      </Campo>
-    </section>
+
+          {usaAnos(filtro.modo) && (
+            <ChipsDeAno
+              escolhidos={filtro.anos}
+              onMudar={(anos) => onMudar({ ...filtro, anos })}
+            />
+          )}
+        </div>
+
+        {/* O segundo intervalo, em linha própria e alinhado com o primeiro. Os dois são
+            INDEPENDENTES: mexer num não mexe no outro, que era o defeito da versão
+            anterior — lá, trocar o ano de um lado arrastava o outro junto. */}
+        {usaSegundoIntervalo(filtro.modo) && (
+          <div className="flex items-center gap-2">
+            <span
+              className="grid h-[var(--altura-controle)] w-[var(--altura-controle)] shrink-0 place-items-center text-[length:var(--fs-rotulo)] font-semibold tracking-[0.08em] text-[var(--text-muted)] uppercase"
+              aria-hidden
+            >
+              vs
+            </span>
+            <input
+              type="date"
+              aria-label="Data inicial do segundo intervalo"
+              value={filtro.comparacaoInicio ?? ""}
+              max={filtro.comparacaoFim}
+              onChange={(e) =>
+                onMudar({ ...filtro, comparacaoInicio: e.target.value })
+              }
+              className={cn(CAMPO, "tabular")}
+            />
+            <span aria-hidden className="text-[var(--text-muted)]">
+              →
+            </span>
+            <input
+              type="date"
+              aria-label="Data final do segundo intervalo"
+              value={filtro.comparacaoFim ?? ""}
+              min={filtro.comparacaoInicio}
+              onChange={(e) =>
+                onMudar({ ...filtro, comparacaoFim: e.target.value })
+              }
+              className={cn(CAMPO, "tabular")}
+            />
+            <AtalhosDePeriodo
+              rotulo="Atalhos de período — segundo intervalo"
+              onEscolher={(comparacaoInicio, comparacaoFim) =>
+                onMudar({ ...filtro, comparacaoInicio, comparacaoFim })
+              }
+            />
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -171,9 +346,9 @@ export function FiltrosDre({
  * Um campo do filtro: rótulo em cima, controle embaixo.
  *
  * É um grupo, não um `<label>`. Um rótulo só pode nomear **um** controle, e o campo
- * Período tem dois inputs de data mais o botão de atalhos — envolvê-los num `<label>`
+ * Período tem dois inputs de data mais o botão do menu — envolvê-los num `<label>`
  * deixaria os dois sem nome para o leitor de tela e, pior, devolveria o foco ao
- * primeiro input a cada clique no botão do relógio.
+ * primeiro input a cada clique no botão.
  */
 function Campo({
   rotulo,
@@ -199,19 +374,20 @@ function Campo({
 }
 
 /**
- * Atalhos de período, atrás de um relógio ao lado das datas.
+ * Como as colunas são formadas, atrás de um botão de ícone à esquerda das datas.
  *
- * Cada opção **mostra o intervalo que vai aplicar**. "Últimos 3 meses" pode significar
- * três meses completos ou os noventa dias anteriores, e nenhuma das duas leituras é
- * óbvia — exibir `01/05/2026 a 31/07/2026` encerra a dúvida sem precisar de legenda.
- *
- * A lista é calculada a cada abertura, não uma vez na montagem: uma tela deixada
- * aberta durante a virada da meia-noite ofereceria o "ontem" de ontem.
+ * **Vizinho do relógio dos atalhos, não fundido com ele.** Os dois chegaram a virar um menu
+ * só, por eu supor que não havia espaço para ambos — a medição que sustentava isso era do
+ * campo *Tipo de Análise*, e não deste. O campo Período tem 27rem de mínimo e precisa de uns
+ * 400px para dois botões de 40px, duas datas e a seta: os dois cabem, e são coisas
+ * diferentes. Modo é estrutura da tabela; atalho é um intervalo pronto.
  */
-function AtalhosDePeriodo({
-  onEscolher,
+function MenuDePeriodo({
+  modo,
+  onModo,
 }: {
-  onEscolher: (dataInicio: string, dataFim: string) => void;
+  modo: ModoPeriodo;
+  onModo: (modo: ModoPeriodo) => void;
 }) {
   const [aberto, setAberto] = useState(false);
   const caixa = useRef<HTMLDivElement>(null);
@@ -231,6 +407,10 @@ function AtalhosDePeriodo({
     };
   }, [aberto]);
 
+  // Fora do modo padrão o botão fica aceso. É o que impede a tabela de mudar de significado
+  // sem nada visível dizendo por quê — e cabe sem crescer, porque é só cor.
+  const padrao = modo === "meses";
+
   return (
     <div ref={caixa} className="relative shrink-0">
       <button
@@ -238,42 +418,47 @@ function AtalhosDePeriodo({
         onClick={() => setAberto((a) => !a)}
         aria-expanded={aberto}
         aria-haspopup="menu"
-        aria-label="Atalhos de período"
-        title="Atalhos de período"
+        aria-label={`Período: ${rotuloDoModo(modo)}`}
+        title={`Período: ${rotuloDoModo(modo)}`}
         className={cn(
-          "grid aspect-square h-[var(--altura-controle)] place-items-center rounded-[var(--radius-md)]",
-          "border border-[var(--border-strong)] bg-[var(--surface-2)]",
+          "grid aspect-square h-[var(--altura-controle)] place-items-center rounded-[var(--radius-md)] border",
           "transition-colors duration-[var(--dur-fast)]",
-          aberto
-            ? "border-[var(--primary)] text-[var(--text-primary)]"
-            : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]",
+          padrao
+            ? "border-[var(--border-strong)] bg-[var(--surface-2)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+            : "border-[var(--primary)] bg-[var(--primary-ring)] text-[var(--text-primary)]",
+          aberto && "border-[var(--primary)]",
         )}
       >
-        <Relogio />
+        <IconeColunas />
       </button>
 
       {aberto && (
         <div
           role="menu"
-          className="absolute top-full right-0 z-20 mt-1 w-[min(20rem,90vw)] rounded-[var(--radius-lg)] border border-[var(--border-strong)] bg-[var(--surface-2)] p-2 shadow-[var(--shadow-float)]"
+          className="absolute top-full left-0 z-20 mt-1 w-[min(22rem,90vw)] rounded-[var(--radius-lg)] border border-[var(--border-strong)] bg-[var(--surface-2)] p-2 shadow-[var(--shadow-float)]"
         >
-          {atalhosPeriodo().map((a) => (
+          {MODOS.map((m) => (
             <button
-              key={a.id}
+              key={m.valor}
               type="button"
-              role="menuitem"
+              role="menuitemradio"
+              aria-checked={m.valor === modo}
               onClick={() => {
-                onEscolher(a.dataInicio, a.dataFim);
+                onModo(m.valor);
                 setAberto(false);
               }}
-              className="flex w-full flex-col gap-0.5 rounded-[var(--radius-sm)] px-3 py-[var(--celula-y)] text-left hover:bg-[var(--surface-3)]"
+              className={cn(
+                "flex w-full flex-col gap-0.5 rounded-[var(--radius-sm)] px-3 py-[var(--celula-y)] text-left",
+                m.valor === modo
+                  ? "bg-[var(--surface-3)]"
+                  : "hover:bg-[var(--surface-3)]",
+              )}
             >
               <span className="text-[length:var(--fs-base)] text-[var(--text-primary)]">
-                {a.rotulo}
+                {m.rotulo}
               </span>
-              <span className="tabular text-[length:var(--fs-apoio)] text-[var(--text-muted)]">
-                {paraBr(a.dataInicio)}
-                {a.dataInicio !== a.dataFim && ` a ${paraBr(a.dataFim)}`}
+              <span className="text-[length:var(--fs-apoio)] text-[var(--text-muted)]">
+                {m.explicacao}
               </span>
             </button>
           ))}
@@ -283,8 +468,8 @@ function AtalhosDePeriodo({
   );
 }
 
-/** Relógio em traço, herdando a cor e a espessura do botão. */
-function Relogio() {
+/** Três colunas de alturas diferentes — o que este botão decide é como elas se formam. */
+function IconeColunas() {
   return (
     <svg
       aria-hidden
@@ -293,11 +478,11 @@ function Relogio() {
       stroke="currentColor"
       strokeWidth="1.75"
       strokeLinecap="round"
-      strokeLinejoin="round"
-      className="size-[1.25em]"
+      className="size-[1.25em] shrink-0"
     >
-      <circle cx="12" cy="12" r="9" />
-      <path d="M12 7v5l3 2" />
+      <path d="M5 20V10" />
+      <path d="M12 20V4" />
+      <path d="M19 20v-7" />
     </svg>
   );
 }
@@ -469,5 +654,178 @@ function AcaoRapida({
     >
       {children}
     </button>
+  );
+}
+
+/**
+ * Os anos das colunas.
+ *
+ * Chips e não lista suspensa: são poucos, a escolha é múltipla, e ver os anos disponíveis
+ * de uma vez é mais rápido do que abrir uma lista para marcar dois deles.
+ *
+ * Ao bater o teto, os não escolhidos ficam **desabilitados e explicados** em vez de apenas
+ * recusarem o clique. O limite não é capricho — cada ano é uma varredura da base inteira —,
+ * e é essa frase que o faz parecer razoável.
+ */
+function ChipsDeAno({
+  escolhidos,
+  onMudar,
+}: {
+  escolhidos: number[];
+  onMudar: (anos: number[]) => void;
+}) {
+  const cheio = escolhidos.length >= MAXIMO_DE_ANOS;
+
+  const alternar = (ano: number) =>
+    onMudar(
+      escolhidos.includes(ano)
+        ? escolhidos.filter((a) => a !== ano)
+        : [...escolhidos, ano].sort((a, b) => a - b),
+    );
+
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      {anosOferecidos().map((ano) => {
+        const marcado = escolhidos.includes(ano);
+        const bloqueado = cheio && !marcado;
+        return (
+          <button
+            key={ano}
+            type="button"
+            role="checkbox"
+            aria-checked={marcado}
+            disabled={bloqueado}
+            title={
+              bloqueado
+                ? `No máximo ${MAXIMO_DE_ANOS} anos — cada ano é uma varredura da base.`
+                : undefined
+            }
+            onClick={() => alternar(ano)}
+            className={cn(
+              "tabular rounded-[var(--radius-md)] border px-2.5 py-1.5 text-[length:var(--fs-base)]",
+              "transition-colors duration-[var(--dur-fast)]",
+              marcado
+                ? "border-[var(--primary)] bg-[var(--primary)] text-white"
+                : bloqueado
+                  ? "cursor-not-allowed border-[var(--border)] text-[var(--text-muted)] opacity-50"
+                  : "border-[var(--border-strong)] bg-[var(--surface-2)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]",
+            )}
+          >
+            {ano}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/**
+ * Atalhos de período, atrás de um relógio ao lado das datas.
+ *
+ * Cada opção **mostra o intervalo que vai aplicar**. "Últimos 3 meses" pode significar
+ * três meses completos ou os noventa dias anteriores, e nenhuma das duas leituras é
+ * óbvia — exibir `01/05/2026 a 31/07/2026` encerra a dúvida sem precisar de legenda.
+ *
+ * A lista é calculada a cada abertura, não uma vez na montagem: uma tela deixada
+ * aberta durante a virada da meia-noite ofereceria o "ontem" de ontem.
+ */
+function AtalhosDePeriodo({
+  onEscolher,
+  rotulo = "Atalhos de período",
+}: {
+  onEscolher: (dataInicio: string, dataFim: string) => void;
+  /**
+   * Como o botão se anuncia. No comparativo existem DOIS, um por intervalo, e o mesmo
+   * rótulo nos dois deixaria quem navega por leitor de tela sem saber qual é qual —
+   * "Atalhos de período, botão" duas vezes seguidas não distingue nada.
+   */
+  rotulo?: string;
+}) {
+  const [aberto, setAberto] = useState(false);
+  const caixa = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!aberto) return;
+    const fechar = (e: MouseEvent) => {
+      if (caixa.current && !caixa.current.contains(e.target as Node))
+        setAberto(false);
+    };
+    const esc = (e: KeyboardEvent) => e.key === "Escape" && setAberto(false);
+    document.addEventListener("mousedown", fechar);
+    document.addEventListener("keydown", esc);
+    return () => {
+      document.removeEventListener("mousedown", fechar);
+      document.removeEventListener("keydown", esc);
+    };
+  }, [aberto]);
+
+  return (
+    <div ref={caixa} className="relative shrink-0">
+      <button
+        type="button"
+        onClick={() => setAberto((a) => !a)}
+        aria-expanded={aberto}
+        aria-haspopup="menu"
+        aria-label={rotulo}
+        title={rotulo}
+        className={cn(
+          "grid aspect-square h-[var(--altura-controle)] place-items-center rounded-[var(--radius-md)]",
+          "border border-[var(--border-strong)] bg-[var(--surface-2)]",
+          "transition-colors duration-[var(--dur-fast)]",
+          aberto
+            ? "border-[var(--primary)] text-[var(--text-primary)]"
+            : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]",
+        )}
+      >
+        <Relogio />
+      </button>
+
+      {aberto && (
+        <div
+          role="menu"
+          className="absolute top-full right-0 z-20 mt-1 w-[min(20rem,90vw)] rounded-[var(--radius-lg)] border border-[var(--border-strong)] bg-[var(--surface-2)] p-2 shadow-[var(--shadow-float)]"
+        >
+          {atalhosPeriodo().map((a) => (
+            <button
+              key={a.id}
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                onEscolher(a.dataInicio, a.dataFim);
+                setAberto(false);
+              }}
+              className="flex w-full flex-col gap-0.5 rounded-[var(--radius-sm)] px-3 py-[var(--celula-y)] text-left hover:bg-[var(--surface-3)]"
+            >
+              <span className="text-[length:var(--fs-base)] text-[var(--text-primary)]">
+                {a.rotulo}
+              </span>
+              <span className="tabular text-[length:var(--fs-apoio)] text-[var(--text-muted)]">
+                {paraBr(a.dataInicio)}
+                {a.dataInicio !== a.dataFim && ` a ${paraBr(a.dataFim)}`}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Relógio em traço, herdando a cor e a espessura do botão. */
+function Relogio() {
+  return (
+    <svg
+      aria-hidden
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.75"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="size-[1.25em]"
+    >
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7v5l3 2" />
+    </svg>
   );
 }

@@ -134,4 +134,51 @@ eq(aba["!merges"]?.length, 3, "três faixas de mês juntadas");
 eq(nomeDoArquivo(dados), "DRE_ccusto-principal_2026-07-01_a_2026-08-27", "nome do arquivo");
 
 fs.unlinkSync(arquivo);
+
+// ── O bloco final no modo de ano: variação, não total ───────────────────────────────────
+//
+// A planilha acompanha a tela (§21.5). Divergir aqui faria o arquivo somar 2025 com 2026
+// num campo chamado Total — justamente o número que a tela deixou de mostrar por não
+// significar nada.
+//
+// O primeiro caso é o que fez esta seção existir: com `modo` ausente, `usaAnos` estava
+// escrito como `!== "meses"` e ligava a variação numa apuração mensal. A dc13 pegou pela
+// contagem de colunas, antes de qualquer tela.
+const porAno = {
+  ...dados,
+  modo: "anos",
+  periodos: [
+    { mesAno: "2025", rotulo: "2025", dataInicio: "2025-01-01", dataFim: "2025-12-31" },
+    { mesAno: "2026", rotulo: "2026", dataInicio: "2026-01-01", dataFim: "2026-12-31" },
+  ],
+  linhas: [
+    {
+      ...linha("(+) RECEITA BRUTA", 0, null, null),
+      valores: [
+        { mesAno: "2025", valor: 1000000, percentualAv: null, percentualAh: 0 },
+        { mesAno: "2026", valor: 750000, percentualAv: null, percentualAh: -25 },
+      ],
+    },
+  ],
+};
+
+const mAno = matrizDaApuracao(porAno, porAno.linhas);
+
+eq(mAno[1].length, 9, "1 descrição + 2 anos x 3 + variação x 2");
+eq(mAno[0][7].v, "2025 → 2026", "a faixa do bloco final diz entre o que e o quê");
+eq(mAno[1][7].v, "Δ Valor", "e as colunas são de variação");
+eq(mAno[1][8].v, "Δ %", "");
+eq(mAno[2][7].v, -250000, "a diferença em reais, como número");
+eq(mAno[2][8].v, -25, "e em percentual");
+
+eq(
+  nomeDoArquivo(porAno),
+  "DRE_ccusto-principal_2025_2026",
+  "por ano inteiro o nome cita os anos — as datas do filtro não descrevem o que foi apurado",
+);
+
+// A matriz mensal continua com o bloco de total, inclusive quando `modo` não vem.
+eq(matrizDaApuracao(dados, dados.linhas)[1].length, 10, "o modo mensal mantém as 10 colunas");
+eq(matrizDaApuracao({ ...dados, modo: undefined }, dados.linhas)[1].length, 10, "e sem modo também");
+
 console.log(`dc13: ${n}/${n} asserções passaram. Arquivo gerado, reaberto e conferido.`);

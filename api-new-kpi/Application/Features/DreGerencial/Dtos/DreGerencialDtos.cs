@@ -32,7 +32,38 @@ public record DespesasFiltroDto(
     DateOnly DataInicio,
     DateOnly DataFim,
     string Regime,
-    string Analise);
+    string Analise,
+    /// <summary>
+    /// Como as colunas são formadas — ver <c>RecorteDre</c>.
+    ///
+    /// <para><c>meses</c> (ou ausente) é o padrão: uma coluna por mês do intervalo, que é o
+    /// comportamento de sempre. <c>anos</c> usa <see cref="Anos"/> e devolve uma coluna por
+    /// ano fechado. <c>comparar-anos</c> repete o dia e o mês de
+    /// <see cref="DataInicio"/>–<see cref="DataFim"/> em cada ano de <see cref="Anos"/>.
+    /// </para>
+    ///
+    /// <para>Opcional de propósito: cliente que não conhece o campo continua apurando como
+    /// antes.</para>
+    /// </summary>
+    string? Modo = null,
+    /// <summary>
+    /// Os anos das colunas no modo <c>anos</c>. Ignorado nos outros.
+    /// </summary>
+    IReadOnlyList<int>? Anos = null,
+    /// <summary>
+    /// O SEGUNDO intervalo do modo <c>comparar-anos</c> — o lado direito da comparação.
+    ///
+    /// <para><b>Livre em relação ao primeiro.</b> Não precisa ter o mesmo tamanho nem os
+    /// mesmos meses: comparar janeiro–março de 2025 com junho–setembro de 2026 é um pedido
+    /// válido, e foi o que motivou o desenho. A versão anterior repetia o dia e o mês do
+    /// primeiro intervalo em cada ano escolhido, o que só respondia à pergunta "o mesmo
+    /// período, um ano depois".</para>
+    ///
+    /// <para>Nulo fora do modo comparativo — e nulo DENTRO dele faz a apuração cair no
+    /// mensal, porque comparação com um lado só não é comparação.</para>
+    /// </summary>
+    DateOnly? ComparacaoInicio = null,
+    DateOnly? ComparacaoFim = null);
 
 /// <summary>
 /// Linha de despesa agregada. A identidade é a tupla completa, não `Chave` sozinha —
@@ -64,7 +95,27 @@ public record FaturamentoDto(
     decimal CofinsLiq);
 
 /// <summary>Um mês do período apurado.</summary>
-public record PeriodoDto(string MesAno, string Rotulo);
+/// <summary>
+/// Uma coluna da tabela.
+///
+/// <para><c>MesAno</c> guarda o nome de quando coluna era sempre um mês. Hoje é a
+/// <b>chave</b> da coluna — <c>09/2026</c> no modo mensal, <c>2026</c> por ano,
+/// <c>2026:01-03</c> no comparativo entre anos.</para>
+///
+/// <para><c>DataInicio</c> e <c>DataFim</c> são o recorte que o duplo clique usa. Vêm do
+/// servidor porque só ele sabe o recorte de uma coluna que não é um mês.</para>
+/// </summary>
+public record PeriodoDto(
+    string MesAno,
+    string Rotulo,
+    DateOnly DataInicio,
+    DateOnly DataFim,
+    /// <summary>
+    /// O grupo de colunas a que esta pertence — <c>0</c> e <c>1</c> no comparativo, sempre
+    /// <c>0</c> nos outros modos. A tela usa para separar visualmente os dois intervalos e
+    /// para somar o subtotal de cada um.
+    /// </summary>
+    int Bloco = 0);
 
 /// <summary>Valor de uma linha em um mês.</summary>
 public record ValorMesDto(
@@ -292,6 +343,14 @@ public record DetalheImpostoDto(
 public record ApuracaoDto(
     string Regime,
     string Analise,
+    /// <summary>
+    /// O modo que formou as colunas — <c>meses</c>, <c>anos</c> ou <c>comparar-anos</c>.
+    ///
+    /// <para>É o modo <b>efetivo</b>, não o pedido: um filtro de <c>anos</c> sem ano nenhum,
+    /// ou um comparativo sem o segundo intervalo, volta daqui como <c>meses</c>, porque foi
+    /// isso que a apuração fez. Ver <c>RecorteDre.ModoEfetivo</c>.</para>
+    /// </summary>
+    string Modo,
     DateOnly DataInicio,
     DateOnly DataFim,
     IReadOnlyList<string> Filiais,

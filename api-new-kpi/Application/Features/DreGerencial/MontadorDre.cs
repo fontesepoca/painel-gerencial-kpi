@@ -32,60 +32,77 @@ public static class MontadorDre
 
     private static readonly HashSet<string> NaoSomamNoCabecalho = [St, Pis, Cofins];
 
+    /// <summary>
+    /// Monta a apuração a partir das <b>colunas</b> — ver <see cref="ColunaApuracao"/>.
+    ///
+    /// <para>Até 10/09/2026 a assinatura recebia despesas e faturamento do período e derivava
+    /// as colunas dos meses. Agora quem monta as colunas é o serviço, porque nos modos de
+    /// comparação entre anos cada coluna vem de uma consulta própria. Para o modo mensal —
+    /// o padrão da tela — o resultado é idêntico: uma coluna por mês, com os dados daquele
+    /// mês.</para>
+    /// </summary>
     public static ApuracaoDto Montar(
         IReadOnlyList<LinhaEstruturaDre> estrutura,
-        IReadOnlyList<DespesaDre> despesas,
-        IReadOnlyList<FaturamentoDre> faturamentoPorMes,
+        IReadOnlyList<ColunaApuracao> colunas,
         DespesasFiltroDto filtro,
         long duracaoMs)
     {
-        var periodos = PeriodoDre.Entre(filtro.DataInicio, filtro.DataFim);
         var avisos = new List<string>();
 
-        // Índice pela TUPLA COMPLETA, com o mês: o mesmo grupo aparece mais de uma vez no
-        // DRE com flags diferentes, e cada ocorrência tem um valor por mês.
-        var valorDespesa = despesas
-            .GroupBy(d => (d.GrupoConta, d.AntesRo, d.AntesLl, d.AntesLf, d.MesAno))
-            .ToDictionary(g => g.Key, g => g.Sum(d => d.VlRealizado));
+        // Índice pela TUPLA COMPLETA, com a COLUNA: o mesmo grupo aparece mais de uma vez no
+        // DRE com flags diferentes, e cada ocorrência tem um valor por coluna. Antes a chave
+        // levava o mês; leva a coluna, que no modo mensal é o próprio mês.
+        var valorDespesa = colunas
+            .SelectMany(c => c.Despesas.Select(d => (Coluna: c.Chave, Despesa: d)))
+            .GroupBy(x => (x.Despesa.GrupoConta, x.Despesa.AntesRo, x.Despesa.AntesLl,
+                           x.Despesa.AntesLf, x.Coluna))
+            .ToDictionary(g => g.Key, g => g.Sum(x => x.Despesa.VlRealizado));
 
-        // Quantos lancamentos cada linha tem no periodo inteiro. E o que decide se a linha
+        // Quantos lancamentos cada linha tem em TODAS as colunas. E o que decide se a linha
         // aparece com "Mostrar Contas Zeradas" desmarcada — a 9815 esconde por AUSENCIA DE
-        // MOVIMENTO, nao por valor zero. Sem o mes na chave: a visibilidade e da linha.
-        var qtdDespesa = despesas
+        // MOVIMENTO, nao por valor zero. Sem a coluna na chave: a visibilidade e da linha.
+        var qtdDespesa = colunas
+            .SelectMany(c => c.Despesas)
             .GroupBy(d => (d.GrupoConta, d.AntesRo, d.AntesLl, d.AntesLf))
             .ToDictionary(g => g.Key, g => g.Sum(d => d.QdeReg));
-
-        var faturamento = faturamentoPorMes.ToDictionary(f => f.MesAno);
 
         var linhas = estrutura
             .Select(e => new LinhaEmMontagem(e, Normalizar(e.Grupo), e.CodGruConta.StartsWith('-')))
             .ToList();
 
-        // Cada mês é montado por inteiro, de forma independente — inclusive os
-        // totalizadores, que dependem só das linhas daquele mês.
-        var valoresPorMes = periodos.ToDictionary(
-            p => p.MesAno,
-            p => MontarMes(linhas, valorDespesa, faturamento.GetValueOrDefault(p.MesAno), p.MesAno, avisos));
+        // Cada coluna é montada por inteiro, de forma independente — inclusive os
+        // totalizadores, que dependem só das linhas daquela coluna.
+        var valoresPorColuna = colunas.ToDictionary(
+            c => c.Chave,
+            c => MontarMes(linhas, valorDespesa, c.Faturamento, c.Chave, avisos));
 
         var chavesOrdem = GerarChavesOrdem(linhas);
 
         var resultado = linhas.Select((l, indice) =>
         {
-            var valores = periodos.Select((p, i) =>
+            var valores = colunas.Select((c, i) =>
             {
                 // ARREDONDA AQUI, antes de somar. A 9815 leva cada mes para duas casas e
                 // depois totaliza; somar a precisao cheia e arredondar no fim da um centavo
                 // a mais em ABAT./DESC., por exemplo. Half-to-even e o padrao do .NET e e o
                 // que a rotina faz: media -1.477.974,065 vira ,06 e -110.608,085 vira ,08.
-                var valor = Arredondar(valoresPorMes[p.MesAno][indice]);
-                var anterior = i == 0
+                var valor = Arredondar(valoresPorColuna[c.Chave][indice]);
+
+                // A coluna anterior DO MESMO BLOCO. No comparativo, a primeira coluna do
+                // segundo intervalo não tem anterior — compará-la com a última do primeiro
+                // poria Jan/26 contra Mar/25, dois meses sem relação nenhuma, e o número
+                // sairia grande e sem sentido bem onde a comparação começa.
+                //
+                // Nos modos meses e anos todas as colunas são do bloco 0, e a sequência
+                // continua contínua: é assim que um ano compara com o ano anterior.
+                var anterior = i == 0 || colunas[i - 1].Bloco != c.Bloco
                     ? (decimal?)null
-                    : Arredondar(valoresPorMes[periodos[i - 1].MesAno][indice]);
+                    : Arredondar(valoresPorColuna[colunas[i - 1].Chave][indice]);
 
                 return new ValorMesDto(
-                    MesAno: p.MesAno,
+                    MesAno: c.Chave,
                     Valor: valor,
-                    PercentualAv: CalcularAv(l, valor, faturamento.GetValueOrDefault(p.MesAno)),
+                    PercentualAv: CalcularAv(l, valor, c.Faturamento),
                     PercentualAh: CalcularAh(valor, anterior));
             }).ToList();
 
@@ -105,8 +122,9 @@ public static class MontadorDre
                 Valores: valores,
                 Total: new TotalLinhaDto(
                     Valor: somaPeriodo,
-                    Media: periodos.Count == 0 ? 0m : Arredondar(somaPeriodo / periodos.Count),
-                    PercentualAv: CalcularAvTotal(l, somaPeriodo, faturamentoPorMes)),
+                    Media: colunas.Count == 0 ? 0m : Arredondar(somaPeriodo / colunas.Count),
+                    PercentualAv: CalcularAvTotal(
+                        l, somaPeriodo, colunas.Select(c => c.Faturamento))),
                 Totalizadora: l.Estrutura.InfContas == "S",
                 Calculada: l.Calculada,
                 NaoSoma: EhNaoSoma(l),
@@ -139,10 +157,16 @@ public static class MontadorDre
         return new ApuracaoDto(
             Regime: filtro.Regime,
             Analise: filtro.Analise,
+            Modo: RecorteDre.ModoEfetivo(filtro),
             DataInicio: filtro.DataInicio,
             DataFim: filtro.DataFim,
             Filiais: filtro.Filiais,
-            Periodos: periodos.Select(p => new PeriodoDto(p.MesAno, p.Rotulo)).ToList(),
+            // O recorte de cada coluna vai junto: é o que o duplo clique usa para pedir o
+            // detalhamento. Derivar do mês da coluna deixa de funcionar quando a coluna é um
+            // ano ou um trecho dele.
+            Periodos: colunas
+                .Select(c => new PeriodoDto(c.Chave, c.Rotulo, c.DataInicio, c.DataFim, c.Bloco))
+                .ToList(),
             Linhas: resultado,
             Avisos: avisos,
             ApuradoEm: DateTimeOffset.Now,
@@ -414,14 +438,19 @@ public static class MontadorDre
     /// na coluna `% AV` do TOTAL, e o preenchimento começa em RECEITAS LIQUIDAS.</para>
     /// </summary>
     private static decimal? CalcularAvTotal(
-        LinhaEmMontagem l, decimal valor, IReadOnlyList<FaturamentoDre> meses)
+        LinhaEmMontagem l, decimal valor, IEnumerable<FaturamentoDre?> porColuna)
     {
-        if (l.Rotulo == ReceitaBruta || BaseReceitaBruta.Contains(l.Rotulo) || meses.Count == 0)
+        // Coluna sem movimento entra como `null` e não conta na base — é o mesmo que era
+        // feito quando a lista só tinha os meses que voltaram do banco.
+        var comMovimento = porColuna.Where(f => f is not null).ToList();
+
+        if (l.Rotulo == ReceitaBruta || BaseReceitaBruta.Contains(l.Rotulo)
+            || comMovimento.Count == 0)
         {
             return null;
         }
 
-        var baseCalculo = meses.Sum(m => m.ReceitaLiquida);
+        var baseCalculo = comMovimento.Sum(m => m!.ReceitaLiquida);
         return baseCalculo == 0m ? null : valor / baseCalculo * 100m;
     }
 

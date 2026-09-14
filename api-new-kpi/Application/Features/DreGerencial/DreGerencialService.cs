@@ -208,8 +208,44 @@ public sealed class DreGerencialService
             return "O período não pode passar de 12 meses.";
         }
 
+        // Teto de três anos — decisão do Gabriel em 10/09/2026. Vale só para o modo
+        // `anos`: lá cada coluna é uma varredura de doze meses, e um ano de uma filial
+        // custou 316 s medidos. Três cobre a comparação de triênio, que é o que se pede num
+        // DRE; acima disso o tempo cresce mais rápido que o valor da informação.
+        //
+        // O comparativo NÃO entra neste teto desde 11/09/2026: ele deixou de repetir um
+        // molde em N anos e passou a ter dois intervalos livres, cada um custando o mesmo
+        // que uma apuração mensal comum. Dois intervalos de três meses são mais baratos que
+        // um único ano.
+        var anos = filtro.Anos?.Distinct().Count() ?? 0;
+        if (filtro.Modo is "anos" && anos > MaximoDeAnos)
+        {
+            return $"Escolha no máximo {MaximoDeAnos} anos para comparar — " +
+                   $"foram {anos}. Cada ano é uma varredura da base.";
+        }
+
+        // O segundo intervalo do comparativo passa pelas MESMAS regras do primeiro. Sem
+        // isto, um intervalo B invertido ou de cinco anos entraria por uma porta que o A
+        // tem fechada — e o erro apareceria como consulta eterna, não como mensagem.
+        if (filtro.Modo == "comparar-anos"
+            && filtro.ComparacaoInicio is { } inicio2
+            && filtro.ComparacaoFim is { } fim2)
+        {
+            if (fim2 < inicio2)
+            {
+                return "No segundo intervalo, a data final não pode ser anterior à inicial.";
+            }
+
+            if (inicio2.AddMonths(12) < fim2)
+            {
+                return "O segundo intervalo não pode passar de 12 meses.";
+            }
+        }
+
         return null;
     }
+
+    private const int MaximoDeAnos = 3;
 
     /// <summary>
     /// Apura o DRE completo: estrutura, despesas e faturamento, montados pelo
@@ -248,21 +284,56 @@ public sealed class DreGerencialService
             return Result<ApuracaoDto>.Invalido(MensagemAnaliseNaoImplementada(analise));
         }
 
+        var recortes = RecorteDre.Resolver(filtro);
+        if (recortes.Count == 0)
+        {
+            return Result<ApuracaoDto>.Invalido(
+                "Escolha pelo menos um período para apurar.");
+        }
+
         var cronometro = System.Diagnostics.Stopwatch.StartNew();
 
+        // A estrutura é UMA consulta, sobre o período que cobre todos os recortes. As linhas
+        // do DRE são as mesmas em qualquer coluna, e o bloco de contas órfãs sai da união —
+        // uma conta que só teve movimento em 2025 precisa aparecer quando 2025 é uma das
+        // colunas comparadas.
         var estrutura = await _repositorio.ObterEstruturaAsync(
-            filtro.Filiais, filtro.DataInicio, filtro.DataFim, regime, analise, cancellationToken);
+            filtro.Filiais,
+            recortes.Min(r => r.DataInicio),
+            recortes.Max(r => r.DataFim),
+            regime,
+            analise,
+            cancellationToken);
 
-        var despesas = await _repositorio.ObterDespesasAsync(
-            filtro.Filiais, filtro.DataInicio, filtro.DataFim, regime, analise, cancellationToken);
+        // Uma consulta de despesas e uma de faturamento POR RECORTE, e os recortes rodam
+        // EM PARALELO — decisão do Gabriel em 10/09/2026, com o custo declarado: três anos
+        // significam três varreduras simultâneas de PCLANC e PCNFSAID no mesmo Oracle que
+        // a operação usa. Em troca, três anos saem em ~6 min em vez de ~16.
+        //
+        // A medição que motivou a escolha: um ano de uma filial levou 316 s sequencial.
+        //
+        // COMO VOLTAR AO SEQUENCIAL, se a concorrência incomodar em produção: trocar o
+        // `Task.WhenAll` por um `foreach` que aguarde cada recorte antes do próximo. O
+        // resto do fluxo não muda — a ordem das colunas vem de `recortes`, não da ordem em
+        // que as consultas terminam, então o resultado é idêntico nos dois modos.
+        var porRecorte = await Task.WhenAll(recortes.Select(async recorte =>
+        {
+            var despesas = await _repositorio.ObterDespesasAsync(
+                filtro.Filiais, recorte.DataInicio, recorte.DataFim, regime, analise,
+                cancellationToken);
 
-        var faturamento = await _repositorio.ObterFaturamentoPorMesAsync(
-            filtro.Filiais, filtro.DataInicio, filtro.DataFim, cancellationToken);
+            var faturamento = await _repositorio.ObterFaturamentoPorMesAsync(
+                filtro.Filiais, recorte.DataInicio, recorte.DataFim, cancellationToken);
+
+            return recorte.EmColunas(despesas, faturamento);
+        }));
+
+        var colunas = porRecorte.SelectMany(c => c).ToList();
 
         cronometro.Stop();
 
         var apuracao = MontadorDre.Montar(
-            estrutura, despesas, faturamento, filtro, cronometro.ElapsedMilliseconds);
+            estrutura, colunas, filtro, cronometro.ElapsedMilliseconds);
 
         return Result<ApuracaoDto>.Ok(apuracao);
     }

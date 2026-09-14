@@ -8,6 +8,7 @@ import {
   type Celula,
   type Planilha,
 } from "@/lib/excel";
+import { mostraVariacao, rotuloDaVariacao, variacao } from "@/lib/modosDePeriodo";
 import type { Apuracao, LinhaDre } from "@/types/dre-gerencial";
 
 /**
@@ -22,8 +23,23 @@ import type { Apuracao, LinhaDre } from "@/types/dre-gerencial";
  * divergir faria o Excel e o papel discordarem sobre a mesma apuração.
  */
 
+/**
+ * Quantas colunas tem o bloco final, e o que ele diz.
+ *
+ * O arquivo acompanha a tela: nos modos de ano o bloco final é a **variação** entre a
+ * primeira e a última coluna, com duas colunas em vez das três do total. Divergir aqui
+ * faria a planilha somar 2025 com 2026 num campo chamado Total, que é justamente o número
+ * que a tela deixou de mostrar por não significar nada.
+ */
+function blocoFinal(dados: Apuracao) {
+  return mostraVariacao(dados.modo, dados.periodos)
+    ? { variacao: true as const, largura: 2, rotulo: rotuloDaVariacao(dados.modo, dados.periodos) }
+    : { variacao: false as const, largura: 3, rotulo: "Total" };
+}
+
 export function matrizDaApuracao(dados: Apuracao, linhas: readonly LinhaDre[]): Celula[][] {
   const multiMes = dados.periodos.length > 1;
+  const fim = blocoFinal(dados);
 
   const faixaMeses: Celula[] = [txt("")];
   const rotulos: Celula[] = [txt("Descrição")];
@@ -34,8 +50,12 @@ export function matrizDaApuracao(dados: Apuracao, linhas: readonly LinhaDre[]): 
   }
 
   if (multiMes) {
-    faixaMeses.push(txt("Total"), txt(""), txt(""));
-    rotulos.push(txt("Valor"), txt("AV %"), txt("Média"));
+    faixaMeses.push(...Array.from({ length: fim.largura }, (_, i) => txt(i === 0 ? fim.rotulo : "")));
+    rotulos.push(
+      ...(fim.variacao
+        ? [txt("Δ Valor"), txt("Δ %")]
+        : [txt("Valor"), txt("AV %"), txt("Média")]),
+    );
   }
 
   const corpo = linhas.map((linha) => {
@@ -50,7 +70,10 @@ export function matrizDaApuracao(dados: Apuracao, linhas: readonly LinhaDre[]): 
       );
     }
 
-    if (multiMes) {
+    if (multiMes && fim.variacao) {
+      const v = variacao(linha.valores, dados.periodos, dados.modo);
+      celulas.push(num(v?.absoluta ?? null, MOEDA), num(v?.percentual ?? null, PERCENTUAL_3));
+    } else if (multiMes) {
       celulas.push(
         num(linha.total.valor, MOEDA),
         num(linha.total.percentualAv, PERCENTUAL_3),
@@ -64,8 +87,29 @@ export function matrizDaApuracao(dados: Apuracao, linhas: readonly LinhaDre[]): 
   return [faixaMeses, rotulos, ...corpo];
 }
 
-/** `DRE_ccusto-principal_2026-07-01_a_2026-08-27` */
+/**
+ * `DRE_ccusto-principal_2026-07-01_a_2026-08-27`, ou `DRE_ccusto-principal_2025_2026` no
+ * modo por ano inteiro — onde as datas do filtro não descrevem o que foi apurado, e um
+ * nome de arquivo que mente é pior do que um nome curto.
+ */
 export function nomeDoArquivo(dados: Apuracao): string {
+  if (dados.modo === "anos") {
+    return `DRE_${dados.analise}_${dados.periodos.map((p) => p.rotulo).join("_")}`;
+  }
+
+  // No comparativo o nome cita os DOIS intervalos: só o primeiro faria dois arquivos de
+  // comparações diferentes saírem com o mesmo nome, e quem arquiva não teria como
+  // distinguir um do outro.
+  const segundo = dados.periodos.filter((p) => p.bloco === 1);
+  const inicio2 = segundo[0]?.dataInicio;
+  const fim2 = segundo.at(-1)?.dataFim;
+  if (dados.modo === "comparar-anos" && inicio2 && fim2) {
+    return (
+      `DRE_${dados.analise}_${dados.dataInicio}_a_${dados.dataFim}` +
+      `_vs_${inicio2}_a_${fim2}`
+    );
+  }
+
   return `DRE_${dados.analise}_${dados.dataInicio}_a_${dados.dataFim}`;
 }
 
@@ -76,10 +120,17 @@ export function planilhaDaApuracao(
   const matriz = matrizDaApuracao(dados, linhas);
   const colunas = matriz[1]?.length ?? 1;
 
-  // Junta as três colunas de cada mês sob o rótulo dele, como na tela.
+  // Junta as colunas de cada bloco sob o rótulo dele, como na tela. O último bloco pode
+  // ter duas colunas em vez de três — daí a largura vir da lista, e não de um passo fixo.
+  const fim = blocoFinal(dados);
+  const larguras = dados.periodos.map(() => 3);
+  if (dados.periodos.length > 1) larguras.push(fim.largura);
+
   const merges = [];
-  for (let i = 0; i < colunas - 1; i += 3) {
-    merges.push({ s: { r: 0, c: i + 1 }, e: { r: 0, c: i + 3 } });
+  let c = 1;
+  for (const largura of larguras) {
+    merges.push({ s: { r: 0, c }, e: { r: 0, c: c + largura - 1 } });
+    c += largura;
   }
 
   return {

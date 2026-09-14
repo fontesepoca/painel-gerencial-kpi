@@ -3,9 +3,18 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ModalMoverLinha, type MovimentoPendente } from "./ModalMoverLinha";
 import { ModalDetalhe } from "./ModalDetalhe";
+import { ModalConfirmarDetalhe, type DetalhePendente } from "./ModalConfirmarDetalhe";
 import { useDetalhe } from "@/hooks/useDreGerencial";
 import { useExportarDetalhe } from "@/hooks/useExportarDetalhe";
-import { recorteDoMes } from "@/lib/periodos";
+import { paraBr } from "@/lib/periodos";
+import {
+  abreBloco,
+  mostraVariacao,
+  recorteLongo,
+  rotuloDaVariacao,
+  rotulosDistintos,
+  variacao,
+} from "@/lib/modosDePeriodo";
 import { useOrdemSalva } from "@/hooks/useOrdemSalva";
 import { passoDeRolagem } from "@/lib/rolagemAutomatica";
 import { guardar } from "@/lib/detalheAberto";
@@ -20,7 +29,12 @@ import {
   ordemPersonalizada,
   saiuDoBloco,
 } from "@/lib/ordemLinhas";
-import type { FiltroApuracao, LinhaDre, PeriodoDre } from "@/types/dre-gerencial";
+import type {
+  FiltroApuracao,
+  LinhaDre,
+  ModoPeriodo,
+  PeriodoDre,
+} from "@/types/dre-gerencial";
 
 /**
  * Tamanhos, espaçamento e contraste vêm de tokens definidos em `globals.css`.
@@ -28,6 +42,28 @@ import type { FiltroApuracao, LinhaDre, PeriodoDre } from "@/types/dre-gerencial
  * modo está. Ver o bloco MODO DE LEITURA AMPLIADA lá.
  */
 const CELULA = "px-[var(--celula-x)] py-[var(--celula-y)]";
+
+/**
+ * Um detalhamento pronto para ser disparado.
+ *
+ * Existe porque o pedido pode ficar esperando: quando o recorte é longo, ele é montado no
+ * duplo clique e só sai depois da confirmação. Guardar o pedido inteiro, e não os
+ * ingredientes, garante que o que foi confirmado é exatamente o que roda.
+ */
+interface PedidoDetalhe {
+  tipo: NonNullable<LinhaDre["detalhe"]>;
+  titulo: string;
+  periodo: { dataInicio: string; dataFim: string };
+  linha: { descricao: string; valor: number };
+}
+
+/** Dias de um recorte, inclusive as duas pontas. */
+function diasDoRecorte(periodo: { dataInicio: string; dataFim: string }): number {
+  const a = Date.parse(`${periodo.dataInicio}T00:00:00`);
+  const b = Date.parse(`${periodo.dataFim}T00:00:00`);
+  if (Number.isNaN(a) || Number.isNaN(b)) return 0;
+  return Math.round((b - a) / 86_400_000) + 1;
+}
 
 /**
  * **Arrastar move uma linha, sempre.**
@@ -43,6 +79,7 @@ export function TabelaDre({
   linhas,
   mostrarZeradas,
   filtro,
+  modo,
   filiaisApuradas,
 }: {
   periodos: PeriodoDre[];
@@ -50,6 +87,8 @@ export function TabelaDre({
   mostrarZeradas: boolean;
   /** Filiais, período, regime e dimensão da apuração — o detalhamento repete todos. */
   filtro: FiltroApuracao;
+  /** O modo que formou as colunas. Decide o bloco final: total ou variação. */
+  modo: ModoPeriodo;
   /**
    * As filiais apuradas por extenso, para a página dedicada imprimir. Chega pronta de
    * quem apurou — ver `descreverFiliais`.
@@ -87,6 +126,15 @@ export function TabelaDre({
     periodo: { dataInicio: string; dataFim: string };
     /** A célula clicada, para o resumo do cálculo conferir contra ela. */
     linha: { descricao: string; valor: number };
+  } | null>(null);
+
+  /**
+   * Um detalhamento à espera de confirmação, quando o recorte é longo. Guarda o pedido
+   * pronto: o que a confirmação faz é deixá-lo seguir, sem recalcular nada.
+   */
+  const [detalhePendente, setDetalhePendente] = useState<{
+    pedido: PedidoDetalhe;
+    aviso: DetalhePendente;
   } | null>(null);
 
   /** Composição de um totalizador. Vive fora do `detalhe` porque não passa pela API. */
@@ -240,36 +288,17 @@ export function TabelaDre({
   }, [pendente, salvar]);
 
   /**
-   * Duplo clique numa célula de valor.
+   * Dispara o detalhamento de uma célula já resolvida.
    *
-   * O período NÃO é o da apuração inteira: é o mês da coluna clicada, recortado pelo
-   * período. Com 01/08 a 27/08, agosto detalha 01/08 a 27/08 — detalhar o mês calendário
-   * mostraria lançamentos que não entraram na célula, e o total deixaria de bater com ela.
-   * No bloco TOTAL, `mesAno` vem nulo e o recorte é o período todo.
+   * Separado de `abrirDetalhe` porque existem dois caminhos até aqui: o duplo clique
+   * direto e o mesmo clique depois de confirmado, quando o recorte é longo.
    */
-  const abrirDetalhe = useCallback(
-    (linha: LinhaDre, mesAno: string | null) => {
-      if (!linha.detalhe) return;
-
-      const periodo = mesAno
-        ? recorteDoMes(mesAno, filtro.dataInicio, filtro.dataFim)
-        : { dataInicio: filtro.dataInicio, dataFim: filtro.dataFim };
-
-      if (!periodo) return;
-
-      const coluna = mesAno
-        ? (periodos.find((pp) => pp.mesAno === mesAno)?.rotulo ?? mesAno)
-        : "Total do período";
-
-      // O valor da célula vai junto: é contra ele que o resumo do cálculo se confere.
-      const valorDaLinha = mesAno
-        ? (linha.valores.find((v) => v.mesAno === mesAno)?.valor ?? 0)
-        : linha.total.valor;
-
+  const consultarDetalhe = useCallback(
+    (pedido: PedidoDetalhe) => {
       setDetalhe({
-        titulo: `${linha.descricao.trim()} · ${coluna}`,
-        periodo,
-        linha: { descricao: linha.descricao.trim(), valor: valorDaLinha },
+        titulo: pedido.titulo,
+        periodo: pedido.periodo,
+        linha: pedido.linha,
       });
 
       // Descarta o resultado anterior ANTES de pedir o novo. Sem isto existe uma janela
@@ -278,13 +307,73 @@ export function TabelaDre({
       consultaDetalhe.reset();
       consultaDetalhe.mutate({
         ...filtro,
-        ...periodo,
-        tipo: linha.detalhe.tipo,
-        bloco: linha.detalhe.bloco,
-        chave: linha.detalhe.chave,
+        ...pedido.periodo,
+        tipo: pedido.tipo.tipo,
+        bloco: pedido.tipo.bloco,
+        chave: pedido.tipo.chave,
       });
     },
-    [filtro, periodos, consultaDetalhe],
+    [filtro, consultaDetalhe],
+  );
+
+  /**
+   * Duplo clique numa célula de valor.
+   *
+   * **O recorte vem da coluna, não de uma conta feita aqui.** Cada período traz o próprio
+   * `dataInicio`/`dataFim` do servidor — que é o único que sabe recortar uma coluna que
+   * não é um mês. Antes o front derivava isso do `mm/yyyy` com `recorteDoMes`, e essa
+   * conta só funciona enquanto coluna for sinônimo de mês: numa coluna `2026` ela
+   * devolveria janeiro.
+   *
+   * O recorte continua sendo o da célula, não o da apuração inteira: com 01/08 a 27/08,
+   * agosto detalha 01/08 a 27/08 — detalhar o mês calendário mostraria lançamentos que não
+   * entraram na célula, e o total deixaria de bater com ela. No bloco final, `mesAno` vem
+   * nulo e o recorte é o período todo.
+   */
+  const abrirDetalhe = useCallback(
+    (linha: LinhaDre, mesAno: string | null) => {
+      if (!linha.detalhe) return;
+
+      const coluna = mesAno ? periodos.find((pp) => pp.mesAno === mesAno) : null;
+
+      // Coluna que não existe mais na resposta: não inventa recorte. Um intervalo chutado
+      // devolveria números que não são os da célula clicada.
+      if (mesAno && !coluna) return;
+
+      const periodo = coluna
+        ? { dataInicio: coluna.dataInicio, dataFim: coluna.dataFim }
+        : { dataInicio: filtro.dataInicio, dataFim: filtro.dataFim };
+
+      // O valor da célula vai junto: é contra ele que o resumo do cálculo se confere.
+      const valorDaLinha = mesAno
+        ? (linha.valores.find((v) => v.mesAno === mesAno)?.valor ?? 0)
+        : linha.total.valor;
+
+      const pedido = {
+        tipo: linha.detalhe,
+        titulo: `${linha.descricao.trim()} · ${coluna?.rotulo ?? "Total do período"}`,
+        periodo,
+        linha: { descricao: linha.descricao.trim(), valor: valorDaLinha },
+      };
+
+      // Recorte longo pergunta antes. Ver `ModalConfirmarDetalhe`: com colunas de ano, um
+      // clique a mais passa a iniciar minutos de consulta sem cancelamento.
+      if (recorteLongo(periodo)) {
+        setDetalhePendente({
+          pedido,
+          aviso: {
+            oQue: pedido.titulo,
+            de: paraBr(periodo.dataInicio),
+            ate: paraBr(periodo.dataFim),
+            dias: diasDoRecorte(periodo),
+          },
+        });
+        return;
+      }
+
+      consultarDetalhe(pedido);
+    },
+    [filtro, periodos, consultarDetalhe],
   );
 
   /**
@@ -423,8 +512,19 @@ export function TabelaDre({
     );
   }
 
-  // Com um mês só, a coluna de total repetiria a do mês — e o %AH seria sempre vazio.
+  // Com uma coluna só, o bloco final repetiria a própria coluna — e o %AH seria sempre
+  // vazio. O nome fala em mês porque no modo mensal é isso que uma coluna é.
   const multiMes = periodos.length > 1;
+
+  // Nos modos de comparação o bloco final mostra VARIAÇÃO, não total: somar 2025 com 2026,
+  // ou janeiro de 2025 com junho de 2026, dá um número que ninguém usa. Ver
+  // `mostraVariacao`.
+  const variacaoNoFim = mostraVariacao(modo, periodos);
+  const colunasDoFim = variacaoNoFim ? 2 : 3;
+
+  // Dois lados do comparativo podem cair no mesmo mês — 28/08–03/09 contra 05/09–11/09 põe
+  // `Setembro/2026` duas vezes no cabeçalho. Aí, e só aí, o rótulo passa a levar os dias.
+  const rotulos = rotulosDistintos(periodos);
 
   // Escala das barras de %AV: a maior proporção abaixo de 100 define a largura cheia.
   // Sem isso, 26% e 73% ficariam quase indistinguíveis perto das Receitas Líquidas.
@@ -482,22 +582,32 @@ export function TabelaDre({
                     key={p.mesAno}
                     colSpan={3}
                     className={cn(
-                      "border-l border-[var(--border)] px-[var(--celula-x)] pt-3 pb-1 text-center text-[length:var(--fs-rotulo)] font-semibold tracking-[0.14em] text-[var(--text-secondary)] uppercase",
+                      "px-[var(--celula-x)] pt-3 pb-1 text-center text-[length:var(--fs-rotulo)] font-semibold tracking-[0.14em] text-[var(--text-secondary)] uppercase",
                       // Uma cor por mês, para o olho não perder de vista a que coluna
                       // pertence o número que está lendo — ver o bloco FAIXA DE COR POR
                       // COLUNA em globals.css. O ciclo de quatro recomeça longe o bastante
                       // para duas faixas iguais nunca se compararem na mesma tela.
                       faixaDoMes(i),
+                      // A virada de intervalo ganha a MESMA borda do bloco de total: é uma
+                      // divisão da mesma natureza, e sem ela os dois lados da comparação se
+                      // misturam num campo contínuo de colunas.
+                      abreBloco(periodos, i)
+                        ? "border-l-2 border-[var(--border-strong)]"
+                        : "border-l border-[var(--border)]",
                     )}
                   >
-                    {p.rotulo}
+                    {rotulos[i]}
                   </th>
                 ))}
                 <th
-                  colSpan={3}
+                  colSpan={colunasDoFim}
                   className="border-l border-[var(--border-strong)] bg-[var(--surface-2)] px-[var(--celula-x)] pt-3 pb-1 text-center text-[length:var(--fs-rotulo)] font-semibold tracking-[0.14em] text-[var(--text-primary)] uppercase"
                 >
-                  Total
+                  {/* `Jan–Mar/2025 → Jun–Set/2026` em vez de "Variação": no comparativo os
+                      dois lados são intervalos INTEIROS, e sem o rótulo quem olha a coluna Δ
+                      supõe que ela compara os dois últimos meses — que é outra conta, a da
+                      coluna `AH %`. */}
+                  {variacaoNoFim ? rotuloDaVariacao(modo, periodos) : "Total"}
                 </th>
               </tr>
             )}
@@ -510,7 +620,8 @@ export function TabelaDre({
               {periodos.map((p) => (
                 <ColunasCabecalho key={p.mesAno} mostrarAh={multiMes} />
               ))}
-              {multiMes && <ColunasCabecalho total />}
+              {multiMes &&
+                (variacaoNoFim ? <ColunasCabecalhoVariacao /> : <ColunasCabecalho total />)}
             </tr>
           </thead>
           <tbody>
@@ -523,6 +634,9 @@ export function TabelaDre({
                   indice={indice}
                   maiorAv={maiorAv}
                   multiMes={multiMes}
+                  variacaoNoFim={variacaoNoFim}
+                  periodos={periodos}
+                  modo={modo}
                   deslocada={deslocadas.has(linha.chaveOrdem)}
                   arrastando={arrasto === indice}
                   indicadorAcima={indicador === linha.chaveOrdem}
@@ -566,6 +680,15 @@ export function TabelaDre({
         pendente={pendente}
         onConfirmar={confirmar}
         onCancelar={() => setPendente(null)}
+      />
+
+      <ModalConfirmarDetalhe
+        pendente={detalhePendente?.aviso ?? null}
+        onConfirmar={() => {
+          if (detalhePendente) consultarDetalhe(detalhePendente.pedido);
+          setDetalhePendente(null);
+        }}
+        onCancelar={() => setDetalhePendente(null)}
       />
 
       <ModalDetalhe
@@ -612,6 +735,94 @@ function ColunasCabecalho({ mostrarAh, total }: { mostrarAh?: boolean; total?: b
   );
 }
 
+/** O cabeçalho do bloco de variação: duas colunas, contra as três do total. */
+function ColunasCabecalhoVariacao() {
+  return (
+    <>
+      <Th className="border-l border-[var(--border-strong)] text-right">Δ Valor</Th>
+      <Th className="text-right">Δ %</Th>
+    </>
+  );
+}
+
+/**
+ * A diferença entre a primeira e a última coluna: em reais e em proporção.
+ *
+ * **Não abre detalhamento**, ao contrário do bloco de total. Uma variação é a subtração de
+ * dois números que já estão na tela — não existe lançamento nenhum "dentro" dela, e abrir
+ * uma consulta a partir daqui prometeria uma origem que não há.
+ *
+ * No comparativo, os dois números são a **soma de cada intervalo**, e não a primeira contra
+ * a última coluna: é o que permite os lados terem tamanhos diferentes, três meses de 2025
+ * contra quatro de 2026.
+ *
+ * **A cor julga o efeito no resultado**, como no `%AH` — ver `lerVariacao`. Uma despesa
+ * que cresce tem Δ negativo e é má notícia; uma receita que cresce tem Δ positivo e é boa.
+ * Colorir pelo sinal faria este bloco contradizer a coluna `AH %` ao lado dele, dizendo o
+ * oposto sobre a mesma linha.
+ */
+function BlocoVariacao({
+  valores,
+  periodos,
+  modo,
+  totalDaLinha,
+  destaque,
+}: {
+  valores: { valor: number }[];
+  /** Para saber a que bloco cada valor pertence — é o que separa os dois lados. */
+  periodos: PeriodoDre[];
+  modo: ModoPeriodo;
+  /** O total da linha no período: é dele que sai o sentido, receita ou despesa. */
+  totalDaLinha: number;
+  destaque: boolean;
+}) {
+  const celula = cn(
+    CELULA,
+    "whitespace-nowrap tabular bg-[var(--surface-2)] text-right",
+    destaque && "font-semibold",
+  );
+
+  const v = variacao(valores, periodos, modo);
+
+  if (!v) {
+    return (
+      <>
+        <td className={cn(celula, "border-l border-[var(--border-strong)] text-[var(--text-muted)]")}>
+          —
+        </td>
+        <td className={cn(celula, "text-[var(--text-muted)]")}>—</td>
+      </>
+    );
+  }
+
+  // O Δ em reais é julgado pela mesma regra do %AH: favorável quando tem o mesmo sinal do
+  // valor da linha. Receita subindo é boa; despesa subindo, que aqui aparece como Δ
+  // negativo porque despesa é negativa, é má.
+  const leitura = lerVariacao(v.absoluta, totalDaLinha);
+  const cor =
+    leitura === "favoravel"
+      ? "text-[var(--positive)]"
+      : leitura === "desfavoravel"
+        ? "text-[var(--negative)]"
+        : "text-[var(--text-muted)]";
+
+  return (
+    <>
+      <td
+        title={descreverVariacao(leitura)}
+        className={cn(celula, "border-l border-[var(--border-strong)]", cor)}
+      >
+        {formatarValor(v.absoluta)}
+      </td>
+      <td className={celula}>
+        {/* Sem percentual quando a base é zero: uma conta que saiu de nada para alguma
+            coisa não tem proporção que a descreva, e o valor ao lado já diz o quanto. */}
+        <Variacao percentual={v.percentual} valorDaLinha={totalDaLinha} />
+      </td>
+    </>
+  );
+}
+
 /**
  * A classe de cor do cabeçalho de um mês, pela posição na tabela.
  *
@@ -642,6 +853,9 @@ function Linha({
   indice,
   maiorAv,
   multiMes,
+  variacaoNoFim,
+  periodos,
+  modo,
   deslocada,
   arrastando,
   indicadorAcima,
@@ -657,6 +871,11 @@ function Linha({
   indice: number;
   maiorAv: number;
   multiMes: boolean;
+  /** O bloco final desta linha é variação em vez de total. */
+  variacaoNoFim: boolean;
+  /** As colunas e o modo, para a variação saber separar os dois lados da comparação. */
+  periodos: PeriodoDre[];
+  modo: ModoPeriodo;
   deslocada: boolean;
   arrastando: boolean;
   indicadorAcima: boolean;
@@ -704,7 +923,9 @@ function Linha({
         // Faixa zebrada: transparente no modo padrão, sutil no ampliado. Serve para
         // o olho não pular de linha ao atravessar uma tabela larga.
         "odd:bg-[var(--zebra)]",
-        "hover:bg-[var(--surface-2)]",
+        // O realce do ponteiro mora no CSS, no bloco A LINHA SOB O PONTEIRO: ele precisa
+        // alcançar a coluna fixa e o bloco de total, que têm fundo próprio, e um utilitário
+        // de `background-color` na linha não chega lá.
         linha.totalizadora && "linha-totalizadora bg-[var(--surface-2)]",
         arrastando && "linha-arrastando",
         indicadorAcima && "alvo-acima",
@@ -791,18 +1012,27 @@ function Linha({
         />
       ))}
 
-      {multiMes && (
-        <BlocoMes
-          valor={linha.total.valor}
-          av={linha.total.percentualAv}
-          media={linha.total.media}
-          maiorAv={maiorAv}
-          totalDaLinha={linha.total.valor}
-          destaque={linha.totalizadora}
-          onDetalhe={onDetalhe ? () => onDetalhe(null) : null}
-          total
-        />
-      )}
+      {multiMes &&
+        (variacaoNoFim ? (
+          <BlocoVariacao
+            valores={linha.valores}
+            periodos={periodos}
+            modo={modo}
+            totalDaLinha={linha.total.valor}
+            destaque={linha.totalizadora}
+          />
+        ) : (
+          <BlocoMes
+            valor={linha.total.valor}
+            av={linha.total.percentualAv}
+            media={linha.total.media}
+            maiorAv={maiorAv}
+            totalDaLinha={linha.total.valor}
+            destaque={linha.totalizadora}
+            onDetalhe={onDetalhe ? () => onDetalhe(null) : null}
+            total
+          />
+        ))}
     </tr>
   );
 }

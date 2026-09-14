@@ -98,6 +98,7 @@ colunas por mês, mais o bloco de total.
 | Valor negativo | vermelho, entre parênteses, como no Winthor |
 | `INFORMATIVO` | marcador nas linhas que não entram nos totais — a 9815 escreve `NÃO SOMA` |
 | Números | fonte monoespaçada tabular, alinhados à direita |
+| Linha sob o ponteiro | realce na linha **inteira**, inclusive a coluna fixa e o bloco de total |
 
 **Uma cor por coluna, no título.** Com mais de um mês, cada cabeçalho de período ganha uma
 faixa de fundo levemente colorida — Junho em rosa, Julho em verde, e assim por diante. Com
@@ -1410,3 +1411,196 @@ razão de `gerarPlanilha` e `baixar` serem funções separadas.
 **Um defeito que só a exportação real mostrou:** o nome do arquivo saía
 `Detalhe (-) DEVOLUCAO · Setembro2026` — o `nomeSeguro` remove a barra, proibida em nome de
 arquivo, e o mês perdia o separador. A troca por hífen agora acontece **antes** da limpeza.
+
+---
+
+## 21. Os três modos de período
+
+Até 09/09/2026 uma coluna era sempre um mês. A partir de 10/09/2026 o período tem três
+modos, e coluna passou a ser um **recorte** qualquer.
+
+| Modo | Colunas | O que o filtro usa |
+|---|---|---|
+| `meses` | uma por mês do intervalo | as duas datas |
+| `anos` | uma por ano inteiro, 01/01 a 31/12 | os anos escolhidos |
+| `comparar-anos` | uma por ano, com o mesmo dia e mês | as datas **como molde** e os anos |
+
+`meses` é o padrão e o comportamento de sempre. Um cliente que só mande `dataInicio` e
+`dataFim`, sem `modo`, continua apurando exatamente como antes — e um modo escrito errado
+cai no mensal em vez de devolver tela vazia.
+
+### 21.1 Por que o modo mensal continua sendo um recorte só
+
+Ele poderia ser doze recortes de um mês cada, o que unificaria o código — e multiplicaria
+por doze o custo da consulta mais cara da rotina, que hoje resolve o intervalo inteiro num
+`GROUP BY` de mês (§12). A economia é o motivo de o modo mensal existir como caso próprio
+em `RecorteDre`.
+
+### 21.2 Os recortes rodam em paralelo
+
+Cada recorte custa **um par de consultas** — despesas e faturamento — e cada uma abre a
+própria conexão. `DreGerencialService.ApurarAsync` dispara todos com `Task.WhenAll`.
+
+O código traz escrito **como voltar ao sequencial**, se a concorrência incomodar em
+produção: trocar o `Task.WhenAll` por um `foreach` que aguarde cada recorte. A ordem das
+colunas vem da lista de recortes, não da ordem em que as consultas terminam, então o
+resultado é idêntico nos dois modos.
+
+**O ganho medido é de 35%** (dc18, 10/09/2026): dois recortes de dez dias custaram 5,0 s e
+4,5 s sozinhos, e 6,2 s juntos — o Oracle cobra cerca de 1,2 s por atender duas varreduras
+ao mesmo tempo, e o resto sobrepõe limpo.
+
+> **Medir paralelismo exige a mesma rodada.** A primeira medição comparou 30,3 s contra um
+> 35,9 s anotado antes e concluiu 15,6% — número sem valor: o buffer cache do Oracle muda o
+> custo da mesma consulta por um fator de quatro, e o mesmo cenário que levou 30,3 s frio
+> levou 7,9 s quente. A dc18 aquece de propósito e mede os três tempos de uma vez.
+
+### 21.3 Teto de três anos
+
+`DreGerencialService.MaximoDeAnos` recusa mais de três, e o filtro da tela espelha o limite
+em `MAXIMO_DE_ANOS`. Se os dois divergirem, a tela monta um pedido que a API recusa — e o
+usuário descobre o limite **depois** de esperar.
+
+O motivo está na mensagem: *cada ano é uma varredura da base*. Um ano inteiro numa filial
+levou de **4,5 a 6,8 minutos** com o cache frio (dc19).
+
+### 21.4 Um ano inteiro não cabe numa requisição comum
+
+O `fetch` do Node desiste sozinho aos 300 s — `UND_ERR_HEADERS_TIMEOUT`, que parece falha
+da API e não é. O navegador tem limites próprios, e um proxy em produção terá os dele.
+
+**A decisão do Gabriel em 10/09/2026 foi manter síncrono por enquanto**, com o aviso de
+tempo na tela. Fica registrado o risco: uma apuração por ano pode receber erro de rede com
+a consulta ainda viva no Oracle. `docs/validacao/_postar.mjs` contorna isso **para os
+scripts de medição**, e só para eles.
+
+#### O primeiro cancelamento de verdade — 11/09/2026
+
+Apurando 2025 e 2026 no modo por ano, a API respondeu com
+`TaskCanceledException` vinda de `ObterFaturamentoPorMesAsync`. Duas causas explicam esse
+mesmo erro, e **não dá para saber qual foi só pelo rastro que ele deixou**:
+
+| Causa | Quem cancela | O que corrigir |
+|---|---|---|
+| O cliente desistiu — recarregou a tela, fechou a aba | `HttpContext.RequestAborted` | nada; é rotina numa espera de minutos |
+| `commandTimeout` do ODP.NET | o próprio driver | o fôlego da consulta |
+
+As duas foram atacadas.
+
+**O fôlego virou função do período.** `FolegoDaApuracao` dá 120 s por mês, com piso de 600 s
+e teto de 2400 s. Os 600 s fixos que havia nas três consultas de apuração foram calibrados
+para *"quatro meses com folga"* — e o modo `anos`, criado depois, pede **doze de uma vez**.
+A consulta de faturamento não cresce em linha reta com o período: 16,9 s para um mês, 115 s
+para dois. O teto existe porque timeout também é proteção: uma consulta de mais de quarenta
+minutos segurando uma conexão do pool não está demorando, está travada.
+
+**O middleware passou a distinguir as duas.** Cancelamento do cliente sai como
+`Information` — não é erro nosso, e enchia o log de stack trace para um evento normal;
+cancelamento por tempo limite sai como `Warning` e devolve **504** com uma mensagem que diz
+o que fazer: reduzir o período ou as filiais. Antes, os dois apareciam como *"Erro não
+tratado"*, indistinguíveis.
+
+### 21.5 O bloco final: total ou variação
+
+Nos modos de ano, o bloco final da tabela deixa de ser **Total · Média** e passa a ser
+**Δ Valor · Δ %** — a diferença entre a primeira e a última coluna.
+
+Somar 2025 com 2026 dá um número que ninguém usa, e a média entre dois anos, menos ainda. O
+rótulo do bloco diz entre o que e o quê (`2024 → 2026`), porque com três anos a comparação
+é da primeira à última coluna, enquanto a coluna `AH %` compara com a **anterior** — são
+duas contas diferentes, e com dois anos elas coincidem.
+
+O bloco de variação **não abre detalhamento**: uma variação é a subtração de duas células
+que já estão na tela, e não existe lançamento nenhum "dentro" dela.
+
+#### O sinal da variação segue o `AH %`, e não a subtração crua
+
+No DRE, dedução e despesa chegam **negativas**. Uma devolução que cresce vai de −1.000.000
+para −1.127.178,73, e `para − de` dá **−127.178,73**: a subtração diz "negativo" para uma
+linha que aumentou, e a tela mostrava `(127.178,73)` — que se lê como redução.
+
+Pior: isso **contradizia a coluna `AH %` ao lado**, que usa a fórmula da 9815
+(`valor / anterior − 1`) e devolve **+12,7%** para a mesma devolução. A mesma linha, a mesma
+direção, com sinais opostos em duas colunas vizinhas — e **cores opostas**, porque a regra de
+cor (§3.2) foi calibrada para a convenção do `AH %`. Reportado pelo Gabriel em 11/09/2026,
+comparando 2024 com 2025: o `AH %` vermelho ao lado de um Δ verde.
+
+A variação passou a falar a mesma língua: **o sinal diz se a linha cresceu ou encolheu**.
+A devolução que aumenta sai `+127.178,73` e é pintada de desfavorável, porque crescer é má
+notícia numa linha negativa. O sentido vem do **total da linha**, o mesmo que a cor usa, para
+o número e a cor não poderem discordar.
+
+| Linha | De | Para | Δ exibido | Cor |
+|---|---:|---:|---:|---|
+| Devolução aumentou | (1.000.000,00) | (1.127.178,73) | **+127.178,73** | desfavorável |
+| Devolução encolheu | (1.127.178,73) | (1.000.000,00) | (127.178,73) | favorável |
+| Receita caiu | 100,00 | 75,00 | (25,00) | desfavorável |
+| Receita subiu | 100,00 | 125,00 | +25,00 | favorável |
+
+O percentual usa exatamente `para / de − 1`, a fórmula do montador — e não uma variante com
+módulo no denominador, que era o que fazia os sinais divergirem. Conferido na dc20 (52/52).
+
+Sem percentual quando a base é zero — uma conta que saiu de nada para alguma coisa não tem
+proporção que a descreva, e o valor absoluto ao lado já diz o quanto.
+
+### 21.6 O recorte de cada coluna vem do servidor
+
+`PeriodoDto` carrega `DataInicio` e `DataFim`. O front usava `recorteDoMes`, que partia do
+`mm/yyyy` e só funcionava enquanto coluna fosse sinônimo de mês — numa coluna `2026` ela
+devolveria janeiro. A função saiu do front em 10/09/2026; a regra continua a mesma e vive
+em `RecorteDre.RecorteDoMes`.
+
+### 21.7 O duplo clique pergunta antes, quando o recorte é longo
+
+Acima de **45 dias**, o duplo clique abre uma confirmação antes de consultar. O gesto sempre
+foi barato — um mês numa filial responde em segundos —, e com colunas de ano ele passa a
+disparar minutos de espera sem cancelamento.
+
+A pergunta é pelo **tamanho do recorte, não pelo modo**: um comparativo de dez dias entre
+dois anos não pergunta nada, e o bloco de total de um período de três meses no modo mensal
+pergunta. Um alerta que aparece sempre só ensina a confirmar sem ler.
+
+### 21.8 Datas ancoradas no primeiro ano
+
+No modo `comparar-anos` só o dia e o mês contam, mas um `<input type="date">` é obrigado a
+exibir um ano. Deixá-lo em 2026 enquanto as colunas são 2024 e 2025 faz o campo dizer uma
+coisa e a tabela mostrar outra — então as datas seguem o **primeiro ano escolhido**, e o
+campo passa a exibir a primeira coluna de verdade.
+
+29 de fevereiro é preso ao último dia do mês, a mesma regra de `RecorteDre.NoAno`: sem isso,
+um recorte válido em 2024 derrubaria a apuração de 2025 com exceção de data.
+
+### 21.9 Onde as abas de modo ficam, e por quê
+
+No lugar do resto do rótulo do campo Período. Um sexto campo quebraria a calibragem de cinco
+colunas da `.grade-filtros`, medida contra telas de 1366px (§3.1), e custaria uma linha de
+altura — que nesta tela sai da tabela. A linha do rótulo já existia, com uma palavra só, e o
+modo é exatamente uma qualificação do período.
+
+Cada modo mostra **apenas os controles que usa**: `anos` não exibe datas, porque não as usa,
+e os atalhos de período só aparecem no modo mensal — "Ano passado" mexeria no ano das datas,
+que no comparativo é decidido pelos chips.
+
+### 21.10 Um modo ausente não pode virar modo de ano
+
+`usaAnos` nasceu escrito como `modo !== "meses"`, e com isso uma resposta **sem** `modo` —
+de uma API mais velha que o front, ou de um objeto montado à mão — caía no ramo dos anos e
+ligava o bloco de variação numa apuração mensal. Quem pegou foi a dc13, pela contagem de
+colunas da planilha, antes de a tela ver o defeito.
+
+Hoje a função é escrita por inclusão (`=== "anos" || === "comparar-anos"`), que é a mesma
+tolerância que `RecorteDre` já aplicava do lado do servidor: **o desconhecido cai no
+mensal**, nunca no caminho caro.
+
+### 21.11 O que foi conferido
+
+| | |
+|---|---|
+| Modo mensal, cenário da dc9 | **idêntico ao centavo** ao resultado anterior à mudança |
+| dc6 ponta a ponta | **162/162** |
+| dc18 — paralelismo e colunas | ganho de 35%; datas, ordem e identidade da receita conferidas |
+| dc19 — dois anos inteiros | 4,5 e 6,8 min isolados, com o cache frio |
+| dc20 — regras dos modos | **37/37**, sem banco e sem navegador |
+| dc13 — o `.xlsx` | **29/29**, agora com o bloco de variação |
+| dc11, dc12, dc14, dc17 | inalteradas e passando |
+| Pela tela | `Set/2025` e `Set/2026` na filial 7, receita líquida de Set/2025 batendo a dc18 ao centavo; duplo clique abrindo `01/09/2025 a 10/09/2025` e fechando com a célula |

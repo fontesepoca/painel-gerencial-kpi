@@ -10,33 +10,33 @@
 
 :root {
   /* ── Superfícies — escala Abyssal Navy ── */
-  --bg:            #080d1a;
-  --surface-0:     #070c14;
-  --surface-1:     #0c1220;
-  --surface-2:     #101828;
-  --surface-3:     #1a2540;
-  --surface-4:     #1f2d42;
+  --bg: #080d1a;
+  --surface-0: #070c14;
+  --surface-1: #0c1220;
+  --surface-2: #101828;
+  --surface-3: #1a2540;
+  --surface-4: #1f2d42;
   --surface-hover: #1e2d4a;
 
   /* ── Bordas ── */
-  --border:        rgb(255 255 255 / 0.06);
+  --border: rgb(255 255 255 / 0.06);
   --border-strong: rgb(255 255 255 / 0.11);
-  --border-focus:  rgb(255 255 255 / 0.18);
+  --border-focus: rgb(255 255 255 / 0.18);
 
   /* ── Acento único — Cobalt Blue ── */
-  --primary:      #3b82f6;
-  --primary-dim:  rgb(59 130 246 / 0.08);
+  --primary: #3b82f6;
+  --primary-dim: rgb(59 130 246 / 0.08);
   --primary-glow: rgb(59 130 246 / 0.15);
   --primary-ring: rgb(59 130 246 / 0.25);
 
   /* ── Cores semânticas de dado ── */
-  --positive:      #10b981;
+  --positive: #10b981;
   --positive-glow: rgb(16 185 129 / 0.12);
-  --negative:      #f43f5e;
+  --negative: #f43f5e;
   --negative-glow: rgb(244 63 94 / 0.12);
-  --warning:       #f59e0b;
-  --warning-glow:  rgb(245 158 11 / 0.10);
-  --info:          #0ea5e9;
+  --warning: #f59e0b;
+  --warning-glow: rgb(245 158 11 / 0.1);
+  --info: #0ea5e9;
   --sobre-warning: #1a1200;
 
   /* ── Texto ──
@@ -45,40 +45,42 @@
      detalhe: é a cor dos cabeçalhos de coluna da tabela e dos traços de célula
      vazia. #7c8da5 mede 5,53 e continua sendo um tom de apoio, distinto do
      secundário. Medido no navegador, não escolhido no olho. */
-  --text-primary:   #f1f5f9;
+  --text-primary: #f1f5f9;
   --text-secondary: #94a3b8;
-  --text-muted:     #7c8da5;
+  --text-muted: #7c8da5;
 
   /* ── Tipografia ── */
-  --font-ui:      var(--font-geist-sans), "Outfit", system-ui, -apple-system, sans-serif;
+  --font-ui:
+    var(--font-geist-sans), "Outfit", system-ui, -apple-system, sans-serif;
   --font-display: var(--font-geist-sans), "Outfit", system-ui, sans-serif;
-  --font-mono:    var(--font-geist-mono), "JetBrains Mono", "Fira Code", monospace;
+  --font-mono: var(--font-geist-mono), "JetBrains Mono", "Fira Code", monospace;
   /* Números de DRE em fonte monoespaçada: as colunas alinham na vírgula
      e a leitura vertical de valores fica possível. */
-  --font-data:    var(--font-geist-mono), "JetBrains Mono", "Fira Code", monospace;
+  --font-data: var(--font-geist-mono), "JetBrains Mono", "Fira Code", monospace;
 
   /* ── Escala de leitura — MODO PADRÃO ──
      Todo tamanho que muda entre os dois modos mora aqui. Componente nenhum
      escreve px ou rem de fonte: escreve o token, e o modo decide o valor.
      Ver `html[data-leitura="ampliada"]` mais abaixo. */
-  --fs-rotulo:   0.6875rem;  /* 11px — rótulo de campo, cabeçalho de coluna */
-  --fs-apoio:    0.75rem;    /* 12px — legenda, %AV, selo */
-  --fs-base:     0.875rem;   /* 14px — tabela e campos de formulário */
-  --fs-titulo:   1.5rem;     /* 24px — título da página */
+  --fs-rotulo: 0.6875rem; /* 11px — rótulo de campo, cabeçalho de coluna */
+  --fs-apoio: 0.75rem; /* 12px — legenda, %AV, selo */
+  --fs-base: 0.875rem; /* 14px — tabela e campos de formulário */
+  --fs-titulo: 1.5rem; /* 24px — título da página */
   --altura-controle: 2.5rem;
   /* Respiro das celulas da tabela. Comprimido de proposito: altura e o recurso
      escasso aqui, e cada 4px a menos por linha devolve uma linha inteira a cada
      doze na tela. O limite de baixo e o alvo de toque, nao a estetica. */
-  --celula-y:    0.25rem;
-  --celula-x:    0.75rem;
-  --barra-av-h:  2px;
-  --zebra:       transparent;
+  --celula-y: 0.25rem;
+  --celula-x: 0.75rem;
+  --barra-av-h: 2px;
+  --zebra: transparent;
+  --realce-linha: rgb(255 255 255 / 0.07);
   --peso-numero: 400;
 
   /* ── Layout ── */
-  --sidebar-w:    256px;
+  --sidebar-w: 256px;
   --sidebar-w-sm: 64px;
-  --header-h:     64px;
+  --header-h: 64px;
 
   /* ── Raio ── */
   --radius-sm: 5px;
@@ -87,7 +89,7 @@
   --radius-xl: 16px;
 
   /* ── Sombra ── */
-  --shadow-card:  0 1px 3px rgb(0 0 0 / 0.4), 0 4px 16px rgb(0 0 0 / 0.3);
+  --shadow-card: 0 1px 3px rgb(0 0 0 / 0.4), 0 4px 16px rgb(0 0 0 / 0.3);
   --shadow-float: 0 4px 24px rgb(0 0 0 / 0.45), 0 1px 4px rgb(0 0 0 / 0.3);
   --shadow-modal: 0 8px 32px rgb(0 0 0 / 0.5), 0 32px 80px rgb(0 0 0 / 0.6);
 
@@ -95,9 +97,9 @@
   --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
   --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
   --dur-instant: 80ms;
-  --dur-fast:    150ms;
-  --dur-normal:  250ms;
-  --dur-slow:    400ms;
+  --dur-fast: 150ms;
+  --dur-normal: 250ms;
+  --dur-slow: 400ms;
 
   color-scheme: dark;
 }
@@ -114,21 +116,21 @@
    ═══════════════════════════════════════════════════════════════ */
 
 html[data-tema="claro"] {
-  --bg:            #f8fafc;
-  --surface-0:     #ffffff;
-  --surface-1:     #ffffff;
-  --surface-2:     #f1f5f9;
-  --surface-3:     #e2e8f0;
-  --surface-4:     #e2e8f0;
+  --bg: #f8fafc;
+  --surface-0: #ffffff;
+  --surface-1: #ffffff;
+  --surface-2: #f1f5f9;
+  --surface-3: #e2e8f0;
+  --surface-4: #e2e8f0;
   --surface-hover: #cbd5e1;
 
-  --border:        rgb(15 23 42 / 0.08);
+  --border: rgb(15 23 42 / 0.08);
   --border-strong: rgb(15 23 42 / 0.14);
-  --border-focus:  rgb(15 23 42 / 0.22);
+  --border-focus: rgb(15 23 42 / 0.22);
 
-  --text-primary:   #0f172a;
+  --text-primary: #0f172a;
   --text-secondary: #334155;
-  --text-muted:     #64748b;
+  --text-muted: #64748b;
 
   /* Acento: #3b82f6 dá 3,68 no branco, abaixo do AA para texto pequeno — e ele é
      a cor de link do "Restaurar ordem do cadastro". #2563eb mede 5,17, e continua
@@ -139,11 +141,20 @@ html[data-tema="claro"] {
      5,42, 5,93 e 4,84 — e são a cor dos números do DRE. */
   --positive: #047857;
   --negative: #be123c;
-  --warning:  #b45309;
+  --warning: #b45309;
 
-  --shadow-card:  0 1px 2px rgb(15 23 42 / 0.06), 0 4px 12px rgb(15 23 42 / 0.08);
-  --shadow-float: 0 1px 3px rgb(15 23 42 / 0.08), 0 4px 20px rgb(15 23 42 / 0.12);
-  --shadow-modal: 0 8px 24px rgb(15 23 42 / 0.12), 0 24px 60px rgb(15 23 42 / 0.18);
+  /* O realce da linha sob o ponteiro. Precisa estar AQUI, e não só no bloco da leitura
+     ampliada: o tema claro não redefine `--zebra` — ela só existe no modo ampliado —, e
+     sem esta linha o token do tema escuro escorregava para cá, pintando branco sobre
+     branco. Medido em ΔE2000 4,8 sobre os três fundos da tabela. */
+  --realce-linha: rgb(15 23 42 / 0.10);
+
+  --shadow-card:
+    0 1px 2px rgb(15 23 42 / 0.06), 0 4px 12px rgb(15 23 42 / 0.08);
+  --shadow-float:
+    0 1px 3px rgb(15 23 42 / 0.08), 0 4px 20px rgb(15 23 42 / 0.12);
+  --shadow-modal:
+    0 8px 24px rgb(15 23 42 / 0.12), 0 24px 60px rgb(15 23 42 / 0.18);
   --sobre-warning: #ffffff;
 
   color-scheme: light;
@@ -173,38 +184,40 @@ html[data-tema="claro"] {
    ═══════════════════════════════════════════════════════════════ */
 
 html[data-leitura="ampliada"] {
-  --fs-rotulo:   0.8125rem;  /* 13px */
-  --fs-apoio:    0.9375rem;  /* 15px */
-  --fs-base:     1.125rem;   /* 18px */
-  --fs-titulo:   1.875rem;   /* 30px */
+  --fs-rotulo: 0.8125rem; /* 13px */
+  --fs-apoio: 0.9375rem; /* 15px */
+  --fs-base: 1.125rem; /* 18px */
+  --fs-titulo: 1.875rem; /* 30px */
   --altura-controle: 3rem;
   /* O ampliado segue com mais respiro que o padrao, so que menos generoso: o
      dobro em vez do triplo. Quem liga o ampliado quer ler numero grande, nao
      ver metade das linhas. */
-  --celula-y:    0.5rem;
-  --celula-x:    1rem;
-  --barra-av-h:  4px;
-  --zebra:       rgb(255 255 255 / 0.022);
+  --celula-y: 0.5rem;
+  --celula-x: 1rem;
+  --barra-av-h: 4px;
+  --zebra: rgb(255 255 255 / 0.022);
+  --realce-linha: rgb(255 255 255 / 0.07);
   --peso-numero: 500;
 
   --text-secondary: #cbd5e1;
-  --text-muted:     #94a3b8;
-  --border:         rgb(255 255 255 / 0.10);
-  --border-strong:  rgb(255 255 255 / 0.20);
+  --text-muted: #94a3b8;
+  --border: rgb(255 255 255 / 0.1);
+  --border-strong: rgb(255 255 255 / 0.2);
 
   --positive: #34d399;
   --negative: #fb7185;
-  --warning:  #fbbf24;
+  --warning: #fbbf24;
 }
 
 /* Precisa vir depois do bloco acima: senão o ampliado devolveria os cinzas
    do tema escuro para uma tela clara, e o contraste inverteria. */
 html[data-tema="claro"][data-leitura="ampliada"] {
-  --zebra:          rgb(15 23 42 / 0.03);
+  --zebra: rgb(15 23 42 / 0.03);
+  --realce-linha: rgb(15 23 42 / 0.10);
   --text-secondary: #1e293b;
-  --text-muted:     #475569;
-  --border:         rgb(15 23 42 / 0.14);
-  --border-strong:  rgb(15 23 42 / 0.24);
+  --text-muted: #475569;
+  --border: rgb(15 23 42 / 0.14);
+  --border-strong: rgb(15 23 42 / 0.24);
 
   /* Repetidas de propósito, apesar de o bloco do tema claro já as definir. O bloco
      `[data-leitura="ampliada"]` acima clareia estas três para o fundo escuro, tem a
@@ -213,7 +226,7 @@ html[data-tema="claro"][data-leitura="ampliada"] {
      contraste, contra os 5,93 destes. */
   --positive: #047857;
   --negative: #be123c;
-  --warning:  #b45309;
+  --warning: #b45309;
 }
 
 /* Expõe os tokens ao Tailwind 4: habilita bg-surface-1, text-muted,
@@ -285,7 +298,21 @@ body {
   }
 }
 
-/* 1360px. O corte esteve em 1440 por um tempo, calibrado contra a falha medida em
+/* MEDIDO EM 11/09/2026: o maior rótulo do Tipo de Análise, C. Custo Principal, pede
+   163px na leitura padrão e 195px na ampliada, já contados os 48px de recuo e seta. O
+   mínimo era 12rem (192px) — na leitura ampliada o campo estava 3px ABAIXO do próprio
+   conteúdo, e só não truncava porque a grade lhe dava mais que o mínimo quando havia
+   espaço. 12.5rem (200px) serve aos dois modos com folga, e dispensa uma regra separada
+   por modo de leitura.
+
+   **As frações importam tanto quanto os mínimos.** Filial em `0fr` não cresce além dos
+   seus 11rem: ela guarda um resumo curto — "3 filiais" — e todo pixel que recebesse sairia
+   do Período. Tipo de Análise em `0.6fr` cresce pouco, pelo mesmo motivo. O Período leva
+   `1.4fr` porque é o único campo cujo conteúdo é grande e variável: duas datas, um botão
+   de modo, o relógio dos atalhos e, no comparativo, mais duas datas. Com as frações
+   distribuídas por igual, as datas eram as primeiras a serem cortadas.
+
+   1360px. O corte esteve em 1440 por um tempo, calibrado contra a falha medida em
    1280 — e ninguém tinha testado o intervalo entre os dois. Custava caro: num
    notebook de 1366 a grade quebrava em três linhas e comia 218px de altura, contra
    76px em uma linha só. Com a tabela ocupando o que sobra da janela, esses 142px
@@ -300,8 +327,8 @@ body {
 @media (min-width: 1360px) {
   .grade-filtros {
     grid-template-columns:
-      minmax(11rem, 1fr) minmax(13rem, 0.9fr) minmax(12rem, 1fr)
-      minmax(27rem, 1.3fr) auto;
+      minmax(11rem, 0fr) minmax(13rem, 0.9fr) minmax(12.5rem, 0.6fr)
+      minmax(27rem, 1.4fr) auto;
   }
 }
 
@@ -373,8 +400,16 @@ html[data-leitura="ampliada"] :focus-visible {
    ═══════════════════════════════════════════════════════════════ */
 
 @keyframes pulsar {
-  0%, 80%, 100% { transform: scale(0.55); opacity: 0.35; }
-  40%           { transform: scale(1);    opacity: 1; }
+  0%,
+  80%,
+  100% {
+    transform: scale(0.55);
+    opacity: 0.35;
+  }
+  40% {
+    transform: scale(1);
+    opacity: 1;
+  }
 }
 
 .pulsa {
@@ -384,8 +419,12 @@ html[data-leitura="ampliada"] :focus-visible {
 /* Vai e volta com pausa nas pontas — o `ease-in-out` no `alternate` faz a barra
    desacelerar antes de inverter, o que lê como movimento e não como loop. */
 @keyframes cometa {
-  from { transform: translateX(-10%); }
-  to   { transform: translateX(310%); }
+  from {
+    transform: translateX(-10%);
+  }
+  to {
+    transform: translateX(310%);
+  }
 }
 
 .cometa {
@@ -429,7 +468,9 @@ html[data-leitura="ampliada"] :focus-visible {
   color: var(--text-muted);
   cursor: grab;
   line-height: 1;
-  transition: color var(--dur-instant), background var(--dur-instant);
+  transition:
+    color var(--dur-instant),
+    background var(--dur-instant);
 }
 
 .puxador:hover {
@@ -447,7 +488,6 @@ html[data-leitura="ampliada"] .puxador {
   font-size: 1.1rem;
   color: var(--text-secondary);
 }
-
 
 /* A linha arrastada some parcialmente para o traço de destino ficar sendo a única
    coisa que o olho persegue. */
@@ -670,7 +710,6 @@ tbody tr:nth-child(odd) > .celula-descricao {
   background-image: linear-gradient(var(--zebra), var(--zebra));
 }
 
-tbody tr:hover > .celula-descricao,
 tbody tr.linha-totalizadora > .celula-descricao {
   background-color: var(--surface-2);
 }
@@ -1307,19 +1346,50 @@ tr:focus-within .tem-detalhe .valor-clicavel {
 
    Os valores saíram do calibrador e são vigiados pela dc25: mexer numa cor sem
    rodar a medição é reabrir o defeito que originou tudo isto. */
-.tabela-rolagem thead th.faixa-mes-1 { background-image: linear-gradient(rgb(239 108 152 / 0.13), rgb(239 108 152 / 0.13)); } /* rosa */
-.tabela-rolagem thead th.faixa-mes-2 { background-image: linear-gradient(rgb(108 239 163 / 0.13), rgb(108 239 163 / 0.13)); } /* verde */
-.tabela-rolagem thead th.faixa-mes-3 { background-image: linear-gradient(rgb(108 152 239 / 0.13), rgb(108 152 239 / 0.13)); } /* azul */
-.tabela-rolagem thead th.faixa-mes-4 { background-image: linear-gradient(rgb(239 206 108 / 0.13), rgb(239 206 108 / 0.13)); } /* âmbar */
+.tabela-rolagem thead th.faixa-mes-1 {
+  background-image: linear-gradient(
+    rgb(239 108 152 / 0.13),
+    rgb(239 108 152 / 0.13)
+  );
+} /* rosa */
+.tabela-rolagem thead th.faixa-mes-2 {
+  background-image: linear-gradient(
+    rgb(108 239 163 / 0.13),
+    rgb(108 239 163 / 0.13)
+  );
+} /* verde */
+.tabela-rolagem thead th.faixa-mes-3 {
+  background-image: linear-gradient(
+    rgb(108 152 239 / 0.13),
+    rgb(108 152 239 / 0.13)
+  );
+} /* azul */
+.tabela-rolagem thead th.faixa-mes-4 {
+  background-image: linear-gradient(
+    rgb(239 206 108 / 0.13),
+    rgb(239 206 108 / 0.13)
+  );
+} /* âmbar */
 
 /* O bloco acima é o ESCURO, tema padrão desta aplicação. As duas famílias não são a
    mesma cor com alpha diferente: no escuro os tons partem de variantes claras, no
    claro de variantes saturadas — a composição é que devolve o pastel. Trocar isso
    faz a faixa sumir num tema ou virar bloco de cor no outro. */
-html[data-tema="claro"] .tabela-rolagem thead th.faixa-mes-1 { background-image: linear-gradient(rgb(230 0 76 / 0.09), rgb(230 0 76 / 0.09)); }
-html[data-tema="claro"] .tabela-rolagem thead th.faixa-mes-2 { background-image: linear-gradient(rgb(0 230 96 / 0.09), rgb(0 230 96 / 0.09)); }
-html[data-tema="claro"] .tabela-rolagem thead th.faixa-mes-3 { background-image: linear-gradient(rgb(0 77 230 / 0.09), rgb(0 77 230 / 0.09)); }
-html[data-tema="claro"] .tabela-rolagem thead th.faixa-mes-4 { background-image: linear-gradient(rgb(230 172 0 / 0.09), rgb(230 172 0 / 0.09)); }
+html[data-tema="claro"] .tabela-rolagem thead th.faixa-mes-1 {
+  background-image: linear-gradient(rgb(230 0 76 / 0.09), rgb(230 0 76 / 0.09));
+}
+html[data-tema="claro"] .tabela-rolagem thead th.faixa-mes-2 {
+  background-image: linear-gradient(rgb(0 230 96 / 0.09), rgb(0 230 96 / 0.09));
+}
+html[data-tema="claro"] .tabela-rolagem thead th.faixa-mes-3 {
+  background-image: linear-gradient(rgb(0 77 230 / 0.09), rgb(0 77 230 / 0.09));
+}
+html[data-tema="claro"] .tabela-rolagem thead th.faixa-mes-4 {
+  background-image: linear-gradient(
+    rgb(230 172 0 / 0.09),
+    rgb(230 172 0 / 0.09)
+  );
+}
 
 /* No papel a faixa sai: a impressão já separa os meses por borda, e retângulos de
    cor por folha gastariam tinta para repetir o que a borda diz. `background-image`
@@ -1327,5 +1397,44 @@ html[data-tema="claro"] .tabela-rolagem thead th.faixa-mes-4 { background-image:
 @media print {
   .tabela-rolagem thead th[class*="faixa-mes-"] {
     background-image: none !important;
+  }
+}
+
+/* ── A LINHA SOB O PONTEIRO ──────────────────────────────────────────────────
+
+   Percorrer uma tabela de vinte colunas com o olho é seguir uma linha até o fim
+   sem perder de vista de que conta ela é. O realce é o que torna isso possível,
+   e ele precisa valer para a linha INTEIRA — inclusive a coluna de descrição,
+   que é fixa, e o bloco de total, que tem fundo próprio.
+
+   **O realce era invisível em três lugares**, reportado pelo Gabriel em
+   11/09/2026. O hover pintava `background-color: var(--surface-2)` — a MESMA cor
+   que as linhas totalizadoras já têm, então RECEITA BRUTA, RECEITAS LIQUIDAS e
+   LUCRO BRUTO não mudavam nada. E as células do bloco de total têm fundo próprio,
+   que cobria o da linha.
+
+   A saída é a mesma da zebra, logo acima: o realce entra como IMAGEM de fundo,
+   um gradiente sólido que se SOMA à cor opaca em vez de substituí-la. Assim ele
+   aparece igual sobre os três fundos, e a totalizadora continua mais escura que
+   as vizinhas enquanto está realçada.
+
+   A intensidade foi medida em ΔE2000, não escolhida no olho: 5,1 no tema escuro e
+   4,8 no claro, sobre linha comum, linha zebrada e totalizadora. Abaixo de 3 o
+   realce some em alguma delas; acima de 6 ele pisca ao passar o mouse pela tabela.
+
+   O seletor repete `.celula-descricao` para empatar com a regra da zebra — que é
+   `tbody tr:nth-child(odd) > .celula-descricao`, de mesma especificidade. Em
+   empate vence quem vem depois, e é por isso que este bloco fica no fim. */
+.tabela-rolagem tbody tr:hover > td,
+.tabela-rolagem tbody tr:hover > .celula-descricao {
+  background-image: linear-gradient(var(--realce-linha), var(--realce-linha));
+}
+
+/* Em dispositivo de toque não existe ponteiro pairando: o `:hover` fica GRUDADO na
+   última linha tocada, e o realce vira um destaque permanente que engana. */
+@media (hover: none) and (pointer: coarse) {
+  .tabela-rolagem tbody tr:hover > td,
+  .tabela-rolagem tbody tr:hover > .celula-descricao {
+    background-image: none;
   }
 }

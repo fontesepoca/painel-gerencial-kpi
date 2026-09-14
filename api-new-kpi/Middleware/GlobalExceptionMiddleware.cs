@@ -33,6 +33,50 @@ public sealed class GlobalExceptionMiddleware
         {
             await _next(context);
         }
+        catch (OperationCanceledException) when (context.RequestAborted.IsCancellationRequested)
+        {
+            // O CLIENTE DESISTIU — fechou a aba, recarregou a página, perdeu a rede. Não é
+            // erro nosso, e tratá-lo como erro enchia o log de stack trace assustador para
+            // um evento normal: a apuração por ano leva minutos, e nesse tempo alguém
+            // recarregar a tela é rotina.
+            //
+            // Não há resposta a escrever: a conexão já não existe. O log fica em
+            // Information porque o dado é útil — diz que a consulta rodou à toa —, e não em
+            // Warning, porque não há nada a corrigir.
+            _logger.LogInformation(
+                "Requisição cancelada pelo cliente em {Metodo} {Caminho}",
+                context.Request.Method, context.Request.Path);
+        }
+        catch (OperationCanceledException excecao)
+        {
+            // O cancelamento veio de DENTRO: é o `commandTimeout` do ODP.NET desistindo da
+            // consulta. A distinção importa porque as duas causas se parecem no log e pedem
+            // ações opostas — uma é do usuário, a outra é nossa.
+            //
+            // Em 11/09/2026 esta foi a primeira ocorrência da rotina, apurando 2025 e 2026
+            // no modo por ano: os 600 s fixos do faturamento tinham sido calibrados para
+            // quatro meses, e o modo por ano pede doze. Ver `FolegoDaApuracao`.
+            _logger.LogWarning(excecao,
+                "Consulta cancelada por tempo limite em {Metodo} {Caminho}",
+                context.Request.Method, context.Request.Path);
+
+            if (context.Response.HasStarted)
+            {
+                throw;
+            }
+
+            context.Response.Clear();
+            context.Response.StatusCode = (int)HttpStatusCode.GatewayTimeout;
+            context.Response.ContentType = "application/json; charset=utf-8";
+
+            // A mensagem diz o que fazer, e não só o que houve: quem apura um ano inteiro
+            // com muitas filiais precisa saber que o caminho é reduzir o pedido.
+            var aviso = ApiResponse.Falha(
+                "A consulta passou do tempo limite. Reduza o período ou o número de filiais — " +
+                "no modo por ano, cada coluna é uma varredura de doze meses da base.");
+
+            await context.Response.WriteAsync(JsonSerializer.Serialize(aviso, JsonOptions));
+        }
         catch (Exception excecao)
         {
             _logger.LogError(excecao, "Erro não tratado em {Metodo} {Caminho}",

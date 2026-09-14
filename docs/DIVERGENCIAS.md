@@ -9,7 +9,7 @@ registrada. O que não estiver aqui é defeito, não escolha.
 cada exceção precisa de três coisas: a medida, o motivo de não ser reproduzível, e
 a aprovação do Gabriel.
 
-**Última revisão:** 02/09/2026.
+**Última revisão:** 14/09/2026.
 
 ---
 
@@ -22,6 +22,8 @@ a aprovação do Gabriel.
 | [3](#3-centro-de-custo-simples-não-tem-referência) | Sem referência | Centro de Custo | não mensurável | validação manual pendente |
 | [4](#4-correção-deliberada-o-detalhamento-agora-fecha-com-a-linha-do-dre) | Detalhamento não fecha com a linha | todas as linhas que abrem duplo clique | R$ 3,56 mi em 1 mês, mais estorno de baixa e contas escondidas | **corrigida de propósito** em 01–02/09/2026 · 162/162 |
 | [6](#6-a-linha-receita-venda-ativo-sumia-da-tela--11092026) | `RECEITA VENDA ATIVO` escondida | todas | R$ 225 mil em 1 mês na filial 28 | **corrigida** em 11/09/2026 · dc23 24/24, dc24 69/69 |
+| [7](#7-a-devolução-de-cliente-especial-oculto--14092026) | Devolução de cliente com `mostra_dre = N` | todas | R$ 958,95 em 1 ano na filial 7 | **corrigida** em 14/09/2026 · 70/70 ao centavo |
+| [8](#8-o-último-centavo-do-modo-anos--14092026) | Arredondamento ao fundir 12 meses | todas, só no modo `anos` | 1 centavo por linha | **corrigida** em 14/09/2026 |
 
 ---
 
@@ -1630,3 +1632,79 @@ dc23, **24/24**, nas quatro dimensões — o mesmo valor chegando por nomes dife
 como contraprova, onde não há venda de ativo e nenhuma linha nova apareceu. A conferência
 principal é a **invariante**, não o valor de uma linha: *nenhuma linha escondida tem valor*.
 Visíveis na 28: 37 antes, 38 depois — exatamente uma a mais.
+
+---
+
+## 7. A devolução de cliente especial oculto — 14/09/2026
+
+**Afeta:** todas as dimensões, em qualquer período. **Tamanho medido:** R$ 958,95 de
+devolução e R$ 633,39 de CMV de devolução em 2025 inteiro, filial 7, competência.
+**Decisão:** corrigida e conferida em 14/09/2026 — 70/70 ao centavo.
+
+### O defeito
+
+`cliente_especial` tem uma marca `mostra_dre`. Quando ela é `N`, a 9815 tira o cliente do
+DRE, e o filtro aparece **em todos os blocos** da consulta de faturamento dela:
+
+```sql
+AND ( (nvl(esp.mostra_dre,'S') = 'S') or (nvl(PED.CONDVENDA,1) in (5)) )
+```
+
+Na nossa `FaturamentoPorMes` o filtro estava nos **três blocos de venda** e faltava no de
+**devolução**. O cliente ficava meio de fora: a venda dele não somava e a devolução somava.
+
+Note que a exceção aqui é `PED.CONDVENDA`, não `NF.CONDVENDA` como nos blocos de venda —
+devolução não tem nota de saída, e é o pedido que carrega a condição.
+
+### A medida
+
+2025 inteiro, competência, C.Custo Principal, filial 7 — a nossa impressão contra a
+exportação da 9815. Das **70 linhas comparáveis, 61 batiam ao centavo**; das nove que não
+batiam, sete eram cascata, e as duas de origem caminhavam juntas, no desenho exato de uma
+devolução a mais:
+
+| Linha | 9815 | Nós | Diferença |
+|---|---|---|---|
+| `(-) DEVOLUCAO` | (10.892.993,70) | (10.893.952,65) | somávamos **958,95** a mais |
+| `(=) CMV LIQ.` | (312.135.833,53) | (312.135.200,14) | tirávamos **633,39** a mais |
+
+`CMV LIQ. = VLCUSTOFIN − VLCMVDEVOL`, então devolução a mais deixa o CMV **menos**
+negativo. O resto — `RECEITAS LIQUIDAS`, `LUCRO BRUTO`, `RESULTADO OPERACIONAL`,
+`LUCRO LIQUIDO` — é cascata das duas: −325,56 = −958,95 + 633,39.
+
+Nenhuma linha de despesa divergiu. `ST` também não, e `PIS`/`COFINS` divergiram por outro
+motivo — a divergência 8 abaixo.
+
+### Conferido
+
+Nova apuração de 2024 e 2025 em 14/09/2026, mesmos parâmetros, contra a mesma exportação:
+**70 de 70 linhas comparáveis ao centavo**, incluindo as nove que divergiam. Sobram dez
+linhas só na nossa tela, todas `0,00` nos dois anos — a exportação saiu sem "Mostrar contas
+zeradas", diferença de exibição e não de número.
+
+[`dc27_devolucao_mostra_dre.sql`](validacao/dc27_devolucao_mostra_dre.sql) fica no
+repositório para isolar o que o filtro tira, caso o valor precise ser aberto por cliente:
+espera-se 958,95 de `VLDEVOLUCAO` e 633,39 de `VLCMVDEVOL`.
+
+### O que fica de fora
+
+O **detalhamento** de `(-) DEVOLUCAO` (`DevolucaoPorMotivo`, `ReceitaPorCliente`) não tem o
+filtro — e a 9815 também não o tem nessas telas. Fiel como está; não mexer.
+
+---
+
+## 8. O último centavo do modo `anos` — 14/09/2026
+
+**Afeta:** só o modo **`anos`**, o único em que uma coluna cobre mais de um mês.
+**Tamanho:** um centavo por linha de faturamento. **Decisão:** corrigida em 14/09/2026.
+
+A 9815 totaliza os valores **que ela exibe**, já arredondados a duas casas. Nós somávamos a
+precisão cheia do Oracle e arredondávamos no fim — e as frações dos doze meses se acumulam
+até virar um centavo.
+
+`MontadorDre` já aplicava essa regra coluna a coluna, com o comentário registrando a mesma
+lição. Faltava uma camada abaixo, em `FaturamentoDre.Somar`, que é quem funde doze meses
+numa coluna de ano — e por isso o furo aparecia só no `anos`.
+
+Em 2025, filial 7: `ABAT./DESC.`, `PIS` e `COFINS` erraram um centavo; `RECEITA BRUTA` e
+`ST` escaparam por sorte do arredondamento.

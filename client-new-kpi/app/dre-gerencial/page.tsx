@@ -11,6 +11,7 @@ import { useApuracao, useFiliais } from "@/hooks/useDreGerencial";
 import { cn } from "@/lib/cn";
 import { formatarDataIso, formatarDuracao } from "@/lib/formato";
 import { descreverFiliais } from "@/lib/filiaisApuradas";
+import { estimativaDeTempo, impedimento } from "@/lib/modosDePeriodo";
 import { periodoPadrao } from "@/lib/periodos";
 import type { Apuracao, FiltroApuracao } from "@/types/dre-gerencial";
 
@@ -80,11 +81,16 @@ export default function DreGerencialPage() {
     }
   }, []);
 
+  // O mês corrente, em colunas mensais: o recorte que a tela sempre abriu, e que os modos
+  // de ano não deslocaram. `anos` começa vazio de propósito — um ano pré-escolhido seria
+  // uma consulta de minutos esperando um clique distraído no Apurar.
   const [filtro, setFiltro] = useState<FiltroApuracao>(() => ({
     filiais: [],
     ...periodoPadrao(),
     regime: "competencia",
     analise: "ccusto-principal",
+    modo: "meses",
+    anos: [],
   }));
 
   const dados = apuracao.data;
@@ -155,13 +161,16 @@ export default function DreGerencialPage() {
                   Visão gerencial
                 </h2>
                 <p className="mt-1 text-[length:var(--fs-apoio)] text-[var(--text-muted)]">
-                  {formatarDataIso(dados.dataInicio)} a {formatarDataIso(dados.dataFim)} ·{" "}
+                  {/* O intervalo do filtro só descreve o que foi apurado no modo mensal. Por
+                      ano inteiro quem manda são as colunas; no comparativo são DOIS
+                      intervalos, e citar só o primeiro esconderia metade da apuração. */}
+                  {descreverPeriodo(dados)}{" "}
+                  ·{" "}
                   {dados.regime === "caixa" ? "Caixa" : "Competência"} ·{" "}
                   {/* O separador vai DENTRO do span: escondido, ele leva o ` · ` junto e a
                       linha não fica com dois pontos seguidos. */}
                   <span className="filiais-resumo">{filiaisApuradas.resumo} · </span>
-                  {dados.periodos.length} {dados.periodos.length === 1 ? "mês" : "meses"} ·
-                  apurado em {formatarDuracao(dados.duracaoMs)}
+                  {descreverColunas(dados)} · apurado em {formatarDuracao(dados.duracaoMs)}
                 </p>
 
                 {/* Os nomes das filiais em linha própria, na tela cheia e no papel — ver o
@@ -242,14 +251,22 @@ export default function DreGerencialPage() {
                 dataFim: dados.dataFim,
                 regime: dados.regime,
                 analise: dados.analise,
+                // O detalhamento é sempre de UMA coluna, e a coluna já traz o próprio
+                // recorte em datas. Mandar o modo junto faria o servidor reabrir a
+                // consulta em várias colunas de novo, dentro de um detalhe.
+                modo: "meses",
+                anos: [],
               }}
+              modo={dados.modo}
               filiaisApuradas={filiaisApuradas.detalhe}
             />
           </section>
           </>
         )}
 
-        {!dados && !apuracao.isPending && !apuracao.isError && <Inicial />}
+        {!dados && !apuracao.isPending && !apuracao.isError && (
+          <Inicial motivo={impedimento(filtro)} estimativa={estimativaDeTempo(filtro)} />
+        )}
       </div>
     </AppShell>
   );
@@ -314,14 +331,79 @@ function BotaoExpandir({
   );
 }
 
-function Inicial() {
+/**
+ * Quantas colunas, e do quê. "3 meses" só está certo no modo mensal — nos outros a
+ * contagem é de anos, e chamar de mês uma coluna que cobre doze deles é o tipo de rótulo
+ * que faz alguém desconfiar do número ao lado.
+ */
+function descreverColunas(dados: Apuracao): string {
+  const n = dados.periodos.length;
+  if (dados.modo === "anos") return `${n} ${n === 1 ? "coluna" : "colunas"} por ano`;
+
+  // No comparativo "3 meses" engana: são três COLUNAS mensais repartidas entre dois
+  // intervalos, e o leitor entenderia um período contínuo de três meses.
+  if (dados.modo === "comparar-anos") return `${n} ${n === 1 ? "coluna" : "colunas"} em 2 intervalos`;
+
+  return `${n} ${n === 1 ? "mês" : "meses"}`;
+}
+
+/**
+ * O período apurado, em texto — e ele muda de forma conforme o modo.
+ *
+ * No comparativo são **dois** intervalos: citar só o primeiro descreveria metade da
+ * apuração, e quem lesse o cabeçalho não saberia contra o que a tabela está comparando.
+ * As datas saem das próprias colunas, que é o que o servidor de fato apurou.
+ */
+function descreverPeriodo(dados: Apuracao): string {
+  if (dados.modo === "anos") {
+    const rotulos = dados.periodos.map((p) => p.rotulo).join(", ");
+    return `${dados.periodos.length === 1 ? "Ano" : "Anos"} ${rotulos}`;
+  }
+
+  const intervalo = (bloco: number) => {
+    const colunas = dados.periodos.filter((p) => p.bloco === bloco);
+    const inicio = colunas[0]?.dataInicio;
+    const fim = colunas.at(-1)?.dataFim;
+    return inicio && fim ? `${formatarDataIso(inicio)} a ${formatarDataIso(fim)}` : null;
+  };
+
+  if (dados.modo === "comparar-anos") {
+    const a = intervalo(0);
+    const b = intervalo(1);
+    if (a && b) return `${a}  vs  ${b}`;
+  }
+
+  return `${formatarDataIso(dados.dataInicio)} a ${formatarDataIso(dados.dataFim)}`;
+}
+
+/**
+ * A tela antes da primeira apuração — e o lugar onde o que falta preencher é dito.
+ *
+ * **Aqui, e não no filtro.** Uma linha de aviso sob a grade empurra o botão Apurar e cresce
+ * o header, que é altura tirada da tabela; e "escolha ao menos uma filial" é o estado normal
+ * de quem acabou de abrir a tela, não um erro que mereça alarme junto dos controles. Aqui há
+ * espaço de sobra, e é para cá que o olho vai quando a tabela ainda não existe.
+ *
+ * O botão desabilitado continua carregando o mesmo texto no `title`, para quem estiver com
+ * o ponteiro lá.
+ */
+function Inicial({
+  motivo,
+  estimativa,
+}: {
+  motivo: string | null;
+  estimativa: string | null;
+}) {
   return (
     <div className="rounded-[var(--radius-lg)] border border-dashed border-[var(--border-strong)] px-6 py-16 text-center">
       <p className="text-[length:var(--fs-base)] text-[var(--text-secondary)]">
-        Escolha as filiais e o período, e clique em Apurar.
+        {motivo ?? "Escolha as filiais e o período, e clique em Apurar."}
       </p>
       <p className="mt-2 text-[length:var(--fs-apoio)] text-[var(--text-muted)]">
-        A apuração percorre todo o período no banco e leva de alguns segundos a alguns minutos.
+        {/* O impedimento tem precedência sobre a estimativa: não faz sentido anunciar
+            quanto vai demorar algo que ainda não pode rodar. */}
+        {(motivo === null && estimativa) ||
+          "A apuração percorre todo o período no banco e leva de alguns segundos a alguns minutos."}
       </p>
     </div>
   );
