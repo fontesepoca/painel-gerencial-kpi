@@ -18,7 +18,7 @@ import {
   blocos,
   estimativaDeTempo,
   impedimento,
-  intervaloSugerido,
+  intervalosSugeridos,
   mostraVariacao,
   recorteLongo,
   rotuloDaVariacao,
@@ -109,16 +109,35 @@ eq(
 );
 
 // ── a sugestão ao entrar no comparativo ──────────────────────────────────────
+//
 // Dois campos vazios obrigariam a digitar duas datas antes de ver qualquer coisa.
+//
+// A ORDEM É CRONOLÓGICA: o período que estava na tela desce para o SEGUNDO intervalo e o
+// ano anterior ocupa o PRIMEIRO, para a tela ler `2025 → 2026` da esquerda para a direita.
+// O desenho original punha o ano atual à esquerda, e a seta apontava para trás enquanto o
+// `AH %` e a variação contavam a história para a frente. Trocado em 14/09/2026.
 eq(
-  intervaloSugerido(base),
-  { comparacaoInicio: "2025-09-01", comparacaoFim: "2025-09-10" },
-  "sugere o mesmo recorte um ano antes",
+  intervalosSugeridos(base),
+  {
+    dataInicio: "2025-09-01",
+    dataFim: "2025-09-10",
+    comparacaoInicio: "2026-09-01",
+    comparacaoFim: "2026-09-10",
+  },
+  "o ano anterior no primeiro intervalo, o período escolhido no segundo",
 );
 eq(
-  intervaloSugerido({ ...base, dataInicio: "2024-02-01", dataFim: "2024-02-29" }).comparacaoFim,
+  intervalosSugeridos({ ...base, dataInicio: "2024-02-01", dataFim: "2024-02-29" }).dataFim,
   "2023-02-28",
   "29/02 vira 28/02 no ano comum — a data inexistente sairia como campo vazio sem explicação",
+);
+
+// O segundo intervalo é o período intocado, inclusive num 29/02 que o primeiro teve que
+// encurtar: só o lado que anda um ano para trás corre risco de cair em data inexistente.
+eq(
+  intervalosSugeridos({ ...base, dataInicio: "2024-02-01", dataFim: "2024-02-29" }).comparacaoFim,
+  "2024-02-29",
+  "o segundo intervalo repete o período escolhido, sem mexer em nada",
 );
 
 // ── o bloco final ────────────────────────────────────────────────────────────

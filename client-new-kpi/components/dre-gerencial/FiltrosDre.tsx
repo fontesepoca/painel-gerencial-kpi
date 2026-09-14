@@ -9,7 +9,7 @@ import {
   anosOferecidos,
   estimativaDeTempo,
   impedimento,
-  intervaloSugerido,
+  intervalosSugeridos,
   rotuloDoModo,
   usaAnos,
   usaDatas,
@@ -190,18 +190,36 @@ function CampoPeriodo({
   const rotuloId = useId();
 
   /**
-   * Entrar no comparativo **sugere** o mesmo recorte um ano antes, se ainda não houver
-   * segundo intervalo. Dois campos vazios obrigariam a digitar duas datas antes de ver
-   * qualquer coisa, e "o mesmo período do ano passado" é o que se pede num DRE nove vezes
-   * em dez. Continua sendo sugestão: os dois intervalos são livres.
+   * Entrar no comparativo **sugere os dois intervalos**, se ainda não houver segundo. Dois
+   * campos vazios obrigariam a digitar duas datas antes de ver qualquer coisa, e "o mesmo
+   * período do ano passado" é o que se pede num DRE nove vezes em dez.
+   *
+   * O período que estava na tela **desce para o segundo intervalo**, e o ano anterior ocupa
+   * o primeiro: a comparação se lê da esquerda para a direita, como o eixo do tempo.
+   * Continua sendo sugestão — os dois intervalos são livres.
    */
   const trocarModo = (modo: ModoPeriodo) => {
     const base = { ...filtro, modo };
-    onMudar(
-      usaSegundoIntervalo(modo) && !base.comparacaoInicio
-        ? { ...base, ...intervaloSugerido(base) }
-        : base,
-    );
+
+    if (usaSegundoIntervalo(modo)) {
+      return onMudar(
+        base.comparacaoInicio ? base : { ...base, ...intervalosSugeridos(base) },
+      );
+    }
+
+    // SAIR do comparativo devolve o segundo intervalo para os campos de data. Sem isso a
+    // ida e volta rouba um ano de quem só foi espiar a comparação: o período que ele vê na
+    // tela é o primeiro intervalo, que agora é o ANTERIOR. O movimento é o inverso exato do
+    // de cima, e é o único que não deixa a pessoa num período que ela nunca digitou.
+    if (usaSegundoIntervalo(filtro.modo) && filtro.comparacaoInicio && filtro.comparacaoFim) {
+      return onMudar({
+        ...base,
+        dataInicio: filtro.comparacaoInicio,
+        dataFim: filtro.comparacaoFim,
+      });
+    }
+
+    onMudar(base);
   };
 
   return (
@@ -253,16 +271,19 @@ function CampoPeriodo({
                 }
                 className={cn(CAMPO, "tabular")}
               />
-              {/* Os atalhos ficam onde sempre estiveram, à direita da data final. Só no
-                  modo mensal: "Ano passado" e "Últimos 3 meses" mexem no intervalo inteiro,
-                  e no comparativo isso desalinharia os dois lados sem avisar. */}
-              {filtro.modo === "meses" && (
-                <AtalhosDePeriodo
-                  onEscolher={(dataInicio, dataFim) =>
-                    onMudar({ ...filtro, dataInicio, dataFim })
-                  }
-                />
-              )}
+              {/* Os atalhos ficam onde sempre estiveram, à direita da data final — e no
+                  comparativo cada intervalo tem o seu, porque os dois são independentes.
+                  Um atalho mexe só no par de datas da própria linha. */}
+              <AtalhosDePeriodo
+                rotulo={
+                  usaSegundoIntervalo(filtro.modo)
+                    ? "Atalhos de período — primeiro intervalo"
+                    : "Atalhos de período"
+                }
+                onEscolher={(dataInicio, dataFim) =>
+                  onMudar({ ...filtro, dataInicio, dataFim })
+                }
+              />
             </>
           )}
 
@@ -307,6 +328,12 @@ function CampoPeriodo({
                 onMudar({ ...filtro, comparacaoFim: e.target.value })
               }
               className={cn(CAMPO, "tabular")}
+            />
+            <AtalhosDePeriodo
+              rotulo="Atalhos de período — segundo intervalo"
+              onEscolher={(comparacaoInicio, comparacaoFim) =>
+                onMudar({ ...filtro, comparacaoInicio, comparacaoFim })
+              }
             />
           </div>
         )}
@@ -704,8 +731,15 @@ function ChipsDeAno({
  */
 function AtalhosDePeriodo({
   onEscolher,
+  rotulo = "Atalhos de período",
 }: {
   onEscolher: (dataInicio: string, dataFim: string) => void;
+  /**
+   * Como o botão se anuncia. No comparativo existem DOIS, um por intervalo, e o mesmo
+   * rótulo nos dois deixaria quem navega por leitor de tela sem saber qual é qual —
+   * "Atalhos de período, botão" duas vezes seguidas não distingue nada.
+   */
+  rotulo?: string;
 }) {
   const [aberto, setAberto] = useState(false);
   const caixa = useRef<HTMLDivElement>(null);
@@ -732,8 +766,8 @@ function AtalhosDePeriodo({
         onClick={() => setAberto((a) => !a)}
         aria-expanded={aberto}
         aria-haspopup="menu"
-        aria-label="Atalhos de período"
-        title="Atalhos de período"
+        aria-label={rotulo}
+        title={rotulo}
         className={cn(
           "grid aspect-square h-[var(--altura-controle)] place-items-center rounded-[var(--radius-md)]",
           "border border-[var(--border-strong)] bg-[var(--surface-2)]",

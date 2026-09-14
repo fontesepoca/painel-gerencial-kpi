@@ -280,23 +280,35 @@ export function recorteLongo(periodo: { dataInicio: string; dataFim: string }): 
 }
 
 /**
- * O segundo intervalo sugerido quando alguém entra no comparativo: **o mesmo recorte, um
- * ano antes**.
+ * Os dois intervalos sugeridos quando alguém entra no comparativo: **o ano passado no
+ * primeiro, o período que já estava na tela no segundo**.
  *
- * É a comparação que se pede num DRE nove vezes em dez, e deixar os campos vazios obrigaria
- * a digitar duas datas antes de ver qualquer coisa. Continua sendo só uma sugestão — os dois
- * intervalos são livres, e mexer num não mexe no outro.
+ * "O mesmo recorte, um ano antes" é a comparação que se pede num DRE nove vezes em dez, e
+ * deixar os campos vazios obrigaria a digitar duas datas antes de ver qualquer coisa.
+ *
+ * <b>A ordem é cronológica, e não a de quem digitou.</b> O período que a pessoa escolheu
+ * desce para o segundo intervalo e o ano anterior ocupa o primeiro — a tela passa a ler
+ * `2025 → 2026`, da esquerda para a direita, como o eixo do tempo. O desenho anterior punha
+ * o ano atual à esquerda e o passado à direita, e a seta apontava para trás enquanto o
+ * `AH %` e a variação contavam a história para a frente. Trocado em 14/09/2026.
+ *
+ * Continua sendo só uma sugestão — os dois intervalos são livres, e mexer num não mexe no
+ * outro.
  *
  * 29 de fevereiro é preso ao último dia do mês: criar 29/02 num ano comum devolveria uma
  * data inválida, e o campo mostraria vazio sem explicar por quê.
  */
-export function intervaloSugerido(filtro: FiltroApuracao): {
+export function intervalosSugeridos(filtro: FiltroApuracao): {
+  dataInicio: string;
+  dataFim: string;
   comparacaoInicio: string;
   comparacaoFim: string;
 } {
   return {
-    comparacaoInicio: umAnoAntes(filtro.dataInicio),
-    comparacaoFim: umAnoAntes(filtro.dataFim),
+    dataInicio: umAnoAntes(filtro.dataInicio),
+    dataFim: umAnoAntes(filtro.dataFim),
+    comparacaoInicio: filtro.dataInicio,
+    comparacaoFim: filtro.dataFim,
   };
 }
 
