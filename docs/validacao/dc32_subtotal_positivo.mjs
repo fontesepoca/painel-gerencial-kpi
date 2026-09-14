@@ -165,14 +165,44 @@ ok(
 
 // A identidade que prova que ninguém foi contado duas vezes: o lucro líquido também é o
 // resultado operacional mais o que SOBROU do bloco pós-operacional.
+//
+// `!naoSoma` é parte da identidade, não um detalhe: uma linha informativa aparece no bloco
+// com valor e não entra em soma nenhuma. Somá-la aqui faria este teste acusar contagem
+// dupla exatamente onde ela não existe.
+const iResultado = L.findIndex((x) => rotulo(x) === RESULTADO);
+const iTotalDespesas = L.findIndex((x) => rotulo(x) === TOTAL_DESPESAS);
 const posRestante = L.filter(
-  (l) => !l.calculada && !CREDITOS.includes(rotulo(l)) && L.indexOf(l) > L.findIndex((x) => rotulo(x) === RESULTADO)
-    && L.indexOf(l) < L.findIndex((x) => rotulo(x) === TOTAL_DESPESAS),
+  (l, i) => !l.calculada && !l.naoSoma && !CREDITOS.includes(rotulo(l))
+    && i > iResultado && i < iTotalDespesas,
 ).reduce((s, l) => s + total(l), 0);
 ok(
   bate(total(lucroLiquido), total(resultado) + posRestante),
   `LUCRO LIQUIDO = RESULTADO OPERACIONAL + pós-operacional restante — sem contagem dupla`,
 );
+
+// ── a informativa por pedido ─────────────────────────────────────────────────
+//
+// O selo da tela afirma "esta linha não entra nos totalizadores". Se ela voltar a somar, a
+// tela passa a mentir — e o único jeito de perceber é conferindo o total à mão.
+const INFORMATIVA = "INDENIZACAO DE MERC. VENC. E AVARIA";
+const informativa = achar(L, INFORMATIVA);
+ok(informativa !== null, `a linha ${INFORMATIVA} existe`);
+
+if (informativa) {
+  ok(informativa.naoSoma === true, "ela está marcada como informativa");
+  ok(
+    !(totalDespesas.composicao ?? []).some((p) => p.chaveOrdem === informativa.chaveOrdem),
+    "e não aparece entre as parcelas do Total das Despesas",
+  );
+  // A prova de que ela saiu mesmo da conta é a identidade lá em cima: `posRestante` já a
+  // ignora por causa do `!naoSoma`, então, se ela voltasse a somar no `Total das Despesas`,
+  // `LUCRO LIQUIDO = RESULTADO OPERACIONAL + pós restante` falharia exatamente pelo valor
+  // dela. Só vale a pena se ela tiver valor no período — senão o teste passa sem testar.
+  ok(
+    Math.abs(total(informativa)) > 0.005,
+    `e tem valor no período (${fmt(total(informativa))}) — sem isso a conferência acima não prova nada`,
+  );
+}
 
 // O quadro completo, por coluna e no total — é o que vai para o DIVERGENCIAS.md, e é o
 // que deixa a diferença entre "mudou porque a regra mudou" e "mudou porque o dado mudou"

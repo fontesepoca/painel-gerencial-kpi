@@ -24,7 +24,8 @@ a aprovação do Gabriel.
 | [6](#6-a-linha-receita-venda-ativo-sumia-da-tela--11092026) | `RECEITA VENDA ATIVO` escondida | todas | R$ 225 mil em 1 mês na filial 28 | **corrigida** em 11/09/2026 · dc23 24/24, dc24 69/69 |
 | [7](#7-a-devolução-de-cliente-especial-oculto--14092026) | Devolução de cliente com `mostra_dre = N` | todas | R$ 958,95 em 1 ano na filial 7 | **corrigida** em 14/09/2026 · 70/70 ao centavo |
 | [8](#8-o-último-centavo-do-modo-anos--14092026) | Arredondamento ao fundir 12 meses | todas, só no modo `anos` | 1 centavo por linha | **corrigida** em 14/09/2026 |
-| [9](#9-o-resultado-operacional-sai-do-subtotal-positivo--14092026) | `RESULTADO OPERACIONAL` a partir do `SUBTOTAL POSITIVO` | C. Custo Principal | R$ 3,22 mi em 2 meses | **a pedido** em 14/09/2026 · dc32 14/14 |
+| [9](#9-o-resultado-operacional-sai-do-subtotal-positivo--14092026) | `RESULTADO OPERACIONAL` a partir do `SUBTOTAL POSITIVO` | C. Custo Principal | R$ 3,22 mi em 2 meses | **a pedido** em 14/09/2026 · dc32 18/18 |
+| [10](#10-indenizacao-de-merc-venc-e-avaria-vira-informativa--14092026) | `INDENIZACAO DE MERC. VENC. E AVARIA` não soma | C. Custo Principal | R$ 177 mil em 2 meses | **a pedido** em 14/09/2026 · dc32 18/18 |
 
 ---
 
@@ -1753,8 +1754,12 @@ exportado da 9815 em `periodo_de_dois_meses_com_AH`:
 | Sub-Total Desp.Op. | (14.680.489,71) | (16.464.250,43) | (31.144.740,14) |
 | RESULTADO OPER. — antes | | | (2.892.241,96) |
 | **RESULTADO OPER. — agora** | 966.148,88 | (641.355,43) | **324.793,45** |
-| Total das Despesas | (11.861.551,49) | (14.281.737,73) | (26.143.289,22) |
-| LUCRO LIQUIDO | 2.048.610,69 | 60.598,27 | 2.109.208,96 |
+| Total das Despesas | (11.944.025,41) | (14.376.431,87) | (26.320.457,28) |
+| LUCRO LIQUIDO | 1.966.136,77 | (34.095,87) | 1.932.040,90 |
+
+As duas últimas linhas **não** foram mexidas por esta divergência — elas já trazem o efeito da
+[divergência 10](#10-indenizacao-de-merc-venc-e-avaria-vira-informativa--14092026), medida
+logo depois no mesmo cenário. Sem ela seriam (26.143.289,22) e 2.109.208,96.
 
 O `RESULTADO OPERACIONAL` sobe **R$ 3.217.035,41**, que é exatamente a soma dos dois créditos
 promovidos — como tem que ser.
@@ -1768,9 +1773,11 @@ promovidos — como tem que ser.
 
 ### O que **não** muda, e por quê
 
-`LUCRO BRUTO`, `Sub-Total`, `Total das Despesas` e `LUCRO LIQUIDO` continuam idênticos à
-9815. A promoção é de **posição, não de bloco**: as duas linhas mantêm `AntesLl = 'S'` e
-seguem dentro do `Total das Despesas` exatamente uma vez.
+**Esta mudança move um número só.** `LUCRO BRUTO`, `Sub-Total`, `Total das Despesas` e
+`LUCRO LIQUIDO` saem dela intactos — a promoção é de **posição, não de bloco**: as duas
+linhas mantêm `AntesLl = 'S'` e seguem dentro do `Total das Despesas` exatamente uma vez.
+(A divergência 10, do mesmo dia, mexe no `Total das Despesas` e no `LUCRO LIQUIDO` por outro
+motivo.)
 
 O risco real da mudança é a **contagem dupla** — os créditos aparecem no subtotal de cima e
 continuam no `Total das Despesas`. O que prova que ela não acontece é a identidade:
@@ -1792,7 +1799,7 @@ qualquer espaço em branco; a dc32 faz o mesmo, senão falharia pelo mesmo motiv
 
 ### Conferido
 
-[dc32](validacao/dc32_subtotal_positivo.mjs), **14 conferências**, em 14/09/2026: a ordem, o
+[dc32](validacao/dc32_subtotal_positivo.mjs), **18 conferências**, em 14/09/2026: a ordem, o
 subtotal fechando em cada coluna e no total, a composição com as três parcelas, o
 `RESULTADO OPERACIONAL` saindo do subtotal, o `LUCRO LIQUIDO` inalterado e a identidade que
 prova a ausência de contagem dupla. Mais as outras duas dimensões, que não ganham a linha e
@@ -1801,3 +1808,51 @@ mantêm o `RESULTADO OPERACIONAL` da 9815 ao centavo.
 A dc32 também confere que a **ocorrência operacional** do rateio continua antes do
 `Sub-Total`. Se a promoção tivesse pego a errada, uma despesa sairia de dentro do `Sub-Total`
 sem mudar o número dele — e nenhum total denunciaria.
+
+---
+
+## 10. `INDENIZACAO DE MERC. VENC. E AVARIA` vira informativa — 14/09/2026
+
+**Afeta:** só **C. Custo Principal**. **Tamanho medido:** R$ 177.168,06 em 01/06 a
+31/07/2026, filiais 7/12/25, competência. **Decisão:** a pedido do Gabriel em 14/09/2026.
+
+A linha nasce no bloco pós-operacional e somava no `Total das Despesas` e, por ele, no
+`LUCRO LIQUIDO`. Passa a receber o mesmo tratamento que `ST`, `PIS` e `COFINS` já têm no
+cabeçalho: **aparece com valor e não entra em conta nenhuma**.
+
+| | 9815 | Aqui |
+|---|---:|---:|
+| `Total das Despesas` | (26.143.289,22) | (26.320.457,28) |
+| `LUCRO LIQUIDO` | 2.109.208,96 | 1.932.040,90 |
+
+A diferença é exatamente o valor da linha nos dois casos.
+
+### O selo não é decoração
+
+O `title` do selo na tela diz *"esta linha não entra nos totalizadores"*. Marcar sem tirar da
+soma faria a tela afirmar uma coisa e fazer outra — o pior tipo de defeito nesta rotina,
+porque nada denuncia. Por isso a marca e a exclusão saem do mesmo lugar
+(`MontadorDre.MarcarInformativas`), e não de dois pontos que alguém pode mudar em separado.
+
+A linha também sai das **parcelas** do `Total das Despesas` na tela de composição. Continuar
+listada ali faria a conferência de quem soma à mão não fechar por exatamente o valor dela.
+
+**O detalhamento não muda:** os lançamentos existem e o duplo clique continua abrindo. O que
+mudou é de que soma ela participa, não de onde vem o valor.
+
+### Só nesta dimensão
+
+A regra cita a linha **pelo nome**, e o nome é o de C. Custo Principal. Em Conta Gerencial a
+mesma conta se chama `Verba Ind Merc Vencida e Avaria` e continua somando; em Grupo de Contas
+não existe.
+
+### Conferido
+
+[dc32](validacao/dc32_subtotal_positivo.mjs), **18 conferências**, em 14/09/2026. Três são
+desta divergência — a linha marcada, ausente das parcelas do `Total das Despesas`, e com
+valor no período, sem o que a conferência seguinte não provaria nada.
+
+A quarta é a identidade `LUCRO LIQUIDO = RESULTADO OPERACIONAL + Σ(pós-operacional
+restante)`, que passou a ignorar as linhas `naoSoma`: **se a informativa voltasse a somar,
+ela falharia exatamente pelo valor da linha.** É o que protege as duas divergências ao mesmo
+tempo.

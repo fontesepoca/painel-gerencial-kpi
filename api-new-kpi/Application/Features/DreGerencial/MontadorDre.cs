@@ -40,6 +40,19 @@ public static class MontadorDre
     private static readonly HashSet<string> CreditosPromovidos =
         ["RATEIO DESP. CORPORATIVAS", "VERBAS MARGEM"];
 
+    /// <summary>
+    /// Linhas que passam a <b>não somar em totalizador nenhum</b>, a pedido — o mesmo
+    /// tratamento que `ST`, `PIS` e `COFINS` já têm no cabeçalho. Ver
+    /// <see cref="MarcarInformativas"/>.
+    /// </summary>
+    private static readonly HashSet<string> InformativasPorPedido =
+        ["INDENIZACAO DE MERC. VENC. E AVARIA"];
+
+    /// <summary>
+    /// A dimensão onde as duas regras acima valem. Elas citam as linhas <b>pelo nome</b>, e
+    /// os nomes são os desta dimensão: em Conta Gerencial a mesma conta se chama
+    /// `Verba Ind Merc Vencida e Avaria`, e em Grupo de Contas não existe.
+    /// </summary>
     private const string AnaliseComCreditosPromovidos = "ccusto-principal";
 
     /// <summary>As cinco deduções têm `%AV` sobre a RECEITA BRUTA; o resto, sobre a LÍQUIDA.</summary>
@@ -83,9 +96,11 @@ public static class MontadorDre
             .ToDictionary(g => g.Key, g => g.Sum(d => d.QdeReg));
 
         var linhas = PromoverCreditos(
-            estrutura
-                .Select(e => new LinhaEmMontagem(e, Normalizar(e.Grupo), e.CodGruConta.StartsWith('-')))
-                .ToList(),
+            MarcarInformativas(
+                estrutura
+                    .Select(e => new LinhaEmMontagem(e, Normalizar(e.Grupo), e.CodGruConta.StartsWith('-')))
+                    .ToList(),
+                filtro.Analise),
             filtro.Analise);
 
         // Cada coluna é montada por inteiro, de forma independente — inclusive os
@@ -189,6 +204,39 @@ public static class MontadorDre
             Avisos: avisos,
             ApuradoEm: DateTimeOffset.Now,
             DuracaoMs: duracaoMs);
+    }
+
+    /// <summary>
+    /// Tira `INDENIZACAO DE MERC. VENC. E AVARIA` dos totalizadores.
+    ///
+    /// <para>Pedido do Gabriel em 14/09/2026, para C. Custo Principal. A linha nasce no bloco
+    /// pós-operacional e somava no `Total das Despesas` e, por ele, no `LUCRO LIQUIDO`.
+    /// Passa a receber o mesmo tratamento que `ST`, `PIS` e `COFINS` já têm no cabeçalho:
+    /// <b>aparece com valor e não entra em conta nenhuma</b>.</para>
+    ///
+    /// <para><b>O selo da tela não é decoração.</b> O `title` dele diz "esta linha não entra
+    /// nos totalizadores" — marcar sem tirar da soma faria a tela afirmar uma coisa e fazer
+    /// outra. Por isso a marca e a exclusão saem daqui juntas, e não de dois lugares que
+    /// alguém pode mudar em separado.</para>
+    ///
+    /// <para><b>O detalhamento continua o mesmo.</b> Os lançamentos existem e a linha
+    /// continua abrindo com duplo clique — o que mudou é de que soma ela participa, não de
+    /// onde vem o valor dela.</para>
+    /// </summary>
+    private static List<LinhaEmMontagem> MarcarInformativas(
+        List<LinhaEmMontagem> linhas,
+        string analise)
+    {
+        if (!string.Equals(analise, AnaliseComCreditosPromovidos, StringComparison.OrdinalIgnoreCase))
+        {
+            return linhas;
+        }
+
+        return linhas
+            .Select(l => !l.Calculada && InformativasPorPedido.Contains(l.Rotulo)
+                ? l with { Informativa = true }
+                : l)
+            .ToList();
     }
 
     /// <summary>
@@ -378,10 +426,13 @@ public static class MontadorDre
         }
 
 
+        // `!Informativa` importa: a parcela é o que ENTRA na soma, e a tela de composição
+        // mostra as parcelas ao lado do total. Listar uma linha que não soma faria a
+        // conferência do leitor não fechar por exatamente o valor dela.
         List<ParcelaDto> DoBloco(Func<LinhaEstruturaDre, bool> pertence) =>
             todas
                 .Select((x, i) => (x, i))
-                .Where(p => !p.x.Calculada && pertence(p.x.Estrutura))
+                .Where(p => !p.x.Calculada && !p.x.Informativa && pertence(p.x.Estrutura))
                 .Select(p => new ParcelaDto(chaves[p.i], p.x.Estrutura.Grupo.Trim(), 1))
                 .ToList();
 
@@ -473,8 +524,13 @@ public static class MontadorDre
         for (var i = 0; i < linhas.Count; i++)
         {
             if (linhas[i].Calculada) continue;
-            if (linhas[i].Estrutura.AntesRo == "S") somaOperacional += valores[i];
-            else if (linhas[i].Estrutura.AntesLl == "S") somaPosOperacional += valores[i];
+
+            // Informativa fica de fora dos DOIS blocos — é o que "não soma" quer dizer.
+            if (!linhas[i].Informativa)
+            {
+                if (linhas[i].Estrutura.AntesRo == "S") somaOperacional += valores[i];
+                else if (linhas[i].Estrutura.AntesLl == "S") somaPosOperacional += valores[i];
+            }
 
             if (linhas[i].Promovida) somaPromovida += valores[i];
         }
@@ -614,6 +670,7 @@ public static class MontadorDre
     }
 
     private static bool EhNaoSoma(LinhaEmMontagem l) =>
+        l.Informativa ||
         NaoSomamNoCabecalho.Contains(l.Rotulo) ||
         (!l.Calculada && l.Estrutura.AntesLl == "N");
 
@@ -644,9 +701,13 @@ public static class MontadorDre
     /// Crédito que subiu para debaixo do LUCRO BRUTO e compõe o SUBTOTAL POSITIVO.
     /// Ver <see cref="PromoverCreditos"/>.
     /// </param>
+    /// <param name="Informativa">
+    /// Aparece com valor e não entra em totalizador nenhum. Ver <see cref="MarcarInformativas"/>.
+    /// </param>
     private sealed record LinhaEmMontagem(
         LinhaEstruturaDre Estrutura,
         string Rotulo,
         bool Calculada,
-        bool Promovida = false);
+        bool Promovida = false,
+        bool Informativa = false);
 }
