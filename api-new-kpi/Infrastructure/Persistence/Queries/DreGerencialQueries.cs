@@ -983,7 +983,18 @@ public static class DreGerencialQueries
             AND MV.DTCANCEL IS NULL AND (NVL(NFE.OBS,'X') <> 'NF CANCELADA') 
             AND NFE.DTENT BETWEEN :dtIni2 AND :dtFim2
             AND MV.CODFISCAL IN (1202,1411,1949,2202,2411,2949) 
-          AND MV.CODSEC <> 1601 
+          AND MV.CODSEC <> 1601
+            /* Cliente especial com `mostra_dre = 'N'` fica de fora do DRE — e ficava só
+               metade: o filtro estava nos TRÊS blocos de venda e faltava neste, o de
+               devolução. Resultado em 2025/filial 7: somávamos 958,95 de devolução que a
+               9815 não soma, e com ela 633,39 de CMV de devolução, que deixava o
+               `CMV LIQ.` menos negativo na mesma medida. Medido em
+               `docs/validacao/dc27_devolucao_mostra_dre.sql`.
+
+               Aqui a exceção é `PED.CONDVENDA`, não `NF.CONDVENDA`: a devolução não tem
+               nota de saída, e é o pedido que carrega a condição de venda. É a forma da
+               própria 9815 (trace de C.Custo Principal / competência, linha 531). */
+            AND ( (nvl(esp.mostra_dre,'S') = 'S') or (nvl(PED.CONDVENDA,1) in (5)) )
           GROUP BY TO_CHAR(NFE.DTENT,'mm/yyyy')
          UNION ALL
          /* ── TERCEIRO BLOCO: as notas SEM item em PCMOV ──────────────────────────────

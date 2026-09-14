@@ -51,6 +51,16 @@ public class FaturamentoDre
     /// <para><b>Devolve `null` para lista vazia</b>, e não um objeto zerado: o montador
     /// distingue "não houve movimento" de "houve e deu zero" — é o critério de visibilidade
     /// da linha na 9815, que esconde por ausência de movimento e não por valor.</para>
+    ///
+    /// <para><b>Cada mês vai para duas casas ANTES de entrar na soma</b>, e não depois. A
+    /// 9815 totaliza os valores que ela exibe, que já estão arredondados; somar a precisão
+    /// cheia do Oracle e arredondar no fim erra o último centavo quando as frações dos doze
+    /// meses se acumulam. Em 2025, filial 7, deu 1 centavo de diferença em `ABAT./DESC.`,
+    /// `PIS` e `COFINS` — `RECEITA BRUTA` e `ST` escaparam por sorte do arredondamento.</para>
+    ///
+    /// <para>É a mesma regra que <c>MontadorDre</c> já aplica coluna a coluna. Ela faltava
+    /// só aqui, uma camada abaixo, e por isso o furo aparecia <b>apenas no modo `anos`</b>:
+    /// é o único em que uma coluna cobre mais de um mês.</para>
     /// </summary>
     public static FaturamentoDre? Somar(string mesAno, IReadOnlyList<FaturamentoDre> meses)
     {
@@ -59,17 +69,20 @@ public class FaturamentoDre
             return null;
         }
 
+        static decimal Somado(IReadOnlyList<FaturamentoDre> meses, Func<FaturamentoDre, decimal> campo) =>
+            meses.Sum(m => Math.Round(campo(m), 2));
+
         return new FaturamentoDre
         {
             MesAno = mesAno,
-            ReceitaBruta = meses.Sum(m => m.ReceitaBruta),
-            AbatDesc = meses.Sum(m => m.AbatDesc),
-            Devolucao = meses.Sum(m => m.Devolucao),
-            ReceitaLiquida = meses.Sum(m => m.ReceitaLiquida),
-            CmvLiq = meses.Sum(m => m.CmvLiq),
-            StLiq = meses.Sum(m => m.StLiq),
-            PisLiq = meses.Sum(m => m.PisLiq),
-            CofinsLiq = meses.Sum(m => m.CofinsLiq),
+            ReceitaBruta = Somado(meses, m => m.ReceitaBruta),
+            AbatDesc = Somado(meses, m => m.AbatDesc),
+            Devolucao = Somado(meses, m => m.Devolucao),
+            ReceitaLiquida = Somado(meses, m => m.ReceitaLiquida),
+            CmvLiq = Somado(meses, m => m.CmvLiq),
+            StLiq = Somado(meses, m => m.StLiq),
+            PisLiq = Somado(meses, m => m.PisLiq),
+            CofinsLiq = Somado(meses, m => m.CofinsLiq),
         };
     }
 }

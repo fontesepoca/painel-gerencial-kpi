@@ -26,6 +26,17 @@ com o que a rotina exibiu.
 
 Comece sempre pelo mais simples: **1 mês, competência, grupo de contas**.
 
+> **Atalho:** quando os dois lados já existem como arquivo — a **impressão** da nossa tela em
+> PDF e a exportação da 9815 em `.xlsx` —, os passos 2 e 4 estão prontos num comando:
+>
+> ```
+> node docs/validacao/dc28_impressao_contra_planilha.mjs "<impressão.pdf>" "<9815.xlsx>"
+> ```
+>
+> Ele alinha por ordem, compara com meia tolerância de centavo, separa as linhas zeradas que
+> só aparecem na nossa tela e sai com código ≠ 0 se algo divergir. O resto desta seção é o
+> caminho manual, que continua valendo quando o recorte não é uma tela inteira.
+
 ## 2. Extrair os valores esperados do `.xlsx`
 
 Não há Python nesta máquina, e `Expand-Archive` recusa a extensão `.xlsx`. O caminho que
