@@ -28,25 +28,62 @@ public static class MontadorDre
     private const string SubtotalPositivo = "SUBTOTAL POSITIVO";
 
     /// <summary>
-    /// As linhas de crédito que sobem para logo abaixo do `LUCRO BRUTO` — ver
-    /// <see cref="PromoverCreditos"/>.
+    /// A identidade de uma linha do cadastro: <c>chave|AntesRoAntesLlAntesLf</c> — a mesma
+    /// string que <see cref="GerarChavesOrdem"/> monta.
     ///
-    /// <para><b>Só em C. Custo Principal</b>, e só a ocorrência do bloco pós-operacional.
-    /// `RATEIO DESP. CORPORATIVAS` aparece <b>duas vezes</b> nessa dimensão, com o mesmo
-    /// nome: uma entre as despesas operacionais e outra entre os créditos. As duas flags
-    /// (<c>AntesRo = 'N'</c> e <c>AntesLl = 'S'</c>) são o que separa uma da outra — pelo
-    /// rótulo é impossível.</para>
+    /// <para><b>Por que não pelo rótulo.</b> Até 14/09/2026 as duas regras abaixo casavam o
+    /// nome da linha, e isso é frágil por dois motivos medidos naquele dia:</para>
+    ///
+    /// <list type="bullet">
+    ///   <item>os rótulos vêm de cadastros <b>diferentes</b> em cada dimensão — de
+    ///   `PCCONTA.CONTA` em Conta Gerencial e de `PCCENTROCUSTO.DESCRICAO` em C. Custo
+    ///   Principal. Renomear um sem o outro desliga a regra em silêncio;</item>
+    ///   <item>`VERBAS MARGEM` está cadastrada com espaço não separável, e
+    ///   `INDENIZACAO DE MERC. VENC. E AVARIA` convive com uma conta `Indenizacao` de nome
+    ///   parecido. Texto de cadastro é terreno movediço; código não é.</item>
+    /// </list>
+    ///
+    /// <para><b>A chave sozinha também não basta.</b> `RATEIO DESP. CORPORATIVAS` tem a
+    /// mesma chave (96) nas duas ocorrências dele, operacional e pós-operacional. São as
+    /// flags que separam uma da outra.</para>
     /// </summary>
-    private static readonly HashSet<string> CreditosPromovidos =
-        ["RATEIO DESP. CORPORATIVAS", "VERBAS MARGEM"];
+    private static string Identidade(LinhaEstruturaDre e) =>
+        $"{e.CodGruConta}|{e.AntesRo}{e.AntesLl}{e.AntesLf}";
+
+    /// <summary>
+    /// As linhas de crédito que sobem para logo abaixo do `LUCRO BRUTO` — ver
+    /// <see cref="PromoverCreditos"/>. Só em C. Custo Principal, onde a chave é o centro de
+    /// custo principal:
+    ///
+    /// <list type="bullet">
+    ///   <item><c>96|NSS</c> — `RATEIO DESP. CORPORATIVAS`, a ocorrência dos créditos. A
+    ///   operacional é <c>96|SSS</c> e <b>não</b> sobe;</item>
+    ///   <item><c>90|NSS</c> — `VERBAS MARGEM`.</item>
+    /// </list>
+    /// </summary>
+    private static readonly HashSet<string> CreditosPromovidos = ["96|NSS", "90|NSS"];
 
     /// <summary>
     /// Linhas que passam a <b>não somar em totalizador nenhum</b>, a pedido — o mesmo
     /// tratamento que `ST`, `PIS` e `COFINS` já têm no cabeçalho. Ver
     /// <see cref="MarcarInformativas"/>.
+    ///
+    /// <para>É a mesma conta vista por três eixos. Em Conta Gerencial e em Grupo de Contas a
+    /// chave é a própria conta <b>3000165</b>; em C. Custo Principal é o centro de custo
+    /// principal <b>97</b>, que hoje contém só ela.</para>
+    ///
+    /// <para><b>Grupo de Contas só tem essa linha porque a consulta a extrai do grupo 300</b>
+    /// — ver a exceção em <see cref="DreGerencialQueries.EstruturaGrupoDeContas"/> e na
+    /// consulta de despesas irmã. Sem a exceção, esta entrada aqui não casa com nada e a
+    /// dimensão volta a somar os 177 mil em silêncio. A dc34 é quem percebe.</para>
     /// </summary>
-    private static readonly HashSet<string> InformativasPorPedido =
-        ["INDENIZACAO DE MERC. VENC. E AVARIA"];
+    private static readonly Dictionary<string, HashSet<string>> InformativasPorPedido =
+        new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["ccusto-principal"] = ["97|NSS"],
+            ["conta-gerencial"] = ["3000165|NSS"],
+            ["grupo-contas"] = ["3000165|NSS"],
+        };
 
     /// <summary>
     /// A dimensão onde a promoção dos créditos vale. `RATEIO DESP. CORPORATIVAS` e
@@ -56,17 +93,6 @@ public static class MontadorDre
     /// </summary>
     private const string AnaliseComCreditosPromovidos = "ccusto-principal";
 
-    /// <summary>
-    /// As dimensões onde <see cref="InformativasPorPedido"/> vale.
-    ///
-    /// <para>Aqui o rótulo é <b>o mesmo nas duas</b> — o cadastro foi renomeado e
-    /// `INDENIZACAO DE MERC. VENC. E AVARIA` substituiu o antigo
-    /// `Verba Ind Merc Vencida e Avaria` que aparece nas exportações de referência. Ainda
-    /// assim a lista é explícita, e não "toda dimensão": Grupo de Contas não tem essa linha,
-    /// e o dia em que tiver deve ser uma decisão, não um efeito colateral.</para>
-    /// </summary>
-    private static readonly HashSet<string> AnalisesComInformativasPorPedido =
-        new(StringComparer.OrdinalIgnoreCase) { "ccusto-principal", "conta-gerencial" };
 
     /// <summary>As cinco deduções têm `%AV` sobre a RECEITA BRUTA; o resto, sobre a LÍQUIDA.</summary>
     private static readonly HashSet<string> BaseReceitaBruta =
@@ -241,13 +267,13 @@ public static class MontadorDre
         List<LinhaEmMontagem> linhas,
         string analise)
     {
-        if (analise is null || !AnalisesComInformativasPorPedido.Contains(analise))
+        if (analise is null || !InformativasPorPedido.TryGetValue(analise, out var identidades))
         {
             return linhas;
         }
 
         return linhas
-            .Select(l => !l.Calculada && InformativasPorPedido.Contains(l.Rotulo)
+            .Select(l => !l.Calculada && identidades.Contains(Identidade(l.Estrutura))
                 ? l with { Informativa = true }
                 : l)
             .ToList();
@@ -290,11 +316,11 @@ public static class MontadorDre
             return linhas;
         }
 
+        // As flags já estão dentro da identidade (`96|NSS`), então não há o que conferir
+        // além dela — era o `AntesRo`/`AntesLl` solto que separava as duas ocorrências do
+        // rateio quando a regra casava o rótulo.
         static bool EhCredito(LinhaEmMontagem l) =>
-            !l.Calculada
-            && l.Estrutura.AntesRo == "N"
-            && l.Estrutura.AntesLl == "S"
-            && CreditosPromovidos.Contains(l.Rotulo);
+            !l.Calculada && CreditosPromovidos.Contains(Identidade(l.Estrutura));
 
         var promovidas = linhas
             .Where(EhCredito)
@@ -498,7 +524,10 @@ public static class MontadorDre
         for (var i = 0; i < linhas.Count; i++)
         {
             var e = linhas[i].Estrutura;
-            var chave = $"{e.CodGruConta}|{e.AntesRo}{e.AntesLl}{e.AntesLf}";
+            // A MESMA função que as regras de promoção e de informativa usam, de propósito:
+            // se as duas montassem a string em separado, elas poderiam divergir, e a regra
+            // deixaria de casar sem nada na tela mudar.
+            var chave = Identidade(e);
 
             var repeticao = vistas.GetValueOrDefault(chave) + 1;
             vistas[chave] = repeticao;

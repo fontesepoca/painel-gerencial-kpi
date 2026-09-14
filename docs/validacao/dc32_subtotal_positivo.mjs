@@ -230,11 +230,11 @@ console.log(`\n  o RESULTADO OPERACIONAL sobe ${fmt(movimento)} (= a soma dos cr
 
 // ── as outras dimensões ──────────────────────────────────────────────────────
 //
-// Nenhuma delas tem a promoção dos créditos. A informativa vale também em Conta Gerencial,
-// onde a conta tem exatamente o mesmo nome — o cadastro foi renomeado e o
-// `Verba Ind Merc Vencida e Avaria` das exportações de referência não existe mais.
+// Nenhuma delas tem a promoção dos créditos — essa é só de C. Custo Principal. Mas a
+// informativa vale nas TRÊS desde 14/09/2026: em Conta Gerencial a conta tem o mesmo nome, e
+// em Grupo de Contas a consulta a extrai do grupo 300 para que exista linha a marcar.
 for (const { analise, temInformativa } of [
-  { analise: "grupo-contas", temInformativa: false },
+  { analise: "grupo-contas", temInformativa: true },
   { analise: "conta-gerencial", temInformativa: true },
 ]) {
   console.log(`\n${analise.toUpperCase()}\n`);

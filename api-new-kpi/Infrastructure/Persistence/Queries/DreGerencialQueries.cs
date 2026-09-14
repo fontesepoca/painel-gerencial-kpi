@@ -131,9 +131,19 @@ public static class DreGerencialQueries
     public const string EstruturaGrupoDeContas = """
           SELECT min(ID) as ID, CODGRUCONTA, GRUPO, max(INFCONTAS) as INFCONTAS, max(cor) as COR, AntesRO, AntesLL, AntesLF, TIPOCONTA, RESPONSAVEL 
            FROM ( 
-                 select PAR.ID, 
-                        case when PAR.CODGRUCONTA <= 0 then  to_char(PAR.CODGRUCONTA) else to_Char(gr.codgrupo) end as CODGRUCONTA, 
-                        case when PAR.CODGRUCONTA <= 0 then PAR.GRUPO else gr.grupo end as GRUPO, PAR.INFCONTAS, PAR.COR, '' as TIPOCONTA, '' as RESPONSAVEL,  
+                 select PAR.ID,
+                        /* A CONTA 3000165 NÃO SE COLAPSA NO GRUPO — ver o comentário grande
+                           acima da constante. Ela é `INDENIZACAO DE MERC. VENC. E AVARIA`, e
+                           sem esta linha ela desaparece dentro do grupo 300
+                           (`Despesas Adm e Vendas`), onde não há como marcá-la. O rótulo vem
+                           de `CO.CONTA` para bater com o das outras duas dimensões — no
+                           cadastro do DRE ela se chama `Verba Indenização`. */
+                        case when PAR.CODGRUCONTA <= 0 then  to_char(PAR.CODGRUCONTA)
+                             when PAR.CODGRUCONTA = 3000165 then to_char(PAR.CODGRUCONTA)
+                             else to_Char(gr.codgrupo) end as CODGRUCONTA,
+                        case when PAR.CODGRUCONTA <= 0 then PAR.GRUPO
+                             when PAR.CODGRUCONTA = 3000165 then NVL(CO.CONTA, PAR.GRUPO)
+                             else gr.grupo end as GRUPO, PAR.INFCONTAS, PAR.COR, '' as TIPOCONTA, '' as RESPONSAVEL,
                           case when PAR.ID < (select ID from EPCPARDRE where upper(grupo) like 'RESULTADO OPERACIONAL')  then 'S' else 'N' end as AntesRO, 
                           case when PAR.ID < (select ID from EPCPARDRE where upper(grupo) like 'LUCRO LIQUIDO')  then 'S' else 'N' end as AntesLL, 
                           case when PAR.ID < (select ID from EPCPARDRE where upper(grupo) like 'LUCRO LIQUIDO')  then 'S' else 'N' end as AntesLF 
@@ -207,7 +217,12 @@ public static class DreGerencialQueries
     public const string DespesasGrupoDeContas = """
          SELECT  GRUPOCONTA AS GRUPOCONTA, AntesRO AS ANTESRO, AntesLL AS ANTESLL, AntesLF AS ANTESLF, MES_ANO AS MESANO, MES AS MES, ANO AS ANO, sum(VLREALIZADO) AS VLREALIZADO, sum(VPAGO_EXCLUSIVO_FORNEC) AS VPAGOEXCLUSIVOFORNEC, sum(QdeReg) AS QDEREG 
          FROM ( 
-         SELECT  to_char(decode(AntesLF,'N',CODCONTA,  codgrupo)) as GRUPOCONTA, AntesRO, AntesLL, AntesLF, MES_ANO, MES, ANO, SUM(VPAGO) AS VLREALIZADO, sum(VPAGO_EXCLUSIVO_FORNEC) as VPAGO_EXCLUSIVO_FORNEC, count(*) as QdeReg 
+         /* `decode(AntesLF,'N',CODCONTA,codgrupo)`: as linhas DEPOIS do LUCRO LIQUIDO já saem
+            por conta, e as de antes por grupo. A conta 3000165 entra na primeira regra sem
+            estar depois do LUCRO LIQUIDO — é a exceção que mantém `INDENIZACAO DE MERC.
+            VENC. E AVARIA` como linha própria em vez de somida no grupo 300. A estrutura tem
+            a exceção gêmea; as duas precisam concordar ou a linha aparece zerada. */
+         SELECT  to_char(case when AntesLF = 'N' or CODCONTA = 3000165 then CODCONTA else codgrupo end) as GRUPOCONTA, AntesRO, AntesLL, AntesLF, MES_ANO, MES, ANO, SUM(VPAGO) AS VLREALIZADO, sum(VPAGO_EXCLUSIVO_FORNEC) as VPAGO_EXCLUSIVO_FORNEC, count(*) as QdeReg
                         FROM ( 
           SELECT  FIN.RECNUM, FIN.CODFILIAL, CCPrinc.codccprinc, CCPrinc.DescCCPrinc,  
                   case  
@@ -264,7 +279,7 @@ public static class DreGerencialQueries
              AND not exists (select recnumadiantamento from pclancadiantfornec where recnumpagto is not null and dtestorno is null and recnumadiantamento = fin.recnum) 
             AND {2} BETWEEN :dtIni1 AND :dtFim1
          AND FIN.CODCONTA NOT IN ( SELECT codconta FROM EPCPARDRE_NAOEXIBIR) 
-                         ) GROUP BY  to_char(decode(AntesLF,'N',CODCONTA,  codgrupo)), AntesRO, AntesLL, AntesLF, MES_ANO, MES, ANO  
+                         ) GROUP BY  to_char(case when AntesLF = 'N' or CODCONTA = 3000165 then CODCONTA else codgrupo end), AntesRO, AntesLL, AntesLF, MES_ANO, MES, ANO
          union all 
          select '400' as GRUPOCONTA,  
                 'N' as AntesRO, 'S' as AntesLL,  'S' as AntesLF, TO_CHAR(FIN.dtpag,'mm/yyyy') as MES_ANO, 
