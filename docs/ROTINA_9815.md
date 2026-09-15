@@ -900,13 +900,46 @@ centavo de diferença, todas em `,xx5`.
   personalizados ele passa a se chamar *Ver os números do cadastro*: ali a promessa que
   interessa é o número de volta, não a ordem.
 
-O selo `FORA DO BLOCO` saiu. Ele marcava a linha que passou a *aparecer* longe do total que
-compõe — o descompasso entre a tela e a conta. Agora a conta acompanha a tela, e não há mais
-"fora do bloco".
+### O selo `FORA DO BLOCO`
 
-Conferido também pela [dc36](validacao/dc36_encaixes_da_reordenacao.mjs), 85 asserções sobre
+Ele chegou a **sair** em 15/09/2026, junto com o mundo em que arrastar era só leitura: ali o
+selo marcava a linha que passara a *aparecer* longe do total que compunha — um descompasso
+entre a tela e a conta, que deixou de existir.
+
+**Voltou no mesmo dia, a pedido do Gabriel, dizendo outra coisa:** que aquele lugar **não é o
+do cadastro**. Sem ele, uma tabela reordenada e uma da apuração são indistinguíveis linha a
+linha, e só o aviso no alto separa as duas — o que não sobrevive a um print recortado nem a
+alguém que entra na tela no meio da conversa.
+
+O critério é o **total**, não a posição: arrastar uma despesa três linhas para cima dentro do
+mesmo bloco não acende nada. Um selo que acende sempre para de ser lido.
+
+| Onde | O que aparece |
+|---|---|
+| Tela | `FORA DO BLOCO`, na cor do `--primary` |
+| Tela estreita | `FORA` — a palavra inteira empurrava o nome da conta para duas linhas |
+| Papel | `*` ao lado do nome, com a legenda na faixa do aviso |
+
+**No papel é um asterisco, e não uma sigla.** `FB` foi considerado e descartado: é uma sigla
+que só quem escreveu entende, e não tem para onde apontar. Na folha não há `title` nem hover,
+então um selo que ninguém pode interrogar precisa de legenda em algum lugar — e asterisco com
+nota é a convenção que quem lê balanço já reconhece. Custa um caractere em vez de doze na
+coluna mais apertada da folha.
+
+A cor é a do `--primary`, não a do aviso: mover uma conta é a funcionalidade da tela, não um
+deslize. Quem fala em tom de alerta é o `INFORMATIVO`, que marca uma linha que **não soma em
+lugar nenhum** — os dois podem aparecer na mesma linha e precisam ser distinguíveis.
+
+Conferido também pela [dc36](validacao/dc36_encaixes_da_reordenacao.mjs), 90 asserções sobre
 um DRE de brinquedo com números redondos: quem recebe o encaixe de cada posição, mover de
-bloco, mover dentro do bloco, soltar no cabeçalho, e a composição sendo refeita pela posição.
+bloco, mover dentro do bloco, soltar no cabeçalho, quem acende o selo `FORA DO BLOCO`, e a
+composição sendo refeita pela posição.
+
+> **Achado de passagem, ao conferir o selo na impressão:** o punho `⠿` vinha saindo no papel
+> em toda conta. O `@media print` dizia *"punhos de arraste"* desde que foi escrito, mas o
+> `.puxador` nunca carregou a classe `nao-imprime` — 24px por linha na coluna mais apertada da
+> folha, desenhando um controle que ninguém pega numa folha. Corrigido junto com o
+> `.puxador-vazio`, que só existe para alinhar as calculadas com as contas.
 
 <details>
 <summary>Como era até 14/09/2026 — e por que o texto mudou</summary>

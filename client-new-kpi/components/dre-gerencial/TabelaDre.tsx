@@ -27,7 +27,12 @@ import {
   mover,
   ordemPersonalizada,
 } from "@/lib/ordemLinhas";
-import { ancoraDoEncaixe, mesmosValores, recalcular } from "@/lib/recalculoDoDre";
+import {
+  ancoraDoEncaixe,
+  contasDeslocadas,
+  mesmosValores,
+  recalcular,
+} from "@/lib/recalculoDoDre";
 import type {
   FiltroApuracao,
   LinhaDre,
@@ -154,16 +159,20 @@ export function TabelaDre({
     parcelas: { rotulo: string; valor: number; semMovimento: boolean }[];
   } | null>(null);
 
-  /*
-   * O conjunto `deslocadas` e o selo FORA DO BLOCO saíram em 15/09/2026.
+  /**
+   * As contas que somam num total diferente do que o cadastro lhes deu.
    *
-   * Eles existiam para marcar a linha que passou a APARECER longe do total que compõe —
-   * o descompasso entre a tela e a conta, quando mover era só leitura. Agora a conta
-   * acompanha a tela: onde a linha está é onde ela soma, e não há mais "fora do bloco".
-   *
-   * O que substitui é o aviso de ordem personalizada na barra, que fala do DRE inteiro em
-   * vez de linha a linha — porque o que mudou passou a ser o número, não a leitura.
+   * O selo `FORA DO BLOCO` chegou a sair em 15/09/2026, junto com o mundo em que arrastar era
+   * só leitura — lá ele marcava o *descompasso* entre a tela e a conta, e esse descompasso
+   * deixou de existir. Voltou no mesmo dia, a pedido do Gabriel, dizendo outra coisa: que
+   * **aquele lugar não é o do cadastro**. Sem ele, uma tabela reordenada e uma da apuração são
+   * indistinguíveis linha a linha, e só o aviso no alto separa as duas — o que não sobrevive a
+   * um print recortado nem a alguém que entra na tela no meio da conversa.
    */
+  const deslocadas = useMemo(
+    () => contasDeslocadas(ordenadas, linhas),
+    [ordenadas, linhas],
+  );
 
   // Esconde por AUSÊNCIA DE MOVIMENTO, não por valor zero — é o critério da 9815.
   // `DESCONTO FUNCIONÁRIOS` fecha em 0,00 com 16 lançamentos e continua na tela.
@@ -631,10 +640,22 @@ export function TabelaDre({
 
           Só existe quando algum valor de fato mudou: reordenar dentro do mesmo bloco não
           personaliza total nenhum, e acender o aviso ali o gastaria à toa. */}
-      {totaisPersonalizados && (
+      {(totaisPersonalizados || deslocadas.size > 0) && (
         <p className="so-no-papel border-b border-[var(--warning)] bg-[var(--warning-glow)] px-4 py-2 text-[length:var(--fs-apoio)] text-[var(--text-primary)]">
           <strong className="font-semibold">Totais reordenados.</strong> Estes números não são
           os da apuração — eles seguem a ordem em que a tabela foi lida.
+          {/* A LEGENDA DO ASTERISCO.
+              No papel o selo vira `*` ao lado do nome, e um asterisco sem legenda é um
+              enfeite: é aqui que ele passa a querer dizer alguma coisa. Fica na mesma faixa
+              do aviso de propósito — as duas frases explicam o mesmo relatório, e separá-las
+              daria duas tarjas onde cabe uma. */}
+          {deslocadas.size > 0 && (
+            <>
+              {" "}
+              <strong className="font-semibold">*</strong> conta movida para outro bloco: ela
+              soma no total abaixo dela, e não no que o cadastro lhe deu.
+            </>
+          )}
         </p>
       )}
 
@@ -708,6 +729,7 @@ export function TabelaDre({
                   key={linha.chaveOrdem}
                   linha={linha}
                   indice={indice}
+                  foraDoBloco={deslocadas.has(linha.chaveOrdem)}
                   maiorAv={maiorAv}
                   multiMes={multiMes}
                   variacaoNoFim={variacaoNoFim}
@@ -926,6 +948,7 @@ function Th({ className, children }: { className?: string; children?: React.Reac
 function Linha({
   linha,
   indice,
+  foraDoBloco,
   maiorAv,
   multiMes,
   variacaoNoFim,
@@ -943,6 +966,8 @@ function Linha({
 }: {
   linha: LinhaDre;
   indice: number;
+  /** A conta soma num total diferente do que o cadastro lhe deu. */
+  foraDoBloco: boolean;
   maiorAv: number;
   multiMes: boolean;
   /** O bloco final desta linha é variação em vez de total. */
@@ -1080,6 +1105,7 @@ function Linha({
             {nome}
           </span>
           {linha.naoSoma && <SeloInformativo />}
+          {foraDoBloco && <SeloForaDoBloco />}
         </div>
       </td>
 
@@ -1324,6 +1350,43 @@ function Variacao({
  *
  * O texto acessível é sempre o longo — quem ouve a tela não deve receber a abreviação.
  */
+/**
+ * A conta está somando num bloco que não é o do cadastro.
+ *
+ * **Na tela, a palavra; no papel, um asterisco.** Não é economia de espaço por si — é que no
+ * papel a coluna de descrição não tem `title` nem hover, e um selo que ninguém pode
+ * interrogar precisa ser explicado em algum lugar. O asterisco com legenda no alto é a
+ * convenção que quem lê balanço já conhece, e custa um caractere em vez de doze na coluna
+ * mais apertada da folha. `FB` foi considerado e descartado: é uma sigla que só quem
+ * escreveu entende, e não tem para onde apontar.
+ *
+ * A cor é a do `--primary`, não a do aviso: mover uma conta é a funcionalidade da tela, não
+ * um deslize. Quem fala em tom de alerta é o `INFORMATIVO`, que marca uma linha que **não
+ * soma em lugar nenhum** — as duas podem aparecer juntas, e precisam ser distinguíveis.
+ */
+function SeloForaDoBloco() {
+  return (
+    <>
+      <span
+        title="Esta conta foi movida: ela soma no total abaixo dela, não no que o cadastro lhe deu"
+        className="so-na-tela shrink-0 rounded-[var(--radius-sm)] bg-[var(--primary-glow)] px-1.5 py-0.5 text-[length:var(--fs-rotulo)] font-semibold tracking-[0.1em] text-[var(--primary)] uppercase"
+      >
+        <span className="sr-only">Movida para outro bloco</span>
+        <span aria-hidden className="selo-longo">
+          Fora do bloco
+        </span>
+        {/* Numa coluna de 188px, `Fora do bloco` empurra o nome da conta para duas linhas. */}
+        <span aria-hidden className="selo-curto">
+          Fora
+        </span>
+      </span>
+      <span aria-hidden className="so-no-papel shrink-0 font-semibold">
+        *
+      </span>
+    </>
+  );
+}
+
 function SeloInformativo() {
   return (
     <span

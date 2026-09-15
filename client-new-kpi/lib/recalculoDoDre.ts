@@ -184,6 +184,36 @@ function encaixesPorConta(linhas: readonly LinhaDre[]): Map<string, PapelDaLinha
 }
 
 /**
+ * As contas que estão somando num total **diferente do que o cadastro lhes deu**.
+ *
+ * Compara o encaixe de cada conta nas duas listas — não a posição. É a diferença que importa:
+ * arrastar uma despesa três linhas para cima dentro do mesmo bloco muda a posição e não muda
+ * total nenhum, e marcar isso gastaria o selo à toa.
+ *
+ * **Isto não é o antigo `FORA DO BLOCO`, embora tenha o mesmo nome na tela.** Aquele selo
+ * marcava a linha que passara a *aparecer* longe do total que compunha, quando arrastar era
+ * só leitura — ele sinalizava um descompasso entre a tela e a conta. Aqui não há descompasso:
+ * a conta soma onde está. O que o selo diz agora é que **aquele lugar não é o do cadastro**,
+ * e é por isso que ele existe — sem ele, uma tabela reordenada e uma da apuração são
+ * indistinguíveis linha a linha, e só o aviso no alto separa as duas.
+ */
+export function contasDeslocadas(
+  ordenadas: readonly LinhaDre[],
+  canonicas: readonly LinhaDre[],
+): Set<string> {
+  const agora = encaixesPorConta(ordenadas);
+  const antes = encaixesPorConta(canonicas);
+
+  const fora = new Set<string>();
+  for (const [chave, destino] of agora) {
+    // Conta que não existe na lista canônica não tem com o que ser comparada. Marcá-la
+    // seria acusar de movimento uma linha que ninguém moveu.
+    if (antes.has(chave) && antes.get(chave) !== destino) fora.add(chave);
+  }
+  return fora;
+}
+
+/**
  * Recalcula o DRE para a ordem dada.
  *
  * `ordenadas` são as linhas já na ordem da tela; `canonicas`, as que a API mandou. As duas

@@ -1028,8 +1028,22 @@ tr:focus-within .tem-detalhe .valor-clicavel {
     display: none !important;
   }
 
-  /* Filtros, casca, punhos de arraste e botões. Nada disto é o relatório. */
+  /* Filtros, casca e botões. Nada disto é o relatório. */
   .nao-imprime {
+    display: none !important;
+  }
+
+  /* O punho de arraste e o espaço que ele reserva nas linhas calculadas.
+
+     A regra acima já dizia "punhos de arraste" desde que foi escrita, mas o `.puxador` nunca
+     carregou a classe `nao-imprime`, e o `⠿` vinha saindo no papel em toda conta — 24px por
+     linha na coluna mais apertada da folha, para desenhar um controle que ninguém pega numa
+     folha impressa. Encontrado em 15/09/2026 ao conferir o selo `FORA DO BLOCO` na impressão.
+
+     Os dois juntos, sempre: o vazio existe só para as calculadas ficarem alinhadas com as
+     contas. Esconder um e deixar o outro é o degrau que ele nasceu para evitar. */
+  .puxador,
+  .puxador-vazio {
     display: none !important;
   }
 

@@ -14,7 +14,7 @@
  * receitas liquidas — o valor de subtotal positivo e lucro bruto devem ser alterados"*.
  */
 import assert from "node:assert/strict";
-import { ancoraDoEncaixe, recalcular, media } from "@/lib/recalculoDoDre.ts";
+import { ancoraDoEncaixe, contasDeslocadas, recalcular, media } from "@/lib/recalculoDoDre.ts";
 
 let n = 0;
 const eq = (achou, esperado, oque) => {
@@ -227,6 +227,27 @@ function mover(linhas, chave, destino) {
     false,
     "e a informativa fica de fora das parcelas, como fica da soma",
   );
+}
+
+// ── o selo FORA DO BLOCO marca quem trocou de TOTAL, não quem trocou de lugar ─
+//
+// A distinção é o selo inteiro: arrastar uma despesa três linhas para cima dentro do mesmo
+// bloco muda a posição e não muda total nenhum. Marcar isso gastaria o selo à toa, e um selo
+// que acende sempre para de ser lido.
+{
+  const foraDe = (linhas) => [...contasDeslocadas(linhas, DRE)].sort();
+
+  eq(foraDe(DRE), [], "na ordem do cadastro ninguém está fora do bloco");
+  eq(foraDe(mover(DRE, "despB", "despA")), [], "trocar de vizinho dentro do bloco não acende o selo");
+  eq(foraDe(mover(DRE, "credito", "receita-bruta")), ["credito"], "o crédito que subiu para o cabeçalho, sim");
+  eq(
+    foraDe(mover(DRE, "despA", "resultado-operacional")),
+    ["despA"],
+    "e a despesa que virou pós-operacional, também — só ela",
+  );
+  // Uma informativa não soma em lugar nenhum, esteja onde estiver: o encaixe dela muda, mas
+  // o total que a conta não é o mesmo antes e depois. Ela tem selo próprio, o INFORMATIVO.
+  eq(foraDe(mover(DRE, "info", "receita-bruta")), ["info"], "a informativa acende o selo pela posição, não pelo valor");
 }
 
 // ── a média, em centavos inteiros ────────────────────────────────────────────
