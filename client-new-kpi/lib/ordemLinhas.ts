@@ -4,12 +4,15 @@
  * Sem React de propósito: é aqui que mora a parte que erra em silêncio — reconciliar
  * uma ordem salva com um DRE que voltou do banco com outro conjunto de linhas.
  *
- * **Mover linha não muda valor nenhum.** Os totalizadores somam pelas flags do cadastro
- * (`ANTESRO`, `ANTESLL`, `ANTESLF`), não pela posição na tela — quem calcula é o
- * `MontadorDre`, no servidor, antes de a ordem do usuário existir. O que a posição muda
- * é a **leitura**: uma despesa operacional arrastada para baixo de RESULTADO OPERACIONAL
- * continua dentro dele, só que passa a parecer que está fora. É esse risco que o selo e
- * o aviso de confirmação existem para tornar visível.
+ * **Este arquivo mexe só na ORDEM.** Quem refaz os números pela posição é
+ * `recalculoDoDre.ts` — desde 15/09/2026 mover uma conta a tira de um total e a põe em
+ * outro, e as duas responsabilidades ficam separadas de propósito: reconciliar ordem salva
+ * com DRE novo é um problema, e aritmética de DRE é outro.
+ *
+ * Até essa data o cabeçalho aqui dizia o contrário — *"mover linha não muda valor nenhum"* —,
+ * e `saiuDoBloco`/`linhasAfetadas` existiam para marcar a linha que passava a APARECER fora
+ * do total que compõe. Saíram junto com o selo `FORA DO BLOCO`: esse descompasso entre a
+ * tela e a conta deixou de existir.
  */
 
 export interface LinhaOrdenavel {
@@ -63,73 +66,6 @@ export function descreverPosicao<T extends LinhaOrdenavel>(
   if (abaixo) return `acima de ${nome(abaixo)}`;
   if (acima) return `abaixo de ${nome(acima)}`;
   return "no fim da tabela";
-}
-
-/**
- * Assinatura do que uma linha **parece** compor: o conjunto de calculadas abaixo dela.
- *
- * Ler um DRE de cima para baixo é isso — uma despesa acima do SUB-TOTAL parece entrar
- * nele. Então é esse o relacionamento que o selo tem que vigiar.
- *
- * **Conjunto, não sequência.** Se dois totalizadores trocam de lugar entre si, quem
- * está acima dos dois continua parecendo compor os dois, e nada mudou na leitura
- * daquela linha. Ordenar as chaves antes de juntar é o que impede o selo de acender
- * em linha que ninguém encostou.
- */
-function totaisAbaixo<T extends LinhaOrdenavel>(linhas: readonly T[], indice: number): string {
-  const chaves: string[] = [];
-  for (let i = indice + 1; i < linhas.length; i++) {
-    const l = linhas[i];
-    if (l?.calculada) chaves.push(l.chaveOrdem);
-  }
-  return chaves.sort().join(",");
-}
-
-/**
- * A linha passou a parecer compor totais diferentes dos do cadastro?
- *
- * É o critério do selo e do aviso. Compara a assinatura de agora com a da ordem
- * canônica — a que veio da API.
- *
- * <b>A primeira versão disto comparava as duas âncoras imediatas, e era ruído puro:</b>
- * mover um único totalizador acendia o selo em 8 de 10 linhas, inclusive em LUCRO BRUTO,
- * que não tinha se mexido. Um aviso que acende em quase tudo não avisa nada.
- */
-export function saiuDoBloco<T extends LinhaOrdenavel>(
-  canonicas: readonly T[],
-  atuais: readonly T[],
-  chaveOrdem: string,
-): boolean {
-  const iCanonico = canonicas.findIndex((l) => l.chaveOrdem === chaveOrdem);
-  const iAtual = atuais.findIndex((l) => l.chaveOrdem === chaveOrdem);
-  if (iCanonico < 0 || iAtual < 0) return false;
-
-  return totaisAbaixo(canonicas, iCanonico) !== totaisAbaixo(atuais, iAtual);
-}
-
-/**
- * Quais linhas **passam** a ficar deslocadas se a nova ordem for aplicada.
- *
- * É o texto do aviso, e por isso conta **só linhas não-calculadas**. "Aparecer fora do
- * total que compõe" só faz sentido para uma despesa: RECEITA BRUTA não compõe total
- * nenhum, ela é fonte, e listá-la era o que fazia o aviso citar a tabela inteira e
- * portanto não avisar nada. O totalizador que a pessoa moveu já está descrito no
- * "sai de / vai parar" do próprio modal.
- *
- * Só conta quem vira `false → true` — quem já estava deslocado antes não é
- * consequência deste movimento.
- */
-export function linhasAfetadas<T extends LinhaOrdenavel>(
-  canonicas: readonly T[],
-  antes: readonly T[],
-  depois: readonly T[],
-): T[] {
-  return depois.filter(
-    (l) =>
-      !l.calculada &&
-      saiuDoBloco(canonicas, depois, l.chaveOrdem) &&
-      !saiuDoBloco(canonicas, antes, l.chaveOrdem),
-  );
 }
 
 /**

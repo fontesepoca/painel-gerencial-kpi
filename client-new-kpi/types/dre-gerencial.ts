@@ -90,6 +90,29 @@ export interface TotalLinha {
   percentualAv: number | null;
 }
 
+/**
+ * As linhas que o DRE calcula, em código. Conta do cadastro não tem papel — é ele que
+ * distingue "âncora com fórmula" de "linha de valor".
+ *
+ * A ordem aqui é a do DRE, de cima para baixo, e `recalculoDoDre.ts` depende dela para
+ * montar a cascata.
+ */
+export type PapelDaLinha =
+  | "receita-bruta"
+  | "abat-desc"
+  | "devolucao"
+  | "st"
+  | "pis"
+  | "cofins"
+  | "receitas-liquidas"
+  | "cmv"
+  | "lucro-bruto"
+  | "subtotal-positivo"
+  | "sub-total"
+  | "resultado-operacional"
+  | "total-despesas"
+  | "lucro-liquido";
+
 export interface LinhaDre {
   id: number | null;
   /**
@@ -98,6 +121,14 @@ export interface LinhaDre {
    * Ver `LinhaDreDto.ChaveOrdem` na API.
    */
   chaveOrdem: string;
+  /**
+   * Que linha do DRE esta é, em código estável, ou `null` quando é uma conta do cadastro.
+   *
+   * **Vem da API de propósito.** Reconhecer `LUCRO BRUTO` pelo rótulo aqui repetiria o
+   * defeito do espaço não separável do `VERBAS MARGEM` — uma string que parece certa em
+   * todo log e não casa. Ver `LinhaDreDto.Papel`.
+   */
+  papel: PapelDaLinha | null;
   chave: string;
   descricao: string;
   valores: ValorMes[];

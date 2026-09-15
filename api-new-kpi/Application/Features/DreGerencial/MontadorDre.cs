@@ -191,6 +191,7 @@ public static class MontadorDre
                 ChaveOrdem: chavesOrdem[indice],
                 Chave: l.Estrutura.CodGruConta,
                 Descricao: l.Estrutura.Grupo,
+                Papel: PapelDaLinha(l),
                 Valores: valores,
                 Total: new TotalLinhaDto(
                     Valor: somaPeriodo,
@@ -615,6 +616,37 @@ public static class MontadorDre
 
         return valores;
     }
+
+    /// <summary>
+    /// O código estável da linha, para o front não ter de reconhecê-la pelo rótulo.
+    /// Ver <see cref="LinhaDreDto.Papel"/>.
+    ///
+    /// <para><b>Conta devolve <c>null</c>.</b> Só as calculadas têm papel — são elas que
+    /// carregam fórmula, e é por isso que o front precisa saber qual é qual.</para>
+    ///
+    /// <para>Este <c>switch</c> é gêmeo do de <see cref="MontarMes"/>, de propósito: os dois
+    /// leem o mesmo <see cref="LinhaEmMontagem.Rotulo"/>. Se um rótulo mudar no cadastro, os
+    /// dois param juntos — a linha sai zerada E sem papel, em vez de sair com número certo e
+    /// papel errado, que é o estrago silencioso.</para>
+    /// </summary>
+    private static string? PapelDaLinha(LinhaEmMontagem l) => !l.Calculada ? null : l.Rotulo switch
+    {
+        ReceitaBruta => "receita-bruta",
+        AbatDesc => "abat-desc",
+        Devolucao => "devolucao",
+        St => "st",
+        Pis => "pis",
+        Cofins => "cofins",
+        ReceitaLiquida => "receitas-liquidas",
+        CmvLiq => "cmv",
+        LucroBruto => "lucro-bruto",
+        SubtotalPositivo => "subtotal-positivo",
+        SubTotal => "sub-total",
+        ResultadoOperacional => "resultado-operacional",
+        TotalDespesas => "total-despesas",
+        LucroLiquido => "lucro-liquido",
+        _ => null,
+    };
 
     /// <summary>
     /// Linha calculada com rótulo não reconhecido: zero e aviso, nunca número inventado.

@@ -482,6 +482,17 @@ html[data-leitura="ampliada"] :focus-visible {
   cursor: grabbing;
 }
 
+/* O lugar do punho nas linhas calculadas, que nao se movem.
+
+   Vazio de proposito, e nao ausente: sem ele o nome dessas linhas saltaria 24px para a
+   esquerda, e sao justamente elas — LUCRO BRUTO, Sub-Total, LUCRO LIQUIDO — que o olho usa
+   como referencia ao descer a tabela. Um degrau ali e mais caro que um espaco em branco. */
+.puxador-vazio {
+  display: block;
+  width: 1.5rem;
+  height: 1.5rem;
+}
+
 html[data-leitura="ampliada"] .puxador {
   width: 1.75rem;
   height: 1.75rem;

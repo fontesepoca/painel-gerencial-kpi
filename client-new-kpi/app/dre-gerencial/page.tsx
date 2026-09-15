@@ -7,6 +7,8 @@ import { TabelaDre } from "@/components/dre-gerencial/TabelaDre";
 import { FolhaDaImpressao } from "@/components/dre-gerencial/impressao";
 import { MenuExportar } from "@/components/dre-gerencial/MenuExportar";
 import { exportarApuracao } from "@/lib/exportarExcel";
+import { aplicarOrdem } from "@/lib/ordemLinhas";
+import { recalcular } from "@/lib/recalculoDoDre";
 import { useApuracao, useFiliais } from "@/hooks/useDreGerencial";
 import { cn } from "@/lib/cn";
 import { formatarDataIso, formatarDuracao } from "@/lib/formato";
@@ -62,7 +64,15 @@ export default function DreGerencialPage() {
         .map((tr) => tr.dataset.chave)
         .filter((c): c is string => !!c);
 
-      const porChave = new Map(apuracao.linhas.map((l) => [l.chaveOrdem, l]));
+      // Os VALORES da tela, não os da apuração. Desde 15/09/2026 a ordem muda os totais, e
+      // remapear as chaves do DOM para `apuracao.linhas` traria de volta os números do
+      // cadastro — o arquivo contaria uma história e a tela outra.
+      //
+      // O recálculo precisa da lista COMPLETA, e o DOM só tem as visíveis: `aplicarOrdem`
+      // recoloca as escondidas na vizinhança canônica delas, e uma conta zerada escondida
+      // continua somando no bloco onde está.
+      const completa = recalcular(aplicarOrdem(apuracao.linhas, chaves), apuracao.linhas);
+      const porChave = new Map(completa.map((l) => [l.chaveOrdem, l]));
       const naTela = chaves
         .map((c) => porChave.get(c))
         .filter((l): l is (typeof apuracao.linhas)[number] => l !== undefined);

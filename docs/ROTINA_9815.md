@@ -426,7 +426,7 @@ Nenhuma dessas mexe em regra de cálculo. Qualquer uma que altere um centavo é 
 |---|---|
 | Tela de pré-seleção de filiais antes de abrir | seleção no próprio filtro, com as 9 apuráveis |
 | Grade estilo planilha | tabela responsiva, tema escuro |
-| Sem atalhos de período | Ontem · Mês Passado · Últimos 3 Meses · Ano Passado |
+| Sem atalhos de período | Ontem · Mês Atual · Mês Passado · Últimos 3 Meses · Ano Passado |
 | Linhas soltas após o LUCRO LIQUIDO | mesmas linhas, marcadas com `INFORMATIVO` |
 | 12 checkboxes | 4 filtros |
 
@@ -783,38 +783,125 @@ que ponto flutuante em valores de dinheiro.
 > **Se um dia isso importar**, o caminho é medir em qual coluna o negócio realmente confia.
 > Se a MÉDIA for lida para decisão, vale reabrir; se for enfeite de relatório, fica como está.
 
-## 15. Reordenar linhas — preferência de leitura, nunca de cálculo
+### 14.1 Os atalhos de período, e por que o padrão para em ontem
 
-A tabela deixa arrastar linhas para a ordem que o usuário preferir. Três decisões
-estruturam isso, e a primeira é a que importa para a regra de fidelidade:
+Cinco atalhos, em ordem crescente de alcance: **Ontem**, **Mês atual**, **Mês passado**,
+**Últimos 3 meses** e **Ano passado**. Cada um exibe o intervalo exato que vai aplicar —
+quem escolhe vê `01/09/2026 a 14/09/2026`, não precisa deduzir a regra.
+
+**"Mês atual" vai do dia 1 até ontem**, e o recorte com que a tela abre é o mesmo. Pedido do
+Gabriel em 15/09/2026, e o motivo é que **o dia de hoje está pela metade**: faturamento
+lançado à tarde ainda não entrou, baixa de título tampouco. Fechar em ontem faz o último
+número da tela ser um número inteiro de um dia inteiro.
+
+O padrão e o atalho saem da **mesma função** de propósito. Se divergissem, clicar em "Mês
+atual" mudaria as datas de uma tela que já estava no mês atual, e ninguém entenderia.
+
+**No dia 1º não existe dia fechado no mês.** "Até ontem" cairia no mês passado e inverteria o
+intervalo, que a tela recusa com *"a data final não pode ser anterior à inicial"* — no
+primeiro dia de todo mês. O fim é preso ao dia 1º, e o recorte vira um único dia.
+
+"Últimos 3 meses" continua sendo três meses **completos**, terminando no mês passado: incluir
+o mês corrente pela metade faria a comparação entre colunas mentir.
+
+Conferido em [dc37](validacao/dc37_atalhos_de_periodo.mjs), **2.219 asserções** — todos os
+atalhos em todos os dias de 2028, ano bissexto, sem nenhum intervalo invertido, mais as duas
+armadilhas de fuso que o projeto já encontrou (`toISOString()` às 21h vira o dia seguinte em
+UTC−3).
+
+## 15. Reordenar linhas — a posição manda no cálculo
+
+> **Esta seção foi invertida em 15/09/2026.** Até essa data arrastar era só leitura, e a
+> tela dizia isso em letras grandes: *"Nenhum valor muda — os totais somam pelas marcações
+> do cadastro, não pela posição."* A decisão do Gabriel foi o contrário: **onde a conta está
+> é onde ela soma.** O texto antigo continua abaixo, no histórico, porque o motivo de ele ter
+> existido explica o desenho de agora.
+
+A tabela é uma sequência de **âncoras fixas com encaixes entre elas**. Uma conta soma na
+**primeira linha calculada abaixo dela**, e a cascata segue daí.
+
+**As linhas calculadas não se movem.** São elas que definem os blocos — mover uma
+redefiniria todos de uma vez, efeito grande demais para um arraste. O punho não existe
+nessas linhas, e `Alt`+setas não responde nelas. O espaço do punho continua reservado e
+vazio: sem ele, `LUCRO BRUTO` e companhia saltariam 24px para a esquerda, e são justamente
+elas que o olho usa como referência ao descer a tabela.
+
+**Conta pode ir a qualquer lugar**, inclusive para dentro do cabeçalho — decisão do Gabriel
+na mesma conversa. Largar uma despesa no encaixe do `CMV LIQ.` muda o `LUCRO BRUTO`; largar
+no encaixe de `ST`, `PIS` ou `COFINS`, ou depois do `LUCRO LIQUIDO`, **tira a conta de todos
+os totais**, porque essas âncoras não propagam. O modal avisa, e é o único caso que ainda sai
+em cor de alerta.
+
+### Onde a conta é feita, e o que a amarra
+
+No **front**, em `client-new-kpi/lib/recalculoDoDre.ts`. Refazer a apuração a cada arrasto é
+inviável — ela leva de segundos a minutos —, e os valores de cada linha já estão todos na
+resposta: o que muda é de que soma cada um participa.
+
+Isso cria duas aritméticas para o mesmo DRE, uma em C# e outra em TypeScript. O que impede
+que divirjam não é atenção, é uma invariante: **com a ordem do cadastro, o recálculo devolve
+exatamente o que a API mandou**, ao centavo, incluindo `%AV`, `%AH`, total e média. A
+[dc35](validacao/dc35_recalculo_reproduz_a_api.mjs) cobra isso com dado real nas três
+dimensões — 6.102 comparações.
+
+E o recálculo é **por delta**, não refazendo cada fórmula. Duas razões medidas no primeiro
+dia, as duas pela dc35:
+
+- `RECEITAS LIQUIDAS` não é `BRUTA − ABAT − DEVOL` no servidor: é um número próprio do
+  faturamento, e a identidade erra **um centavo** por arredondamento das parcelas;
+- `Total das Despesas` da API inclui os créditos promovidos pela [divergência
+  9](DIVERGENCIAS.md), que a tela mostra ao lado do `LUCRO BRUTO`. Refazer a soma pela
+  posição os tiraria de lá e mudaria um número já validado.
+
+Com deltas, a linha cuja fórmula o front nem conhece continua correta sozinha: delta zero,
+valor da API.
+
+A **média** é calculada em centavos inteiros. O servidor divide `decimal` e arredonda
+half-to-even; o `double` do JavaScript erra no ponto médio, e a dc35 pegou dez linhas com um
+centavo de diferença, todas em `,xx5`.
+
+### O que a tela diz
+
+- O modal **não abre** quando o movimento não muda número nenhum — reordenar dentro do mesmo
+  bloco é rearranjo de leitura. Antes ele abria em quase todo movimento.
+- Quando abre, ele lista **os totais afetados com o antes e o depois**. A pergunta que alguém
+  precisa responder é "quanto muda, e em quê", e nenhum texto genérico responde isso.
+- Um aviso **permanente** marca que os totais estão personalizados, e ele **sai na impressão**:
+  a ordem é local, e um print circula sem contexto nenhum.
+- *Restaurar ordem do cadastro* devolve os números da apuração.
+
+O selo `FORA DO BLOCO` saiu. Ele marcava a linha que passou a *aparecer* longe do total que
+compõe — o descompasso entre a tela e a conta. Agora a conta acompanha a tela, e não há mais
+"fora do bloco".
+
+Conferido também pela [dc36](validacao/dc36_encaixes_da_reordenacao.mjs), 71 asserções sobre
+um DRE de brinquedo com números redondos: mover de bloco, mover dentro do bloco, largar numa
+informativa, e a composição sendo refeita pela posição.
+
+<details>
+<summary>Como era até 14/09/2026 — e por que o texto mudou</summary>
 
 > **Arrastar move uma linha, sempre.** Até 09/09/2026 um totalizador levava consigo o bloco
 > que ele encabeça — ele mais as linhas não-calculadas abaixo, até a próxima calculada —,
 > com um interruptor na barra (*Totalizador arrasta o bloco inteiro*) para desligar isso.
 > Removido por decisão do Gabriel: mover várias linhas num gesto muda a leitura de todas
 > elas de uma vez, e num relatório onde a posição sugere o que compõe o quê, é efeito grande
-> demais para um arraste. Saíram o interruptor, o `blocoDe` e o `moverIntervalo`; o `mover`
-> que restou foi conferido contra o comportamento anterior em 46 asserções.
+> demais para um arraste.
 
-**A ordem não entra em cálculo nenhum.** Os totalizadores somam pelas marcações do
-cadastro (`ANTESRO`, `ANTESLL`, `ANTESLF`), no `MontadorDre`, no servidor — muito antes
-de a ordem do usuário existir. Reordenar não altera um centavo, e não há caminho pelo
-qual pudesse alterar.
+**A ordem não entrava em cálculo nenhum.** Os totalizadores somavam pelas marcações do
+cadastro (`ANTESRO`, `ANTESLL`, `ANTESLF`), no `MontadorDre`, no servidor — antes de a ordem
+do usuário existir.
 
-**O que a ordem altera é a leitura.** Uma despesa operacional arrastada para baixo de
-`RESULTADO OPERACIONAL` continua compondo o subtotal, mas passa a *parecer* que está
-fora dele. Quem imprimir a tabela vê uma coisa e a conta faz outra. Por isso:
+**O que a ordem alterava era a leitura.** Uma despesa operacional arrastada para baixo de
+`RESULTADO OPERACIONAL` continuava compondo o subtotal, mas passava a *parecer* que estava
+fora dele. O selo `FORA DO BLOCO` e o aviso existiam para tornar esse descompasso visível, e
+o critério do selo era o **conjunto** de linhas calculadas abaixo — conjunto, não sequência,
+porque a primeira versão comparava as âncoras imediatas e acendia em 8 de 10 linhas.
 
-- movimento que muda essa relação abre um aviso antes de aplicar, dizendo de onde a
-  linha sai, onde vai parar e quais despesas passam a aparecer fora do total que compõem;
-- a linha deslocada carrega o selo `FORA DO BLOCO` enquanto estiver assim;
-- o botão *Restaurar ordem do cadastro* desfaz tudo de uma vez.
+É esse descompasso que a mudança de 15/09/2026 elimina: a leitura e a conta passaram a ser a
+mesma coisa.
 
-O critério do selo é o **conjunto de linhas calculadas abaixo da linha** — o que ela
-parece compor. Conjunto, não sequência: dois totalizadores trocando entre si não muda
-nada para quem está acima dos dois. A primeira versão comparava as duas âncoras
-imediatas e acendia o selo em 8 de 10 linhas ao mover um único totalizador; um aviso
-que acende em quase tudo não avisa nada.
+</details>
 
 **A ordem é local e por dimensão.** Fica no `localStorage` do navegador, na chave
 `epoca:dre:ordem:v1:<analise>`, como lista de `chaveOrdem`. Não vai para o banco de

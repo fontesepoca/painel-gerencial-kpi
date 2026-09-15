@@ -1,28 +1,53 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { formatarValor } from "@/lib/formato";
 
-/** Quantos nomes cabem antes de a lista virar parede de texto. */
-const LIMITE_DA_LISTA = 6;
+/** Quantos totais cabem antes de a lista virar parede de texto. */
+const LIMITE_DA_LISTA = 8;
+
+export interface TotalAfetado {
+  rotulo: string;
+  antes: number;
+  depois: number;
+}
 
 export interface MovimentoPendente {
-  /** "a linha DESPESAS COM PESSOAL" — sempre uma linha, desde 09/09/2026. */
-  oQue: string;
+  /** O nome da conta que está sendo movida. */
+  conta: string;
   deOnde: string;
   paraOnde: string;
-  /** Descrições das linhas que passam a parecer compor outros totais. */
-  afetadas: string[];
+  /** Os totalizadores que mudam de valor, com o antes e o depois. */
+  totais: TotalAfetado[];
+  /**
+   * O destino não soma em lugar nenhum — depois do LUCRO LIQUIDO, ou no encaixe de uma
+   * informativa (`ST`, `PIS`, `COFINS`), que não propagam para totalizador nenhum.
+   */
+  saiDaConta: boolean;
 }
 
 /**
- * Confirmação de um movimento que muda a leitura do DRE.
+ * Confirmação de um movimento que muda os totais.
  *
- * Só aparece quando alguma linha passa a parecer compor totais diferentes dos do
- * cadastro. Arrastar duas despesas do mesmo bloco não abre nada — avisar sobre o que
- * não mudou é o caminho mais curto para o usuário aprender a clicar em "Mover" sem ler.
+ * ── Esta tela foi reescrita em 15/09/2026, e o motivo importa ──
  *
- * Usa `<dialog>` nativo: foco preso, `Esc` para fechar e leitura como diálogo já vêm
- * do navegador, sem biblioteca e sem reimplementar armadilha de foco à mão.
+ * A versão anterior dizia, em negrito, **"Nenhum valor muda"**, e avisava que *"quem ler ou
+ * imprimir a tabela vai ver uma coisa e a conta faz outra"*. Era verdade: os totalizadores
+ * somavam pelas flags do cadastro, e a posição na tela era só leitura.
+ *
+ * Agora a posição manda no cálculo, e aquele texto passou a afirmar o oposto do que acontece.
+ * Pior: ele alertava justamente contra o descompasso que deixou de existir.
+ *
+ * O que substitui não é um aviso mais brando — é **o número**. A pergunta que alguém precisa
+ * responder antes de confirmar é "quanto muda, e em quê", e isso nenhum texto genérico
+ * responde. Por isso a lista de totais com o antes e o depois.
+ *
+ * **E ele não abre mais quando nada muda.** Reordenar duas despesas dentro do mesmo bloco não
+ * pergunta nada: avisar sobre o que não mudou é o caminho mais curto para a pessoa aprender a
+ * confirmar sem ler.
+ *
+ * Usa `<dialog>` nativo: foco preso, `Esc` para fechar e leitura como diálogo já vêm do
+ * navegador, sem biblioteca e sem reimplementar armadilha de foco à mão.
  */
 export function ModalMoverLinha({
   pendente,
@@ -63,7 +88,7 @@ export function ModalMoverLinha({
             id="titulo-mover"
             className="text-[length:var(--fs-titulo)] font-semibold text-[var(--text-primary)]"
           >
-            Mover {pendente.oQue}?
+            Mover {pendente.conta}?
           </h2>
 
           <dl className="flex flex-col gap-3 rounded-[var(--radius-md)] bg-[var(--surface-2)] p-4 text-[length:var(--fs-base)]">
@@ -81,53 +106,61 @@ export function ModalMoverLinha({
             </div>
           </dl>
 
-          {/* O ponto que evita o mal-entendido caro: ninguém pode sair daqui achando
-              que arrastou dinheiro de um total para outro. */}
-          <p className="text-[length:var(--fs-base)] leading-relaxed text-[var(--text-secondary)]">
-            <strong className="font-semibold text-[var(--text-primary)]">
-              Nenhum valor muda.
-            </strong>{" "}
-            Os totais somam pelas marcações do cadastro, não pela posição na tela — depois
-            de mover, as mesmas linhas continuam entrando exatamente nos mesmos totais.
-          </p>
-
-          {pendente.afetadas.length === 0 ? (
-            // Totalizador movido sem arrastar despesa nenhuma para fora do lugar. Ainda
-            // assim pergunta: ele é a âncora do bloco, e trocar a ordem dos totais muda
-            // a sequência em que o DRE é lido.
-            <p className="text-[length:var(--fs-base)] leading-relaxed text-[var(--text-secondary)]">
-              Nenhuma despesa visível passa a aparecer fora do total que compõe. O que
-              muda é a ordem em que os totais são lidos.
-            </p>
-          ) : (
+          {pendente.saiDaConta && (
+            // O único caso que ainda merece cor de alerta: o valor continua na tela e para
+            // de entrar em qualquer total. Não é um erro — é o que a pessoa pediu —, mas é
+            // o movimento mais fácil de fazer sem perceber.
             <div className="rounded-[var(--radius-md)] border border-[var(--warning)] bg-[var(--warning-glow)] p-4">
               <p className="text-[length:var(--fs-base)] leading-relaxed text-[var(--text-primary)]">
-                O que muda é a <strong className="font-semibold">leitura</strong>:{" "}
-                {pendente.afetadas.length === 1
-                  ? "esta despesa passa a aparecer"
-                  : `estas ${pendente.afetadas.length} despesas passam a aparecer`}{" "}
-                fora do total que {pendente.afetadas.length === 1 ? "compõe" : "compõem"}.
-                Quem ler ou imprimir a tabela vai ver uma coisa e a conta faz outra.
+                Aí esta conta <strong className="font-semibold">deixa de entrar em qualquer
+                total</strong>. O valor continua aparecendo na linha, e nenhum totalizador
+                passa a contá-lo.
               </p>
-              <ul className="mt-3 flex flex-col gap-1 text-[length:var(--fs-apoio)] text-[var(--text-secondary)]">
-                {/* Lista longa vira parede de texto e ninguém lê. Alguns nomes situam
-                    onde olhar; a contagem acima já deu o tamanho do estrago. */}
-                {pendente.afetadas.slice(0, LIMITE_DA_LISTA).map((d) => (
-                  <li key={d} className="flex gap-2">
-                    <span aria-hidden className="text-[var(--warning)]">
-                      •
+            </div>
+          )}
+
+          {pendente.totais.length > 0 && (
+            <div className="flex flex-col gap-2">
+              <p className="text-[length:var(--fs-base)] leading-relaxed text-[var(--text-secondary)]">
+                {pendente.totais.length === 1
+                  ? "Um total muda de valor:"
+                  : `${pendente.totais.length} totais mudam de valor:`}
+              </p>
+              <ul className="flex flex-col gap-1.5">
+                {pendente.totais.slice(0, LIMITE_DA_LISTA).map((t) => (
+                  <li
+                    key={t.rotulo}
+                    className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-0.5 rounded-[var(--radius-sm)] bg-[var(--surface-2)] px-3 py-[var(--celula-y)]"
+                  >
+                    <span className="text-[length:var(--fs-base)] text-[var(--text-primary)]">
+                      {t.rotulo}
                     </span>
-                    {d}
+                    <span className="tabular text-[length:var(--fs-apoio)] text-[var(--text-secondary)]">
+                      {formatarValor(t.antes)}{" "}
+                      <span aria-hidden className="text-[var(--text-muted)]">
+                        →
+                      </span>
+                      <span className="sr-only">passa a</span>{" "}
+                      <strong className="font-semibold text-[var(--text-primary)]">
+                        {formatarValor(t.depois)}
+                      </strong>
+                    </span>
                   </li>
                 ))}
-                {pendente.afetadas.length > LIMITE_DA_LISTA && (
-                  <li className="pl-4 text-[var(--text-muted)]">
-                    e mais {pendente.afetadas.length - LIMITE_DA_LISTA}
+                {pendente.totais.length > LIMITE_DA_LISTA && (
+                  <li className="pl-3 text-[length:var(--fs-apoio)] text-[var(--text-muted)]">
+                    e mais {pendente.totais.length - LIMITE_DA_LISTA}
                   </li>
                 )}
               </ul>
             </div>
           )}
+
+          <p className="text-[length:var(--fs-apoio)] leading-relaxed text-[var(--text-muted)]">
+            A ordem fica só neste navegador, e o botão{" "}
+            <strong className="font-medium">Restaurar ordem do cadastro</strong> devolve os
+            números da apuração.
+          </p>
 
           <div className="flex flex-wrap justify-end gap-3">
             <button
@@ -140,11 +173,16 @@ export function ModalMoverLinha({
             <button
               type="button"
               onClick={onConfirmar}
-              // Não é o botão preferido: quem chegou aqui está fazendo algo que a tela
-              // acabou de desaconselhar. Confirmar tem que ser deliberado.
-              className="h-[var(--altura-controle)] rounded-[var(--radius-md)] bg-[var(--warning)] px-5 text-[length:var(--fs-base)] font-semibold text-[var(--sobre-warning)] transition-opacity hover:opacity-90"
+              // Deixou de ser "Mover assim mesmo" em cor de aviso: mover é a funcionalidade,
+              // não um deslize que a tela desaconselha. A exceção é o destino que tira a
+              // conta de todos os totais, e aí quem avisa é a caixa lá em cima.
+              className={
+                pendente.saiDaConta
+                  ? "h-[var(--altura-controle)] rounded-[var(--radius-md)] bg-[var(--warning)] px-5 text-[length:var(--fs-base)] font-semibold text-[var(--sobre-warning)] transition-opacity hover:opacity-90"
+                  : "h-[var(--altura-controle)] rounded-[var(--radius-md)] bg-[var(--primary)] px-5 text-[length:var(--fs-base)] font-semibold text-white transition-opacity hover:opacity-90"
+              }
             >
-              Mover assim mesmo
+              Mover
             </button>
           </div>
         </div>
