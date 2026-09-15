@@ -24,11 +24,15 @@ import { formatarPercentual, formatarValor } from "@/lib/formato";
 import {
   aplicarOrdem,
   descreverPosicao,
-  linhasAfetadas,
   mover,
   ordemPersonalizada,
-  saiuDoBloco,
 } from "@/lib/ordemLinhas";
+import {
+  ancoraDoEncaixe,
+  contasDeslocadas,
+  mesmosValores,
+  recalcular,
+} from "@/lib/recalculoDoDre";
 import type {
   FiltroApuracao,
   LinhaDre,
@@ -98,8 +102,19 @@ export function TabelaDre({
   const { ordem, salvar, limpar } = useOrdemSalva(filtro.analise);
 
   // `linhas` é sempre a ordem do cadastro, como veio da API — é a referência contra a
-  // qual tudo aqui é medido. `ordenadas` é o que a pessoa vê.
-  const ordenadas = useMemo(() => aplicarOrdem(linhas, ordem), [linhas, ordem]);
+  // qual tudo aqui é medido. `ordenadas` é o que a pessoa vê, **com os totais refeitos
+  // pela posição**: desde 15/09/2026 arrastar uma conta a tira de um total e a põe em
+  // outro. Ver `lib/recalculoDoDre.ts`.
+  const ordenadas = useMemo(
+    () => recalcular(aplicarOrdem(linhas, ordem), linhas),
+    [linhas, ordem],
+  );
+
+  /** A ordem atual mudou algum número em relação ao que a API entregou? */
+  const totaisPersonalizados = useMemo(
+    () => !mesmosValores(linhas, ordenadas),
+    [linhas, ordenadas],
+  );
 
   /** Índice, na lista completa, da linha sendo arrastada. */
   const [arrasto, setArrasto] = useState<number | null>(null);
@@ -144,14 +159,19 @@ export function TabelaDre({
     parcelas: { rotulo: string; valor: number; semMovimento: boolean }[];
   } | null>(null);
 
+  /**
+   * As contas que somam num total diferente do que o cadastro lhes deu.
+   *
+   * O selo `FORA DO BLOCO` chegou a sair em 15/09/2026, junto com o mundo em que arrastar era
+   * só leitura — lá ele marcava o *descompasso* entre a tela e a conta, e esse descompasso
+   * deixou de existir. Voltou no mesmo dia, a pedido do Gabriel, dizendo outra coisa: que
+   * **aquele lugar não é o do cadastro**. Sem ele, uma tabela reordenada e uma da apuração são
+   * indistinguíveis linha a linha, e só o aviso no alto separa as duas — o que não sobrevive a
+   * um print recortado nem a alguém que entra na tela no meio da conversa.
+   */
   const deslocadas = useMemo(
-    () =>
-      new Set(
-        ordenadas
-          .filter((l) => saiuDoBloco(linhas, ordenadas, l.chaveOrdem))
-          .map((l) => l.chaveOrdem),
-      ),
-    [linhas, ordenadas],
+    () => contasDeslocadas(ordenadas, linhas),
+    [ordenadas, linhas],
   );
 
   // Esconde por AUSÊNCIA DE MOVIMENTO, não por valor zero — é o critério da 9815.
@@ -167,49 +187,64 @@ export function TabelaDre({
   );
 
   /**
-   * Aplica um movimento — ou segura no modal, se ele mudar a leitura de alguma linha.
-   * Movimento que não desloca ninguém não pergunta nada: avisar sobre o que não mudou
-   * é o caminho mais curto para a pessoa aprender a confirmar sem ler.
+   * Aplica um movimento — ou segura no modal, se ele mudar algum total.
+   *
+   * **Movimento que não muda número nenhum passa direto.** Reordenar duas despesas dentro
+   * do mesmo bloco é rearranjo de leitura, e perguntar sobre isso é o caminho mais curto
+   * para a pessoa aprender a confirmar sem ler. Antes de 15/09/2026 o modal abria em quase
+   * todo movimento, inclusive nos que não mudavam nada.
    */
   const aplicar = useCallback(
     (indice: number, destino: number) => {
+      const linha = ordenadas[indice];
+      // Linha calculada é âncora do bloco e não se move. Quem chega aqui com uma delas é
+      // o teclado — o punho nem existe nessas linhas.
+      if (!linha || linha.calculada) return;
+
       const nova = mover(ordenadas, indice, destino);
       if (!ordemPersonalizada(ordenadas, nova)) return;
 
-      const linha = ordenadas[indice];
-      if (!linha) return;
-
+      const refeita = recalcular(nova, linhas);
       const nomeCurto = linha.descricao.trim();
+      const novoIndice = nova.findIndex((l) => l.chaveOrdem === linha.chaveOrdem);
 
-      // Só o que a pessoa consegue ver. Citar uma linha escondida manda conferir algo
-      // que não está na tela; quando ela reaparecer, o selo dela já estará aceso.
-      const afetadas = linhasAfetadas(linhas, ordenadas, nova).filter((l) =>
-        visiveis.some((v) => v.chaveOrdem === l.chaveOrdem),
-      );
+      // Quais totalizadores mudam de valor, comparado com o que está na tela agora.
+      const totais = refeita
+        .filter((l) => l.calculada && l.papel)
+        .map((l) => ({
+          rotulo: l.descricao.trim(),
+          antes: ordenadas.find((o) => o.chaveOrdem === l.chaveOrdem)?.total.valor ?? 0,
+          depois: l.total.valor,
+        }))
+        .filter((t) => Math.abs(t.depois - t.antes) > 0.005);
 
-      // Mexer num totalizador sempre pergunta, mesmo quando nenhuma despesa muda de
-      // leitura — é a linha que ancora o bloco, e foi o caso que o Gabriel pediu para
-      // nunca passar direto.
-      if (afetadas.length === 0 && !linha.calculada) {
+      // Sem âncora acumuladora abaixo, a conta para de entrar em qualquer total. Depois de
+      // 15/09/2026 isso só acontece abaixo do LUCRO LIQUIDO: dentro do cabeçalho a conta
+      // atravessa ST, PIS e COFINS e cai nas RECEITAS LIQUIDAS.
+      const ancora = ancoraDoEncaixe(nova, novoIndice);
+      const saiDaConta = !linha.naoSoma && ancora === null;
+      // Informativa não soma em lugar nenhum, esteja onde estiver: prometer um total a ela
+      // seria o modal dizendo o contrário do que o selo da própria linha diz.
+      const somaEm =
+        linha.naoSoma || ancora === null ? null : (nova[ancora]?.descricao.trim() ?? null);
+
+      if (totais.length === 0 && !saiDaConta) {
         salvar(nova.map((l) => l.chaveOrdem));
-        setAnuncio(
-          `${nomeCurto} movida para a posição ${nova.findIndex((l) => l.chaveOrdem === linha.chaveOrdem) + 1}.`,
-        );
+        setAnuncio(`${nomeCurto} movida para a posição ${novoIndice + 1}.`);
         return;
       }
 
       setPendente({
         nova,
-        oQue: `a linha ${nomeCurto}`,
+        conta: nomeCurto,
         deOnde: descreverPosicao(ordenadas, indice),
-        paraOnde: descreverPosicao(
-          nova,
-          nova.findIndex((l) => l.chaveOrdem === linha.chaveOrdem),
-        ),
-        afetadas: afetadas.map((l) => l.descricao.trim()),
+        paraOnde: descreverPosicao(nova, novoIndice),
+        somaEm,
+        totais,
+        saiDaConta,
       });
     },
-    [linhas, ordenadas, salvar, visiveis],
+    [linhas, ordenadas, salvar],
   );
 
   /**
@@ -283,7 +318,11 @@ export function TabelaDre({
   const confirmar = useCallback(() => {
     if (!pendente) return;
     salvar(pendente.nova.map((l) => l.chaveOrdem));
-    setAnuncio(`Movimento aplicado. ${pendente.afetadas.length} linha(s) fora do bloco.`);
+    setAnuncio(
+      pendente.totais.length === 0
+        ? `${pendente.conta} movida. Ela sai dos totais.`
+        : `${pendente.conta} movida. ${pendente.totais.length} total(is) recalculado(s).`,
+    );
     setPendente(null);
   }, [pendente, salvar]);
 
@@ -540,14 +579,38 @@ export function TabelaDre({
       {/* `barra-reordenar` sai em dispositivo de toque: ela explica um gesto de mouse e
           um atalho de teclado, e o celular não tem nenhum dos dois. */}
       <div className="barra-reordenar nao-imprime flex flex-wrap items-center justify-between gap-x-6 gap-y-2 border-b border-[var(--border)] px-4 py-2">
-        <p className="text-[length:var(--fs-apoio)] text-[var(--text-muted)]">
-          Arraste pelo punho{" "}
-          <span aria-hidden className="text-[var(--text-secondary)]">
-            ⠿
-          </span>{" "}
-          para reordenar, ou use <kbd className="tecla">Alt</kbd> +{" "}
-          <kbd className="tecla">↑</kbd> <kbd className="tecla">↓</kbd>.
-        </p>
+        {/* O AVISO OCUPA O LUGAR DA DICA, e não uma faixa própria embaixo dela.
+
+            A faixa separada custava uma linha inteira no alto da tabela — a região mais
+            disputada da tela, logo acima dos números. E as duas frases nunca precisam ser
+            lidas juntas: quem já reordenou não precisa mais da instrução de como arrastar. */}
+        {totaisPersonalizados ? (
+          <p
+            role="status"
+            className="text-[length:var(--fs-apoio)] text-[var(--text-secondary)]"
+          >
+            <span
+              aria-hidden
+              className="mr-2 inline-block rounded-[var(--radius-sm)] bg-[var(--warning-glow)] px-1.5 py-0.5 text-[length:var(--fs-rotulo)] font-semibold tracking-[0.1em] text-[var(--warning)] uppercase"
+            >
+              Reordenado
+            </span>
+            <strong className="font-semibold text-[var(--text-primary)]">
+              Estes totais não são os da apuração
+            </strong>{" "}
+            — eles seguem a ordem desta tela, que fica só neste navegador.
+          </p>
+        ) : (
+          <p className="text-[length:var(--fs-apoio)] text-[var(--text-muted)]">
+            Arraste uma conta pelo punho{" "}
+            <span aria-hidden className="text-[var(--text-secondary)]">
+              ⠿
+            </span>{" "}
+            para mudá-la de bloco, ou use <kbd className="tecla">Alt</kbd> +{" "}
+            <kbd className="tecla">↑</kbd> <kbd className="tecla">↓</kbd>. Os totais se
+            refazem.
+          </p>
+        )}
 
         <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
           {personalizada && (
@@ -556,11 +619,45 @@ export function TabelaDre({
               onClick={restaurar}
               className="text-[length:var(--fs-apoio)] font-medium text-[var(--primary)] underline underline-offset-4 hover:opacity-80"
             >
-              Restaurar ordem do cadastro
+              {totaisPersonalizados
+                ? "Ver os números do cadastro"
+                : "Restaurar ordem do cadastro"}
             </button>
           )}
         </div>
       </div>
+
+      {/* A MARCA QUE VAI PARA O PAPEL.
+
+          Na tela o aviso vive na barra acima, que é `nao-imprime` — ela fala de um gesto de
+          mouse, que no papel não existe. Mas a marca de totais personalizados **precisa**
+          sair impressa: a ordem mora no `localStorage` de cada um e agora muda número, e um
+          print circula sem contexto nenhum. Este parágrafo é o que acompanha o número quando
+          ele sai daqui.
+
+          Duas grafias do mesmo aviso, como no `%AH`: quem escolhe é o CSS, não um estado de
+          React — `Ctrl+P` não espera re-render.
+
+          Só existe quando algum valor de fato mudou: reordenar dentro do mesmo bloco não
+          personaliza total nenhum, e acender o aviso ali o gastaria à toa. */}
+      {(totaisPersonalizados || deslocadas.size > 0) && (
+        <p className="so-no-papel border-b border-[var(--warning)] bg-[var(--warning-glow)] px-4 py-2 text-[length:var(--fs-apoio)] text-[var(--text-primary)]">
+          <strong className="font-semibold">Totais reordenados.</strong> Estes números não são
+          os da apuração — eles seguem a ordem em que a tabela foi lida.
+          {/* A LEGENDA DO ASTERISCO.
+              No papel o selo vira `*` ao lado do nome, e um asterisco sem legenda é um
+              enfeite: é aqui que ele passa a querer dizer alguma coisa. Fica na mesma faixa
+              do aviso de propósito — as duas frases explicam o mesmo relatório, e separá-las
+              daria duas tarjas onde cabe uma. */}
+          {deslocadas.size > 0 && (
+            <>
+              {" "}
+              <strong className="font-semibold">*</strong> conta movida para outro bloco: ela
+              soma no total abaixo dela, e não no que o cadastro lhe deu.
+            </>
+          )}
+        </p>
+      )}
 
       <div
         ref={rolagem}
@@ -632,12 +729,12 @@ export function TabelaDre({
                   key={linha.chaveOrdem}
                   linha={linha}
                   indice={indice}
+                  foraDoBloco={deslocadas.has(linha.chaveOrdem)}
                   maiorAv={maiorAv}
                   multiMes={multiMes}
                   variacaoNoFim={variacaoNoFim}
                   periodos={periodos}
                   modo={modo}
-                  deslocada={deslocadas.has(linha.chaveOrdem)}
                   arrastando={arrasto === indice}
                   indicadorAcima={indicador === linha.chaveOrdem}
                   indicadorAbaixo={indicador === null && linha === visiveis.at(-1)}
@@ -851,12 +948,12 @@ function Th({ className, children }: { className?: string; children?: React.Reac
 function Linha({
   linha,
   indice,
+  foraDoBloco,
   maiorAv,
   multiMes,
   variacaoNoFim,
   periodos,
   modo,
-  deslocada,
   arrastando,
   indicadorAcima,
   indicadorAbaixo,
@@ -869,6 +966,8 @@ function Linha({
 }: {
   linha: LinhaDre;
   indice: number;
+  /** A conta soma num total diferente do que o cadastro lhe deu. */
+  foraDoBloco: boolean;
   maiorAv: number;
   multiMes: boolean;
   /** O bloco final desta linha é variação em vez de total. */
@@ -876,7 +975,6 @@ function Linha({
   /** As colunas e o modo, para a variação saber separar os dois lados da comparação. */
   periodos: PeriodoDre[];
   modo: ModoPeriodo;
-  deslocada: boolean;
   arrastando: boolean;
   indicadorAcima: boolean;
   indicadorAbaixo: boolean;
@@ -938,34 +1036,47 @@ function Linha({
           DESCRIÇÃO FIXOS em globals.css. */}
       <td className={cn(CELULA, "celula-descricao pl-2")}>
         <div className="flex items-center gap-2">
+          {/* LINHA CALCULADA NÃO SE MOVE — desde 15/09/2026.
+
+              Elas são as âncoras que definem os blocos: onde uma conta está em relação a
+              elas é o que decide de que total ela participa. Movê-las redefiniria todos os
+              blocos de uma vez, com efeito grande demais para um arraste.
+
+              O espaço continua reservado, e vazio. Sem ele, o nome dessas linhas saltaria
+              24px para a esquerda e a coluna fixa perderia o alinhamento — logo nas linhas
+              que o olho usa como referência ao descer a tabela. */}
+          {linha.calculada ? (
+            <span aria-hidden className="puxador-vazio shrink-0" />
+          ) : (
             <button
-            type="button"
-            draggable
-            onDragStart={(e) => {
-              e.dataTransfer.effectAllowed = "move";
-              // Firefox só inicia o arraste se houver dado no `dataTransfer`.
-              e.dataTransfer.setData("text/plain", linha.chaveOrdem);
-              const tr = e.currentTarget.closest("tr");
-              if (tr) e.dataTransfer.setDragImage(tr, 24, 12);
-              onArrastarInicio();
-            }}
-            onDragEnd={onArrastarFim}
-            onKeyDown={(e) => {
-              if (!e.altKey) return;
-              if (e.key === "ArrowUp") {
-                e.preventDefault();
-                onTeclado(-1);
-              }
-              if (e.key === "ArrowDown") {
-                e.preventDefault();
-                onTeclado(1);
-              }
-            }}
-            aria-label={`Mover ${nome}. Alt com seta para cima ou para baixo.`}
-            className="puxador shrink-0"
-          >
-            <span aria-hidden>⠿</span>
-          </button>
+              type="button"
+              draggable
+              onDragStart={(e) => {
+                e.dataTransfer.effectAllowed = "move";
+                // Firefox só inicia o arraste se houver dado no `dataTransfer`.
+                e.dataTransfer.setData("text/plain", linha.chaveOrdem);
+                const tr = e.currentTarget.closest("tr");
+                if (tr) e.dataTransfer.setDragImage(tr, 24, 12);
+                onArrastarInicio();
+              }}
+              onDragEnd={onArrastarFim}
+              onKeyDown={(e) => {
+                if (!e.altKey) return;
+                if (e.key === "ArrowUp") {
+                  e.preventDefault();
+                  onTeclado(-1);
+                }
+                if (e.key === "ArrowDown") {
+                  e.preventDefault();
+                  onTeclado(1);
+                }
+              }}
+              aria-label={`Mover ${nome}. Alt com seta para cima ou para baixo.`}
+              className="puxador shrink-0"
+            >
+              <span aria-hidden>⠿</span>
+            </button>
+          )}
 
           {/* A cor do EPCPARDRE é informação que o contador já reconhece: vira marcador
               fino, não fundo colorido que brigaria com o tema escuro. */}
@@ -994,7 +1105,7 @@ function Linha({
             {nome}
           </span>
           {linha.naoSoma && <SeloInformativo />}
-          {deslocada && <SeloForaDoBloco />}
+          {foraDoBloco && <SeloForaDoBloco />}
         </div>
       </td>
 
@@ -1239,6 +1350,43 @@ function Variacao({
  *
  * O texto acessível é sempre o longo — quem ouve a tela não deve receber a abreviação.
  */
+/**
+ * A conta está somando num bloco que não é o do cadastro.
+ *
+ * **Na tela, a palavra; no papel, um asterisco.** Não é economia de espaço por si — é que no
+ * papel a coluna de descrição não tem `title` nem hover, e um selo que ninguém pode
+ * interrogar precisa ser explicado em algum lugar. O asterisco com legenda no alto é a
+ * convenção que quem lê balanço já conhece, e custa um caractere em vez de doze na coluna
+ * mais apertada da folha. `FB` foi considerado e descartado: é uma sigla que só quem
+ * escreveu entende, e não tem para onde apontar.
+ *
+ * A cor é a do `--primary`, não a do aviso: mover uma conta é a funcionalidade da tela, não
+ * um deslize. Quem fala em tom de alerta é o `INFORMATIVO`, que marca uma linha que **não
+ * soma em lugar nenhum** — as duas podem aparecer juntas, e precisam ser distinguíveis.
+ */
+function SeloForaDoBloco() {
+  return (
+    <>
+      <span
+        title="Esta conta foi movida: ela soma no total abaixo dela, não no que o cadastro lhe deu"
+        className="so-na-tela shrink-0 rounded-[var(--radius-sm)] bg-[var(--primary-glow)] px-1.5 py-0.5 text-[length:var(--fs-rotulo)] font-semibold tracking-[0.1em] text-[var(--primary)] uppercase"
+      >
+        <span className="sr-only">Movida para outro bloco</span>
+        <span aria-hidden className="selo-longo">
+          Fora do bloco
+        </span>
+        {/* Numa coluna de 188px, `Fora do bloco` empurra o nome da conta para duas linhas. */}
+        <span aria-hidden className="selo-curto">
+          Fora
+        </span>
+      </span>
+      <span aria-hidden className="so-no-papel shrink-0 font-semibold">
+        *
+      </span>
+    </>
+  );
+}
+
 function SeloInformativo() {
   return (
     <span
@@ -1256,23 +1404,3 @@ function SeloInformativo() {
   );
 }
 
-/**
- * A linha foi arrastada para fora do trecho onde o cadastro a colocou, e por isso passa
- * a parecer compor totais que não compõe. O selo é o que mantém isso visível depois que
- * o aviso do movimento já foi fechado e esquecido.
- *
- * **Deliberadamente discreto**, em cinza e sem borda. O alerta já foi dado no momento em
- * que importava — o modal, antes de aplicar. Aqui ele é só uma nota de estado, e disputar
- * atenção com `INFORMATIVO`, que é informação do cadastro, seria dar peso a mais para uma
- * escolha que o próprio usuário fez.
- */
-function SeloForaDoBloco() {
-  return (
-    <span
-      title="Movida: aparece fora do total que compõe. Os valores continuam corretos."
-      className="shrink-0 rounded-[var(--radius-sm)] bg-[var(--surface-3)] px-1.5 py-0.5 text-[length:var(--fs-rotulo)] font-medium tracking-[0.1em] text-[var(--text-muted)] uppercase"
-    >
-      Fora do bloco
-    </span>
-  );
-}

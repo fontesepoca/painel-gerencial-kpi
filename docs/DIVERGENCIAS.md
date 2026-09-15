@@ -24,6 +24,8 @@ a aprovação do Gabriel.
 | [6](#6-a-linha-receita-venda-ativo-sumia-da-tela--11092026) | `RECEITA VENDA ATIVO` escondida | todas | R$ 225 mil em 1 mês na filial 28 | **corrigida** em 11/09/2026 · dc23 24/24, dc24 69/69 |
 | [7](#7-a-devolução-de-cliente-especial-oculto--14092026) | Devolução de cliente com `mostra_dre = N` | todas | R$ 958,95 em 1 ano na filial 7 | **corrigida** em 14/09/2026 · 70/70 ao centavo |
 | [8](#8-o-último-centavo-do-modo-anos--14092026) | Arredondamento ao fundir 12 meses | todas, só no modo `anos` | 1 centavo por linha | **corrigida** em 14/09/2026 |
+| [9](#9-o-resultado-operacional-sai-do-subtotal-positivo--14092026) | `RESULTADO OPERACIONAL` a partir do `SUBTOTAL POSITIVO` | C. Custo Principal | R$ 3,22 mi em 2 meses | **a pedido** em 14/09/2026 · dc32 25/25 · dc34 11/11 |
+| [10](#10-indenizacao-de-merc-venc-e-avaria-vira-informativa--14092026) | `INDENIZACAO DE MERC. VENC. E AVARIA` não soma | as três dimensões conferidas | R$ 177 mil em 2 meses | **a pedido** em 14/09/2026 · dc32 25/25 · dc34 11/11 |
 
 ---
 
@@ -1708,3 +1710,225 @@ numa coluna de ano — e por isso o furo aparecia só no `anos`.
 
 Em 2025, filial 7: `ABAT./DESC.`, `PIS` e `COFINS` erraram um centavo; `RECEITA BRUTA` e
 `ST` escaparam por sorte do arredondamento.
+
+---
+
+## 9. O `RESULTADO OPERACIONAL` sai do `SUBTOTAL POSITIVO` — 14/09/2026
+
+**Afeta:** só **C. Custo Principal**, e só a linha `RESULTADO OPERACIONAL`.
+**Tamanho medido:** R$ 3.217.035,41 em 01/06 a 31/07/2026, filiais 7/12/25, competência.
+**Decisão:** divergir, a pedido do Gabriel em 14/09/2026.
+
+### O que mudou na tela
+
+`RATEIO DESP. CORPORATIVAS` e `VERBAS MARGEM` nascem no bloco pós-operacional, entre o
+`RESULTADO OPERACIONAL` e o `LUCRO LIQUIDO`. Elas sobem para logo abaixo do `LUCRO BRUTO`, e
+uma linha nova soma os três:
+
+```
+SUBTOTAL POSITIVO = LUCRO BRUTO + RATEIO DESP. CORPORATIVAS + VERBAS MARGEM
+```
+
+A ordem é aplicada em `MontadorDre.PromoverCreditos`, **não** no `ID` de `EPCPARDRE`: aquela
+tabela é do Winthor e a 9815 lê a mesma coluna — reordenar lá mudaria a rotina antiga junto.
+
+Em C. Custo Principal `RATEIO DESP. CORPORATIVAS` aparece **duas vezes, com o mesmo nome**:
+uma entre as despesas operacionais e outra entre os créditos. Sobe só a segunda, e o que a
+separa são as flags `AntesRo = 'N'` e `AntesLl = 'S'` — pelo rótulo é impossível.
+
+### O número que muda
+
+| | 9815 | Aqui |
+|---|---|---|
+| `RESULTADO OPERACIONAL` | `LUCRO BRUTO + Sub-Total` | `SUBTOTAL POSITIVO + Sub-Total` |
+
+Medido pela **nossa API** em 01/06 a 31/07/2026, filiais 7/12/25, competência — o cenário
+exportado da 9815 em `periodo_de_dois_meses_com_AH`:
+
+| Linha | Junho/2026 | Julho/2026 | Total |
+|---|---:|---:|---:|
+| LUCRO BRUTO | 13.910.162,18 | 14.342.336,00 | 28.252.498,18 |
+| VERBAS MARGEM | 1.041.633,41 | 577.090,00 | 1.618.723,41 |
+| RATEIO DESP. CORPORATIVAS | 694.843,00 | 903.469,00 | 1.598.312,00 |
+| **SUBTOTAL POSITIVO** | 15.646.638,59 | 15.822.895,00 | **31.469.533,59** |
+| Sub-Total Desp.Op. | (14.680.489,71) | (16.464.250,43) | (31.144.740,14) |
+| RESULTADO OPER. — antes | | | (2.892.241,96) |
+| **RESULTADO OPER. — agora** | 966.148,88 | (641.355,43) | **324.793,45** |
+| Total das Despesas | (11.944.025,41) | (14.376.431,87) | (26.320.457,28) |
+| LUCRO LIQUIDO | 1.966.136,77 | (34.095,87) | 1.932.040,90 |
+
+As duas últimas linhas **não** foram mexidas por esta divergência — elas já trazem o efeito da
+[divergência 10](#10-indenizacao-de-merc-venc-e-avaria-vira-informativa--14092026), medida
+logo depois no mesmo cenário. Sem ela seriam (26.143.289,22) e 2.109.208,96.
+
+O `RESULTADO OPERACIONAL` sobe **R$ 3.217.035,41**, que é exatamente a soma dos dois créditos
+promovidos — como tem que ser.
+
+> **Não compare a tabela acima com a exportação da 9815 deste cenário.** O `LUCRO BRUTO` bate
+> ao centavo, mas as linhas de despesa de C. Custo Principal não batem, e isso é a
+> [divergência 2](#2-a-filial-única-no-subselect-de-centro-de-custo), não esta: a 9815
+> descobre os centros de custo olhando **uma filial só** e apaga linhas do relatório. O
+> `RESULTADO OPERACIONAL` que ela exporta para este cenário é 429.153,39, e o nosso **pela
+> regra antiga** já era (2.892.241,96) antes desta mudança.
+
+### O que **não** muda, e por quê
+
+**Esta mudança move um número só.** `LUCRO BRUTO`, `Sub-Total`, `Total das Despesas` e
+`LUCRO LIQUIDO` saem dela intactos — a promoção é de **posição, não de bloco**: as duas
+linhas mantêm `AntesLl = 'S'` e seguem dentro do `Total das Despesas` exatamente uma vez.
+(A divergência 10, do mesmo dia, mexe no `Total das Despesas` e no `LUCRO LIQUIDO` por outro
+motivo.)
+
+O risco real da mudança é a **contagem dupla** — os créditos aparecem no subtotal de cima e
+continuam no `Total das Despesas`. O que prova que ela não acontece é a identidade:
+
+```
+LUCRO LIQUIDO = RESULTADO OPERACIONAL + Σ(pós-operacional restante)
+```
+
+Conferida ao centavo na exportação acima. É por isso que o `LUCRO LIQUIDO` continua saindo do
+`LUCRO BRUTO`, e não do `SUBTOTAL POSITIVO`.
+
+### O espaço que não era espaço
+
+`VERBAS MARGEM` está cadastrada com **espaço não separável** (U+00A0) entre as palavras. Um
+`Trim().ToUpper()` devolve uma string que *parece* `"VERBAS MARGEM"` em qualquer log e em
+qualquer depurador, e não é igual a ela — a promoção ficava pela metade, com o subtotal
+somando só o rateio, e nada na tela denunciava. `MontadorDre.Normalizar` passou a colapsar
+qualquer espaço em branco; a dc32 faz o mesmo, senão falharia pelo mesmo motivo.
+
+### Conferido
+
+[dc32](validacao/dc32_subtotal_positivo.mjs), **25 conferências**, em 14/09/2026: a ordem, o
+subtotal fechando em cada coluna e no total, a composição com as três parcelas, o
+`RESULTADO OPERACIONAL` saindo do subtotal, o `LUCRO LIQUIDO` inalterado e a identidade que
+prova a ausência de contagem dupla. Mais as outras duas dimensões, que não ganham a linha e
+mantêm o `RESULTADO OPERACIONAL` da 9815 ao centavo.
+
+A dc32 também confere que a **ocorrência operacional** do rateio continua antes do
+`Sub-Total`. Se a promoção tivesse pego a errada, uma despesa sairia de dentro do `Sub-Total`
+sem mudar o número dele — e nenhum total denunciaria.
+
+---
+
+## 10. `INDENIZACAO DE MERC. VENC. E AVARIA` vira informativa — 14/09/2026
+
+**Afeta:** as três dimensões conferidas — C. Custo Principal, Conta Gerencial e Grupo de
+Contas. `Centro de Custo` fica de fora porque nunca foi conferida contra nada (divergência 3).
+**Tamanho medido:** R$ 177.168,06 em 01/06 a 31/07/2026, filiais 7/12/25, competência — o
+mesmo valor nas três. **Decisão:** a pedido do Gabriel em 14/09/2026.
+
+A linha nasce no bloco pós-operacional e somava no `Total das Despesas` e, por ele, no
+`LUCRO LIQUIDO`. Passa a receber o mesmo tratamento que `ST`, `PIS` e `COFINS` já têm no
+cabeçalho: **aparece com valor e não entra em conta nenhuma**.
+
+| | 9815 | Aqui |
+|---|---:|---:|
+| `Total das Despesas` | (26.143.289,22) | (26.320.457,28) |
+| `LUCRO LIQUIDO` | 2.109.208,96 | 1.932.040,90 |
+
+A diferença é exatamente o valor da linha nos dois casos.
+
+### O selo não é decoração
+
+O `title` do selo na tela diz *"esta linha não entra nos totalizadores"*. Marcar sem tirar da
+soma faria a tela afirmar uma coisa e fazer outra — o pior tipo de defeito nesta rotina,
+porque nada denuncia. Por isso a marca e a exclusão saem do mesmo lugar
+(`MontadorDre.MarcarInformativas`), e não de dois pontos que alguém pode mudar em separado.
+
+A linha também sai das **parcelas** do `Total das Despesas` na tela de composição. Continuar
+listada ali faria a conferência de quem soma à mão não fechar por exatamente o valor dela.
+
+**O detalhamento não muda:** os lançamentos existem e o duplo clique continua abrindo. O que
+mudou é de que soma ela participa, não de onde vem o valor.
+
+### As três dimensões, e três eixos diferentes
+
+É a **mesma conta** vista por três recortes que agrupam por objetos diferentes. Levantado em
+[dc33](validacao/dc33_indenizacao_nos_tres_eixos.sql):
+
+| dimensão | a linha é | chave | identidade |
+|---|---|---|---|
+| Conta Gerencial | uma conta (`PCCONTA`) | 3000165 | `3000165\|NSS` |
+| C. Custo Principal | um centro de custo principal | 97 | `97\|NSS` |
+| Grupo de Contas | um grupo (`PCGRUPO`) | — | **não existia** |
+
+Em Grupo de Contas a conta some dentro do grupo **300 `Despesas Adm e Vendas`**, que no bloco
+pós-operacional é feito de três contas e só três:
+
+```
+  Rateio Corporativo      1.530.298,70
+  Rateio Epoca ES            68.013,30   } = 1.598.312,00
+  INDENIZACAO ...           177.168,06
+  ───────────────────────────────────
+  grupo 300 (pós-op)      1.775.480,06
+```
+
+**A saída foi não colapsar a conta.** A consulta de Grupo de Contas já sabe fazer isso: as
+linhas depois do `LUCRO LIQUIDO` saem por `CODCONTA` e as de antes por `codgrupo`
+(`decode(AntesLF,'N',CODCONTA,codgrupo)`). A conta 3000165 virou uma exceção nessa regra, na
+**estrutura e nas despesas**, e o grupo passou a exibir 1.598.312,00 — exatamente os dois
+rateios.
+
+Não é inventar linha: ela já existe sozinha no cadastro (`EPCPARDRE` ID 1249, nomeada ali
+`Verba Indenização`). O que a dimensão fazia era colapsá-la.
+
+### Por código, não por rótulo
+
+A primeira versão desta regra casava o **nome** da linha. Medido em 14/09/2026, isso é frágil
+por dois motivos:
+
+- os rótulos vêm de cadastros **diferentes** em cada dimensão — `PCCONTA.CONTA` numa,
+  `PCCENTROCUSTO.DESCRICAO` noutra. Renomear um sem o outro desligava a regra em silêncio;
+- `VERBAS MARGEM` está cadastrada com espaço não separável, e existe uma conta `Indenizacao`
+  (3000050) de nome parecido, no bloco operacional.
+
+Hoje a regra casa `chave|AntesRoAntesLlAntesLf`, montada por `MontadorDre.Identidade` — a
+mesma função que gera o `ChaveOrdem`, para as duas não poderem divergir. A chave sozinha não
+bastaria: `RATEIO DESP. CORPORATIVAS` tem a **mesma** chave (96) nas duas ocorrências, e são
+as flags que separam a operacional (`96|SSS`) da promovida (`96|NSS`).
+
+### Conferido
+
+[dc32](validacao/dc32_subtotal_positivo.mjs), **25 conferências**, e
+[dc34](validacao/dc34_tres_dimensoes_concordam.mjs), **11**, em 14/09/2026.
+
+A dc32 cobre a linha marcada nas três dimensões, ausente das parcelas do `Total das Despesas`,
+com valor no período — sem o que a conferência seguinte não provaria nada —, e a identidade
+`LUCRO LIQUIDO = RESULTADO OPERACIONAL + Σ(pós-operacional restante)`, que ignora as linhas
+`naoSoma`: **se a informativa voltasse a somar, ela falharia pelo valor exato da linha.**
+
+A **dc34 é a rede de segurança desta divergência**, e é de outro tipo: ela exige que as três
+dimensões fechem no mesmo `LUCRO LIQUIDO`. Não confere nenhuma causa de quebra em
+particular — confere o efeito que todas elas produzem. A exceção da estrutura discordar da
+exceção das despesas, alguém lançar outra conta no centro de custo 97, um código ser
+reaproveitado, uma dimensão nova entrar sem a regra: tudo isso separa os três números.
+Inclusive o que ninguém previu.
+
+| dimensão | LUCRO BRUTO | Total das Despesas | LUCRO LIQUIDO |
+|---|---:|---:|---:|
+| grupo-contas | 28.252.498,18 | (26.320.457,28) | 1.932.040,90 |
+| conta-gerencial | 28.252.498,18 | (26.320.457,28) | 1.932.040,90 |
+| ccusto-principal | 28.252.498,18 | (26.320.457,28) | 1.932.040,90 |
+
+### Como reverter
+
+São **quatro peças, e as duas primeiras andam juntas**. Desfazer só uma delas deixa o pior
+estado possível: a linha aparece em Grupo de Contas, sem marca, somando.
+
+1. `DreGerencialQueries.EstruturaGrupoDeContas` — apagar os dois ramos
+   `when PAR.CODGRUCONTA = 3000165` do par de `CASE`.
+2. `DreGerencialQueries.DespesasGrupoDeContas` — trocar
+   `case when AntesLF = 'N' or CODCONTA = 3000165 then CODCONTA else codgrupo end` de volta
+   por `decode(AntesLF,'N',CODCONTA,codgrupo)`, **no SELECT e no GROUP BY**. As duas
+   expressões têm de continuar idênticas.
+3. `MontadorDre.InformativasPorPedido` — tirar a entrada da dimensão que não deve mais
+   excluir. Tirar as três desfaz a divergência inteira.
+4. `dc32` (o `temInformativa` da dimensão) e `dc34` (que passa a falhar de propósito —
+   apagar o arquivo se a decisão for que as três **não** precisam concordar).
+
+Reverter só a 3 mantendo 1 e 2 é o estado ruim descrito acima. Reverter só 1 e 2 é limpo: a
+entrada do montador deixa de casar com qualquer linha e a dimensão volta ao que era.
+
+Para voltar ao casamento por **rótulo**, o commit anterior a este tem as duas listas na forma
+antiga; mas leia a seção acima antes — os dois defeitos que ela descreve continuam lá.

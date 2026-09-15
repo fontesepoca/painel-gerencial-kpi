@@ -170,6 +170,20 @@ public record LinhaDreDto(
     string ChaveOrdem,
     string Chave,
     string Descricao,
+    /// <summary>
+    /// Que linha do DRE esta é, em código estável — `receita-bruta`, `lucro-bruto`,
+    /// `sub-total`… — ou <c>null</c> quando é uma conta do cadastro.
+    ///
+    /// <para><b>Existe para o front não ter de reconhecer a linha pelo rótulo em
+    /// português.</b> O montador identifica as calculadas por texto (`"LUCRO BRUTO"`), e isso
+    /// só é seguro aqui dentro, onde o texto nasce. Repetir a mesma comparação do outro lado
+    /// da API seria plantar de novo o defeito do espaço não separável do `VERBAS MARGEM`:
+    /// uma string que parece certa em todo log e não casa.</para>
+    ///
+    /// <para>O front usa isto para saber a fórmula de cada âncora quando o usuário reordena a
+    /// tabela — ver `client-new-kpi/lib/recalculoDoDre.ts`.</para>
+    /// </summary>
+    string? Papel,
     IReadOnlyList<ValorMesDto> Valores,
     TotalLinhaDto Total,
     bool Totalizadora,
