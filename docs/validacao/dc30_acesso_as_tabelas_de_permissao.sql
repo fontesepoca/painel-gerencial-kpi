@@ -21,6 +21,18 @@
 -- Zero em `ALL_OBJECTS` NÃO diz se a tabela não existe ou se só falta grant. É o que a
 -- Parte B resolve, e a diferença entre as duas conclusões é grande: uma é pedir acesso, a
 -- outra é descobrir que o modelo de permissão da casa não é o que lemos no painel antigo.
+--
+-- ── RESOLVIDO em 15/09/2026 ──
+--
+-- Era falta de grant. O Gabriel concedeu acesso e criou os sinônimos no `EDI`; a A.1 passou a
+-- devolver as três como `EDI/SYNONYM` sobre `EPOCA/TABLE`, o mesmo caminho pelo qual o
+-- `PCEMPR` já chegava. O `EDI` também executa o `DECRYPT` nos dois schemas, e lê as 8.393
+-- linhas do `PCEMPR`. As roles dele são só `CONNECT` e `RESOURCE`, então o privilégio novo
+-- veio direto, não por grupo.
+--
+-- O arquivo fica: ele é o registro de por que essas permissões existem. Quem for montar o
+-- ambiente de produção precisa repetir esses grants, e sem isto aqui a falha lá aparece como
+-- um ORA-00942 no meio do login, longe da causa.
 
 
 -- ═══════════════════════════════════════════════════════════════════════════
@@ -37,14 +49,20 @@ SELECT OWNER, OBJECT_NAME, OBJECT_TYPE
  ORDER BY OBJECT_NAME, OWNER;
 
 -- A.2 — o que o EDI tem de grant, e por qual caminho.
--- `PCEMPR` chega por sinônimo; quero saber se o privilégio vem direto ou por uma role, para
--- pedir o acesso novo do mesmo jeito que o antigo foi dado.
-SELECT GRANTEE, OWNER, TABLE_NAME, PRIVILEGE, GRANTOR
+--
+-- **Quais privilégios**, e não só "tem acesso": se o grant tiver vindo com INSERT, UPDATE ou
+-- DELETE, a API passa a poder escrever em tabela legada por acidente — e a regra deste
+-- projeto é que ela nunca escreva. `SELECT` e mais nada é o que queremos ver aqui.
+--
+-- A primeira versão desta consulta pedia `OWNER` e morreu com ORA-00904. No Oracle 11g a
+-- coluna de `ALL_TAB_PRIVS` chama-se `TABLE_SCHEMA`; `OWNER` existe em `DBA_TAB_PRIVS` e só
+-- chegou à visão `ALL_` no 12c.
+SELECT GRANTEE, TABLE_SCHEMA, TABLE_NAME, PRIVILEGE, GRANTOR, GRANTABLE
   FROM ALL_TAB_PRIVS
  WHERE GRANTEE IN (SELECT USER FROM DUAL
                    UNION ALL
                    SELECT GRANTED_ROLE FROM USER_ROLE_PRIVS)
-   AND OWNER IN ('EPOCA', 'EPCTI')
+   AND TABLE_SCHEMA IN ('EPOCA', 'EPCTI')
  ORDER BY TABLE_NAME, PRIVILEGE;
 
 -- A.3 — as roles do EDI, para eu saber em que grupo o acesso novo caberia.
@@ -59,6 +77,26 @@ SELECT LENGTH(EPOCA.DECRYPT('TESTE', 'TESTE')) AS TAMANHO_EPOCA FROM DUAL;
 
 -- A.5 — e o PCEMPR, o EDI lê mesmo? (a dc29 assumiu que sim; confirmando de graça)
 SELECT COUNT(*) AS LINHAS_EM_PCEMPR FROM PCEMPR;
+
+-- A.6 — `EPCTI.DECRYPT` e `EPOCA.DECRYPT` são a mesma função?
+--
+-- As duas responderam ao teste com o mesmo tamanho, mas isso não prova nada: um texto que
+-- não é cifra devolve lixo, e dois lixos podem ter o mesmo tamanho por acaso. O painel antigo
+-- chama a do `EPCTI`. Se as duas divergirem sobre a MESMA senha e eu escolher a errada, o
+-- login rejeita senha correta — e o erro aparece só quando alguém tentar entrar.
+--
+-- Compara as duas linha a linha sobre a base inteira e devolve **contagem**, nunca texto:
+-- nenhuma senha sai do banco, nem em amostra.
+SELECT COUNT(*)                                                             AS COM_SENHA,
+       SUM(CASE WHEN EPCTI.DECRYPT(SENHABD, USUARIOBD)
+                   = EPOCA.DECRYPT(SENHABD, USUARIOBD)
+                THEN 1 ELSE 0 END)                                          AS CONCORDAM,
+       SUM(CASE WHEN EPCTI.DECRYPT(SENHABD, USUARIOBD) IS NULL
+                THEN 1 ELSE 0 END)                                          AS EPCTI_NULO,
+       SUM(CASE WHEN EPOCA.DECRYPT(SENHABD, USUARIOBD) IS NULL
+                THEN 1 ELSE 0 END)                                          AS EPOCA_NULO
+  FROM PCEMPR
+ WHERE SENHABD IS NOT NULL;
 
 
 -- ═══════════════════════════════════════════════════════════════════════════
