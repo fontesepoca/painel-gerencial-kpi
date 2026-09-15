@@ -570,14 +570,38 @@ export function TabelaDre({
       {/* `barra-reordenar` sai em dispositivo de toque: ela explica um gesto de mouse e
           um atalho de teclado, e o celular não tem nenhum dos dois. */}
       <div className="barra-reordenar nao-imprime flex flex-wrap items-center justify-between gap-x-6 gap-y-2 border-b border-[var(--border)] px-4 py-2">
-        <p className="text-[length:var(--fs-apoio)] text-[var(--text-muted)]">
-          Arraste uma conta pelo punho{" "}
-          <span aria-hidden className="text-[var(--text-secondary)]">
-            ⠿
-          </span>{" "}
-          para mudá-la de bloco, ou use <kbd className="tecla">Alt</kbd> +{" "}
-          <kbd className="tecla">↑</kbd> <kbd className="tecla">↓</kbd>. Os totais se refazem.
-        </p>
+        {/* O AVISO OCUPA O LUGAR DA DICA, e não uma faixa própria embaixo dela.
+
+            A faixa separada custava uma linha inteira no alto da tabela — a região mais
+            disputada da tela, logo acima dos números. E as duas frases nunca precisam ser
+            lidas juntas: quem já reordenou não precisa mais da instrução de como arrastar. */}
+        {totaisPersonalizados ? (
+          <p
+            role="status"
+            className="text-[length:var(--fs-apoio)] text-[var(--text-secondary)]"
+          >
+            <span
+              aria-hidden
+              className="mr-2 inline-block rounded-[var(--radius-sm)] bg-[var(--warning-glow)] px-1.5 py-0.5 text-[length:var(--fs-rotulo)] font-semibold tracking-[0.1em] text-[var(--warning)] uppercase"
+            >
+              Reordenado
+            </span>
+            <strong className="font-semibold text-[var(--text-primary)]">
+              Estes totais não são os da apuração
+            </strong>{" "}
+            — eles seguem a ordem desta tela, que fica só neste navegador.
+          </p>
+        ) : (
+          <p className="text-[length:var(--fs-apoio)] text-[var(--text-muted)]">
+            Arraste uma conta pelo punho{" "}
+            <span aria-hidden className="text-[var(--text-secondary)]">
+              ⠿
+            </span>{" "}
+            para mudá-la de bloco, ou use <kbd className="tecla">Alt</kbd> +{" "}
+            <kbd className="tecla">↑</kbd> <kbd className="tecla">↓</kbd>. Os totais se
+            refazem.
+          </p>
+        )}
 
         <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
           {personalizada && (
@@ -586,39 +610,32 @@ export function TabelaDre({
               onClick={restaurar}
               className="text-[length:var(--fs-apoio)] font-medium text-[var(--primary)] underline underline-offset-4 hover:opacity-80"
             >
-              Restaurar ordem do cadastro
+              {totaisPersonalizados
+                ? "Ver os números do cadastro"
+                : "Restaurar ordem do cadastro"}
             </button>
           )}
         </div>
       </div>
 
-      {/* AVISO DE TOTAIS PERSONALIZADOS — permanente, e DENTRO da impressão.
+      {/* A MARCA QUE VAI PARA O PAPEL.
 
-          A ordem mora no `localStorage` de cada um, e agora ela muda número. Duas pessoas
-          podem estar olhando totais diferentes da mesma apuração sem nada na tela dizer
-          isso, e um print circula sem contexto nenhum. Por isso este aviso não tem `nao-imprime`
-          — ele é a única coisa que acompanha o número quando ele sai daqui.
+          Na tela o aviso vive na barra acima, que é `nao-imprime` — ela fala de um gesto de
+          mouse, que no papel não existe. Mas a marca de totais personalizados **precisa**
+          sair impressa: a ordem mora no `localStorage` de cada um e agora muda número, e um
+          print circula sem contexto nenhum. Este parágrafo é o que acompanha o número quando
+          ele sai daqui.
 
-          Só aparece quando algum valor de fato mudou: reordenar dentro do mesmo bloco não
+          Duas grafias do mesmo aviso, como no `%AH`: quem escolhe é o CSS, não um estado de
+          React — `Ctrl+P` não espera re-render.
+
+          Só existe quando algum valor de fato mudou: reordenar dentro do mesmo bloco não
           personaliza total nenhum, e acender o aviso ali o gastaria à toa. */}
       {totaisPersonalizados && (
-        <div
-          role="status"
-          className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-[var(--warning)] bg-[var(--warning-glow)] px-4 py-2 text-[length:var(--fs-apoio)] text-[var(--text-primary)]"
-        >
-          <strong className="font-semibold">Totais reordenados por você.</strong>
-          <span className="text-[var(--text-secondary)]">
-            Estes números não são os da apuração — eles seguem a ordem desta tela, que fica
-            só neste navegador.
-          </span>
-          <button
-            type="button"
-            onClick={restaurar}
-            className="font-medium text-[var(--primary)] underline underline-offset-4 hover:opacity-80 nao-imprime"
-          >
-            Ver os números do cadastro
-          </button>
-        </div>
+        <p className="so-no-papel border-b border-[var(--warning)] bg-[var(--warning-glow)] px-4 py-2 text-[length:var(--fs-apoio)] text-[var(--text-primary)]">
+          <strong className="font-semibold">Totais reordenados.</strong> Estes números não são
+          os da apuração — eles seguem a ordem em que a tabela foi lida.
+        </p>
       )}
 
       <div

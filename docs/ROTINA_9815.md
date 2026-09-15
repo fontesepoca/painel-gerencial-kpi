@@ -887,9 +887,18 @@ centavo de diferença, todas em `,xx5`.
 - E diz **em que totalizador a conta passa a somar**, pelo nome. Com as sete âncoras
   atravessadas, a linha de cima e o total que recebe deixaram de ser vizinhos: *"vai parar
   entre `(-) DEVOLUCAO` e `(-) ST`"* sozinho faria supor que a conta entra no ST.
-- Um aviso **permanente** marca que os totais estão personalizados, e ele **sai na impressão**:
-  a ordem é local, e um print circula sem contexto nenhum.
-- *Restaurar ordem do cadastro* devolve os números da apuração.
+- Um aviso **permanente** marca que os totais estão personalizados. Ele **ocupa o lugar da
+  dica de arrastar**, na mesma linha do botão de restaurar — a faixa própria que ele tinha até
+  15/09/2026 custava uma linha inteira no alto da tabela, a região mais disputada da tela, e
+  as duas frases nunca precisam ser lidas juntas: quem acabou de reordenar não precisa mais da
+  instrução de como arrastar.
+- A barra inteira é `nao-imprime` — ela fala de um gesto de mouse. Por isso a marca de totais
+  personalizados existe **duas vezes**, e quem escolhe é o CSS: a versão da barra e um
+  parágrafo `so-no-papel`, que é o que acompanha o número quando ele sai daqui. A ordem é
+  local, e um print circula sem contexto nenhum.
+- *Restaurar ordem do cadastro* devolve os números da apuração. Com os totais já
+  personalizados ele passa a se chamar *Ver os números do cadastro*: ali a promessa que
+  interessa é o número de volta, não a ordem.
 
 O selo `FORA DO BLOCO` saiu. Ele marcava a linha que passou a *aparecer* longe do total que
 compõe — o descompasso entre a tela e a conta. Agora a conta acompanha a tela, e não há mais
