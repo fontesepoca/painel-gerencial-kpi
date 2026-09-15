@@ -1,12 +1,17 @@
 -- dc29 — o que precisa vir do banco antes de escrever o login
 --
--- Fase A do plano de autenticação. Seis blocos independentes; rode um de cada vez e me
+-- Fase A do plano de autenticação. Sete blocos independentes; rode um de cada vez e me
 -- devolva o resultado. Enquanto eles não voltarem, qualquer número que eu escrevesse no
 -- código seria chute — e chute em CODCONTROLE colide com permissão de outra pessoa.
 --
 -- ⚠ NENHUM BLOCO DEVOLVE SENHA. O bloco 4 chama `EPCTI.DECRYPT`, mas só para dizer se a
 --   função respondeu, quantos caracteres vieram e se o retorno já está em maiúsculas. O
 --   texto da senha não sai do banco, e não quero que saia.
+--
+-- Os blocos 4 e 5 usam `&&usuario`, a variável de substituição do SQL Developer: na primeira
+-- vez ele pergunta, e daí em diante reaproveita o valor na mesma sessão. Digite o login que
+-- você usa no painel — NOME_GUERRA ou código de barras. Se preferir não usar variável, troque
+-- `&&usuario` pelo texto entre aspas simples, nos três lugares em que ele aparece.
 --
 -- Onde cada coisa vai ser usada:
 --   1 → confirma que a API alcança as tabelas de permissão com o usuário de conexão dela
@@ -15,6 +20,8 @@
 --   4 → confirma a verificação de senha
 --   5 → confirma as filiais do usuário e a função que a 9815 usa para concatenar
 --   6 → diz se dá para barrar funcionário desligado, que o painel antigo não barra
+--   7 → a forma das tabelas de permissão, para eu lê-las do jeito certo e te dizer o que
+--       pedir na rotina 530 quando for cadastrar os controles novos
 
 
 -- ── 1. contexto da conexão ───────────────────────────────────────────────────
@@ -95,7 +102,7 @@ SELECT C.CODUSUARIO, E.NOME_GUERRA, C.ACESSO
 
 
 -- ── 4. a verificação de senha ────────────────────────────────────────────────
--- Troque SEU_USUARIO pelo que você digita no painel (NOME_GUERRA ou código de barras).
+-- Digite no prompt o login que você usa no painel (NOME_GUERRA ou código de barras).
 -- Repare que a senha NÃO é selecionada: só o formato dela.
 SELECT E.MATRICULA,
        E.NOME_GUERRA,
@@ -107,8 +114,8 @@ SELECT E.MATRICULA,
                = UPPER(EPCTI.DECRYPT(E.SENHABD, E.USUARIOBD))
             THEN 'JA VEM MAIUSCULA' ELSE 'TEM MINUSCULA' END                        AS CAIXA
   FROM PCEMPR E
- WHERE (E.NOME_GUERRA = UPPER('SEU_USUARIO')
-        OR NVL(E.CODBARRA, E.MATRICULA) = UPPER('SEU_USUARIO'))
+ WHERE (E.NOME_GUERRA = UPPER('&&usuario')
+        OR NVL(E.CODBARRA, E.MATRICULA) = UPPER('&&usuario'))
    AND ROWNUM = 1;
 
 -- Quantas pessoas responderiam ao mesmo login digitado? O painel antigo usa `ROWNUM = 1`
@@ -124,10 +131,16 @@ HAVING COUNT(*) > 1
 
 -- ── 5. as filiais do usuário ─────────────────────────────────────────────────
 -- É o que vai limitar a apuração: hoje a tela aceita qualquer filial que o corpo da
--- requisição pedir. Troque a matrícula pela que o bloco 4 devolveu.
+-- requisição pedir.
+--
+-- A matrícula sai de subconsulta sobre o mesmo `&&usuario` do bloco 4, e não de um número
+-- colado à mão. Na primeira versão deste arquivo eu tinha deixado `0000` como placeholder, e
+-- rodar assim devolve zero linha — que se parece com "o usuário não tem filial nenhuma".
 SELECT CODIGOA AS CODFILIAL
   FROM PCLIB
- WHERE CODFUNC = 0000            -- ← matrícula do bloco 4
+ WHERE CODFUNC = (SELECT MIN(MATRICULA) FROM PCEMPR
+                   WHERE NOME_GUERRA = UPPER('&&usuario')
+                      OR NVL(CODBARRA, MATRICULA) = UPPER('&&usuario'))
    AND CODTABELA = 1
    AND CODIGOA NOT IN (2, 99)
  ORDER BY TO_NUMBER(CODIGOA);
@@ -135,7 +148,9 @@ SELECT CODIGOA AS CODFILIAL
 -- A mesma coisa pelo caminho que a 9815 usa, para eu saber se posso dispensar a função.
 SELECT (SELECT FNC_CONCATENA_LISTA(CURSOR(
           SELECT CODIGOA FROM PCLIB
-           WHERE CODFUNC = 0000  -- ← a mesma matrícula
+           WHERE CODFUNC = (SELECT MIN(MATRICULA) FROM PCEMPR
+                             WHERE NOME_GUERRA = UPPER('&&usuario')
+                                OR NVL(CODBARRA, MATRICULA) = UPPER('&&usuario'))
              AND CODTABELA = 1 AND CODIGOA NOT IN (2, 99)
            ORDER BY TO_NUMBER(CODIGOA))) FROM DUAL) AS FILIAIS
   FROM DUAL;
@@ -155,3 +170,23 @@ SELECT COLUMN_NAME, DATA_TYPE, NULLABLE
       OR COLUMN_NAME LIKE '%AFAST%'
       OR COLUMN_NAME LIKE '%DTSAIDA%' )
  ORDER BY COLUMN_NAME;
+
+
+-- ── 7. a forma das tabelas de permissão ──────────────────────────────────────
+-- Para LER a permissão eu preciso saber que colunas existem e quais não aceitam nulo — e,
+-- quando chegar a hora de cadastrar os controles novos, saber se existe uma tabela que guarda
+-- a DESCRIÇÃO de cada CODCONTROLE ou se isso vive dentro do Delphi.
+--
+-- Não vou escrever nada em tabela legada: o cadastro é seu, pela rotina 530. Isto aqui é só
+-- para eu ler do jeito certo e te dizer exatamente o que pedir lá.
+SELECT TABLE_NAME, COLUMN_NAME, DATA_TYPE, DATA_LENGTH, NULLABLE, COLUMN_ID
+  FROM ALL_TAB_COLUMNS
+ WHERE TABLE_NAME IN ('PCCONTRO', 'PCCONTROI', 'PCLIB')
+ ORDER BY TABLE_NAME, COLUMN_ID;
+
+-- Existe algum objeto que descreva os controles de uma rotina?
+SELECT OWNER, OBJECT_NAME, OBJECT_TYPE
+  FROM ALL_OBJECTS
+ WHERE OBJECT_NAME LIKE 'PC%ROTINA%'
+    OR OBJECT_NAME LIKE 'PC%CONTROLE%'
+ ORDER BY OBJECT_NAME;
