@@ -33,6 +33,23 @@
 -- O arquivo fica: ele é o registro de por que essas permissões existem. Quem for montar o
 -- ambiente de produção precisa repetir esses grants, e sem isto aqui a falha lá aparece como
 -- um ORA-00942 no meio do login, longe da causa.
+--
+-- ── O QUE A PARTE A RESPONDEU ──
+--
+-- **A.2 — o EDI só lê.** 58 privilégios, todos `SELECT`, mais `EXECUTE` nos dois `DECRYPT`.
+-- Nenhum `INSERT`, `UPDATE` ou `DELETE`, em tabela nenhuma. A regra de nunca escrever em
+-- tabela legada está garantida pelo banco, e não pela disciplina de quem escreve a query —
+-- que é onde ela deve estar. Os grants vieram diretos do `EPOCA` e do `EPCTI`, sem role.
+--
+-- **A.6 — os dois DECRYPT são a mesma função.** 5.583 senhas cadastradas, 5.583 concordâncias,
+-- nenhum nulo dos dois lados. Tanto faz qual chamar; o código vai usar `EPCTI.DECRYPT`, que é
+-- o que o painel antigo usa — entre duas opções idênticas, a que já está em produção há anos
+-- é a que não precisa ser defendida.
+--
+-- **De brinde, um número que vai importar:** `PCEMPR` tem 8.393 linhas e só 5.583 têm senha.
+-- Cerca de 2.810 pessoas cadastradas não têm como entrar, e a mensagem de erro precisa
+-- distinguir "senha errada" de "você não tem senha cadastrada" — senão elas vão tentar de
+-- novo, achando que erraram a digitação.
 
 
 -- ═══════════════════════════════════════════════════════════════════════════
