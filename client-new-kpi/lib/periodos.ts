@@ -36,6 +36,31 @@ export interface AtalhoPeriodo {
 const ultimoDia = (ano: number, mes: number) => new Date(ano, mes + 1, 0);
 
 /**
+ * O mês corrente, do dia 1 até **ontem**.
+ *
+ * <b>Ontem, e não hoje.</b> O DRE lê lançamento e nota fiscal do dia, e o dia de hoje está
+ * pela metade: faturamento lançado à tarde ainda não entrou, baixa de título tampouco.
+ * Fechar o recorte em ontem é o que faz o último número da tela ser um número inteiro de
+ * um dia inteiro. Pedido do Gabriel em 15/09/2026.
+ *
+ * <b>No dia 1º não existe dia fechado no mês</b>, e "até ontem" cairia no mês passado — um
+ * intervalo invertido, que a tela recusaria com *"a data final não pode ser anterior à
+ * inicial"* no primeiro dia de todo mês. O fim é preso ao dia 1º: o recorte vira um único
+ * dia, o corrente, e as duas datas ficam à vista de quem escolheu.
+ */
+function mesAteOntem(hoje: Date) {
+  const ano = hoje.getFullYear();
+  const mes = hoje.getMonth();
+  const primeiro = new Date(ano, mes, 1);
+  const ontem = new Date(ano, mes, hoje.getDate() - 1);
+
+  return {
+    dataInicio: paraIso(primeiro),
+    dataFim: paraIso(ontem < primeiro ? primeiro : ontem),
+  };
+}
+
+/**
  * Os quatro atalhos prometidos na especificação (§3.1).
  *
  * **"Últimos 3 meses" são três meses COMPLETOS**, terminando no mês passado — não
@@ -58,6 +83,13 @@ export function atalhosPeriodo(hoje: Date = new Date()): AtalhoPeriodo[] {
       rotulo: "Ontem",
       dataInicio: paraIso(ontem),
       dataFim: paraIso(ontem),
+    },
+    // Logo depois do "Ontem" porque a lista cresce em alcance, e porque é o mesmo recorte
+    // com que a tela abre — quem mexeu nas datas e quer voltar ao início procura aqui.
+    {
+      id: "mes-atual",
+      rotulo: "Mês atual",
+      ...mesAteOntem(hoje),
     },
     {
       id: "mes-passado",
@@ -86,10 +118,13 @@ export function atalhosPeriodo(hoje: Date = new Date()): AtalhoPeriodo[] {
    do servidor, que é o único que sabe recortar uma coluna que não é um mês. A regra
    continua a mesma e agora vive em `RecorteDre.RecorteDoMes`, na API. */
 
-/** Mês corrente, do dia 1 até hoje — o recorte que a tela abre. */
+/**
+ * O recorte com que a tela abre: **o mesmo do atalho "Mês atual"**, do dia 1 até ontem.
+ *
+ * Ia até hoje até 15/09/2026. Os dois passaram a sair da mesma função de propósito — se o
+ * padrão e o atalho de mesmo nome divergissem, clicar em "Mês atual" mudaria as datas de uma
+ * tela que já estava no mês atual, e ninguém entenderia o que aconteceu.
+ */
 export function periodoPadrao(hoje: Date = new Date()) {
-  return {
-    dataInicio: paraIso(new Date(hoje.getFullYear(), hoje.getMonth(), 1)),
-    dataFim: paraIso(hoje),
-  };
+  return mesAteOntem(hoje);
 }
