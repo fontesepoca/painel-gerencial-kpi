@@ -52,26 +52,45 @@ for (const d of [1, 2, 15, 28, 29, 30, 31]) {
   );
 }
 
-// ── o dia 1º: não há dia fechado no mês ──────────────────────────────────────
+// ── o dia 1º: não há dia fechado no mês, e o recorte é o mês passado ─────────
 //
-// Sem a trava, "até ontem" devolveria 31/08 e o intervalo sairia invertido — a tela recusa
-// com "a data final não pode ser anterior à inicial", no primeiro dia de todo mês.
+// Sem tratamento, "até ontem" devolveria 31/08 com início em 01/09 e o intervalo sairia
+// invertido — a tela recusa com "a data final não pode ser anterior à inicial", no primeiro
+// dia de todo mês. Decisão do Gabriel: cair no mês passado inteiro, que é um mês fechado,
+// em vez de oferecer um único dia pela metade.
 {
   const p = periodoPadrao(dia(2026, 9, 1));
-  eq(p, { dataInicio: "2026-09-01", dataFim: "2026-09-01" }, "no dia 1º o recorte é o próprio dia 1º");
+  eq(p, { dataInicio: "2026-08-01", dataFim: "2026-08-31" }, "no dia 1º o recorte é o mês passado inteiro");
   assert.ok(p.dataInicio <= p.dataFim, "e nunca sai invertido");
   n++;
+
+  // Consequência assumida: nesse dia os dois atalhos coincidem. É visível, porque cada um
+  // exibe as datas que aplica.
+  const atual = atalho(dia(2026, 9, 1), "mes-atual");
+  const passado = atalho(dia(2026, 9, 1), "mes-passado");
+  eq(
+    { i: atual.dataInicio, f: atual.dataFim },
+    { i: passado.dataInicio, f: passado.dataFim },
+    "no dia 1º, Mês atual e Mês passado mostram o mesmo intervalo",
+  );
 }
-// Vale para a virada de ano também, onde o mês anterior é de outro ano.
+// A virada de ANO é o caso que quebra uma implementação ingênua: o mês anterior a janeiro
+// está no ano passado, e `new Date(ano, -1, 1)` tem de rolar para dezembro sozinho.
 eq(
   periodoPadrao(dia(2027, 1, 1)),
-  { dataInicio: "2027-01-01", dataFim: "2027-01-01" },
-  "1º de janeiro não volta para dezembro do ano passado",
+  { dataInicio: "2026-12-01", dataFim: "2026-12-31" },
+  "1º de janeiro cai em dezembro do ano anterior, inteiro",
 );
 eq(
   periodoPadrao(dia(2027, 1, 2)),
   { dataInicio: "2027-01-01", dataFim: "2027-01-01" },
-  "e no dia 2 de janeiro o recorte é o dia 1º",
+  "e já no dia 2 o recorte é o dia 1º de janeiro — o primeiro dia fechado do mês",
+);
+// Fevereiro de ano bissexto: o mês passado de 1º de março tem 29 dias.
+eq(
+  periodoPadrao(dia(2028, 3, 1)),
+  { dataInicio: "2028-02-01", dataFim: "2028-02-29" },
+  "1º de março de 2028 cai em fevereiro com 29 dias",
 );
 
 // ── nenhum intervalo sai invertido, em dia nenhum do ano ─────────────────────

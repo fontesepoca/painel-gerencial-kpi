@@ -45,8 +45,12 @@ const ultimoDia = (ano: number, mes: number) => new Date(ano, mes + 1, 0);
  *
  * <b>No dia 1º não existe dia fechado no mês</b>, e "até ontem" cairia no mês passado — um
  * intervalo invertido, que a tela recusaria com *"a data final não pode ser anterior à
- * inicial"* no primeiro dia de todo mês. O fim é preso ao dia 1º: o recorte vira um único
- * dia, o corrente, e as duas datas ficam à vista de quem escolheu.
+ * inicial"* no primeiro dia de todo mês. Nesse dia o recorte é o **mês passado inteiro**:
+ * decisão do Gabriel em 15/09/2026, preferindo um mês fechado a um único dia pela metade.
+ *
+ * <b>Consequência:</b> no dia 1º, "Mês atual" e "Mês passado" mostram o mesmo intervalo. É
+ * visível — cada atalho exibe as datas que vai aplicar —, e é melhor que a alternativa, que
+ * era oferecer o dia corrente incompleto sob o nome de um mês.
  */
 function mesAteOntem(hoje: Date) {
   const ano = hoje.getFullYear();
@@ -54,10 +58,14 @@ function mesAteOntem(hoje: Date) {
   const primeiro = new Date(ano, mes, 1);
   const ontem = new Date(ano, mes, hoje.getDate() - 1);
 
-  return {
-    dataInicio: paraIso(primeiro),
-    dataFim: paraIso(ontem < primeiro ? primeiro : ontem),
-  };
+  if (ontem < primeiro) {
+    return {
+      dataInicio: paraIso(new Date(ano, mes - 1, 1)),
+      dataFim: paraIso(ultimoDia(ano, mes - 1)),
+    };
+  }
+
+  return { dataInicio: paraIso(primeiro), dataFim: paraIso(ontem) };
 }
 
 /**

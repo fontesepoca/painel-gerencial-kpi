@@ -799,12 +799,15 @@ atual" mudaria as datas de uma tela que já estava no mês atual, e ninguém ent
 
 **No dia 1º não existe dia fechado no mês.** "Até ontem" cairia no mês passado e inverteria o
 intervalo, que a tela recusa com *"a data final não pode ser anterior à inicial"* — no
-primeiro dia de todo mês. O fim é preso ao dia 1º, e o recorte vira um único dia.
+primeiro dia de todo mês. Nesse dia o recorte é o **mês passado inteiro**: um mês fechado
+vale mais que um único dia pela metade. Consequência assumida: no dia 1º, "Mês atual" e "Mês
+passado" mostram o mesmo intervalo, e isso fica à vista porque cada atalho exibe as datas que
+aplica.
 
 "Últimos 3 meses" continua sendo três meses **completos**, terminando no mês passado: incluir
 o mês corrente pela metade faria a comparação entre colunas mentir.
 
-Conferido em [dc37](validacao/dc37_atalhos_de_periodo.mjs), **2.219 asserções** — todos os
+Conferido em [dc37](validacao/dc37_atalhos_de_periodo.mjs), **2.221 asserções** — todos os
 atalhos em todos os dias de 2028, ano bissexto, sem nenhum intervalo invertido, mais as duas
 armadilhas de fuso que o projeto já encontrou (`toISOString()` às 21h vira o dia seguinte em
 UTC−3).
