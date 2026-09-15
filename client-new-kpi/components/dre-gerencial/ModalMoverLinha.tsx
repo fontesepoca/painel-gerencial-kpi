@@ -17,11 +17,23 @@ export interface MovimentoPendente {
   conta: string;
   deOnde: string;
   paraOnde: string;
+  /**
+   * O totalizador que passa a contar esta conta, pelo nome.
+   *
+   * Sem isto o modal dizia só *"vai parar entre (-) DEVOLUCAO e (-) ST"* — e quem lê supõe
+   * que a conta entra no ST. Ela atravessa os impostos e cai nas RECEITAS LIQUIDAS; a
+   * posição na tela e o total que recebe deixaram de ser a mesma linha, então o modal diz
+   * as duas coisas.
+   *
+   * `null` quando não há total nenhum para receber — aí quem fala é o aviso de `saiDaConta`.
+   */
+  somaEm: string | null;
   /** Os totalizadores que mudam de valor, com o antes e o depois. */
   totais: TotalAfetado[];
   /**
-   * O destino não soma em lugar nenhum — depois do LUCRO LIQUIDO, ou no encaixe de uma
-   * informativa (`ST`, `PIS`, `COFINS`), que não propagam para totalizador nenhum.
+   * O destino não soma em lugar nenhum: **abaixo do LUCRO LIQUIDO**, onde não há mais
+   * totalizador para receber a conta. Dentro do cabeçalho isso não acontece — a conta
+   * atravessa `ST`, `PIS` e `COFINS` e cai nas RECEITAS LIQUIDAS.
    */
   saiDaConta: boolean;
 }
@@ -104,6 +116,14 @@ export function ModalMoverLinha({
               </dt>
               <dd className="text-[var(--text-secondary)]">{pendente.paraOnde}</dd>
             </div>
+            {pendente.somaEm && (
+              <div className="flex flex-col gap-0.5">
+                <dt className="text-[length:var(--fs-rotulo)] font-medium tracking-[0.14em] text-[var(--text-muted)] uppercase">
+                  Passa a somar em
+                </dt>
+                <dd className="font-medium text-[var(--text-primary)]">{pendente.somaEm}</dd>
+              </div>
+            )}
           </dl>
 
           {pendente.saiDaConta && (

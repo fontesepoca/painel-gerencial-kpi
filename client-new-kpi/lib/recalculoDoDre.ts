@@ -90,9 +90,9 @@ const BASE_RECEITA_BRUTA: ReadonlySet<PapelDaLinha> = new Set([
  * baixo — cada uma só depende das anteriores.
  *
  * `ST`, `PIS` e `COFINS` estão de fora de propósito: elas não entram nas RECEITAS LIQUIDAS
- * (regra de negócio nº 1) e não propagam para lugar nenhum. Uma conta largada no encaixe
- * delas **some de todos os totais** — consequência legítima de "soltar em qualquer lugar", e
- * o modal avisa.
+ * (regra de negócio nº 1) e não propagam para lugar nenhum. Elas também não recebem encaixe —
+ * ver <see cref="NAO_ACUMULAM"/> —, então uma conta solta ao lado delas continua caindo nas
+ * RECEITAS LIQUIDAS, e estas três linhas seguem valendo o imposto apurado.
  */
 const PROPAGACAO: readonly (readonly [PapelDaLinha, readonly PapelDaLinha[]])[] = [
   ["receita-bruta", []],
@@ -126,15 +126,48 @@ const ANCORAS_ENTRE_LUCRO_BRUTO_E_LIQUIDO: readonly PapelDaLinha[] = [
 ];
 
 /**
- * Qual âncora recebe a conta que estiver em `indice`: a primeira linha calculada abaixo.
- * `null` quando não há nenhuma — a conta está depois da última âncora e não entra em total.
+ * As âncoras que **não acumulam encaixe**.
+ *
+ * Todas elas são números próprios do faturamento, não somas de um bloco: `(-) ST` é o imposto
+ * apurado, `(=) CMV LIQ.` é o custo da mercadoria. Deixá-las receber uma conta arrastada fazia
+ * a tela **mudar o valor do próprio imposto** — o Gabriel soltou VERBAS MARGEM entre RECEITA
+ * BRUTA e RECEITAS LIQUIDAS em 15/09/2026 e o `(-) ST` de janeiro encolheu 922 mil, enquanto
+ * nenhum total se mexia. Um ST que não é o ST é pior que qualquer total errado: ele não tem
+ * como ser conferido contra a apuração.
+ *
+ * Por isso a conta **atravessa** estas linhas e vai para a primeira âncora que de fato soma um
+ * bloco. Solta em qualquer ponto do cabeçalho, ela entra nas RECEITAS LIQUIDAS — que é o que o
+ * rótulo do bloco já prometia a quem arrasta.
+ */
+const NAO_ACUMULAM: ReadonlySet<PapelDaLinha> = new Set([
+  "receita-bruta",
+  "abat-desc",
+  "devolucao",
+  "st",
+  "pis",
+  "cofins",
+  "cmv",
+]);
+
+/**
+ * Qual âncora recebe a conta que estiver em `indice`: a primeira linha calculada abaixo
+ * **que acumula um bloco** — ver <see cref="NAO_ACUMULAM"/>.
+ *
+ * `null` quando não há nenhuma. Depois de 15/09/2026 isso só acontece **abaixo do LUCRO
+ * LIQUIDO**, que é onde o cadastro já põe as informativas: aí a conta aparece com valor e não
+ * entra em total nenhum, e o modal avisa.
+ *
+ * Calculada sem papel também é atravessada, de propósito. Ela não está na tabela de
+ * propagação, então receber o encaixe faria o valor sumir dos totais **em silêncio** — o
+ * estrago que a tela não teria como mostrar.
  */
 export function ancoraDoEncaixe(
-  linhas: readonly { calculada: boolean }[],
+  linhas: readonly { calculada: boolean; papel: PapelDaLinha | null }[],
   indice: number,
 ): number | null {
   for (let i = indice + 1; i < linhas.length; i++) {
-    if (linhas[i]?.calculada) return i;
+    const l = linhas[i];
+    if (l?.calculada && l.papel !== null && !NAO_ACUMULAM.has(l.papel)) return i;
   }
   return null;
 }

@@ -28,14 +28,6 @@ import {
   ordemPersonalizada,
 } from "@/lib/ordemLinhas";
 import { ancoraDoEncaixe, mesmosValores, recalcular } from "@/lib/recalculoDoDre";
-import type { PapelDaLinha } from "@/types/dre-gerencial";
-
-/**
- * As âncoras que não propagam para totalizador nenhum. Uma conta largada no encaixe delas
- * continua aparecendo com valor e **sai de todos os totais** — ST, PIS e COFINS ficam fora
- * das RECEITAS LIQUIDAS por regra da 9815, e quem cai no encaixe delas herda isso.
- */
-const NAO_PROPAGAM: ReadonlySet<PapelDaLinha> = new Set(["st", "pis", "cofins"]);
 import type {
   FiltroApuracao,
   LinhaDre,
@@ -217,11 +209,15 @@ export function TabelaDre({
         }))
         .filter((t) => Math.abs(t.depois - t.antes) > 0.005);
 
+      // Sem âncora acumuladora abaixo, a conta para de entrar em qualquer total. Depois de
+      // 15/09/2026 isso só acontece abaixo do LUCRO LIQUIDO: dentro do cabeçalho a conta
+      // atravessa ST, PIS e COFINS e cai nas RECEITAS LIQUIDAS.
       const ancora = ancoraDoEncaixe(nova, novoIndice);
-      const papelDoDestino = ancora === null ? null : (nova[ancora]?.papel ?? null);
-      const saiDaConta =
-        !linha.naoSoma
-        && (papelDoDestino === null || NAO_PROPAGAM.has(papelDoDestino));
+      const saiDaConta = !linha.naoSoma && ancora === null;
+      // Informativa não soma em lugar nenhum, esteja onde estiver: prometer um total a ela
+      // seria o modal dizendo o contrário do que o selo da própria linha diz.
+      const somaEm =
+        linha.naoSoma || ancora === null ? null : (nova[ancora]?.descricao.trim() ?? null);
 
       if (totais.length === 0 && !saiDaConta) {
         salvar(nova.map((l) => l.chaveOrdem));
@@ -234,6 +230,7 @@ export function TabelaDre({
         conta: nomeCurto,
         deOnde: descreverPosicao(ordenadas, indice),
         paraOnde: descreverPosicao(nova, novoIndice),
+        somaEm,
         totais,
         saiDaConta,
       });

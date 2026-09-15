@@ -14,7 +14,7 @@
  * receitas liquidas — o valor de subtotal positivo e lucro bruto devem ser alterados"*.
  */
 import assert from "node:assert/strict";
-import { recalcular, media } from "@/lib/recalculoDoDre.ts";
+import { ancoraDoEncaixe, recalcular, media } from "@/lib/recalculoDoDre.ts";
 
 let n = 0;
 const eq = (achou, esperado, oque) => {
@@ -87,6 +87,23 @@ function mover(linhas, chave, destino) {
   return [...resto.slice(0, i + 1), alvo, ...resto.slice(i + 1)];
 }
 
+// ── quem recebe o encaixe de cada posição ────────────────────────────────────
+//
+// O contrato que o modal e o recálculo leem. É aqui que se vê, sem aritmética nenhuma, que
+// as sete âncoras do cabeçalho são ATRAVESSADAS: elas são números do faturamento, não somas
+// de um bloco, e uma conta arrastada para junto delas não pode alterá-las.
+{
+  const papelDa = (i) => (i === null ? null : DRE[i].papel);
+
+  eq(papelDa(ancoraDoEncaixe(DRE, 0)), "receitas-liquidas", "logo abaixo da RECEITA BRUTA: atravessa ABAT, DEVOL e ST");
+  eq(papelDa(ancoraDoEncaixe(DRE, 3)), "receitas-liquidas", "ao lado do ST: idem — o imposto não recebe conta");
+  eq(papelDa(ancoraDoEncaixe(DRE, 4)), "lucro-bruto", "abaixo das RECEITAS LIQUIDAS: atravessa o CMV");
+  eq(papelDa(ancoraDoEncaixe(DRE, 7)), "subtotal-positivo", "onde mora o crédito promovido");
+  eq(papelDa(ancoraDoEncaixe(DRE, 10)), "sub-total", "no meio das despesas operacionais");
+  eq(papelDa(ancoraDoEncaixe(DRE, 13)), "total-despesas", "no bloco pós-operacional");
+  eq(ancoraDoEncaixe(DRE, DRE.length - 1), null, "depois do LUCRO LIQUIDO não há âncora nenhuma");
+}
+
 // ── a invariante, sem banco ──────────────────────────────────────────────────
 // A dc35 já cobre isto com dado real. Aqui é a rede de contenção deste arquivo: se o DRE de
 // brinquedo não reproduzir a si mesmo, todos os casos abaixo estão medindo outra coisa.
@@ -101,9 +118,9 @@ function mover(linhas, chave, destino) {
 {
   const r = recalcular(mover(DRE, "credito", "receitas-liquidas"), DRE);
 
-  eq(valorDe(r, "receitas-liquidas"), 850, "RECEITAS LIQUIDAS não muda: o crédito caiu no encaixe do CMV");
-  eq(valorDe(r, "cmv"), -340, "o CMV recebe os 60");
-  eq(valorDe(r, "lucro-bruto"), 510, "e o LUCRO BRUTO sobe junto");
+  eq(valorDe(r, "receitas-liquidas"), 850, "RECEITAS LIQUIDAS não muda: o crédito ficou abaixo dela");
+  eq(valorDe(r, "cmv"), -400, "o CMV não recebe nada — ele é o custo apurado, não um bloco que acumula");
+  eq(valorDe(r, "lucro-bruto"), 510, "o crédito atravessa o CMV e para no LUCRO BRUTO");
   eq(valorDe(r, "subtotal-positivo"), 510, "o SUBTOTAL POSITIVO chega ao mesmo lugar por outro caminho");
   eq(valorDe(r, "sub-total"), -290, "o Sub-Total não tem nada com isso");
   eq(valorDe(r, "resultado-operacional"), 220, "nem o RESULTADO OPERACIONAL");
@@ -129,18 +146,39 @@ function mover(linhas, chave, destino) {
   }
 }
 
-// ── largar numa informativa tira a conta de todos os totais ──────────────────
+// ── o cabeçalho: a conta ATRAVESSA os impostos e cai nas RECEITAS LIQUIDAS ───
 //
-// `ST` não propaga para lugar nenhum — é a regra de negócio nº 1 do projeto, e vale para
-// quem cair no encaixe dela. É consequência de "soltar em qualquer lugar", e o modal avisa.
+// O defeito que o Gabriel encontrou pela tela em 15/09/2026: ele soltou VERBAS MARGEM entre
+// RECEITA BRUTA e RECEITAS LIQUIDAS, e a conta caiu no encaixe do `(-) ST`. O ST de janeiro
+// encolheu 922 mil e nenhum total se mexeu — a tela passou a mostrar um imposto que não era o
+// imposto, que é pior que qualquer total errado: não há contra o que conferir.
+//
+// `ST`, `PIS`, `COFINS`, `ABAT./DESC.`, `DEVOLUCAO`, `RECEITA BRUTA` e `CMV LIQ.` não somam
+// bloco nenhum — são números próprios do faturamento. Hoje a conta os atravessa.
 {
   const r = recalcular(mover(DRE, "despA", "devolucao"), DRE);
 
-  eq(valorDe(r, "st"), -230, "a despesa entra no ST, que a exibe");
-  eq(valorDe(r, "receitas-liquidas"), 850, "mas o ST não entra nas RECEITAS LIQUIDAS");
-  eq(valorDe(r, "lucro-bruto"), 450, "nem chega ao LUCRO BRUTO");
+  eq(valorDe(r, "st"), -30, "o ST continua valendo o imposto apurado — a despesa passou por ele");
+  eq(valorDe(r, "receitas-liquidas"), 650, "ela para nas RECEITAS LIQUIDAS, a primeira âncora que soma bloco");
+  eq(valorDe(r, "lucro-bruto"), 250, "e desce daí para o LUCRO BRUTO");
   eq(valorDe(r, "sub-total"), -90, "o Sub-Total perde a despesa");
-  eq(valorDe(r, "lucro-liquido"), 450, "e o LUCRO LIQUIDO sobe 200: a conta saiu do cálculo");
+  eq(valorDe(r, "resultado-operacional"), 220, "o RESULTADO OPERACIONAL se conserva: saiu de um lado, entrou do outro");
+  eq(valorDe(r, "lucro-liquido"), 250, "e o LUCRO LIQUIDO também — a conta mudou de lugar, não sumiu do cálculo");
+}
+
+// ── o caso exato do Gabriel: um crédito solto logo abaixo da RECEITA BRUTA ───
+//
+// Três âncoras separam essa posição da primeira que soma (ABAT./DESC., DEVOLUCAO, ST). O
+// crédito atravessa as três.
+{
+  const r = recalcular(mover(DRE, "credito", "receita-bruta"), DRE);
+
+  eq(valorDe(r, "abat-desc"), -100, "o ABAT./DESC. não recebe o crédito");
+  eq(valorDe(r, "st"), -30, "nem o ST");
+  eq(valorDe(r, "receitas-liquidas"), 910, "as RECEITAS LIQUIDAS recebem");
+  eq(valorDe(r, "lucro-bruto"), 510, "o LUCRO BRUTO sobe junto");
+  eq(valorDe(r, "subtotal-positivo"), 510, "e o SUBTOTAL POSITIVO chega ao mesmo lugar por outro caminho");
+  eq(valorDe(r, "lucro-liquido"), 250, "LUCRO LIQUIDO intacto");
 }
 
 // ── depois do LUCRO LIQUIDO não há âncora: a conta sai da conta ──────────────

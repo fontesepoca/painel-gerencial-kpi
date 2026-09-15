@@ -821,7 +821,7 @@ UTC−3).
 > existido explica o desenho de agora.
 
 A tabela é uma sequência de **âncoras fixas com encaixes entre elas**. Uma conta soma na
-**primeira linha calculada abaixo dela**, e a cascata segue daí.
+**primeira âncora abaixo dela que acumula um bloco**, e a cascata segue daí.
 
 **As linhas calculadas não se movem.** São elas que definem os blocos — mover uma
 redefiniria todos de uma vez, efeito grande demais para um arraste. O punho não existe
@@ -830,10 +830,25 @@ vazio: sem ele, `LUCRO BRUTO` e companhia saltariam 24px para a esquerda, e são
 elas que o olho usa como referência ao descer a tabela.
 
 **Conta pode ir a qualquer lugar**, inclusive para dentro do cabeçalho — decisão do Gabriel
-na mesma conversa. Largar uma despesa no encaixe do `CMV LIQ.` muda o `LUCRO BRUTO`; largar
-no encaixe de `ST`, `PIS` ou `COFINS`, ou depois do `LUCRO LIQUIDO`, **tira a conta de todos
-os totais**, porque essas âncoras não propagam. O modal avisa, e é o único caso que ainda sai
-em cor de alerta.
+na mesma conversa.
+
+**Sete âncoras são atravessadas**, e não recebem encaixe nenhum: `RECEITA BRUTA`,
+`ABAT./DESC.`, `DEVOLUCAO`, `ST`, `PIS`, `COFINS` e `CMV LIQ.`. Todas elas são números
+próprios do faturamento, não somas de um bloco. Uma conta solta em qualquer ponto do
+cabeçalho atravessa as que estiverem no caminho e cai nas `RECEITAS LIQUIDAS` — que é o que o
+rótulo do bloco promete a quem arrasta.
+
+> **Corrigido em 15/09/2026, encontrado pela tela.** Até esse dia elas recebiam encaixe como
+> qualquer âncora, e o resultado era pior do que um total errado: o Gabriel soltou
+> `VERBAS MARGEM` entre `RECEITA BRUTA` e `RECEITAS LIQUIDAS`, o `(-) ST` de janeiro encolheu
+> 922 mil, e **nenhum total se mexeu**. A tela passava a mostrar um imposto que não era o
+> imposto — um número sem nada contra o que ser conferido. Uma âncora calculada **sem papel**
+> também é atravessada, pelo mesmo motivo levado ao limite: ela não está na tabela de
+> propagação, e receber o encaixe faria o valor sumir dos totais em silêncio.
+
+Sobra um único destino que tira a conta de todos os totais: **abaixo do `LUCRO LIQUIDO`**, onde
+não há mais totalizador para recebê-la. O modal avisa, e é o único caso que ainda sai em cor
+de alerta.
 
 ### Onde a conta é feita, e o que a amarra
 
@@ -869,6 +884,9 @@ centavo de diferença, todas em `,xx5`.
   bloco é rearranjo de leitura. Antes ele abria em quase todo movimento.
 - Quando abre, ele lista **os totais afetados com o antes e o depois**. A pergunta que alguém
   precisa responder é "quanto muda, e em quê", e nenhum texto genérico responde isso.
+- E diz **em que totalizador a conta passa a somar**, pelo nome. Com as sete âncoras
+  atravessadas, a linha de cima e o total que recebe deixaram de ser vizinhos: *"vai parar
+  entre `(-) DEVOLUCAO` e `(-) ST`"* sozinho faria supor que a conta entra no ST.
 - Um aviso **permanente** marca que os totais estão personalizados, e ele **sai na impressão**:
   a ordem é local, e um print circula sem contexto nenhum.
 - *Restaurar ordem do cadastro* devolve os números da apuração.
@@ -877,9 +895,9 @@ O selo `FORA DO BLOCO` saiu. Ele marcava a linha que passou a *aparecer* longe d
 compõe — o descompasso entre a tela e a conta. Agora a conta acompanha a tela, e não há mais
 "fora do bloco".
 
-Conferido também pela [dc36](validacao/dc36_encaixes_da_reordenacao.mjs), 71 asserções sobre
-um DRE de brinquedo com números redondos: mover de bloco, mover dentro do bloco, largar numa
-informativa, e a composição sendo refeita pela posição.
+Conferido também pela [dc36](validacao/dc36_encaixes_da_reordenacao.mjs), 85 asserções sobre
+um DRE de brinquedo com números redondos: quem recebe o encaixe de cada posição, mover de
+bloco, mover dentro do bloco, soltar no cabeçalho, e a composição sendo refeita pela posição.
 
 <details>
 <summary>Como era até 14/09/2026 — e por que o texto mudou</summary>
