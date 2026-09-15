@@ -5,16 +5,41 @@
 --
 -- ── Por que os blocos 4 e 5 da dc29 voltaram vazios ──
 --
--- Não foi a variável de substituição. Olhe a condição que o painel antigo usa e que eu copiei:
+-- **A explicação que eu dei estava errada.** Eu disse que era o `NVL(CODBARRA, MATRICULA)`
+-- pulando a matrícula de quem tem código de barras. O bloco 1 daqui mostrou que a matrícula
+-- 4893 **não tem CODBARRA** e casa pela regra do painel: `PELA_REGRA_DO_PAINEL = 1`. Não foi
+-- isso. O mais provável é que a variável tenha ido vazia naquela execução.
 --
---     WHERE NOME_GUERRA = UPPER(:login) OR NVL(CODBARRA, MATRICULA) = UPPER(:login)
+-- O comportamento do `NVL` continua real — quem TEM código de barras nunca tem a matrícula
+-- testada —, só não foi o que aconteceu ali. Fica registrado como característica do painel
+-- antigo, não como diagnóstico daquele vazio.
 --
--- O `NVL` só chega na MATRÍCULA quando o `CODBARRA` é **nulo**. Quem tem código de barras
--- cadastrado nunca tem a matrícula testada — digitar o próprio número de matrícula não
--- autentica essa pessoa. Se você digitou `4893`, é exatamente isso que aconteceu, e o vazio
--- não é defeito da consulta: é o comportamento do painel antigo aparecendo.
+-- O bloco 1 mede por critério separado, em vez de devolver "achou/não achou": é o que permitiu
+-- saber qual das explicações era a certa.
 --
--- O bloco 1 desta dc31 mede isso por critério separado, em vez de devolver "achou/não achou".
+--
+-- ══ O QUE ESTA dc31 ENCONTROU ══
+--
+-- **1. Homônimo não é o problema — é o oposto do que eu procurava.** Nenhum `NOME_GUERRA`
+-- repetido tem duas pessoas com senha. O risco de alguém entrar na conta de um homônimo não
+-- existe hoje. Mas o `ROWNUM = 1` roda ANTES da verificação de senha: quando das duas linhas
+-- só uma tem senha, o sorteio pode devolver a que não tem, e aí **a pessoa certa, digitando a
+-- senha certa, não entra**. O defeito é de indisponibilidade, não de invasão.
+--
+-- **2. A colisão de verdade é NOME_GUERRA × MATRÍCULA: 44 casos.** Em muitos deles as duas
+-- pessoas têm senha — `774` é o nome de guerra de uma e a matrícula de outra, e `1002915` é o
+-- espelho exato do mesmo par. Digitar esse texto casa duas pessoas diferentes por ramos
+-- distintos do mesmo `OR`, e o `ROWNUM = 1` sem `ORDER BY` escolhe uma. O Oracle não promete
+-- ordem sem `ORDER BY`: a escolha pode mudar entre execuções, com o plano ou a estatística.
+--
+-- **3. Metade da base está inativa e tem senha.** `SITUACAO = 'I'` são 4.627 pessoas, 3.071
+-- delas com senha cadastrada. `DTDEMISSAO` quase não é preenchida (22 linhas na base inteira),
+-- então ela **não serve** como filtro — quem quiser barrar desligado precisa usar `SITUACAO`.
+-- Hoje **3.072 pessoas inativas entrariam**.
+--
+-- **4. PCLIB tem 8,4 milhões de linhas** (PCCONTRO 184.739, PCCONTROI 377.190). Ler por
+-- `CODFUNC` com os índices que já existem é barato; ler a tabela é impensável. Nenhum desenho
+-- pode carregar PCLIB inteira em memória.
 
 
 -- ── 1. por qual critério o texto digitado casa ───────────────────────────────
