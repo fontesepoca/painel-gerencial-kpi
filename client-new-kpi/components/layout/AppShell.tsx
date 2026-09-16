@@ -1,8 +1,10 @@
 "use client";
 
 import type { ReactNode } from "react";
+import Link from "next/link";
 import { useLeitura } from "@/context/LeituraProvider";
 import { useTema } from "@/context/TemaProvider";
+import { BotaoSair } from "./BotaoSair";
 
 /**
  * Casca da aplicação: sidebar estreita + header com trilha de navegação e os
@@ -24,9 +26,17 @@ export function AppShell({
         className="nao-imprime hidden shrink-0 flex-col items-center gap-2 border-r border-[var(--border)] bg-[var(--surface-1)] py-4 md:flex"
         style={{ width: "var(--sidebar-w-sm)" }}
       >
-        <div className="grid size-9 place-items-center rounded-[var(--radius-md)] bg-[var(--primary)] text-sm font-semibold text-white">
-          E
-        </div>
+        {/* O logo virou o caminho de volta para a tela inicial. Era o único elemento fixo da
+            casca, e é onde a mão procura primeiro — antes disto, sair de uma rotina exigia
+            editar a barra de endereço. */}
+        <Link
+          href="/"
+          title="Ir para a tela inicial"
+          className="grid size-9 place-items-center rounded-[var(--radius-md)] bg-[var(--primary)] text-sm font-semibold text-white transition-opacity hover:opacity-85"
+        >
+          <span aria-hidden>E</span>
+          <span className="sr-only">Época KPI — tela inicial</span>
+        </Link>
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
@@ -73,6 +83,7 @@ export function AppShell({
           <div className="ml-auto flex items-center gap-2 py-2">
             <InterruptorTema />
             <InterruptorLeitura />
+            <BotaoSair />
           </div>
         </header>
 

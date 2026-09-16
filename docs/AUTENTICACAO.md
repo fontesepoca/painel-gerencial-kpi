@@ -266,6 +266,81 @@ existente, e o `UPPER` cobre a minúscula que hoje não existe e amanhã alguém
 string que parecia certa em todo log e não casava com nada. Procurar por espaço antes de
 confiar numa comparação de texto virou reflexo daquele dia.)*
 
+## O BFF, a tela de login e a tela inicial
+
+Front, em 16/09/2026.
+
+| Arquivo | O quê |
+|---|---|
+| `lib/servidor/sessoes.ts` | o Map de sessões e o identificador opaco |
+| `lib/servidor/limiteDeTentativas.ts` | freio de força bruta |
+| `lib/destinoSeguro.ts` | valida o caminho de volta |
+| `app/api/sessao/route.ts` | `POST` entra · `GET` quem sou · `DELETE` sai |
+| `proxy.ts` | desvia quem chega sem cookie |
+| `app/login/` | a tela e o formulário |
+| `components/login/CeuDeEstrelas.tsx` · `lib/ceuDeEstrelas.ts` | o fundo |
+| `app/page.tsx` | a tela inicial com os atalhos |
+
+**O navegador nunca vê o token.** Ele manda usuário e senha para `/api/sessao`, que fala com a
+API e guarda o JWT na memória do Next; de volta vai só um identificador de 256 bits em cookie
+`HttpOnly`, `SameSite=Lax`. É `randomBytes(32)` e não `randomUUID`: um UUID v4 tem 122 bits e
+estrutura conhecida, e esse identificador é a única coisa entre um estranho e a sessão de
+alguém.
+
+**Reiniciar o Next derruba as sessões** — aceito em 14/09/2026. Com 28 pessoas e um servidor
+só, é um login a mais de vez em quando. Se houver mais de uma instância, `sessoes.ts` é o
+arquivo que vira Redis, e é por isso que ele é a única porta de entrada para a sessão.
+
+**O `proxy.ts` é uma verificação otimista.** Ele só olha se o cookie existe: roda antes da
+aplicação, num bundle separado, e não enxerga a memória onde as sessões vivem — a própria
+documentação do Next diz que ele não serve como gestão de sessão. Quem confere de verdade é o
+`/api/sessao` e os componentes de servidor. Um cookie forjado passa pelo desvio e encontra uma
+página que o manda de volta.
+
+> **Em Next 16 o arquivo chama-se `proxy.ts`.** O `middleware.ts` está depreciado — mesma
+> função, nome novo.
+
+**O caminho pedido volta depois do login.** Quem tenta `/dre-gerencial` sem sessão vai para
+`/login?destino=%2Fdre-gerencial` e, ao entrar, cai onde queria. Esse caminho vem da URL, então
+é texto de quem chegou: `destinoSeguro` aceita só caminhos internos. Sem isso, um link
+`/login?destino=https://sitequalquer.com` transformaria a nossa tela de login num trampolim —
+a pessoa digita a senha da Época e é despejada num site estranho já confiando no que vê.
+
+**Freio de tentativas:** 10 por janela de 5 minutos, por IP **e** nome digitado. Só por IP, um
+escritório atrás do mesmo NAT se trancaria junto; só por nome, quem conhece vários nomes
+contorna trocando de alvo. A contagem sobe antes de consultar o banco, senão quem dispara mil
+requisições sem ler as respostas passa livre.
+
+### O fundo de estrelas
+
+O Época Analytics faz isso com Three.js, `UnrealBloomPass` e mais três shaders, carregados de
+`unpkg.com` em tempo de execução dentro de um iframe — 404 linhas. Bonito, e com três coisas
+que não queremos herdar: um script de terceiro baixado toda vez que alguém abre a tela de
+**senha** (quem controlar aquele domínio controla a página), um contexto WebGL com
+pós-processamento para desenhar pontos, e código que nenhum teste alcança.
+
+Aqui são pontos num canvas 2D: mesma profundidade, mesma deriva lenta, mesma reação ao
+ponteiro, nada saindo da nossa origem. A aritmética está em `lib/ceuDeEstrelas.ts`, sem React
+e sem canvas, e é isso que permite testá-la — a dc40 roda dez minutos de animação em
+milissegundos e confere que nenhuma estrela escapou.
+
+O campo **para** quando a aba sai de foco, e **não se move** para quem pediu
+`prefers-reduced-motion` (o parallax continua, porque é movimento que a pessoa provocou com o
+próprio mouse). A tela de login é sempre escura, nos dois temas: o campo de estrelas
+desapareceria no tema claro, e adaptá-lo seria inventar um segundo efeito para uma tela que se
+vê por dez segundos.
+
+### Conferido na tela
+
+`/dre-gerencial` sem sessão desvia para `/login?destino=%2Fdre-gerencial`; a mensagem da API
+chega à tela e a senha é limpa; o parallax responde ao ponteiro (medido pelo centro de massa
+do canvas, não no olho); a 11ª tentativa seguida recebe `429`; a tela cabe em 375px e continua
+escura com o tema claro ligado. Console sem erros.
+
+A [dc40](validacao/dc40_login_e_ceu.mjs) cobre as duas partes que erram em silêncio, com 35
+asserções: as formas de escapar do site pelo `destino` e a aritmética do céu — inclusive que
+60 Hz e 144 Hz percorrem o mesmo caminho em um segundo.
+
 ### O que ainda não está ligado
 
 **As rotas do DRE não exigem token.** `UseAuthentication` e `UseAuthorization` estão no

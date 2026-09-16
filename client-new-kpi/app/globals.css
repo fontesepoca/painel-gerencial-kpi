@@ -1463,3 +1463,80 @@ html[data-tema="claro"] .tabela-rolagem thead th.faixa-mes-4 {
     background-image: none;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   TELA DE LOGIN
+
+   Os campos aqui não reaproveitam os da tela de filtros: lá eles vivem numa
+   barra densa, com altura reduzida e fundo opaco; aqui estão sobre vidro, com
+   o campo de estrelas atrás, e precisam de contraste próprio para o texto
+   digitado não brigar com o que passa por trás.
+   ═══════════════════════════════════════════════════════════════ */
+
+.campo-login {
+  width: 100%;
+  height: var(--altura-controle);
+  padding-inline: 0.875rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-strong);
+  /* Opaco de propósito, e não translúcido como o cartão: texto digitado sobre
+     estrelas em movimento é desconfortável de ler, e senha é o pior lugar
+     possível para a pessoa duvidar do que digitou. */
+  background: var(--surface-2);
+  color: var(--text-primary);
+  font-size: var(--fs-base);
+  font-family: var(--font-ui);
+  transition:
+    border-color var(--dur-instant),
+    box-shadow var(--dur-instant);
+}
+
+.campo-login::placeholder {
+  color: var(--text-muted);
+}
+
+.campo-login:focus {
+  outline: none;
+  border-color: var(--primary);
+  /* O anel vem do token do tema, o mesmo dos outros controles: o foco tem de
+     ser reconhecível como o foco do sistema, não como um efeito desta tela. */
+  box-shadow: 0 0 0 3px var(--primary-ring);
+}
+
+/* Preenchimento automático do navegador: o Chrome pinta o campo de amarelo e
+   ignora `background`. A sombra interna é o único jeito de repintar sem quebrar
+   o autofill — e sem ela o campo fica ilegível sobre o tema escuro. */
+.campo-login:-webkit-autofill,
+.campo-login:-webkit-autofill:hover,
+.campo-login:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--text-primary);
+  -webkit-box-shadow: 0 0 0 1000px var(--surface-2) inset;
+  caret-color: var(--text-primary);
+}
+
+/* A TELA DE LOGIN É SEMPRE ESCURA, nos dois temas.
+
+   O campo de estrelas é pontos claros sobre fundo escuro — no tema claro ele
+   desapareceria, e o cartão de vidro ficaria um retângulo cinza sobre branco.
+   Adaptar o efeito ao tema claro seria inventar um segundo efeito para uma tela
+   que a pessoa vê por dez segundos.
+
+   É escolha, não esquecimento: a entrada tem identidade própria, e o tema do
+   usuário volta a valer assim que ele entra. Os tokens são redefinidos no
+   escopo da tela, então os componentes continuam lendo as mesmas variáveis e
+   nenhum deles precisa saber que está no login. */
+.tela-login {
+  --bg: #080d1a;
+  --surface-1: #0c1220;
+  --surface-2: #101828;
+  --surface-3: #1a2540;
+  --border: rgb(255 255 255 / 0.06);
+  --border-strong: rgb(255 255 255 / 0.11);
+  --text-primary: #f1f5f9;
+  --text-secondary: #94a3b8;
+  --text-muted: #7c8da5;
+
+  background: var(--bg);
+  color: var(--text-primary);
+  color-scheme: dark;
+}
