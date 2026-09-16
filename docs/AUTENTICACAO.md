@@ -203,6 +203,47 @@ aqui não vale, porque o sistema é interno, quem digita já é funcionário, e 
 nunca escondeu isso. O custo de 2.810 pessoas presas numa mensagem que não explica nada é
 maior que o de um funcionário descobrir que uma matrícula não tem senha.
 
+## O que está implementado
+
+Back-end, em 16/09/2026. O front ainda não tem tela de login.
+
+| Arquivo | O quê |
+|---|---|
+| `Infrastructure/Persistence/Queries/AutenticacaoQueries.cs` | as duas consultas, e as constantes `Rotina = 9815` / `ControleGuiaDre = 3` |
+| `Domain/Entities/CredenciaisWinthor.cs` | o diagnóstico que o banco devolve |
+| `Infrastructure/.../AutenticacaoRepository.cs` | leitura, e a recusa quando há homônimo |
+| `Application/Features/Autenticacao/AutenticacaoService.cs` | a regra, na ordem das mensagens |
+| `.../MotivoDaRecusa.cs` | os quatro motivos e o que a pessoa lê |
+| `.../GeradorDeToken.cs` · `OpcoesDeToken.cs` | emissão do JWT |
+| `Configurations/AutenticacaoConfiguration.cs` | validação do token nas requisições |
+| `Controllers/AutenticacaoController.cs` | `POST /api/auth/login` · `GET /api/auth/eu` |
+
+**A senha é conferida dentro do Oracle.** O `DECRYPT` devolveria a senha em texto, e trazê-la
+para a aplicação a colocaria na memória do processo — num objeto que pode acabar num dump ou
+num log de exceção. O que atravessa a fronteira é um `'S'` ou `'N'`.
+
+**Uma consulta só, com diagnóstico.** Senha, situação, rotina e controle vêm juntos em colunas
+separadas. É o que permite as quatro mensagens distintas sem quatro idas ao banco.
+
+**Homônimo não é desempatado: é recusado.** Se `NOME_GUERRA` trouxer duas linhas, ninguém
+entra. O banco não sabe qual das duas está digitando, e escolher seria entregar a conta de
+alguém. Hoje não acontece (dc31), e é por ser raro que precisa estar tratado — quando
+acontecer, ninguém vai lembrar desta decisão.
+
+**Configuração:** a seção `Jwt` do appsettings. A chave tem mínimo de 32 caracteres e é
+validada **no boot** — chave ausente descoberta no primeiro login vira um 500 numa tela de
+login, e ninguém liga isso a uma variável esquecida no deploy. Formato em
+`appsettings.example.json`; gere a sua com `openssl rand -base64 48`.
+
+### O que ainda não está ligado
+
+**As rotas do DRE não exigem token.** `UseAuthentication` e `UseAuthorization` estão no
+pipeline, mas nenhum endpoint do DRE tem `[Authorize]` — ligar agora derrubaria o front, que
+não manda credencial nenhuma. Isso entra junto com a tela de login.
+
+**A apuração ainda aceita qualquer filial** que o corpo da requisição pedir. As filiais já
+viajam no token; passar a exigi-las é o passo seguinte, e é o que fecha o furo.
+
 ## Desenho da sessão
 
 Decidido em 14/09/2026, antes do levantamento, e nada no banco o contradisse:
