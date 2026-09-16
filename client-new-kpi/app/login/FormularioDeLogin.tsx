@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { destinoSeguro } from "@/lib/destinoSeguro";
 
@@ -11,7 +11,6 @@ import { destinoSeguro } from "@/lib/destinoSeguro";
  * mantém o token fora do navegador: aqui nem existe a palavra "token".
  */
 export function FormularioDeLogin() {
-  const router = useRouter();
   const parametros = useSearchParams();
 
   const [login, setLogin] = useState("");
@@ -47,11 +46,15 @@ export function FormularioDeLogin() {
       // De volta para onde a pessoa ia antes de ser desviada — validado, porque veio da URL.
       const destino = destinoSeguro(parametros.get("destino"));
 
-      // `refresh` antes do `push`: os componentes de servidor precisam ser renderizados de
-      // novo já com o cookie novo, senão a tela de destino aparece como se não houvesse
-      // sessão e o proxy manda de volta para o login.
-      router.refresh();
-      router.push(destino);
+      // NAVEGAÇÃO DURA, pelo mesmo motivo do "Sair": a sessão que acabou de começar tem de
+      // encontrar um cliente limpo. Se sobrasse no cache do React Query a sessão de quem usou
+      // este navegador antes, o menu mostraria o nome errado — e `router.push` sozinho não
+      // limparia nada disso.
+      //
+      // Também é o jeito mais confiável de a tela de destino nascer no servidor já com o
+      // cookie novo. Com `refresh()` + `push()` as duas coisas corriam em paralelo, e era
+      // esse par que derrubava o canal de depuração do hot-reload em desenvolvimento.
+      window.location.replace(destino);
     } catch {
       setErro("Não foi possível falar com o servidor. Tente de novo.");
       setSenha("");

@@ -1,6 +1,5 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useEffect, useId, useRef, useState } from "react";
 import { useSessao } from "@/hooks/useSessao";
 import { iniciais } from "@/lib/iniciais";
@@ -19,7 +18,6 @@ import { cn } from "@/lib/cn";
  * olha primeiro, sem abrir o Winthor.
  */
 export function MenuDoUsuario() {
-  const router = useRouter();
   const { data: usuario, isPending } = useSessao();
 
   const [aberto, setAberto] = useState(false);
@@ -62,10 +60,20 @@ export function MenuDoUsuario() {
     try {
       await fetch("/api/sessao", { method: "DELETE" });
     } finally {
-      // Vai para o login mesmo se a chamada falhar: o pior desfecho é a sessão continuar viva
-      // no servidor até expirar, e manter a pessoa numa tela logada por cima disso não ajuda.
-      router.refresh();
-      router.push("/login");
+      // NAVEGAÇÃO DURA, e não `router.push`.
+      //
+      // Sair tem de apagar o estado do cliente, não só o cookie. O React Query guarda a
+      // sessão com `staleTime: Infinity` — se a próxima pessoa entrasse neste mesmo navegador
+      // sem recarregar a página, o menu mostraria o nome de quem saiu. Identidade errada no
+      // canto da tela é o tipo de defeito que ninguém reporta e todo mundo vê.
+      //
+      // `replace` e não `assign`: a tela de onde a pessoa saiu não deve voltar com o botão
+      // "voltar" do navegador.
+      //
+      // (De quebra, isto evita o `refresh()` seguido de `push()`, que em desenvolvimento
+      // derrubava o canal de depuração do hot-reload do Next no meio — o "Cannot close a
+      // CLOSED writable stream" que aparecia no terminal ao sair.)
+      window.location.replace("/login");
     }
   }
 
