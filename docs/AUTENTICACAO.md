@@ -1,7 +1,8 @@
 # Autenticação e permissões
 
-> **Estado:** Fase A (levantamento) quase fechada. Falta a [dc38](validacao/dc38_efeito_das_duas_decisoes.sql).
-> Nenhuma linha de código de autenticação escrita ainda — de propósito.
+> **Estado:** Fase A (levantamento) **fechada** em 16/09/2026. Todas as decisões abaixo estão
+> tomadas e medidas contra o banco. Nenhuma linha de código de autenticação escrita ainda — de
+> propósito: o levantamento mudou o desenho três vezes, e cada mudança teria virado reescrita.
 
 A versão web reaproveita **o cadastro de acesso do Winthor**: as mesmas pessoas, as mesmas
 senhas, as mesmas filiais. Ninguém cria conta, ninguém escolhe senha nova, e quem sai da
@@ -67,6 +68,9 @@ Medido pela [dc39](validacao/dc39_permissao_da_9815.sql) em 16/09/2026:
 | Têm o **controle 3** liberado | **37** — e 126 com ele explicitamente negado |
 | Rotina **e** controle | 36 |
 | **Entram de fato**, depois de nome de guerra, senha e situação | **28** |
+
+São **28 pessoas no primeiro dia**. É o número a usar para dimensionar qualquer coisa —
+sessões simultâneas, cache, carga no Oracle.
 
 A restrição real mora no controle 3, não na rotina: quase todo mundo pode abrir a 9815, e a
 guia DRE é de poucos. Reaproveitar essa permissão herda um recorte que alguém já pensou — é o
@@ -161,19 +165,30 @@ digitando a senha certa, não entra. O defeito é de indisponibilidade, não de 
 Se a dc38 confirmar que entre ativos com senha não há `NOME_GUERRA` repetido, o `ROWNUM` sai
 do código **sem substituto**: não há empate para desempatar.
 
-### 3. Só entra quem está com `SITUACAO = 'A'` — **em revisão**
+### 3. Só entra quem está com `SITUACAO = 'A'`
 
-> ⚠ **Esta regra está sob suspeita desde 16/09/2026, e não deve virar código antes de ser
-> confirmada.** Das 36 pessoas com a 9815 e o controle 3, **8 seriam barradas, todas e somente
-> por esta regra** — as 36 têm nome de guerra e senha.
->
-> O problema: `ELIAS` e `HAFFES` estão com `SITUACAO = 'I'` e são duas das nove pessoas que
-> têm o **Painel Gerencial (9995)** liberado hoje. Gente com acesso a painel gerencial não
-> costuma ser gente que foi embora. Se elas trabalham aqui, então `'I'` não quer dizer
-> "desligado", e esta regra tranca justamente quem precisa entrar.
->
-> A dc38 §1 lista as oito. **A resposta tem de vir do Gabriel olhando a lista** — o banco não
-> ajuda: `DTDEMISSAO` tem 22 linhas preenchidas em 8.393.
+**Confirmada pelo Gabriel em 16/09/2026, depois de ver quem seria barrado.** Das 36 pessoas com
+a 9815 e o controle 3, **oito ficam de fora, todas e somente por esta regra** — as 36 têm nome
+de guerra e senha. São elas:
+
+`ELIAS` · `HAFFES` · `HIAGO` · `LEONARDOVIEIRA` · `MARIACIVIS` · `MENDESS` · `RAYANES` ·
+`WEBERTH.FONTES`
+
+Duas ressalvas ficam registradas, porque a decisão foi tomada apesar delas e não por
+ignorá-las:
+
+- **`ELIAS` e `HAFFES` têm o Painel Gerencial (9995) liberado hoje** — estão entre as nove
+  pessoas com acesso a ele.
+- **O cadastro se contradiz.** Nenhuma das oito tem `DTDEMISSAO` ou `OBSINATIVO` preenchido, e
+  em três casos (`ELIAS`, `HIAGO`, `WEBERTH.FONTES`) o campo `SITUACAO_CCW` diz `'A'` enquanto
+  o `SITUACAO` diz `'I'`.
+
+Se alguma dessas pessoas precisar entrar, o sintoma será **"seu cadastro está inativo"** na tela
+de login — a mensagem própria existe justamente para esse diagnóstico ser imediato, em vez de
+virar "esqueci minha senha". A correção é no cadastro do `PCEMPR`, não no código.
+
+O assunto foi encerrado a pedido do Gabriel; a dc38 §1 e §1.1 continuam no repositório para
+quem precisar reabri-lo.
 
 O painel antigo não filtra nada: a única condição é a senha bater. Hoje **3.072 pessoas
 inativas com senha entrariam**. `DTDEMISSAO` não serve de filtro — tem 22 linhas preenchidas na
