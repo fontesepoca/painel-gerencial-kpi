@@ -280,6 +280,14 @@ Front, em 16/09/2026.
 | `app/login/` | a tela e o formulário |
 | `components/login/CeuDeEstrelas.tsx` · `lib/ceuDeEstrelas.ts` | o fundo |
 | `app/page.tsx` | a tela inicial com os atalhos |
+| `components/layout/MenuDoUsuario.tsx` · `hooks/useSessao.ts` | quem está logado, no canto superior direito |
+
+**O menu do usuário é um só para as duas telas.** Ele busca a sessão sozinho em vez de
+recebê-la por propriedade: assim não existe uma tela dizendo uma coisa e outra dizendo outra,
+e a terceira rotina não vai exigir que alguém lembre de passar o usuário por mais um nível de
+componentes. O painel mostra **matrícula e filiais** porque é o que decide o que a pessoa
+consegue apurar — quando alguém reclama que "a filial 12 não aparece", é o primeiro lugar a
+olhar, sem abrir o Winthor.
 
 **O navegador nunca vê o token.** Ele manda usuário e senha para `/api/sessao`, que fala com a
 API e guarda o JWT na memória do Next; de volta vai só um identificador de 256 bits em cookie
@@ -337,7 +345,7 @@ chega à tela e a senha é limpa; o parallax responde ao ponteiro (medido pelo c
 do canvas, não no olho); a 11ª tentativa seguida recebe `429`; a tela cabe em 375px e continua
 escura com o tema claro ligado. Console sem erros.
 
-A [dc40](validacao/dc40_login_e_ceu.mjs) cobre as duas partes que erram em silêncio, com 35
+A [dc40](validacao/dc40_login_e_ceu.mjs) cobre as partes que erram em silêncio, com 42
 asserções: as formas de escapar do site pelo `destino` e a aritmética do céu — inclusive que
 60 Hz e 144 Hz percorrem o mesmo caminho em um segundo.
 

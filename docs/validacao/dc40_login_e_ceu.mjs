@@ -24,6 +24,7 @@ import {
   raio,
   semear,
 } from "@/lib/ceuDeEstrelas.ts";
+import { iniciais } from "@/lib/iniciais.ts";
 
 let n = 0;
 const eq = (achou, esperado, oque) => {
@@ -156,5 +157,18 @@ ok(
   const b = semear({ quantidade: 3, aleatorio: fixo });
   eq(a, b, "mesma semente, mesmo céu");
 }
+
+// ── as iniciais do avatar ────────────────────────────────────────────────────
+//
+// Duas letras no canto da tela, e ainda assim o lugar onde um nome estranho aparece feio para
+// sempre. Os casos abaixo são todos de nomes reais do PCEMPR.
+eq(iniciais("GABRIEL HENRIQUE COELHO FREITAS"), "GF", "primeira e última palavra");
+eq(iniciais("MARCILEY"), "M", "nome de uma palavra só dá uma letra, não uma repetida");
+eq(iniciais("JOSE DA SILVA"), "JS", "as partículas do meio não contam");
+eq(iniciais("MARIA DAS GRAÇAS"), "MG", "idem, com acento no fim");
+eq(iniciais("  ESDRAS   BORGES  "), "EB", "espaço sobrando não vira letra");
+// Quem não tem nome completo cai no nome de guerra, que sempre existe para quem entrou.
+eq(iniciais("", "VENDA_DIRETA"), "VE", "nome vazio recorre à alternativa");
+eq(iniciais("de da dos", "H"), "H", "só partículas também recorre");
 
 console.log(`✓ ${n} conferências`);

@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { useLeitura } from "@/context/LeituraProvider";
 import { useTema } from "@/context/TemaProvider";
-import { BotaoSair } from "./BotaoSair";
+import { MenuDoUsuario } from "./MenuDoUsuario";
 
 /**
  * Casca da aplicação: sidebar estreita + header com trilha de navegação e os
@@ -83,7 +83,12 @@ export function AppShell({
           <div className="ml-auto flex items-center gap-2 py-2">
             <InterruptorTema />
             <InterruptorLeitura />
-            <BotaoSair />
+
+            {/* Separador: o menu do usuário é de outra natureza que os interruptores — um
+                controla a sessão, os outros a aparência. Sem a divisão, os três viram uma
+                fileira de botões sem hierarquia. */}
+            <span aria-hidden className="mx-1 h-6 w-px bg-[var(--border-strong)]" />
+            <MenuDoUsuario />
           </div>
         </header>
 
