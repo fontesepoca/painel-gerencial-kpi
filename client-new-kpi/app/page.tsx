@@ -34,7 +34,7 @@ export default async function Home() {
           E
         </span>
         <span className="text-[length:var(--fs-base)] font-semibold text-[var(--text-primary)]">
-          Época KPI
+          Época Analytics
         </span>
 
         <div className="ml-auto flex items-center gap-2">

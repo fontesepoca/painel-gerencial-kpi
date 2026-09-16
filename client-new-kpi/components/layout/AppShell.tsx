@@ -34,7 +34,7 @@ export function AppShell({
           className="grid size-9 place-items-center rounded-[var(--radius-md)] bg-[var(--primary)] text-sm font-semibold text-white transition-opacity hover:opacity-85"
         >
           <span aria-hidden>E</span>
-          <span className="sr-only">Época KPI — tela inicial</span>
+          <span className="sr-only">Época Analytics — tela inicial</span>
         </Link>
       </aside>
 

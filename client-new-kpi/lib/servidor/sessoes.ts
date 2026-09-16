@@ -35,7 +35,7 @@ export interface UsuarioDaSessao {
 /** O que pode ser entregue ao navegador: tudo menos o token. */
 export type SessaoPublica = Omit<Sessao, "token">;
 
-export const NOME_DO_COOKIE = "epoca_kpi_sessao";
+export const NOME_DO_COOKIE = "epoca_analytics_sessao";
 
 /**
  * O Map vive em `globalThis` de propósito.
@@ -46,10 +46,10 @@ export const NOME_DO_COOKIE = "epoca_kpi_sessao";
  * em produção não muda nada: o módulo carrega uma vez só.
  */
 const global = globalThis as typeof globalThis & {
-  __sessoesEpocaKpi?: Map<string, Sessao>;
+  __sessoesEpocaAnalytics?: Map<string, Sessao>;
 };
 
-const sessoes = (global.__sessoesEpocaKpi ??= new Map<string, Sessao>());
+const sessoes = (global.__sessoesEpocaAnalytics ??= new Map<string, Sessao>());
 
 /**
  * Cria a sessão e devolve o identificador que vai no cookie.

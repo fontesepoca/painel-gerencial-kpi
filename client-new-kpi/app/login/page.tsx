@@ -5,7 +5,7 @@ import { ControlesDeExibicao } from "@/components/layout/ControlesDeExibicao";
 import { FormularioDeLogin } from "./FormularioDeLogin";
 
 export const metadata: Metadata = {
-  title: "Entrar · Época KPI",
+  title: "Entrar · Época Analytics",
 };
 
 /**
@@ -47,7 +47,7 @@ export default function LoginPage() {
           </span>
           <div className="flex flex-col gap-1">
             <h1 className="text-[length:var(--fs-titulo)] font-semibold text-[var(--text-primary)]">
-              Época KPI
+              Época Analytics
             </h1>
             <p className="text-[length:var(--fs-apoio)] text-[var(--text-secondary)]">
               Entre com o seu usuário do Winthor

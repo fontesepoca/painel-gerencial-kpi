@@ -24,10 +24,10 @@ const JANELA_MS = 5 * 60 * 1000;
 const MAXIMO_POR_JANELA = 10;
 
 const global = globalThis as typeof globalThis & {
-  __tentativasEpocaKpi?: Map<string, Janela>;
+  __tentativasEpocaAnalytics?: Map<string, Janela>;
 };
 
-const janelas = (global.__tentativasEpocaKpi ??= new Map<string, Janela>());
+const janelas = (global.__tentativasEpocaAnalytics ??= new Map<string, Janela>());
 
 export interface ResultadoDoFreio {
   readonly liberado: boolean;

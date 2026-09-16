@@ -518,9 +518,16 @@ function Segmentado({
 }
 
 /**
- * Multisseleção de filiais, agrupada por empresa. Vêm do cadastro, menos as que têm
- * dados em outra base — ver `docs/DIVERGENCIAS.md`. No Winthor essa escolha acontecia
- * numa tela separada, antes de abrir a rotina.
+ * Multisseleção de filiais. No Winthor essa escolha acontecia numa tela separada, antes de
+ * abrir a rotina.
+ *
+ * <b>A lista já vem recortada pelo que a pessoa logada pode apurar</b> — o cruzamento com o
+ * `PCLIB` acontece no `useFiliais`. Aqui não há filtro nenhum: o que chega é o que se mostra.
+ *
+ * <b>Sem agrupamento por empresa</b>, desde 16/09/2026. Os cabeçalhos `EPC`, `FUT` e companhia
+ * faziam sentido quando a lista era o cadastro inteiro e passava de vinte linhas; com o
+ * recorte do usuário sobram poucas filiais, e os títulos passaram a ocupar mais altura que as
+ * opções que separavam.
  */
 function SeletorFiliais({
   filiais,
@@ -569,7 +576,6 @@ function SeletorFiliais({
             "1 filial")
           : `${selecionadas.length} filiais`;
 
-  const empresas = [...new Set(filiais.map((f) => f.empresa))];
 
   return (
     <div ref={caixa} className="relative">
@@ -607,32 +613,31 @@ function SeletorFiliais({
             <AcaoRapida onClick={() => onMudar([])}>Nenhuma</AcaoRapida>
           </div>
 
-          {empresas.map((empresa) => (
-            <div key={empresa} className="mb-1">
-              <p className="px-2 py-1 text-[length:var(--fs-rotulo)] font-semibold tracking-[0.14em] text-[var(--text-muted)] uppercase">
-                {empresa}
-              </p>
-              {filiais
-                .filter((f) => f.empresa === empresa)
-                .map((f) => (
-                  <label
-                    key={f.codFilial}
-                    className="flex cursor-pointer items-center gap-3 rounded-[var(--radius-sm)] px-2 py-[var(--celula-y)] text-[length:var(--fs-base)] hover:bg-[var(--surface-3)]"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={selecionadas.includes(f.codFilial)}
-                      onChange={() => alternar(f.codFilial)}
-                      className="size-4 accent-[var(--primary)]"
-                    />
-                    <span className="flex-1 truncate">{f.label}</span>
-                    <span className="tabular text-[length:var(--fs-apoio)] text-[var(--text-muted)]">
-                      {f.codFilial}
-                    </span>
-                  </label>
-                ))}
-            </div>
+          {filiais.map((f) => (
+            <label
+              key={f.codFilial}
+              className="flex cursor-pointer items-center gap-3 rounded-[var(--radius-sm)] px-2 py-[var(--celula-y)] text-[length:var(--fs-base)] hover:bg-[var(--surface-3)]"
+            >
+              <input
+                type="checkbox"
+                checked={selecionadas.includes(f.codFilial)}
+                onChange={() => alternar(f.codFilial)}
+                className="size-4 accent-[var(--primary)]"
+              />
+              <span className="flex-1 truncate">{f.label}</span>
+              <span className="tabular text-[length:var(--fs-apoio)] text-[var(--text-muted)]">
+                {f.codFilial}
+              </span>
+            </label>
           ))}
+
+          {/* Lista vazia com a sessão carregada significa PCLIB sem filial liberada. A tela
+              precisa dizer isso, senão o campo parece quebrado. */}
+          {!carregando && filiais.length === 0 && (
+            <p className="px-2 py-3 text-[length:var(--fs-apoio)] leading-relaxed text-[var(--text-muted)]">
+              Nenhuma filial liberada para o seu usuário no Winthor.
+            </p>
+          )}
         </div>
       )}
     </div>

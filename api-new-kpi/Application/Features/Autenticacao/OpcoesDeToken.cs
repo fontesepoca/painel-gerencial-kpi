@@ -17,9 +17,9 @@ public sealed class OpcoesDeToken
     /// </summary>
     public string Chave { get; set; } = string.Empty;
 
-    public string Emissor { get; set; } = "epoca-kpi-api";
+    public string Emissor { get; set; } = "epoca-analytics-api";
 
-    public string Audiencia { get; set; } = "epoca-kpi";
+    public string Audiencia { get; set; } = "epoca-analytics";
 
     /// <summary>
     /// Validade do token, em minutos.
