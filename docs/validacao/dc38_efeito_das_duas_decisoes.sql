@@ -49,6 +49,31 @@ SELECT E.MATRICULA,
  ORDER BY E.NOME_GUERRA;
 
 
+-- ── 1.1 as duas colunas de situação discordam — quanto? ──────────────────────
+--
+-- A lista das oito, em 16/09/2026, veio assim:
+--
+--   ELIAS · HIAGO · WEBERTH.FONTES          SITUACAO = 'I'   SITUACAO_CCW = 'A'
+--   HAFFES · LEONARDOVIEIRA · MARIACIVIS
+--   MENDESS · RAYANES                       SITUACAO = 'I'   SITUACAO_CCW = vazio
+--
+-- Nenhuma delas tem `DTDEMISSAO` ou `OBSINATIVO` preenchido. O cadastro não registra que essas
+-- pessoas saíram: tem um 'I' num campo, e em três casos **outro campo do mesmo cadastro diz
+-- 'A'**.
+--
+-- Antes de barrar alguém por `SITUACAO`, preciso saber se essa discordância é exceção ou
+-- regra. Se metade da base tiver as duas colunas divergindo, nenhuma das duas descreve o que
+-- achamos que descreve, e o filtro inteiro perde o chão.
+SELECT NVL(SITUACAO, '(nulo)')                                AS SITUACAO,
+       NVL(SITUACAO_CCW, '(nulo)')                            AS SITUACAO_CCW,
+       COUNT(*)                                               AS PESSOAS,
+       SUM(CASE WHEN SENHABD IS NOT NULL THEN 1 ELSE 0 END)   AS COM_SENHA,
+       SUM(CASE WHEN DTDEMISSAO IS NOT NULL THEN 1 ELSE 0 END) AS COM_DEMISSAO
+  FROM PCEMPR
+ GROUP BY SITUACAO, SITUACAO_CCW
+ ORDER BY PESSOAS DESC;
+
+
 -- ── 2. quem perde o acesso por NÃO TER NOME_GUERRA ───────────────────────────
 -- A decisão 1 tem um custo: quem entra hoje digitando a matrícula, e não tem nome de guerra
 -- preenchido, deixa de ter por onde entrar. Quero saber se é um punhado ou uma multidão —
