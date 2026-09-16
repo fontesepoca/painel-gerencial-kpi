@@ -47,11 +47,15 @@ um deles, e o esquecido é sempre o que ninguém olha.
 A regra do login, inteira:
 
 ```
-PCCONTRO  (9815, ACESSO = 'S')        →  pode abrir a rotina
-PCCONTROI (9815, <controle da guia DRE>, ACESSO = 'S')  →  pode ver o DRE
+PCCONTRO  (9815, ACESSO = 'S')           →  pode abrir a rotina
+PCCONTROI (9815, controle 3, ACESSO='S') →  GUIA 4-DRE: pode ver o DRE
 PCEMPR    NOME_GUERRA preenchido, SENHABD preenchida, SITUACAO = 'A'
-PCLIB     (CODTABELA = 1)             →  as filiais que ele pode apurar
+PCLIB     (CODTABELA = 1)                →  as filiais que ele pode apurar
 ```
+
+O **3** veio da tela da rotina 530 em 16/09/2026 — `GUIA 4-DRE`, entre os 43 controles da
+9815. Registrado aqui porque o banco não guarda essa descrição: em `PCCONTROI` ele é só o
+número 3.
 
 **Nada é cadastrado por nós.** Some a rotina 530 do caminho, e some junto o risco de escolher
 um `CODCONTROLE` que colidisse com outra coisa.
@@ -62,14 +66,34 @@ um `CODCONTROLE` que colidisse com outra coisa.
 > — o que a dc31 confirmou. Ele continua sendo o plano B se a 9815 não tiver um controle que
 > corresponda à guia DRE.
 
+### O controle 46 — a lucratividade
+
+A mesma tela da 530 mostrou um segundo controle com "DRE" no nome:
+
+> **46 — Permite visualizar Lucratividade no DRE**
+
+**Isto é escopo novo, e é o tipo que passa despercebido.** A 9815 esconde alguma coisa de quem
+não tem o 46; a nossa tela mostra tudo para todo mundo. Reaproveitar a permissão da 9815 e ao
+mesmo tempo exibir mais do que ela exibe é o oposto exato do que a decisão de reaproveitar
+queria garantir — e o vazamento não apareceria em teste nenhum, porque quem testa tem acesso a
+tudo.
+
+Não há **uma única menção** a "lucratividade" no projeto: nem no levantamento da rotina, nem no
+código, nem nas planilhas de conferência. Então uma de três: ela está numa parte do DRE que
+migramos sem saber que era controlada; tem outro nome aqui; ou não está na guia 4-DRE e o
+controle se refere a outra tela.
+
+Pendente: **o que o 46 esconde**, visto na 9815 com um usuário que não o tenha. A
+[dc39](validacao/dc39_permissao_da_9815.sql) §6 mede quantas pessoas têm a guia e não têm a
+lucratividade — se der zero, o ponto é teórico hoje, mas continua sendo dívida: basta alguém
+tirar o 46 de uma pessoa na 530 para a web divergir do Winthor em silêncio.
+
 ### O que ainda não sabemos
 
-**Qual `CODCONTROLE` é a guia DRE.** O banco não sabe responder: a `PCROTINA` não guarda
-descrição de controle, então o significado de cada número está na **rotina 530, na tela**. A
-[dc39](validacao/dc39_permissao_da_9815.sql) levanta os candidatos com a contagem de usuários
-de cada um — o controle que abre a rotina tende a ter quase todo mundo liberado, e o de uma
-guia específica, menos gente. Serve para conferir se o número que vier da 530 faz sentido com
-o uso real, não para adivinhá-lo.
+**Os outros 41 controles.** O filtro da 530 foi a palavra "DRE", e a 9815 tem 43 controles.
+Pode haver outro que afete a guia sem ter "DRE" no nome — algo como "permite visualizar custo"
+ou "permite exportar". Vale olhar a lista inteira uma vez, agora, em vez de descobrir um a um
+quando alguém reclamar.
 
 **Se o duplo clique tem controle próprio.** A decisão anterior o separava porque ele mostra
 cliente, nota e lançamento individual — outro nível de exposição que o total de uma linha — e

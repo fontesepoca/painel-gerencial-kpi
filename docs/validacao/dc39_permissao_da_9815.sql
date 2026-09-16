@@ -61,9 +61,9 @@ SELECT C.CODUSUARIO,
 -- Rotina liberada + controle liberado + nome de guerra + senha + situação ativa. É a regra
 -- inteira do login, escrita uma vez.
 --
--- Troque o `&&controle_dre` pelo número que a 530 mostrar para a guia DRE. Enquanto ele não
--- vier, rode com o valor 1 só para ver o formato do resultado — sabendo que o número está
--- chutado e a lista não vale.
+-- O `&&controle_dre` é **3** — `GUIA 4-DRE`, confirmado na tela da 530 em 16/09/2026. A
+-- variável fica no lugar do número para o arquivo poder ser reaproveitado em outra rotina, e
+-- para o 3 aparecer uma vez só, aqui neste comentário, em vez de espalhado pelas consultas.
 SELECT E.MATRICULA,
        E.NOME_GUERRA,
        E.SITUACAO,
@@ -109,3 +109,52 @@ SELECT CODIGO, NOMEROTINA, CODMODULO, CODSUBMODULO, ROTINAWEB, ROTINA,
 -- **detalhamento, consulta de lançamentos ou algo equivalente** — se houver, o duplo clique
 -- passa a depender dele; se não houver, quem abre o DRE detalha, e isso vira consequência
 -- registrada, não esquecimento.
+
+
+-- ══════════════════════════════════════════════════════════════════════════════
+-- 6. O CONTROLE 46 — "Permite visualizar Lucratividade no DRE"
+-- ══════════════════════════════════════════════════════════════════════════════
+--
+-- A 530 respondeu o que eu perguntei e mais uma coisa. Filtrando por "DRE" nos 43 controles da
+-- 9815 aparecem dois:
+--
+--     3  — GUIA 4-DRE
+--     46 — Permite visualizar Lucratividade no DRE
+--
+-- O 3 é o acesso que procurávamos. O **46 é um problema novo**: a 9815 esconde alguma coisa de
+-- quem não o tem, e a nossa tela mostra tudo para todo mundo. Não há uma única menção a
+-- "lucratividade" no projeto — nem no levantamento, nem no código —, então ou ela está numa
+-- parte do DRE que migramos sem saber que era controlada, ou tem outro nome aqui.
+--
+-- Reaproveitar a permissão da 9815 e ao mesmo tempo mostrar mais do que ela mostra é o oposto
+-- do que a decisão de 16/09/2026 queria garantir.
+--
+-- 6.1 — o tamanho do problema: quem tem a guia e NÃO tem a lucratividade.
+-- Se der zero, o ponto é teórico hoje — mas continua sendo dívida, porque basta alguém tirar
+-- o 46 de uma pessoa na 530 para a web passar a divergir do Winthor em silêncio.
+SELECT SUM(CASE WHEN TEM_GUIA = 'S' AND TEM_LUCRO = 'S' THEN 1 ELSE 0 END) AS GUIA_E_LUCRO,
+       SUM(CASE WHEN TEM_GUIA = 'S' AND TEM_LUCRO = 'N' THEN 1 ELSE 0 END) AS GUIA_SEM_LUCRO,
+       SUM(CASE WHEN TEM_GUIA = 'N' AND TEM_LUCRO = 'S' THEN 1 ELSE 0 END) AS LUCRO_SEM_GUIA
+  FROM (SELECT E.MATRICULA,
+               NVL((SELECT I.ACESSO FROM PCCONTROI I
+                     WHERE I.CODUSUARIO = E.MATRICULA
+                       AND I.CODROTINA = 9815 AND I.CODCONTROLE = 3),  'N') AS TEM_GUIA,
+               NVL((SELECT I.ACESSO FROM PCCONTROI I
+                     WHERE I.CODUSUARIO = E.MATRICULA
+                       AND I.CODROTINA = 9815 AND I.CODCONTROLE = 46), 'N') AS TEM_LUCRO
+          FROM PCEMPR E
+         WHERE E.SENHABD IS NOT NULL
+           AND E.SITUACAO = 'A');
+
+-- 6.2 — e quem são, se houver. São as pessoas para quem a web mostraria a mais.
+SELECT E.MATRICULA, E.NOME_GUERRA
+  FROM PCEMPR E
+ WHERE E.SENHABD IS NOT NULL
+   AND E.SITUACAO = 'A'
+   AND EXISTS (SELECT 1 FROM PCCONTROI I
+                WHERE I.CODUSUARIO = E.MATRICULA
+                  AND I.CODROTINA = 9815 AND I.CODCONTROLE = 3 AND I.ACESSO = 'S')
+   AND NOT EXISTS (SELECT 1 FROM PCCONTROI I
+                    WHERE I.CODUSUARIO = E.MATRICULA
+                      AND I.CODROTINA = 9815 AND I.CODCONTROLE = 46 AND I.ACESSO = 'S')
+ ORDER BY E.NOME_GUERRA;
