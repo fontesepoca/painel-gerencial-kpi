@@ -331,10 +331,25 @@ que não queremos herdar: um script de terceiro baixado toda vez que alguém abr
 **senha** (quem controlar aquele domínio controla a página), um contexto WebGL com
 pós-processamento para desenhar pontos, e código que nenhum teste alcança.
 
-Aqui são pontos num canvas 2D: mesma profundidade, mesma deriva lenta, mesma reação ao
-ponteiro, nada saindo da nossa origem. A aritmética está em `lib/ceuDeEstrelas.ts`, sem React
-e sem canvas, e é isso que permite testá-la — a dc40 roda dez minutos de animação em
-milissegundos e confere que nenhuma estrela escapou.
+Aqui são pontos num canvas 2D, e nada sai da nossa origem. A aritmética está em
+`lib/ceuDeEstrelas.ts`, sem React e sem canvas, e é isso que permite testá-la — a dc40 roda
+dez minutos de animação em milissegundos e confere que nenhuma estrela escapou.
+
+**O campo se move sozinho** desde 16/09/2026, a pedido do Gabriel: antes as estrelas só
+desciam, e uma da frente levava mais de um minuto para atravessar a tela — sem mexer o mouse,
+ela parecia parada. Trocar isso não foi questão de velocidade, e sim de **perspectiva**: cada
+estrela tem uma profundidade que diminui com o tempo, e a posição na tela é a projeção dela.
+Quanto mais perto, mais longe do ponto de fuga, maior e mais brilhante. Elas nascem no meio,
+aceleram para as bordas e passam.
+
+O ponteiro move o **ponto de fuga**, e não as estrelas: a sensação é de virar o rosto enquanto
+se atravessa o campo, em vez de empurrar pontos para o lado.
+
+Três calibragens que só apareceram medindo, e estão nos comentários com o número que as
+motivou: a semeadura criava estrelas já fora do quadro (treze de quarenta morriam no primeiro
+avanço); quem sai pela borda precisa ser reciclada, senão o campo vai ficando ralo; e a
+densidade teve de subir, porque com perspectiva boa parte das estrelas está sempre fora da
+vista ou tênue demais para contar.
 
 O campo **para** quando a aba sai de foco, e **não se move** para quem pediu
 `prefers-reduced-motion` (o parallax continua, porque é movimento que a pessoa provocou com o
@@ -349,7 +364,7 @@ chega à tela e a senha é limpa; o parallax responde ao ponteiro (medido pelo c
 do canvas, não no olho); a 11ª tentativa seguida recebe `429`; a tela cabe em 375px e continua
 escura com o tema claro ligado. Console sem erros.
 
-A [dc40](validacao/dc40_login_e_ceu.mjs) cobre as partes que erram em silêncio, com 42
+A [dc40](validacao/dc40_login_e_ceu.mjs) cobre as partes que erram em silêncio, com 45
 asserções: as formas de escapar do site pelo `destino` e a aritmética do céu — inclusive que
 60 Hz e 144 Hz percorrem o mesmo caminho em um segundo.
 

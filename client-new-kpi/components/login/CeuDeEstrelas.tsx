@@ -6,7 +6,8 @@ import {
   aproximar,
   avancar,
   brilho,
-  deslocamentoDoPonteiro,
+  pontoDeFuga,
+  projetar,
   quantidadeParaArea,
   raio,
   semear,
@@ -25,31 +26,28 @@ import {
  *    senão a página fica queimando bateria desenhando para o nada.
  * 2. <b>Respeitar `prefers-reduced-motion`.</b> Quem pediu menos movimento vê o campo parado,
  *    não uma versão mais lenta. Movimento involuntário provoca enjoo em quem tem sensibilidade
- *    vestibular, e uma tela de login é obrigatória — não dá para simplesmente sair dela.
+ *    vestibular, e uma tela de login é obrigatória — não dá para simplesmente sair dela. Isso
+ *    passou a importar mais desde que o campo ganhou movimento próprio.
  * 3. <b>Sumir do papel.</b> `nao-imprime` porque um fundo escuro com pontos brancos gasta
  *    tinta e não é informação.
  */
+
 /**
  * As duas paletas.
  *
  * <b>No tema claro isto deixa de ser um céu.</b> Pontos claros sobre fundo claro somem, e
  * pontos pretos sobre branco viram sujeira na tela. O que funciona é o mesmo campo em tons
- * frios e translúcidos — lê-se como poeira suspensa, e não como estrelas. O gesto é o mesmo,
- * a metáfora muda com a luz.
+ * frios e fechados — lê-se como poeira suspensa, e não como estrelas. O gesto é o mesmo, a
+ * metáfora muda com a luz.
  *
- * O `alfa` multiplica o brilho calculado: no claro, o contraste disponível é muito menor, e o
- * campo cheio competiria com os campos do formulário.
+ * <b>Medido, não escolhido no olho.</b> A primeira tentativa no claro saiu com opacidade média
+ * de 23 em 255 — invisível. O culpado não era a cor: um círculo de meio pixel é quase todo
+ * antialiasing, e o que sobra desaparece contra o branco. Por isso o claro tem ponto maior, e
+ * não só mais opaco.
  */
 const PALETA = {
-  escuro: { frente: "#93b8ff", fundo: "#e8eeff", alfa: 1, escalaDoRaio: 1 },
-  // <b>Medido, não escolhido no olho.</b> A primeira tentativa no claro saiu com opacidade
-  // média de 23 em 255 — invisível. O culpado não era a cor: um círculo de meio pixel é quase
-  // todo antialiasing, e o pouco que sobra desaparece contra o branco. No escuro o contraste
-  // entre ponto claro e fundo quase preto esconde esse problema.
-  //
-  // Por isso o claro tem ponto maior, e não só mais opaco. Tons mais fechados pela mesma
-  // razão — sobre branco, azul claro é quase branco.
-  claro: { frente: "#2563eb", fundo: "#475569", alfa: 1, escalaDoRaio: 1.9 },
+  escuro: { frente: "#c7d9ff", fundo: "#8aa7d8", alfa: 1, escalaDoRaio: 1 },
+  claro: { frente: "#2563eb", fundo: "#64748b", alfa: 1, escalaDoRaio: 1.7 },
 } as const;
 
 export function CeuDeEstrelas() {
@@ -64,11 +62,13 @@ export function CeuDeEstrelas() {
     if (!contexto) return;
 
     const menosMovimento = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const paleta = claro ? PALETA.claro : PALETA.escuro;
 
     let estrelas: Estrela[] = [];
     let largura = 0;
     let altura = 0;
     let escala = 1;
+    let aspecto = 1;
 
     // Onde o ponteiro está (alvo) e onde o campo acha que ele está (atual). A distância entre
     // os dois é o que produz o movimento suave em vez do salto.
@@ -88,6 +88,7 @@ export function CeuDeEstrelas() {
 
       largura = Math.max(1, Math.floor(retangulo.width * escala));
       altura = Math.max(1, Math.floor(retangulo.height * escala));
+      aspecto = largura / altura;
 
       canvas.width = largura;
       canvas.height = altura;
@@ -100,23 +101,25 @@ export function CeuDeEstrelas() {
 
       contexto.clearRect(0, 0, largura, altura);
 
+      const fuga = pontoDeFuga(atual);
+
       for (const estrela of estrelas) {
-        const { dx, dy } = deslocamentoDoPonteiro(estrela.z, atual);
+        const { x, y, proximidade } = projetar(estrela, fuga, aspecto);
 
-        const paleta = claro ? PALETA.claro : PALETA.escuro;
+        // Fora da tela: a estrela continua existindo e se aproximando, só não é pintada. É o
+        // que permite ela entrar pela borda em vez de aparecer do nada quando cruza o limite.
+        if (x < -0.05 || x > 1.05 || y < -0.05 || y > 1.05) continue;
 
-        const x = (estrela.x + dx) * largura;
-        const y = (estrela.y + dy) * altura;
         const r = raio(estrela, escala) * paleta.escalaDoRaio;
 
         contexto.globalAlpha = brilho(estrela) * paleta.alfa;
 
-        // As da frente puxam para o azul do tema; as do fundo ficam mais neutras. É o que
-        // amarra o campo ao resto da identidade em vez de parecer um protetor de tela.
-        contexto.fillStyle = estrela.z > 0.72 ? paleta.frente : paleta.fundo;
+        // As que estão passando puxam para o claro; as do fundo ficam mais frias. É a mesma
+        // pista que o tamanho dá, reforçada pela cor.
+        contexto.fillStyle = proximidade > 0.62 ? paleta.frente : paleta.fundo;
 
         contexto.beginPath();
-        contexto.arc(x, y, r, 0, Math.PI * 2);
+        contexto.arc(x * largura, y * altura, r, 0, Math.PI * 2);
         contexto.fill();
       }
 
@@ -130,7 +133,7 @@ export function CeuDeEstrelas() {
       atual.x = aproximar(atual.x, alvo.x, dt);
       atual.y = aproximar(atual.y, alvo.y, dt);
 
-      avancar(estrelas, dt);
+      avancar(estrelas, dt, { aspecto });
       desenhar();
 
       quadro = requestAnimationFrame(laco);
@@ -153,8 +156,8 @@ export function CeuDeEstrelas() {
       alvo.x = (evento.clientX / window.innerWidth) * 2 - 1;
       alvo.y = (evento.clientY / window.innerHeight) * 2 - 1;
 
-      // Com movimento reduzido o campo fica parado, mas o parallax continua respondendo ao
-      // ponteiro: ele só acontece quando a pessoa mexe o mouse, então é movimento que ela
+      // Com movimento reduzido o campo fica parado, mas o ponto de fuga continua respondendo
+      // ao ponteiro: ele só se move quando a pessoa mexe o mouse, então é movimento que ela
       // provocou. O que incomoda é o que se move sozinho.
       if (menosMovimento.matches) {
         atual.x = alvo.x;
