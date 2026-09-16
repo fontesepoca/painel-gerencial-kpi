@@ -66,34 +66,35 @@ um `CODCONTROLE` que colidisse com outra coisa.
 > — o que a dc31 confirmou. Ele continua sendo o plano B se a 9815 não tiver um controle que
 > corresponda à guia DRE.
 
-### O controle 46 — a lucratividade
+### O controle 46 fica de fora — decisão, não esquecimento
 
 A mesma tela da 530 mostrou um segundo controle com "DRE" no nome:
 
 > **46 — Permite visualizar Lucratividade no DRE**
 
-**Isto é escopo novo, e é o tipo que passa despercebido.** A 9815 esconde alguma coisa de quem
-não tem o 46; a nossa tela mostra tudo para todo mundo. Reaproveitar a permissão da 9815 e ao
-mesmo tempo exibir mais do que ela exibe é o oposto exato do que a decisão de reaproveitar
-queria garantir — e o vazamento não apareceria em teste nenhum, porque quem testa tem acesso a
-tudo.
+**Decisão do Gabriel em 16/09/2026: o login olha só o controle 3.** O 46 não entra.
 
-Não há **uma única menção** a "lucratividade" no projeto: nem no levantamento da rotina, nem no
-código, nem nas planilhas de conferência. Então uma de três: ela está numa parte do DRE que
-migramos sem saber que era controlada; tem outro nome aqui; ou não está na guia 4-DRE e o
-controle se refere a outra tela.
+A consequência, escrita para ninguém precisar deduzi-la: a 9815 esconde alguma coisa de quem
+não tem o 46, e **a nossa tela não esconde**. Quem tiver a guia sem a lucratividade vai ver na
+web o que não vê no Winthor — se é que a tal lucratividade está na parte que migramos, o que
+não sabemos: não há uma única menção a ela no levantamento, no código ou nas planilhas de
+conferência.
 
-Pendente: **o que o 46 esconde**, visto na 9815 com um usuário que não o tenha. A
-[dc39](validacao/dc39_permissao_da_9815.sql) §6 mede quantas pessoas têm a guia e não têm a
-lucratividade — se der zero, o ponto é teórico hoje, mas continua sendo dívida: basta alguém
-tirar o 46 de uma pessoa na 530 para a web divergir do Winthor em silêncio.
+Por que isso é aceitável aqui: o 46 controla **o que aparece dentro da tela**, não quem entra
+nela. Tratá-lo exigiria mapear qual pedaço do nosso DRE corresponde a ele — trabalho que
+começa por descobrir o que ele significa — e o acesso à tela, que é o que o login precisa
+resolver agora, já está resolvido pelo 3.
+
+O que isso deixa em aberto, para quando alguém voltar aqui: a [dc39](validacao/dc39_permissao_da_9815.sql)
+§6 conta quantas pessoas têm a guia e não têm a lucratividade. Ela **não é pré-requisito de
+nada** — é a medida do tamanho desta divergência, se um dia ela importar.
 
 ### O que ainda não sabemos
 
 **Os outros 41 controles.** O filtro da 530 foi a palavra "DRE", e a 9815 tem 43 controles.
 Pode haver outro que afete a guia sem ter "DRE" no nome — algo como "permite visualizar custo"
-ou "permite exportar". Vale olhar a lista inteira uma vez, agora, em vez de descobrir um a um
-quando alguém reclamar.
+ou "permite exportar". Pela mesma decisão acima, nenhum deles entra no login; isto fica
+anotado como o lugar por onde a web pode mostrar mais que o Winthor, não como pendência.
 
 **Se o duplo clique tem controle próprio.** A decisão anterior o separava porque ele mostra
 cliente, nota e lançamento individual — outro nível de exposição que o total de uma linha — e

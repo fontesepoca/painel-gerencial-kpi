@@ -112,7 +112,7 @@ SELECT CODIGO, NOMEROTINA, CODMODULO, CODSUBMODULO, ROTINAWEB, ROTINA,
 
 
 -- ══════════════════════════════════════════════════════════════════════════════
--- 6. O CONTROLE 46 — "Permite visualizar Lucratividade no DRE"
+-- 6. O CONTROLE 46 — fora do login, e por quê  (OPCIONAL)
 -- ══════════════════════════════════════════════════════════════════════════════
 --
 -- A 530 respondeu o que eu perguntei e mais uma coisa. Filtrando por "DRE" nos 43 controles da
@@ -121,17 +121,18 @@ SELECT CODIGO, NOMEROTINA, CODMODULO, CODSUBMODULO, ROTINAWEB, ROTINA,
 --     3  — GUIA 4-DRE
 --     46 — Permite visualizar Lucratividade no DRE
 --
--- O 3 é o acesso que procurávamos. O **46 é um problema novo**: a 9815 esconde alguma coisa de
--- quem não o tem, e a nossa tela mostra tudo para todo mundo. Não há uma única menção a
--- "lucratividade" no projeto — nem no levantamento, nem no código —, então ou ela está numa
--- parte do DRE que migramos sem saber que era controlada, ou tem outro nome aqui.
+-- **O login usa só o 3.** Decisão do Gabriel em 16/09/2026: o 46 fica de fora. Ele controla o
+-- que aparece DENTRO da tela, não quem entra nela, e tratá-lo exigiria descobrir primeiro o
+-- que ele significa — não há uma única menção a "lucratividade" no levantamento, no código ou
+-- nas planilhas de conferência.
 --
--- Reaproveitar a permissão da 9815 e ao mesmo tempo mostrar mais do que ela mostra é o oposto
--- do que a decisão de 16/09/2026 queria garantir.
+-- A consequência aceita: quem tiver a guia sem a lucratividade vê na web o que não vê no
+-- Winthor. Está registrada em `docs/AUTENTICACAO.md`.
 --
--- 6.1 — o tamanho do problema: quem tem a guia e NÃO tem a lucratividade.
--- Se der zero, o ponto é teórico hoje — mas continua sendo dívida, porque basta alguém tirar
--- o 46 de uma pessoa na 530 para a web passar a divergir do Winthor em silêncio.
+-- **As consultas abaixo não são pré-requisito de nada.** Ficam porque medem o tamanho dessa
+-- divergência, para o dia em que ela importar.
+--
+-- 6.1 — quem tem a guia e NÃO tem a lucratividade.
 SELECT SUM(CASE WHEN TEM_GUIA = 'S' AND TEM_LUCRO = 'S' THEN 1 ELSE 0 END) AS GUIA_E_LUCRO,
        SUM(CASE WHEN TEM_GUIA = 'S' AND TEM_LUCRO = 'N' THEN 1 ELSE 0 END) AS GUIA_SEM_LUCRO,
        SUM(CASE WHEN TEM_GUIA = 'N' AND TEM_LUCRO = 'S' THEN 1 ELSE 0 END) AS LUCRO_SEM_GUIA
