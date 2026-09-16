@@ -120,16 +120,11 @@ SELECT COUNT(*) AS ENTRARIAM_HOJE_MESMO_DEMITIDOS
    AND (DTDEMISSAO IS NOT NULL OR SITUACAO <> 'A');
 
 
--- ── 4. os metadados de controle — RODE COM O SEU USUÁRIO ─────────────────────
--- O bloco 7 da dc29 voltou vazio nesta busca, mas ele rodou como `EDI`, e `ALL_OBJECTS` só
--- mostra o que o usuário tem privilégio de ver. Vazio ali significa "o EDI não enxerga", e
--- **não** "não existe" — a mesma armadilha que nos custou a dc30.
---
--- Isto importa para escolher o CODCONTROLE novo. A 9995 hoje só tem o controle 1 gravado em
--- PCCONTROI, mas a rotina Delphi pode DEFINIR controles que ninguém cadastrou ainda. Se eu
--- pedir o número 2 e o Winthor já chamar de 2 alguma coisa dele, as duas permissões viram a
--- mesma linha.
 -- ── 4. os metadados de rotina — PCROTINA liberada em 16/09/2026 ──────────────
+--
+-- Isto decide o CODCONTROLE novo. A 9995 só tem o controle 1 gravado em PCCONTROI, mas a
+-- rotina Delphi pode DEFINIR controles que ninguém cadastrou ainda: se eu pedir o número 2 e
+-- o Winthor já chamar de 2 alguma coisa dele, as duas permissões viram a mesma linha.
 --
 -- Voltou vazio duas vezes, e as duas por falta de privilégio: o `EDI` não tinha grant nem
 -- sinônimo de `PCROTINA`. O Gabriel criou os dois. É a terceira vez neste levantamento que
