@@ -129,6 +129,14 @@ SELECT COUNT(*) AS ENTRARIAM_HOJE_MESMO_DEMITIDOS
 -- PCCONTROI, mas a rotina Delphi pode DEFINIR controles que ninguém cadastrou ainda. Se eu
 -- pedir o número 2 e o Winthor já chamar de 2 alguma coisa dele, as duas permissões viram a
 -- mesma linha.
+-- ── 4. os metadados de rotina — PCROTINA liberada em 16/09/2026 ──────────────
+--
+-- Voltou vazio duas vezes, e as duas por falta de privilégio: o `EDI` não tinha grant nem
+-- sinônimo de `PCROTINA`. O Gabriel criou os dois. É a terceira vez neste levantamento que
+-- `ALL_OBJECTS` vazio significou "não enxergo" e não "não existe" — vale como regra: aqui,
+-- zero em `ALL_OBJECTS` nunca é resposta, é pergunta.
+--
+-- 4.1 — o que mais apareceu junto, agora que há acesso.
 SELECT OWNER, OBJECT_NAME, OBJECT_TYPE
   FROM ALL_OBJECTS
  WHERE OBJECT_NAME LIKE 'PCROTINA%'
@@ -137,9 +145,36 @@ SELECT OWNER, OBJECT_NAME, OBJECT_TYPE
     OR OBJECT_NAME LIKE 'PCOPCAO%'
  ORDER BY OBJECT_NAME, OWNER;
 
--- Se a consulta acima encontrar uma tabela de rotinas, esta mostra o que ela diz da 9995.
--- Ajuste o nome se ele vier diferente.
--- SELECT * FROM EPOCA.PCROTINA WHERE CODROTINA IN (9995, 9996, 9997, 9998, 9999);
+-- 4.2 — a forma da PCROTINA: preciso saber se ela guarda os CONTROLES de cada rotina ou só o
+-- nome dela. É a diferença entre poder conferir o número novo contra o cadastro e ter de
+-- olhar a rotina 530 na tela.
+SELECT COLUMN_NAME, DATA_TYPE, DATA_LENGTH, NULLABLE, COLUMN_ID
+  FROM ALL_TAB_COLUMNS
+ WHERE TABLE_NAME = 'PCROTINA'
+ ORDER BY COLUMN_ID;
+
+-- 4.3 — o que ela diz das cinco rotinas do painel.
+SELECT *
+  FROM PCROTINA
+ WHERE CODROTINA IN (9995, 9996, 9997, 9998, 9999)
+ ORDER BY CODROTINA;
+
+-- 4.4 — o CODCONTROLE que vamos ocupar não pode ser um que a rotina já define.
+--
+-- A 9995 só tem o controle 1 gravado em PCCONTROI, mas linha gravada é "alguém já usou", não
+-- "a rotina só tem esse". Se a 4.2 mostrar uma coluna de controles, esta consulta compara o
+-- que a rotina define com o que está em uso — e a diferença é exatamente o espaço livre.
+--
+-- Se a 4.2 mostrar que PCROTINA guarda só o nome, me diga: aí o número sai da tela da 530, e
+-- eu peço que você confira lá quantos controles a 9995 lista.
+SELECT R.CODROTINA,
+       (SELECT COUNT(DISTINCT I.CODCONTROLE)
+          FROM PCCONTROI I WHERE I.CODROTINA = R.CODROTINA) AS CONTROLES_EM_USO,
+       (SELECT MAX(I.CODCONTROLE)
+          FROM PCCONTROI I WHERE I.CODROTINA = R.CODROTINA) AS MAIOR_EM_USO
+  FROM PCROTINA R
+ WHERE R.CODROTINA IN (9995, 9996, 9997, 9998, 9999)
+ ORDER BY R.CODROTINA;
 
 
 -- ── 5. o tamanho das tabelas de permissão ────────────────────────────────────
