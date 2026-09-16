@@ -1,8 +1,12 @@
 # Autenticação e permissões
 
-> **Estado:** Fase A (levantamento) **fechada** em 16/09/2026. Todas as decisões abaixo estão
-> tomadas e medidas contra o banco. Nenhuma linha de código de autenticação escrita ainda — de
-> propósito: o levantamento mudou o desenho três vezes, e cada mudança teria virado reescrita.
+> **Estado em 16/09/2026:** levantamento fechado, **login funcionando ponta a ponta** — API,
+> BFF, tela de entrada e tela inicial. Falta ligar o `[Authorize]` nas rotas do DRE e exigir as
+> filiais do token na apuração.
+>
+> O código só começou depois do levantamento inteiro, de propósito: ele mudou o desenho três
+> vezes — a tabela de permissão inacessível, a 9995 virando 9815, o controle 46 —, e cada
+> mudança teria virado reescrita.
 
 A versão web reaproveita **o cadastro de acesso do Winthor**: as mesmas pessoas, as mesmas
 senhas, as mesmas filiais. Ninguém cria conta, ninguém escolhe senha nova, e quem sai da
