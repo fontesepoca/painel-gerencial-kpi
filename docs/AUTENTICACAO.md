@@ -31,28 +31,51 @@ executável que "defina" controles nelas, então o número livre é livre de ver
 
 **Descrição de `CODCONTROLE` não existe no banco.** A `PCROTINA` tem 28 colunas e nenhuma
 sobre controle; o único registro de que um controle existe é a linha de permissão de alguém em
-`PCCONTROI`. O significado de cada número é convenção de quem escreveu o painel — por isso a
-tabela da próxima seção é a **única** documentação dos nossos.
+`PCCONTROI`. O significado de cada número vive na **rotina 530**, na tela — é de lá que tem de
+vir o número da guia DRE, e é por isso que este documento registra qual escolhemos e por quê.
 
-## As permissões novas
+## A permissão: a da própria 9815
 
-Na rotina **9995**, onde a numeração é contígua a partir de 1 e o controle 1 já está ocupado.
+**Decisão do Gabriel em 16/09/2026.** A web lê a permissão que já existe na rotina **9815,
+guia DRE** — a mesma que o Winthor consulta para abrir a tela Delphi. Quem usa a rotina hoje
+entra na web sem cadastro nenhum.
 
-| `CODCONTROLE` | O que libera | Por que é separado |
-|---|---|---|
-| **2** | Abrir o DRE Gerencial | é o acesso à rotina |
-| **3** | Usar o duplo clique (detalhamento) | mostra **cliente, nota e lançamento individual** — outro nível de exposição que o total de uma linha — e custa de segundos a minutos de Oracle por clique |
+O ganho maior não é evitar o cadastro: é que **quem perde o acesso na 9815 perde na web no
+mesmo instante**. Acesso que mora em dois lugares é acesso que alguém esquece de revogar em
+um deles, e o esquecido é sempre o que ninguém olha.
 
-Exportação e impressão **não** têm controle próprio: quem vê a tela fotografa a tela, e
-controlar o botão seria teatro de segurança ao custo de mais uma linha por pessoa na 530.
+A regra do login, inteira:
 
-**O cadastro é do Gabriel, pela rotina 530.** A API nunca escreve em tabela legada — regra do
-projeto, e desde 15/09/2026 também garantia do banco, já que o `EDI` só tem `SELECT`.
+```
+PCCONTRO  (9815, ACESSO = 'S')        →  pode abrir a rotina
+PCCONTROI (9815, <controle da guia DRE>, ACESSO = 'S')  →  pode ver o DRE
+PCEMPR    NOME_GUERRA preenchido, SENHABD preenchida, SITUACAO = 'A'
+PCLIB     (CODTABELA = 1)             →  as filiais que ele pode apurar
+```
 
-Quem já tem a 9995 hoje (nove pessoas, todas com acesso `S`): ELIAS, ESDRAS, GABRIELFREITAS,
-HAFFES, MARCELOFREITAS, MARCILEY, MARCILEYROBERTO, SERGIOMEDICE e a matrícula 5476. Elas
-herdam o painel-pai no dia em que o login subir, mas **não** os controles 2 e 3, que começam
-vazios.
+**Nada é cadastrado por nós.** Some a rotina 530 do caminho, e some junto o risco de escolher
+um `CODCONTROLE` que colidisse com outra coisa.
+
+> **O que esta decisão substituiu.** Até 16/09/2026 o plano era criar os controles 2 e 3 na
+> rotina 9995 (`PAINEL WEB GERENCIAL`), com o 3 separando o duplo clique do acesso à tela.
+> Aquele desenho dependia de a 9995 ser rotina **web**, sem executável que definisse controles
+> — o que a dc31 confirmou. Ele continua sendo o plano B se a 9815 não tiver um controle que
+> corresponda à guia DRE.
+
+### O que ainda não sabemos
+
+**Qual `CODCONTROLE` é a guia DRE.** O banco não sabe responder: a `PCROTINA` não guarda
+descrição de controle, então o significado de cada número está na **rotina 530, na tela**. A
+[dc39](validacao/dc39_permissao_da_9815.sql) levanta os candidatos com a contagem de usuários
+de cada um — o controle que abre a rotina tende a ter quase todo mundo liberado, e o de uma
+guia específica, menos gente. Serve para conferir se o número que vier da 530 faz sentido com
+o uso real, não para adivinhá-lo.
+
+**Se o duplo clique tem controle próprio.** A decisão anterior o separava porque ele mostra
+cliente, nota e lançamento individual — outro nível de exposição que o total de uma linha — e
+custa de segundos a minutos de Oracle por clique. Reaproveitando a 9815, essa separação só
+existe se o Winthor já tiver um controle para isso. Se não tiver, **quem abre o DRE detalha**,
+e isso fica registrado aqui como consequência aceita, não como esquecimento.
 
 ## O que decidimos NÃO herdar do painel antigo
 
