@@ -235,6 +235,32 @@ validada **no boot** — chave ausente descoberta no primeiro login vira um 500 
 login, e ninguém liga isso a uma variável esquecida no deploy. Formato em
 `appsettings.example.json`; gere a sua com `openssl rand -base64 48`.
 
+### Conferido contra a API no ar
+
+Em 16/09/2026, com o Gabriel executando o login real (a senha dele nunca passou por aqui):
+
+| Caso | Resposta |
+|---|---|
+| Login e senha corretos | `200` · token + as **10 filiais**, idênticas às que a dc31 previu |
+| `GET /eu` com o token | `200` · matrícula, nome, nome de guerra e as mesmas 10 filiais |
+| `GET /eu` sem token | `401` · *"Sessão expirada ou ausente. Entre novamente."* |
+| `GET /eu` com o token adulterado num caractere | `401` — a assinatura pega |
+| Usuário inexistente | `401` · mensagem de credenciais |
+| Usuário real, senha errada | `401` · **a mesma** mensagem, como deve ser |
+| Campo em branco | `400` · *"Preencha o usuário e a senha."* |
+
+Os dois casos de credencial devolvem texto idêntico de propósito: distingui-los transformaria
+a tela num verificador de quem trabalha na empresa.
+
+**Não conferido:** nome de guerra com minúscula, espaço nas pontas ou caractere fora do ASCII.
+A consulta compara `NOME_GUERRA = UPPER(:login)`, então um cadastro gravado em minúsculas
+**não casaria com nada** e a pessoa não entraria — com a mensagem de senha errada, que é o pior
+diagnóstico possível para esse defeito. Todos os nomes que vimos até agora estão em maiúsculas,
+mas "todos os que vimos" não é o mesmo que "todos". A dc38 §5 mede isso; é uma consulta só.
+
+*(Este projeto já perdeu meio dia com um espaço não separável num nome de conta do DRE — uma
+string que parecia certa em todo log e não casava com nada.)*
+
 ### O que ainda não está ligado
 
 **As rotas do DRE não exigem token.** `UseAuthentication` e `UseAuthorization` estão no
