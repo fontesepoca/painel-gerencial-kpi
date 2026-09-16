@@ -252,14 +252,19 @@ Em 16/09/2026, com o Gabriel executando o login real (a senha dele nunca passou 
 Os dois casos de credencial devolvem texto idêntico de propósito: distingui-los transformaria
 a tela num verificador de quem trabalha na empresa.
 
-**Não conferido:** nome de guerra com minúscula, espaço nas pontas ou caractere fora do ASCII.
-A consulta compara `NOME_GUERRA = UPPER(:login)`, então um cadastro gravado em minúsculas
-**não casaria com nada** e a pessoa não entraria — com a mensagem de senha errada, que é o pior
-diagnóstico possível para esse defeito. Todos os nomes que vimos até agora estão em maiúsculas,
-mas "todos os que vimos" não é o mesmo que "todos". A dc38 §5 mede isso; é uma consulta só.
+**A forma do `NOME_GUERRA`, medida depois (dc38 §5).** Entre 2.510 ativos com senha: nenhuma
+minúscula, nenhum caractere fora do ASCII, e **um** com espaço — a matrícula 164, gravada como
+`"CAR 108-109  "`, com dois espaços no fim.
+
+Ela não está entre as 28, então não afeta ninguém hoje. Mas comparada com a coluna crua, quem
+digitasse esse nome não casaria com nada e leria *"usuário ou senha incorretos"* — o pior
+diagnóstico possível, porque manda a pessoa mexer na senha para resolver um problema de
+cadastro. A consulta passou a comparar `UPPER(TRIM(NOME_GUERRA))`: o `TRIM` resolve o caso
+existente, e o `UPPER` cobre a minúscula que hoje não existe e amanhã alguém cadastra.
 
 *(Este projeto já perdeu meio dia com um espaço não separável num nome de conta do DRE — uma
-string que parecia certa em todo log e não casava com nada.)*
+string que parecia certa em todo log e não casava com nada. Procurar por espaço antes de
+confiar numa comparação de texto virou reflexo daquele dia.)*
 
 ### O que ainda não está ligado
 

@@ -52,6 +52,17 @@ public static class AutenticacaoQueries
     /// nesta ordem. Com <c>BindByName = false</c> quem casa é a posição, não o nome. Inverter
     /// os dois compila, roda e recusa todo mundo.</para>
     ///
+    /// <para><b><c>UPPER(TRIM(NOME_GUERRA))</c>, e não a coluna crua.</b> O cadastro tem um
+    /// nome de guerra gravado como <c>"CAR 108-109  "</c>, com dois espaços no fim: comparado
+    /// direto, quem digitasse esse nome não casaria com nada e leria <i>"usuário ou senha
+    /// incorretos"</i> — o pior diagnóstico possível, porque manda a pessoa mexer na senha.
+    /// Medido em 16/09/2026 (dc38 §5): entre 2.510 ativos com senha, um com espaço nas pontas,
+    /// nenhum com minúscula e nenhum fora do ASCII. O <c>UPPER</c> cobre a minúscula que hoje
+    /// não existe e amanhã alguém cadastra.</para>
+    ///
+    /// <para>Isto impede o índice de <c>NOME_GUERRA</c>, e não importa: são 8.393 linhas e uma
+    /// execução por tentativa de login.</para>
+    ///
     /// <para><c>static readonly</c> e não <c>const</c>, ao contrário das outras queries do
     /// projeto: o C# só interpola constantes em constantes, e <see cref="Rotina"/> é
     /// <c>int</c>. A alternativa seria repetir <c>9815</c> e <c>3</c> como texto ao lado dos
@@ -78,7 +89,7 @@ public static class AutenticacaoQueries
                                     AND I.ACESSO = 'S')
                     THEN 'S' ELSE 'N' END                               AS TemControle
           FROM PCEMPR E
-         WHERE E.NOME_GUERRA = UPPER(:login)
+         WHERE UPPER(TRIM(E.NOME_GUERRA)) = UPPER(:login)
         """;
 
     /// <summary>
