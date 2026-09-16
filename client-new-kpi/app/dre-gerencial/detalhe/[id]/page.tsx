@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useEffect, useRef, useState } from "react";
+import { use, useEffect, useRef, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { AppShell } from "@/components/layout/AppShell";
@@ -34,16 +34,27 @@ export default function DetalhePage({ params }: { params: Promise<{ id: string }
    * `undefined` enquanto ninguém procurou, `null` quando procurou e não achou.
    *
    * **A busca só pode acontecer depois da hidratação.** No servidor não existe `Map` do
-   * navegador nem `sessionStorage`: ler durante o render faz o servidor desenhar "não está
+   * navegador nem `localStorage`: ler durante o render faz o servidor desenhar "não está
    * mais aqui" e o cliente desenhar a tabela, e o React reclama de HTML divergente. Foi
    * exatamente o que aconteceu na primeira versão disto — mesma armadilha que o
    * `TemaProvider` documenta.
+   *
+   * <b>`useSyncExternalStore` e não `useState` + efeito.</b> Era assim até 16/09/2026, e o
+   * lint do React 19 apontava com razão: `setState` dentro de efeito provoca um segundo
+   * render logo depois do primeiro. Aqui isso significava a página piscar "não está mais
+   * aqui" antes de mostrar o detalhamento.
+   *
+   * O snapshot é estável porque `recuperar` guarda o objeto num `Map` — chamadas repetidas
+   * devolvem a MESMA referência. Sem isso, `JSON.parse` criaria um objeto novo a cada render
+   * e o React entraria em laço infinito achando que o valor mudou.
    */
-  const [detalhe, setDetalhe] = useState<DetalheAberto | null | undefined>(undefined);
-
-  useEffect(() => {
-    setDetalhe(recuperar(id));
-  }, [id]);
+  const detalhe = useSyncExternalStore<DetalheAberto | null | undefined>(
+    // O detalhamento não muda depois de guardado: quem o escreve é a outra aba, antes desta
+    // existir. Nada para assinar.
+    () => () => {},
+    () => recuperar(id),
+    () => undefined,
+  );
 
   /**
    * `?imprimir=1` abre o diálogo de impressão sozinho — é assim que o botão Imprimir do

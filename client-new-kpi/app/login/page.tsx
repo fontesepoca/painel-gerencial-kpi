@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
 import { CeuDeEstrelas } from "@/components/login/CeuDeEstrelas";
+import { ControlesDeExibicao } from "@/components/layout/ControlesDeExibicao";
 import { FormularioDeLogin } from "./FormularioDeLogin";
 
 export const metadata: Metadata = {
@@ -15,10 +16,14 @@ export const metadata: Metadata = {
  */
 export default function LoginPage() {
   return (
-    // `tela-login` redefine os tokens para o escuro: esta tela não segue o tema do usuário,
-    // porque o campo de estrelas desapareceria no claro. Ver globals.css.
-    <main className="tela-login relative grid min-h-dvh place-items-center overflow-hidden px-4 py-10">
+    <main className="relative grid min-h-dvh place-items-center overflow-hidden bg-[var(--bg)] px-4 py-10">
       <CeuDeEstrelas />
+
+      {/* Os controles de exibição vão em toda tela, e esta não é exceção — quem precisa de
+          fonte grande precisa dela já no login, não depois de atravessá-lo. */}
+      <div className="absolute top-4 right-4 z-10 sm:top-5 sm:right-6">
+        <ControlesDeExibicao />
+      </div>
 
       {/* Vinheta: escurece as bordas e levanta o centro, para o cartão não competir com as
           estrelas justamente onde estão os campos. */}
@@ -50,17 +55,10 @@ export default function LoginPage() {
           </div>
         </header>
 
-        {/* O cartão. `backdrop-blur` sobre o campo de estrelas é o que dá o vidro: as estrelas
-            continuam visíveis atrás, desfocadas, e o texto fica legível. */}
-        <div
-          className="rounded-[var(--radius-lg)] border border-[var(--border-strong)] p-6 sm:p-7"
-          style={{
-            background: "rgb(12 18 32 / 0.72)",
-            backdropFilter: "blur(16px)",
-            WebkitBackdropFilter: "blur(16px)",
-            boxShadow: "0 24px 64px rgb(0 0 0 / 0.45)",
-          }}
-        >
+        {/* O cartão. O desfoque sobre o campo é o que dá o vidro: as partículas continuam
+            visíveis atrás, borradas, e o texto fica legível. A cor sai de `--surface-1`, então
+            ele acompanha o tema — ver `.cartao-login` em globals.css. */}
+        <div className="cartao-login rounded-[var(--radius-lg)] border border-[var(--border-strong)] p-6 sm:p-7">
           {/* `useSearchParams` obriga um limite de Suspense — sem ele a rota inteira vira
               dinâmica e o Next recusa a compilação. O recuo é o cartão vazio, que dura um
               quadro. */}
@@ -68,12 +66,6 @@ export default function LoginPage() {
             <FormularioDeLogin />
           </Suspense>
         </div>
-
-        <p className="mt-5 text-center text-[length:var(--fs-apoio)] leading-relaxed text-[var(--text-muted)]">
-          O acesso é o mesmo da rotina 9815, guia 4-DRE.
-          <br />
-          Sem permissão lá, não há acesso aqui.
-        </p>
       </section>
     </main>
   );

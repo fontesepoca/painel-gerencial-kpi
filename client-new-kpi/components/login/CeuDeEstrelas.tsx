@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { useTema } from "@/context/TemaProvider";
 import {
   aproximar,
   avancar,
@@ -28,8 +29,32 @@ import {
  * 3. <b>Sumir do papel.</b> `nao-imprime` porque um fundo escuro com pontos brancos gasta
  *    tinta e não é informação.
  */
+/**
+ * As duas paletas.
+ *
+ * <b>No tema claro isto deixa de ser um céu.</b> Pontos claros sobre fundo claro somem, e
+ * pontos pretos sobre branco viram sujeira na tela. O que funciona é o mesmo campo em tons
+ * frios e translúcidos — lê-se como poeira suspensa, e não como estrelas. O gesto é o mesmo,
+ * a metáfora muda com a luz.
+ *
+ * O `alfa` multiplica o brilho calculado: no claro, o contraste disponível é muito menor, e o
+ * campo cheio competiria com os campos do formulário.
+ */
+const PALETA = {
+  escuro: { frente: "#93b8ff", fundo: "#e8eeff", alfa: 1, escalaDoRaio: 1 },
+  // <b>Medido, não escolhido no olho.</b> A primeira tentativa no claro saiu com opacidade
+  // média de 23 em 255 — invisível. O culpado não era a cor: um círculo de meio pixel é quase
+  // todo antialiasing, e o pouco que sobra desaparece contra o branco. No escuro o contraste
+  // entre ponto claro e fundo quase preto esconde esse problema.
+  //
+  // Por isso o claro tem ponto maior, e não só mais opaco. Tons mais fechados pela mesma
+  // razão — sobre branco, azul claro é quase branco.
+  claro: { frente: "#2563eb", fundo: "#475569", alfa: 1, escalaDoRaio: 1.9 },
+} as const;
+
 export function CeuDeEstrelas() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const { claro } = useTema();
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -78,15 +103,17 @@ export function CeuDeEstrelas() {
       for (const estrela of estrelas) {
         const { dx, dy } = deslocamentoDoPonteiro(estrela.z, atual);
 
+        const paleta = claro ? PALETA.claro : PALETA.escuro;
+
         const x = (estrela.x + dx) * largura;
         const y = (estrela.y + dy) * altura;
-        const r = raio(estrela, escala);
+        const r = raio(estrela, escala) * paleta.escalaDoRaio;
 
-        contexto.globalAlpha = brilho(estrela);
+        contexto.globalAlpha = brilho(estrela) * paleta.alfa;
 
-        // As da frente puxam para o azul do tema; as do fundo ficam quase brancas. É o que
+        // As da frente puxam para o azul do tema; as do fundo ficam mais neutras. É o que
         // amarra o campo ao resto da identidade em vez de parecer um protetor de tela.
-        contexto.fillStyle = estrela.z > 0.72 ? "#93b8ff" : "#e8eeff";
+        contexto.fillStyle = estrela.z > 0.72 ? paleta.frente : paleta.fundo;
 
         contexto.beginPath();
         contexto.arc(x, y, r, 0, Math.PI * 2);
@@ -172,7 +199,10 @@ export function CeuDeEstrelas() {
       document.removeEventListener("visibilitychange", aoTrocarVisibilidade);
       menosMovimento.removeEventListener("change", aoMudarPreferencia);
     };
-  }, []);
+    // `claro` entra nas dependências: trocar o tema desmonta e remonta o laço com a paleta
+    // nova. Custa uma semeadura — o campo se reorganiza —, e é aceitável porque acontece
+    // só quando alguém aperta o interruptor.
+  }, [claro]);
 
   return (
     <canvas

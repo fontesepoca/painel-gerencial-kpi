@@ -1514,29 +1514,22 @@ html[data-tema="claro"] .tabela-rolagem thead th.faixa-mes-4 {
   caret-color: var(--text-primary);
 }
 
-/* A TELA DE LOGIN É SEMPRE ESCURA, nos dois temas.
+/* O cartão de vidro do login.
 
-   O campo de estrelas é pontos claros sobre fundo escuro — no tema claro ele
-   desapareceria, e o cartão de vidro ficaria um retângulo cinza sobre branco.
-   Adaptar o efeito ao tema claro seria inventar um segundo efeito para uma tela
-   que a pessoa vê por dez segundos.
+   A cor vem de `--surface-1`, não de um rgb fixo: a tela de login segue o tema
+   como todas as outras, e um fundo escuro cravado aqui viraria um retângulo
+   preto no tema claro.
 
-   É escolha, não esquecimento: a entrada tem identidade própria, e o tema do
-   usuário volta a valer assim que ele entra. Os tokens são redefinidos no
-   escopo da tela, então os componentes continuam lendo as mesmas variáveis e
-   nenhum deles precisa saber que está no login. */
-.tela-login {
-  --bg: #080d1a;
-  --surface-1: #0c1220;
-  --surface-2: #101828;
-  --surface-3: #1a2540;
-  --border: rgb(255 255 255 / 0.06);
-  --border-strong: rgb(255 255 255 / 0.11);
-  --text-primary: #f1f5f9;
-  --text-secondary: #94a3b8;
-  --text-muted: #7c8da5;
+   `color-mix` em vez de opacidade no elemento: `opacity` apagaria o texto junto
+   com o fundo, e o que precisa ser translúcido é só a cor de trás. */
+.cartao-login {
+  background: color-mix(in srgb, var(--surface-1) 78%, transparent);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: 0 24px 64px rgb(0 0 0 / 0.45);
+}
 
-  background: var(--bg);
-  color: var(--text-primary);
-  color-scheme: dark;
+html[data-tema="claro"] .cartao-login {
+  /* No claro a sombra do escuro fica pesada e suja a borda. */
+  box-shadow: 0 16px 48px rgb(15 23 42 / 0.12);
 }

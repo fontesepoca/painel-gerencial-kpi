@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { NOME_DO_COOKIE, lerSessaoPublica } from "@/lib/servidor/sessoes";
 import { MenuDoUsuario } from "@/components/layout/MenuDoUsuario";
+import { ControlesDeExibicao } from "@/components/layout/ControlesDeExibicao";
 
 /**
  * A tela inicial: por onde se escolhe a rotina.
@@ -36,7 +37,12 @@ export default async function Home() {
           Época KPI
         </span>
 
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-2">
+          <ControlesDeExibicao />
+
+          {/* Separador: o menu do usuário é de outra natureza que os interruptores — um
+              controla a sessão, os outros a aparência. */}
+          <span aria-hidden className="mx-1 h-6 w-px bg-[var(--border-strong)]" />
           <MenuDoUsuario />
         </div>
       </header>
