@@ -60,8 +60,8 @@ eq(destinoSeguro(null), DESTINO_PADRAO, "nulo");
 eq(destinoSeguro(""), DESTINO_PADRAO, "vazio");
 
 // ── quantas estrelas ─────────────────────────────────────────────────────────
-ok(quantidadeParaArea(1920, 1080) <= 420, "monitor grande não passa do teto");
-ok(quantidadeParaArea(360, 640) >= 70, "celular tem o piso");
+ok(quantidadeParaArea(1920, 1080) <= 700, "monitor grande não passa do teto");
+ok(quantidadeParaArea(360, 640) >= 110, "celular tem o piso");
 ok(
   quantidadeParaArea(1920, 1080) > quantidadeParaArea(800, 600),
   "a densidade acompanha a área, senão o campo fica ralo no monitor grande",

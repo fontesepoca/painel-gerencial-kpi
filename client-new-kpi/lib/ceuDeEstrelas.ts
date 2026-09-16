@@ -78,11 +78,15 @@ export interface ConfiguracaoDoCeu {
  * a página.
  */
 export function quantidadeParaArea(largura: number, altura: number): number {
-  // Mais densa que no campo antigo, e o motivo é a perspectiva: boa parte das estrelas está
-  // sempre fora do quadro ou tênue demais para contar. Medido na tela — com a densidade
-  // anterior, uma janela de 720×450 mostrava pouco mais de meia centena de pixels acesos.
-  const densidade = (largura * altura) / 5_000;
-  return Math.max(70, Math.min(420, Math.round(densidade)));
+  // Bem mais densa que no campo antigo, e o motivo é a perspectiva: boa parte das estrelas
+  // está sempre fora do quadro ou tênue demais para contar. Medido na tela — com a densidade
+  // do campo anterior, uma janela de 720×450 mostrava pouco mais de meia centena de pixels
+  // acesos. Subiu de novo em 16/09/2026, a pedido do Gabriel, depois de ele ver o resultado.
+  //
+  // O teto continua existindo porque cada estrela custa um arco por quadro: num painel 5K sem
+  // limite seriam milhares, e a animação passaria a disputar CPU com a página.
+  const densidade = (largura * altura) / 3_000;
+  return Math.max(110, Math.min(700, Math.round(densidade)));
 }
 
 /**
