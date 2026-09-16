@@ -12,22 +12,40 @@
 -- primeiro bloco é o que pode derrubar a decisão 2 inteira.
 
 
--- ── 1. AS NOVE PESSOAS DA 9995 PASSARIAM? ────────────────────────────────────
--- Rode este primeiro. Se alguma delas estiver como 'I', o campo `SITUACAO` não significa o
--- que supomos, e barrar por ele trancaria justamente quem usa o painel — você incluído.
+-- ── 1. OS OITO QUE SERIAM BARRADOS — a pergunta que decide tudo ──────────────
 --
--- `PODE_ENTRAR` aplica as duas decisões juntas: nome de guerra preenchido, senha cadastrada
--- e situação ativa.
+-- Reescrito em 16/09/2026. A versão anterior olhava as nove pessoas da 9995; depois que a
+-- permissão passou a ser a da 9815, o universo que importa é outro.
+--
+-- A dc39 mediu: **36 pessoas têm a rotina 9815 e o controle 3 liberados. Só 28 entrariam** —
+-- as outras **8 são barradas por `SITUACAO <> 'A'`**, e por mais nada: todas as 36 têm nome de
+-- guerra e senha.
+--
+-- Esta consulta diz **quem são as oito**. É a pergunta que decide a regra inteira:
+--
+--   • se forem pessoas que saíram da empresa, a regra está certa e barrar é o ponto dela;
+--   • se alguma delas **trabalha aqui hoje**, então `SITUACAO = 'I'` não quer dizer
+--     "desligado", e a regra tranca gente que precisa entrar.
+--
+-- A suspeita é concreta, não teórica: `ELIAS` e `HAFFES` estão com `SITUACAO = 'I'` e são duas
+-- das nove pessoas que têm o Painel Gerencial (9995) liberado hoje. Gente com acesso a painel
+-- gerencial não costuma ser gente que foi embora.
+--
+-- **Olhe a lista e me diga se alguém dela trabalha na empresa hoje.** O banco não responde
+-- isso: `DTDEMISSAO` tem 22 linhas preenchidas na base inteira e não serve para conferir nada.
 SELECT E.MATRICULA,
        E.NOME_GUERRA,
        E.SITUACAO,
-       CASE WHEN E.SENHABD IS NULL THEN 'SEM SENHA' ELSE 'TEM SENHA' END AS SENHA,
-       CASE WHEN E.NOME_GUERRA IS NOT NULL
-             AND E.SENHABD IS NOT NULL
-             AND E.SITUACAO = 'A'
-            THEN 'SIM' ELSE 'NAO — SERIA BARRADO' END                    AS PODE_ENTRAR
+       E.DTDEMISSAO,
+       E.SITUACAO_CCW,
+       E.OBSINATIVO
   FROM PCEMPR E
- WHERE E.MATRICULA IN (9311, 2807, 4893, 9316, 1002010, 5367, 5531, 5587, 5476)
+  JOIN PCCONTRO  R ON R.CODUSUARIO = E.MATRICULA AND R.CODROTINA = 9815 AND R.ACESSO = 'S'
+  JOIN PCCONTROI I ON I.CODUSUARIO = E.MATRICULA AND I.CODROTINA = 9815
+                  AND I.CODCONTROLE = 3 AND I.ACESSO = 'S'
+ WHERE E.NOME_GUERRA IS NOT NULL
+   AND E.SENHABD IS NOT NULL
+   AND E.SITUACAO <> 'A'
  ORDER BY E.NOME_GUERRA;
 
 

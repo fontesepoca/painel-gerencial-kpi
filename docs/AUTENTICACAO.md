@@ -57,6 +57,30 @@ O **3** veio da tela da rotina 530 em 16/09/2026 — `GUIA 4-DRE`, entre os 43 c
 9815. Registrado aqui porque o banco não guarda essa descrição: em `PCCONTROI` ele é só o
 número 3.
 
+### Quantas pessoas isso dá
+
+Medido pela [dc39](validacao/dc39_permissao_da_9815.sql) em 16/09/2026:
+
+| | |
+|---|---|
+| Podem **abrir a rotina** 9815 (`PCCONTRO`) | 545 de 551 |
+| Têm o **controle 3** liberado | **37** — e 126 com ele explicitamente negado |
+| Rotina **e** controle | 36 |
+| **Entram de fato**, depois de nome de guerra, senha e situação | **28** |
+
+A restrição real mora no controle 3, não na rotina: quase todo mundo pode abrir a 9815, e a
+guia DRE é de poucos. Reaproveitar essa permissão herda um recorte que alguém já pensou — é o
+argumento mais forte a favor da decisão de 16/09/2026, e não tinha como ser previsto antes de
+medir.
+
+Das 36, **todas têm nome de guerra e senha**: a regra de `NOME_GUERRA` não custa ninguém aqui.
+As 8 que sobram caem **só** pelo filtro de situação — ver a ressalva abaixo.
+
+> **A 9815 é tela Delphi mesmo:** `ROTINAWEB` vazio e `ROTINA = 'epcde9815h'`, com 415.992
+> execuções acumuladas. O `DTULTUTILIZACAO` diz 16/05/2023, o que não bate com uma rotina em
+> uso diário — o campo parou de ser atualizado em algum momento. Não confie nele para medir
+> uso.
+
 **Nada é cadastrado por nós.** Some a rotina 530 do caminho, e some junto o risco de escolher
 um `CODCONTROLE` que colidisse com outra coisa.
 
@@ -85,9 +109,16 @@ nela. Tratá-lo exigiria mapear qual pedaço do nosso DRE corresponde a ele — 
 começa por descobrir o que ele significa — e o acesso à tela, que é o que o login precisa
 resolver agora, já está resolvido pelo 3.
 
-O que isso deixa em aberto, para quando alguém voltar aqui: a [dc39](validacao/dc39_permissao_da_9815.sql)
-§6 conta quantas pessoas têm a guia e não têm a lucratividade. Ela **não é pré-requisito de
-nada** — é a medida do tamanho desta divergência, se um dia ela importar.
+**O tamanho medido, depois da decisão:** a dc39 §6 contou. Entre quem tem senha e está ativo,
+**25 têm a guia e a lucratividade, e 3 têm a guia sem ela** — `ADILES`, `CELIOPEREIRA` e
+`WANDER`. (Outras 10 têm a lucratividade sem a guia, o que não nos afeta: sem o controle 3 não
+entram.)
+
+Ou seja: **três pessoas de vinte e oito**, mais de 10% de quem entra no primeiro dia, veriam na
+web algo que o Winthor não lhes mostra — supondo que a lucratividade esteja na parte que
+migramos, o que continua desconhecido. Não é um caso teórico, como pareceu quando a decisão foi
+tomada; é uma lista de três nomes. O registro fica aqui para a decisão poder ser revista com o
+número à vista.
 
 ### O que ainda não sabemos
 
@@ -130,7 +161,19 @@ digitando a senha certa, não entra. O defeito é de indisponibilidade, não de 
 Se a dc38 confirmar que entre ativos com senha não há `NOME_GUERRA` repetido, o `ROWNUM` sai
 do código **sem substituto**: não há empate para desempatar.
 
-### 3. Só entra quem está com `SITUACAO = 'A'`
+### 3. Só entra quem está com `SITUACAO = 'A'` — **em revisão**
+
+> ⚠ **Esta regra está sob suspeita desde 16/09/2026, e não deve virar código antes de ser
+> confirmada.** Das 36 pessoas com a 9815 e o controle 3, **8 seriam barradas, todas e somente
+> por esta regra** — as 36 têm nome de guerra e senha.
+>
+> O problema: `ELIAS` e `HAFFES` estão com `SITUACAO = 'I'` e são duas das nove pessoas que
+> têm o **Painel Gerencial (9995)** liberado hoje. Gente com acesso a painel gerencial não
+> costuma ser gente que foi embora. Se elas trabalham aqui, então `'I'` não quer dizer
+> "desligado", e esta regra tranca justamente quem precisa entrar.
+>
+> A dc38 §1 lista as oito. **A resposta tem de vir do Gabriel olhando a lista** — o banco não
+> ajuda: `DTDEMISSAO` tem 22 linhas preenchidas em 8.393.
 
 O painel antigo não filtra nada: a única condição é a senha bater. Hoje **3.072 pessoas
 inativas com senha entrariam**. `DTDEMISSAO` não serve de filtro — tem 22 linhas preenchidas na
