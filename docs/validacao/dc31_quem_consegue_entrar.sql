@@ -149,10 +149,13 @@ SELECT COLUMN_NAME, DATA_TYPE, DATA_LENGTH, NULLABLE, COLUMN_ID
  ORDER BY COLUMN_ID;
 
 -- 4.3 — o que ela diz das cinco rotinas do painel.
+--
+-- A chave aqui chama-se `CODIGO`, não `CODROTINA` — que é o nome dela em `PCCONTRO` e
+-- `PCCONTROI`. Mesma entidade, dois nomes, e o join entre as duas não é óbvio de ler.
 SELECT *
   FROM PCROTINA
- WHERE CODROTINA IN (9995, 9996, 9997, 9998, 9999)
- ORDER BY CODROTINA;
+ WHERE CODIGO IN (9995, 9996, 9997, 9998, 9999)
+ ORDER BY CODIGO;
 
 -- 4.4 — o CODCONTROLE que vamos ocupar não pode ser um que a rotina já define.
 --
@@ -162,14 +165,39 @@ SELECT *
 --
 -- Se a 4.2 mostrar que PCROTINA guarda só o nome, me diga: aí o número sai da tela da 530, e
 -- eu peço que você confira lá quantos controles a 9995 lista.
-SELECT R.CODROTINA,
+SELECT R.CODIGO,
        (SELECT COUNT(DISTINCT I.CODCONTROLE)
-          FROM PCCONTROI I WHERE I.CODROTINA = R.CODROTINA) AS CONTROLES_EM_USO,
+          FROM PCCONTROI I WHERE I.CODROTINA = R.CODIGO) AS CONTROLES_EM_USO,
        (SELECT MAX(I.CODCONTROLE)
-          FROM PCCONTROI I WHERE I.CODROTINA = R.CODROTINA) AS MAIOR_EM_USO
+          FROM PCCONTROI I WHERE I.CODROTINA = R.CODIGO) AS MAIOR_EM_USO
   FROM PCROTINA R
- WHERE R.CODROTINA IN (9995, 9996, 9997, 9998, 9999)
- ORDER BY R.CODROTINA;
+ WHERE R.CODIGO IN (9995, 9996, 9997, 9998, 9999)
+ ORDER BY R.CODIGO;
+
+
+-- ══ O QUE O BLOCO 4 RESPONDEU, e por que ele derruba o risco que me preocupava ══
+--
+-- **As 9995–9999 não são telas Delphi. São rotinas WEB.**
+--
+--   9995  PAINEL WEB GERENCIAL     ROTINAWEB='S'  ROTINA='WEB'  sincronizada em 15/03/2024
+--   9996  VENDAS WEB               idem
+--   9997  PAINEL WEB LOGISTICA     idem
+--   9998  PAINEL WEB E-COMMERCE    idem
+--   9999  PAINEL WEB GRUPO         idem, e sem NENHUM controle em uso
+--
+-- Elas existem para pendurar permissão dos painéis web da casa — não há executável Delphi por
+-- trás. Isso derruba o risco que travou este levantamento por dois dias: **não existe um
+-- Winthor que "defina" controles nessas rotinas**. Quem define é quem escreve o painel, e o
+-- número livre é livre de verdade.
+--
+-- **A `PCROTINA` não guarda controle nenhum** — 28 colunas, nenhuma delas sobre controle. O
+-- que existe de cadastro de `CODCONTROLE` é a própria `PCCONTROI`, ou seja: a linha de
+-- permissão de alguém. Descrição de controle não mora no banco.
+--
+-- **A numeração é contígua a partir de 1, sem buraco:** 9996 usa 1–4, 9997 usa 1–20, 9998 usa
+-- 1–16, e nas três `CONTROLES_EM_USO` é igual a `MAIOR_EM_USO`. Ninguém aposentou número.
+--
+-- **Na 9995 o espaço livre começa em 2.**
 
 
 -- ── 5. o tamanho das tabelas de permissão ────────────────────────────────────
