@@ -94,15 +94,44 @@ está medido no banco: 70,3 s para 6,0 s.
 ## O que isto custa ao resto do banco
 
 Este é o Oracle que a empresa usa para faturar, e o custo não aparece em nenhuma medição de
-tempo: ele aparece na tela de quem estava emitindo nota.
+tempo: ele apareceria na tela de quem está emitindo nota. Medido na
+[dc53](validacao/dc53_limites_do_paralelismo_como_dba.sql), com o usuário principal.
 
-Uma apuração passa de **um processo por 70 s** para **quatro por 6 s**. No total é menos
-trabalho para o servidor, mas concentrado num instante. Com 28 pessoas podendo apurar, três
-apurações simultâneas são doze processos de uma vez.
+**São 8 processos por apuração, não 4.** `PARALLEL(4)` não quer dizer quatro processos: o
+plano tem etapas que conversam entre si — as linhas `P->P`, produtores alimentando
+consumidores —, e o Oracle aloca **dois conjuntos** de quatro. Esta página dizia "quatro" até
+17/09/2026 e estava errada pela metade.
+
+| | |
+|---|---|
+| `cpu_count` | 16 núcleos |
+| `parallel_max_servers` | 640, o teto absoluto |
+| `parallel_servers_target` | 256, a partir daqui entra fila |
+| `parallel_degree_policy` | `MANUAL` — o nosso hint é respeitado como escrito |
+| `parallel_min_percent` | 0 — degrada em silêncio, nunca falha |
+| Resource Manager | nenhum plano ativo |
+
+**A conta: 256 ÷ 8 = 32 apurações simultâneas** antes de o banco sequer começar a formar
+fila. Com 28 pessoas ao todo, é inalcançável — se todas apurassem no mesmo segundo, seriam
+224 processos contra um alvo de 256.
+
+**E o banco já vive disso.** Desde que a instância subiu: 795.175 consultas paralelizadas,
+807.325 operações paralelas concluídas e **zero** rebaixamentos, em qualquer faixa. O Winthor
+já usa paralelismo intensamente; nós não estamos introduzindo nada estranho ao ambiente.
+
+**O que limita de verdade não é nada disso — são os 16 núcleos.** O teto de processos é
+folgado; os núcleos atendem ao mesmo tempo quem apura e quem fatura. Vinte e oito apurações
+simultâneas seriam 224 processos disputando 16 núcleos: ninguém falha, todos ficam lentos.
+Mas esse cenário exige as 28 pessoas clicando no mesmo instante, e cada apuração dura 6
+segundos.
 
 `MesesParaParalelizar` existe para esse tipo de ajuste: subindo para `2`, a apuração de um mês
 — que é o uso comum da tela — deixa de pedir paralelismo, e ele fica reservado aos recortes
 grandes, que foram os que motivaram tudo isto.
+
+> **Um detalhe que explica por que funcionou.** Com o hint, o Oracle **manteve** os nested
+> loops em `PCMOV` e paralelizou em volta deles. Ele não trocou a estratégia — que era a
+> certa, como a dc47 provou ao piorar 3,5× forçando hash join —, só dividiu o trabalho.
 
 ## O que NÃO funcionou, e por quê
 
