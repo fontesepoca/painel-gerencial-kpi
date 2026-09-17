@@ -14,7 +14,7 @@ builder.Services.AddCorsPadrao(builder.Configuration);
 // Ver docs/COMPRESSAO.md, que também diz como reverter isto.
 builder.Services.AddCompressaoDeResposta(builder.Configuration);
 
-builder.Services.AddPersistencia();
+builder.Services.AddPersistencia(builder.Configuration);
 
 // Descobre por reflexão todo IModuleInstaller da assembly. É por isso que acrescentar
 // uma rotina nova não exige editar este arquivo.
