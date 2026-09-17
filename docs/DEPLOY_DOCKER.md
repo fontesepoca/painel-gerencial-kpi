@@ -26,6 +26,13 @@ Preencha:
 - `FRONTEND_ORIGIN`: URL pública do front, por exemplo `http://192.168.0.227:3000`.
 - `ORACLE_EPOCA`: string de conexão do Oracle. Não commitar este valor.
 
+Opcionais, com padrão já definido — só mexa se precisar:
+
+- `GRAU_DE_PARALELISMO` (padrão `4`): processos que o Oracle usa na consulta de faturamento
+  do DRE. `0` desliga. Ver [PARALELISMO.md](PARALELISMO.md).
+- `COMPRESSAO_HABILITADA` (padrão `true`): compressão das respostas da API. Ver
+  [COMPRESSAO.md](COMPRESSAO.md).
+
 ## Subir
 
 ```bash
@@ -111,6 +118,36 @@ git pull
 docker compose up -d --build
 docker compose logs -f --tail=100
 ```
+
+## Mudar uma configuração da API em produção
+
+**No container não se edita `appsettings`.** As páginas de [PARALELISMO](PARALELISMO.md) e
+[COMPRESSAO](COMPRESSAO.md) explicam a reversão pelo arquivo, que é o caminho em
+desenvolvimento; aqui o caminho é o `.env`.
+
+O ASP.NET Core lê configuração em camadas, e variável de ambiente sobrepõe o
+`appsettings.json` que está dentro da imagem. O separador de seção é **duplo sublinhado**:
+`Oracle__GrauDeParalelismo` corresponde a `"Oracle": { "GrauDeParalelismo": ... }`.
+
+Para desligar o paralelismo, por exemplo:
+
+```bash
+nano .env                      # GRAU_DE_PARALELISMO=0
+docker compose up -d api       # recria o container da API com a variável nova
+```
+
+**Não precisa rebuild** — a imagem não muda, só o ambiente do container. E não precisa
+derrubar o front.
+
+Para conferir o que a API está usando de verdade:
+
+```bash
+docker compose exec api printenv | grep -E 'Oracle__|Compressao__'
+```
+
+Uma variável que não aparece aí não está valendo, e o container está rodando com o padrão
+da imagem — que é o erro mais comum ao mexer nisso: editar o `.env` e esquecer o
+`docker compose up -d`.
 
 ## Observações
 

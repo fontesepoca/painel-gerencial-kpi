@@ -128,6 +128,16 @@ No `appsettings.Development.json` (ou no `appsettings.json` do ambiente):
 E reinicie a API. Se estiver com `dotnet watch run`, `Ctrl+C` e suba de novo — **o `watch` não
 recarrega isto sozinho**, porque a configuração é lida uma vez, na construção do pipeline.
 
+**Em produção é outro caminho**, porque no container não existe `appsettings.Development.json`.
+Lá a configuração vem de variável de ambiente, no `.env` ao lado do `docker-compose.yml`:
+
+```bash
+nano .env                      # COMPRESSAO_HABILITADA=false
+docker compose up -d api       # recria o container, sem rebuild
+```
+
+Ver [DEPLOY_DOCKER.md](DEPLOY_DOCKER.md#mudar-uma-configuração-da-api-em-produção).
+
 Pronto. Não há migration, não há cache a limpar, não há nada no front a mudar.
 
 ### Conferir que voltou mesmo

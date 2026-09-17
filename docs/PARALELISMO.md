@@ -190,6 +190,16 @@ sai do `string.Format` idêntica, caractere por caractere, à de antes de 17/09/
 Se estiver com `dotnet watch run`, `Ctrl+C` e suba de novo: a configuração é lida uma vez, na
 construção do contêiner.
 
+**Em produção é outro caminho**, porque no container não existe `appsettings.Development.json`.
+Lá a configuração vem de variável de ambiente, no `.env` ao lado do `docker-compose.yml`:
+
+```bash
+nano .env                      # GRAU_DE_PARALELISMO=0
+docker compose up -d api       # recria o container, sem rebuild
+```
+
+Ver [DEPLOY_DOCKER.md](DEPLOY_DOCKER.md#mudar-uma-configuração-da-api-em-produção).
+
 ### Conferir que voltou mesmo
 
 ```bash
