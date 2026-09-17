@@ -28,7 +28,7 @@ literal** da tela antiga.
 |---|---|
 | O duplo clique **pela tela** | a API fecha 162/162, mas as telas novas nunca foram percorridas pela interface com dado real |
 | Tempo das consultas de imposto | nunca medido isoladamente — a dc6 só dá o total da execução |
-| Período de 3 meses e todas as filiais juntas | nunca apurados; risco de custo, não de valor |
+| Período de 3 meses e todas as filiais juntas | **custo medido em 17/09** — 173 s e 122,7 KB (dc41); os valores nunca foram conferidos contra a 9815 |
 | `% AH` em Conta Gerencial | a exportação usada saiu sem análise horizontal |
 
 ## Stack
