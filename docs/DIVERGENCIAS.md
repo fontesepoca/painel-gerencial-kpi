@@ -275,17 +275,51 @@ nas seções deste documento, que são posteriores.
 |---|---|
 | Conta Gerencial | ✅ [conferida em 31/08](#validação-de-conta-gerencial--31082026) — 1.197 células, só a MÉDIA |
 | Período de 4 meses | ✅ [medido em 31/08](#fase-5--quatro-meses--31082026) — 570 células, 2 divergências de MÉDIA |
-| Período de 3 meses | ⬜ **continua sem medição.** Pulamos de 2 para 4 |
-| As filiais todas juntas | ⬜ **continua sem medição.** O máximo testado são 3 |
+| Período de 3 meses | ◐ [custo medido em 17/09](#custo-de-três-meses-com-todas-as-filiais--17092026) — 173 s. **Os valores continuam sem conferência contra a 9815** |
+| As filiais todas juntas | ◐ [custo medido em 17/09](#custo-de-três-meses-com-todas-as-filiais--17092026) — as 9 juntas quase não pesam. **Os valores continuam sem conferência** |
 | Período sem movimento, 1 dia, virada de mês | ✅ [medidos em 31/08](#fase-5--período-de-um-dia--31082026) — 0 divergências |
 | Filial sem movimento no período | ✅ [medida em 31/08](#fase-5--filial-parada-e-filial-meio-vazia--31082026) — a parada não contamina nada |
 | O duplo clique **pela tela** | ⬜ a API fecha 162/162, mas o caminho pela interface com dado real nunca foi percorrido ponta a ponta |
 | `% AH` em Conta Gerencial | ⬜ a exportação usada saiu sem análise horizontal; a coluna só foi conferida em Grupo de Contas |
 
-Os dois períodos e o conjunto de filiais são riscos de **custo**, não de valor: quatro meses
-levaram 436 s, e o que ninguém mediu é o que acontece com 11 filiais de uma vez. Nenhum
+Os dois períodos e o conjunto de filiais são riscos de **custo**, não de valor: nenhum
 mecanismo depende do número de meses ou de filiais — o recorte parcial de mês, que era o
-único candidato, foi exercitado na virada de mês.
+único candidato, foi exercitado na virada de mês. A medição de custo está logo abaixo; o que
+continua em aberto nos dois é a conferência dos **valores** contra uma exportação da 9815 no
+mesmo recorte, e é por isso que eles não estão fechados.
+
+### Custo de três meses com todas as filiais — 17/09/2026
+
+Medido pela [dc41](validacao/dc41_tres_meses_todas_as_filiais.mjs), junho a agosto de 2026,
+regime caixa, centro de custo principal, cache frio. As nove filiais que a API oferece hoje.
+
+| | |
+|---|---|
+| Tempo | **173 s** (2,9 min), igual no relógio da API e no de parede |
+| Resposta crua | **122,7 KB** — 198 linhas × 3 colunas |
+| A mesma resposta comprimida | 15,7 KB |
+
+Três coisas saem daqui, e nenhuma delas é um valor apurado:
+
+**O número de filiais quase não custa.** Dois dias com as nove levaram 6,6 s; três meses com
+as mesmas nove, 173 s. O que pesa é a quantidade de meses, porque as filiais entram num
+`IN` de uma consulta só. O risco escrito aqui como "todas as filiais juntas" nunca foi o
+risco — é o período longo, e ele já estava medido na
+[dc19](validacao/dc19_dois_anos_inteiros.mjs): 407 s para um ano numa filial só.
+
+**O tamanho não é problema para ninguém.** 122 KB atravessam qualquer camada intermediária
+sem cuidado especial. Quando as chamadas do DRE passarem pelo BFF, o Next pode desserializar
+o corpo à vontade — não precisa repassar stream.
+
+**O tempo é, e o limite não é a paciência de quem espera.** O `fetch` do lado servidor do
+Node traz `headersTimeout` de 300 s. Três meses cabem, com 127 s de folga; um ano, pelo
+número da dc19, **não cabe** — e o erro é `UND_ERR_HEADERS_TIMEOUT`, que parece falha da API
+e não é. Um proxy no Next precisa desligar esse relógio de propósito nas rotas de apuração.
+
+**De brinde:** a API não comprime resposta nenhuma. Com `Accept-Encoding: gzip` vieram os
+122,7 KB crus — não há `ResponseCompression` no pipeline. Este JSON comprime 8×, porque
+repete os nomes dos campos em cada uma das 198 linhas de cada coluna. Vale mais para quem
+acessa de fora do escritório do que qualquer coisa que o BFF faça.
 
 ---
 
