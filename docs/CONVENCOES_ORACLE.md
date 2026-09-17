@@ -1,6 +1,7 @@
 # Convenções Oracle · ODP.NET · Dapper
 
-Base: **Oracle 11g** da Época. Driver: `Oracle.ManagedDataAccess.Core` (ODP.NET).
+Base: **Oracle 19c Enterprise Edition High Performance** (19.32.0.0.0) da Época. Driver:
+`Oracle.ManagedDataAccess.Core` (ODP.NET).
 Micro-ORM: **Dapper**.
 
 As armadilhas da última seção são reais — cada uma já custou tempo neste projeto ou está
@@ -76,10 +77,15 @@ posicional exige.
 
 ---
 
-## 3. Paginação: Oracle 11g não tem `OFFSET/FETCH`
+## 3. Paginação: o código usa `ROWNUM`, e `OFFSET/FETCH` também serve
 
-`OFFSET n ROWS FETCH NEXT m ROWS ONLY` é 12c+. No 11g dá erro de sintaxe. Use `ROWNUM` em
-subconsulta aninhada — e são **duas** camadas, não uma:
+Este projeto nasceu acreditando que o banco era 11g, onde `OFFSET n ROWS FETCH NEXT m ROWS
+ONLY` dá erro de sintaxe. **É 19c**, e a forma moderna funciona — descoberto em 17/09/2026,
+quando o plano de execução de uma consulta apareceu marcado como adaptativo, o que só existe
+de 12c em diante.
+
+O que já está escrito com `ROWNUM` continua correto e não precisa mudar. Para código novo,
+qualquer uma das duas serve. A forma com `ROWNUM` são **duas** camadas, não uma:
 
 ```sql
 SELECT * FROM (

@@ -36,7 +36,7 @@ Leia [CLAUDE.md](CLAUDE.md) para o contexto. Aqui estão as regras. São imperat
 | Armadilha | O que acontece | Como evitar |
 |---|---|---|
 | **ODP.NET usa bind posicional** | `BindByName = false` é o padrão: a ordem dos parâmetros tem que bater com a ordem dos `:placeholders`. Nome repetido precisa de alias único | `docs/CONVENCOES_ORACLE.md` |
-| **Oracle 11g não tem `OFFSET/FETCH`** | Erro de sintaxe | Paginação com `ROWNUM` em subconsulta aninhada |
+| **O banco é 19c, não 11g** | Recursos descartados por engano — o paralelismo ficou 2 meses fora do radar | `OFFSET/FETCH`, `PARALLEL` e planos adaptativos existem. O código atual pagina com `ROWNUM`, que continua válido |
 | **`TO_NUMBER` em código hierárquico** | `ORA-01722` com `9701.001.02`, ou colisão silenciosa de chaves | Chave de agrupamento é `VARCHAR2`. Sempre |
 | **`COR` do `EPCPARDRE` é `TColor` do Delphi** | BGR, não RGB. Tratar como RGB inverte os canais e o azul vira laranja | Inverter os bytes |
 | **`(+)` do Oracle** | Sintaxe legada de outer join; combinada com `IN`/`OR` dá resultado diferente de `LEFT JOIN` | Reproduza o `(+)` como está ao replicar a 9815 |

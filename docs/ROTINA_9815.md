@@ -1754,3 +1754,86 @@ mensal**, nunca no caminho caro.
 | dc13 — o `.xlsx` | **29/29**, agora com o bloco de variação |
 | dc11, dc12, dc14, dc17 | inalteradas e passando |
 | Pela tela | `Set/2025` e `Set/2026` na filial 7, receita líquida de Set/2025 batendo a dc18 ao centavo; duplo clique abrindo `01/09/2025 a 10/09/2025` e fechando com a célula |
+
+---
+
+## 22. Um mês fechado não fica parado — e em competência muda muito
+
+Medido em 17/09/2026 pela [dc54](validacao/dc54_assinatura_para_invalidar_cache.sql). A
+pergunta era sobre cache — se dá para guardar uma apuração já feita —, mas a resposta
+descreve a rotina e vale independente disso.
+
+### O que foi medido
+
+Lançamentos **pagos** num mês cuja **competência** é de mês anterior, março a maio de 2026:
+
+| Pago em | Competência | Quantos | Valor |
+|---|---|---|---|
+| 03/2026 | 02/2026 | 2.288 | R$ 21.491.377,02 |
+| 04/2026 | 03/2026 | 3.262 | R$ 29.372.316,74 |
+| 05/2026 | 04/2026 | 2.773 | R$ 31.462.575,59 |
+| 05/2026 | 03/2026 | 2.799 | R$ 6.728.637,24 |
+
+Mais uma cauda longa de lançamentos com competência de 2022, 2024 e 2025 — poucos, mas
+existem, e há até competências absurdas (`01/1900`, `02/1930`) que a rotina soma como
+qualquer outra.
+
+### Por que isso mexe no DRE de um mês já apurado
+
+Não é anomalia: é contas a pagar funcionando. O que transforma isso em movimento no DRE é a
+**regra de negócio 4** — *despesa não paga nunca entra, nem em competência*
+(`DTPAGTO IS NOT NULL`, ver §5).
+
+Cruzando as duas: em **regime de competência**, uma despesa de fevereiro só entra no DRE de
+fevereiro **no dia em que for paga**. Se o pagamento sai em março, o DRE de fevereiro muda
+naquele dia — e muda de novo em abril, e em maio. Os números acima dizem o tamanho disso:
+**R$ 21 milhões** entraram em fevereiro depois que fevereiro terminou.
+
+Em **regime de caixa** o quadro é outro, porque o mês da coluna é o do pagamento: o que foi
+pago em março entra em março, e fevereiro fica estável.
+
+**Consequência prática, e vale para quem for usar o relatório:** dois DREs de fevereiro em
+competência, apurados com um mês de diferença, podem legitimamente não bater. Nenhum dos
+dois está errado — o segundo viu pagamentos que o primeiro não tinha como ver. Quem comparar
+uma apuração guardada com uma nova precisa saber disso antes de procurar defeito no código.
+
+### O que isso impede
+
+**Guardar uma apuração de competência em cache é arriscado**, e não dá para tornar seguro por
+esperteza: não há como saber que um pagamento entrou sem ir ao banco perguntar.
+
+O que a dc54 mediu sobre detectar mudança barato:
+
+| Assinatura do período | Custo |
+|---|---|
+| só o cabeçalho das notas (`PCNFSAID`) | **0,14 s** |
+| com os itens (`PCNFSAID` + `PCMOV`) | 24,46 s |
+
+A do cabeçalho é barata e serve para o faturamento. A com itens custa quase uma apuração.
+
+Colunas de alteração existem — `DTDC_ALTER` na `PCNFSAID`, `DTULTALTER` na `PCLANC` —, mas
+**nenhuma delas é indexada**, e `DTDC_ALTER` tem cara de controle de replicação do Winthor e
+não de alteração de negócio. Nenhuma foi usada.
+
+### O caminho que sobraria, se um dia o cache for feito
+
+A decomposição da [dc43](validacao/dc43_onde_vao_os_segundos.mjs) mostra uma simetria útil:
+**o que é caro é estável, e o que muda é barato.**
+
+| Etapa | Custo | Muda retroativamente? |
+|---|---|---|
+| faturamento | 92 s frio, 6 s quente | pouco — nota cancelada, item alterado |
+| **despesas** | **1,5 s** | **sim, é aqui que o retroativo mora** |
+| estrutura | 18 s | quase nunca — é cadastro |
+
+Ou seja: dá para guardar **só o faturamento**, validando com a assinatura de 0,14 s, e
+**recalcular as despesas sempre** — custam um segundo e meio. O retroativo nunca ficaria
+velho, e a parte de 92 s viria pronta.
+
+Não é imune: nota cancelada ou item alterado sem mexer no cabeçalho escapam da assinatura.
+Mas é bem mais seguro do que cachear a apuração inteira.
+
+**Nada disso foi implementado**, e a recomendação em 17/09/2026 foi não implementar: com o
+paralelismo (ver [PARALELISMO.md](PARALELISMO.md)) a apuração caiu de 173 s para 92 s no frio
+e 6 s no quente. Cache seria otimização sobre otimização, em troca do risco de um número
+desatualizado numa reunião — que é o único erro que esta rotina não pode cometer.

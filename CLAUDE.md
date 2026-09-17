@@ -5,7 +5,8 @@ Monólito com duas aplicações: uma API .NET e um front Next.js. Migra rotinas 
 literal** da tela antiga.
 
 - **Empresa:** Época Distribuição.
-- **Banco:** Oracle 11g **da Época**. O Winthor é o ERP cujas tabelas (`PC*`) vivem nessa base.
+- **Banco:** Oracle **19c Enterprise Edition High Performance** (19.32) **da Época**. O Winthor
+  é o ERP cujas tabelas (`PC*`) vivem nessa base.
 - **Rotina piloto:** 9815 — *GERENCIAL / DRE*. Vira o molde para as próximas.
 - **Referência arquitetural:** `api-minas-rural` (.NET 10) e `client-minas-rural` (Next.js 16).
 
@@ -28,7 +29,7 @@ literal** da tela antiga.
 |---|---|
 | O duplo clique **pela tela** | a API fecha 162/162, mas as telas novas nunca foram percorridas pela interface com dado real |
 | Tempo das consultas de imposto | nunca medido isoladamente — a dc6 só dá o total da execução |
-| Período de 3 meses e todas as filiais juntas | nunca apurados; risco de custo, não de valor |
+| Período de 3 meses e todas as filiais juntas | **custo medido em 17/09** — 173 s e 122,7 KB (dc41); os valores nunca foram conferidos contra a 9815 |
 | `% AH` em Conta Gerencial | a exportação usada saiu sem análise horizontal |
 
 ## Stack
@@ -41,7 +42,7 @@ literal** da tela antiga.
 | Queries e stored procedures | Dapper 2.1 |
 | CRUD em tabelas novas | EF Core 10 (`Oracle.EntityFrameworkCore`) — **ainda não instalado** |
 | Driver | `Oracle.ManagedDataAccess.Core` 23.26 (ODP.NET) |
-| Banco | Oracle 11g |
+| Banco | Oracle 19c EE High Performance (19.32) |
 | Auth | JWT — **fora do escopo do piloto** |
 | Docs da API | OpenAPI nativo + Scalar (`/scalar/v1`) |
 

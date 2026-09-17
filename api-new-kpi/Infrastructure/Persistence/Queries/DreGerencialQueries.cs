@@ -935,9 +935,27 @@ public static class DreGerencialQueries
     /// entra no primeiro bloco (o filtro a exclui) nem neste (o `NOT EXISTS` a exclui).
     /// Não é o caso da 28, e o bloco 4 da dc15 é quem mede se existe.</para>
     ///
+    /// <para><b>4. O hint de paralelismo, em {3} — 17/09/2026.</b> Esta é a consulta mais
+    /// cara da rotina: 92,5% de uma apuração (dc43), e dentro dela o bloco de vendas por
+    /// item é 93,6% (dc45). Com <c>PARALLEL(4)</c> ela caiu de 70,3 s para 6,0 s.</para>
+    ///
+    /// <para><b>O hint vai DENTRO do primeiro bloco, e não no SELECT de fora.</b> Os dois
+    /// entregam a mesma média, mas o de fora oscila — 11,79 s e depois 6,25 s na mesma
+    /// sessão —, enquanto este deu 5,97 s nas duas passadas (dc50). Um DRE que às vezes leva
+    /// 6 s e às vezes 12 é pior de conviver que um que leva 6 sempre. E paralelizar o SELECT
+    /// externo alcançaria também os blocos 2 e 3, que juntos custam 16 s e não precisam.</para>
+    ///
+    /// <para>O conteúdo de {3} sai de <c>OpcoesDeParalelismo.HintPara</c>, e é <b>string
+    /// vazia</b> quando o paralelismo está desligado — a consulta volta a ser, caractere por
+    /// caractere, a de antes. Ver <c>docs/PARALELISMO.md</c>.</para>
+    ///
     /// <para><b>Binds, na ordem em que aparecem</b> — o ODP.NET liga por posição:
     /// :dtIni1, :dtFim1 (vendas), {0} filiais de `PCNFSAID`, {1} filiais de `PCNFENT`,
     /// :dtIni2, :dtFim2 (devoluções), {2} filiais do bloco sem item, :dtIni3, :dtFim3.</para>
+    ///
+    /// <para><b>{3} não é bind, é texto.</b> Hint não aceita parâmetro — ele é lido pelo
+    /// otimizador antes de qualquer valor ser ligado. Por isso o grau passa por
+    /// <c>Math.Clamp</c> antes de virar string.</para>
     /// </summary>
     public const string FaturamentoPorMes = """
         SELECT MESANO                                              AS MESANO,
@@ -951,7 +969,7 @@ public static class DreGerencialQueries
                sum(nvl(VLPIS,0))    - sum(nvl(VLPIS_DEV,0))        AS PISLIQ,
                sum(nvl(VLCOFINS,0)) - sum(nvl(VLCOFINS_DEV,0))     AS COFINSLIQ
           FROM (
-          SELECT TO_CHAR(NF.DTSAIDA,'mm/yyyy') AS MESANO, SUM(  decode(MV.custofin,0,MV.custofinest-nvl(MV.st,0)-nvl(MVC.vlfecp,0), (MV.custofin-nvl(MV.st,0)-nvl(MVC.vlfecp,0)) ) * MV.qt) as VLCUSTOFIN, 
+          SELECT {3} TO_CHAR(NF.DTSAIDA,'mm/yyyy') AS MESANO, SUM(  decode(MV.custofin,0,MV.custofinest-nvl(MV.st,0)-nvl(MVC.vlfecp,0), (MV.custofin-nvl(MV.st,0)-nvl(MVC.vlfecp,0)) ) * MV.qt) as VLCUSTOFIN, 
                  SUM(  MV.punit * MV.qt) as VLVENDA,  
                  SUM(  MV.punit * MV.qt) VLVENDA_Total,   
                  SUM(  MV.ptabela * MV.qt) as VLTABELA, 0 as VLDEVOLUCAO,  0 as VLDEVOLUCAO_total, 0 as VLCMVDEVOL, 

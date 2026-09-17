@@ -11,8 +11,19 @@ namespace Epoca.Kpi.Api.Infrastructure.Persistence.Repositories;
 public sealed class DreGerencialRepository : IDreGerencialRepository
 {
     private readonly IOracleConnectionFactory _conexoes;
+    private readonly OpcoesDeParalelismo _paralelismo;
 
-    public DreGerencialRepository(IOracleConnectionFactory conexoes) => _conexoes = conexoes;
+    public DreGerencialRepository(
+        IOracleConnectionFactory conexoes,
+        OpcoesDeParalelismo paralelismo)
+    {
+        _conexoes = conexoes;
+        _paralelismo = paralelismo;
+    }
+
+    /// <summary>Meses que o recorte cobre, contando as pontas.</summary>
+    private static int MesesDoRecorte(DateOnly inicio, DateOnly fim) =>
+        ((fim.Year - inicio.Year) * 12) + fim.Month - inicio.Month + 1;
 
     public async Task<IReadOnlyList<Filial>> ObterFiliaisAsync(
         CancellationToken cancellationToken = default)
@@ -226,8 +237,14 @@ public sealed class DreGerencialRepository : IDreGerencialRepository
         var placeholdersB = string.Join(", ", filiais.Select((_, i) => $":filialB{i}"));
         var placeholdersC = string.Join(", ", filiais.Select((_, i) => $":filialC{i}"));
 
+        // {3} é o hint de paralelismo, e vem vazio quando ele está desligado — a consulta
+        // volta a ser exatamente a de antes. Não é bind: hint é lido pelo otimizador antes
+        // de qualquer valor ser ligado, então precisa estar no texto. Ver docs/PARALELISMO.md.
+        var hint = _paralelismo.HintPara(MesesDoRecorte(dataInicio, dataFim));
+
         var sql = string.Format(
-            DreGerencialQueries.FaturamentoPorMes, placeholdersA, placeholdersB, placeholdersC);
+            DreGerencialQueries.FaturamentoPorMes,
+            placeholdersA, placeholdersB, placeholdersC, hint);
 
         var inicio = dataInicio.ToDateTime(TimeOnly.MinValue);
         var fim = dataFim.ToDateTime(TimeOnly.MinValue);
@@ -257,9 +274,12 @@ public sealed class DreGerencialRepository : IDreGerencialRepository
 
         using var conexao = await _conexoes.CriarConexaoAsync(cancellationToken);
 
-        // A consulta mais cara da rotina: 16,9 s por mês no trace de 1 mês e 115 s no de
-        // 2 meses — ou seja, ela NÃO cresce em linha reta com o período. O fôlego acompanha
-        // o recorte; ver `FolegoDaApuracao`.
+        // A consulta mais cara da rotina: 92,5% de uma apuração, e o bloco de vendas por
+        // item é 93,6% dela (dc43, dc45). Com PARALLEL(4) a consulta inteira saiu de 70,3 s
+        // para 6,0 s em três meses e nove filiais.
+        //
+        // O fôlego continua generoso de propósito: ele vale para quando o paralelismo está
+        // DESLIGADO, que é o caso a proteger. Ver `FolegoDaApuracao`.
         var faturamento = await conexao.QueryAsync<FaturamentoDre>(
             new CommandDefinition(
                 sql,
