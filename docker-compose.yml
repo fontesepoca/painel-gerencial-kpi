@@ -9,6 +9,11 @@ services:
       ASPNETCORE_URLS: http://+:8080
       ConnectionStrings__OracleEpoca: ${ORACLE_EPOCA:?Configure ORACLE_EPOCA no arquivo .env}
       Cors__OrigensPermitidas__0: ${FRONTEND_ORIGIN:-http://localhost:3000}
+      # Duplo sublinhado separa a seção da chave: Oracle__GrauDeParalelismo é
+      # "Oracle": { "GrauDeParalelismo": ... } no appsettings. Sem a variável, vale o
+      # padrão que está na imagem. Ver docs/PARALELISMO.md e docs/COMPRESSAO.md.
+      Oracle__GrauDeParalelismo: ${GRAU_DE_PARALELISMO:-4}
+      Compressao__Habilitada: ${COMPRESSAO_HABILITADA:-true}
     ports:
       - "${API_PORT:-5207}:8080"
 
