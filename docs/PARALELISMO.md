@@ -106,24 +106,49 @@ consumidores —, e o Oracle aloca **dois conjuntos** de quatro. Esta página di
 |---|---|
 | `cpu_count` | 16 núcleos |
 | `parallel_max_servers` | 640, o teto absoluto |
-| `parallel_servers_target` | 256, a partir daqui entra fila |
+| `parallel_servers_target` | 256, mas **não vale aqui** — ver abaixo |
 | `parallel_degree_policy` | `MANUAL` — o nosso hint é respeitado como escrito |
 | `parallel_min_percent` | 0 — degrada em silêncio, nunca falha |
 | Resource Manager | nenhum plano ativo |
 
-**A conta: 256 ÷ 8 = 32 apurações simultâneas** antes de o banco sequer começar a formar
-fila. Com 28 pessoas ao todo, é inalcançável — se todas apurassem no mesmo segundo, seriam
-224 processos contra um alvo de 256.
+**A conta: 640 ÷ 8 = 80 apurações simultâneas** antes de o banco começar a degradar. Com 28
+pessoas ao todo, é inalcançável.
+
+> **`parallel_servers_target` não entra nessa conta**, e esta página dizia que entrava. Ele
+> rege *statement queuing*, que só é ativado com `parallel_degree_policy = AUTO`; aqui a
+> política é `MANUAL`, então não há enfileiramento e o limite efetivo é
+> `parallel_max_servers`. A conclusão prática fica mais folgada, não menos.
+
+Dois parâmetros completam o quadro. `parallel_adaptive_multi_user = FALSE`: não há redução
+automática do grau conforme a carga, o grau pedido é honrado até os escravos acabarem. E
+`parallel_min_percent = 0`: quando acabam, a consulta **degrada em silêncio** em vez de
+levantar `ORA-12827`. O pior caso é uma apuração rodar como rodava antes.
 
 **E o banco já vive disso.** Desde que a instância subiu: 795.175 consultas paralelizadas,
 807.325 operações paralelas concluídas e **zero** rebaixamentos, em qualquer faixa. O Winthor
 já usa paralelismo intensamente; nós não estamos introduzindo nada estranho ao ambiente.
 
-**O que limita de verdade não é nada disso — são os 16 núcleos.** O teto de processos é
-folgado; os núcleos atendem ao mesmo tempo quem apura e quem fatura. Vinte e oito apurações
-simultâneas seriam 224 processos disputando 16 núcleos: ninguém falha, todos ficam lentos.
-Mas esse cenário exige as 28 pessoas clicando no mesmo instante, e cada apuração dura 6
-segundos.
+**O que limita de verdade não é nada disso — são os 16 núcleos e a PGA.** O pool de escravos
+é folgado; os núcleos atendem ao mesmo tempo quem apura e quem fatura. Vinte e oito
+apurações simultâneas seriam 224 processos disputando 16 núcleos: ninguém falha, todos ficam
+lentos. Mas esse cenário exige as 28 pessoas clicando no mesmo instante, e cada apuração
+dura 6 segundos.
+
+Sob concorrência alta, o sintoma a vigiar não é falta de processo e sim **PGA**: são 16 GB
+de `pga_aggregate_target`, cada escravo tem sua área de trabalho, e `HASH GROUP BY` e
+`HASH JOIN` paralelos multiplicam workareas. O que apareceria é spill para TEMP.
+
+### Por que hint, e não `ALTER TABLE ... PARALLEL`
+
+É a pergunta de quem conhece Oracle, e a resposta é o ponto mais importante desta página.
+
+`ALTER TABLE PCNFSAID PARALLEL 4` seria mais elegante e é **inaceitável aqui**. O atributo é
+persistente e vale para toda consulta que tocar a tabela: relatórios do Winthor, rotinas
+Delphi, integrações. Seria alterar o comportamento do ERP inteiro para acelerar uma tela —
+e a regra do projeto é não tocar em nada do Winthor.
+
+O hint no texto da nossa consulta atinge só a nossa consulta. Nada foi alterado no
+dicionário, não há estado no banco para desfazer, e reverter é trocar um `4` por um `0`.
 
 `MesesParaParalelizar` existe para esse tipo de ajuste: subindo para `2`, a apuração de um mês
 — que é o uso comum da tela — deixa de pedir paralelismo, e ele fica reservado aos recortes
