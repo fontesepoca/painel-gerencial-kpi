@@ -1,6 +1,6 @@
 # Schema do banco — tabelas usadas pela DRE Gerencial
 
-Base **Oracle 11g da Época Distribuição**. As tabelas `PC*` são do ERP **Winthor**; as demais
+Base **Oracle 19c EE High Performance da Época Distribuição**. As tabelas `PC*` são do ERP **Winthor**; as demais
 são customizações da Época.
 
 Levantado a partir do trace SQL da rotina 9815. Cada coluna listada é **efetivamente usada**;

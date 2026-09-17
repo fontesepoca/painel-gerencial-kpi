@@ -5,7 +5,8 @@ Monólito com duas aplicações: uma API .NET e um front Next.js. Migra rotinas 
 literal** da tela antiga.
 
 - **Empresa:** Época Distribuição.
-- **Banco:** Oracle 11g **da Época**. O Winthor é o ERP cujas tabelas (`PC*`) vivem nessa base.
+- **Banco:** Oracle **19c Enterprise Edition High Performance** (19.32) **da Época**. O Winthor
+  é o ERP cujas tabelas (`PC*`) vivem nessa base.
 - **Rotina piloto:** 9815 — *GERENCIAL / DRE*. Vira o molde para as próximas.
 - **Referência arquitetural:** `api-minas-rural` (.NET 10) e `client-minas-rural` (Next.js 16).
 
@@ -41,7 +42,7 @@ literal** da tela antiga.
 | Queries e stored procedures | Dapper 2.1 |
 | CRUD em tabelas novas | EF Core 10 (`Oracle.EntityFrameworkCore`) — **ainda não instalado** |
 | Driver | `Oracle.ManagedDataAccess.Core` 23.26 (ODP.NET) |
-| Banco | Oracle 11g |
+| Banco | Oracle 19c EE High Performance (19.32) |
 | Auth | JWT — **fora do escopo do piloto** |
 | Docs da API | OpenAPI nativo + Scalar (`/scalar/v1`) |
 

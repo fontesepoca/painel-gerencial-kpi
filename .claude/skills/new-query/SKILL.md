@@ -119,7 +119,10 @@ public async Task<IReadOnlyList<{Rotina}Linha>> Obter{Consulta}Async(
 **`commandTimeout: 600`.** O padrão do Dapper é 30 segundos. A consulta de faturamento da 9815
 levou **115 segundos por mês**; com 4 meses passa de 8 minutos.
 
-## 4. Paginação, quando houver — Oracle 11g não tem `OFFSET/FETCH`
+## 4. Paginação, quando houver
+
+O banco é 19c, então `OFFSET/FETCH` funciona. A forma abaixo, com `ROWNUM`, é a que o código
+existente usa — as duas servem:
 
 ```sql
 SELECT * FROM (
