@@ -518,9 +518,13 @@ function Segmentado({
 }
 
 /**
- * Multisseleção de filiais, agrupada por empresa. Vêm do cadastro, menos as que têm
- * dados em outra base — ver `docs/DIVERGENCIAS.md`. No Winthor essa escolha acontecia
- * numa tela separada, antes de abrir a rotina.
+ * Multisseleção de filiais, em lista corrida. Vêm do cadastro, menos as que têm dados em
+ * outra base — ver `docs/DIVERGENCIAS.md`. No Winthor essa escolha acontecia numa tela
+ * separada, antes de abrir a rotina.
+ *
+ * <b>Sem agrupamento por empresa.</b> A lista já é curta, e os cabeçalhos EPC, FUT e
+ * VIVALOG ocupavam uma linha cada para separar grupos de uma ou duas filiais — mais ruído
+ * que orientação. Decisão do Gabriel em 17/09/2026.
  */
 function SeletorFiliais({
   filiais,
@@ -569,8 +573,6 @@ function SeletorFiliais({
             "1 filial")
           : `${selecionadas.length} filiais`;
 
-  const empresas = [...new Set(filiais.map((f) => f.empresa))];
-
   return (
     <div ref={caixa} className="relative">
       <button
@@ -607,31 +609,22 @@ function SeletorFiliais({
             <AcaoRapida onClick={() => onMudar([])}>Nenhuma</AcaoRapida>
           </div>
 
-          {empresas.map((empresa) => (
-            <div key={empresa} className="mb-1">
-              <p className="px-2 py-1 text-[length:var(--fs-rotulo)] font-semibold tracking-[0.14em] text-[var(--text-muted)] uppercase">
-                {empresa}
-              </p>
-              {filiais
-                .filter((f) => f.empresa === empresa)
-                .map((f) => (
-                  <label
-                    key={f.codFilial}
-                    className="flex cursor-pointer items-center gap-3 rounded-[var(--radius-sm)] px-2 py-[var(--celula-y)] text-[length:var(--fs-base)] hover:bg-[var(--surface-3)]"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={selecionadas.includes(f.codFilial)}
-                      onChange={() => alternar(f.codFilial)}
-                      className="size-4 accent-[var(--primary)]"
-                    />
-                    <span className="flex-1 truncate">{f.label}</span>
-                    <span className="tabular text-[length:var(--fs-apoio)] text-[var(--text-muted)]">
-                      {f.codFilial}
-                    </span>
-                  </label>
-                ))}
-            </div>
+          {filiais.map((f) => (
+            <label
+              key={f.codFilial}
+              className="flex cursor-pointer items-center gap-3 rounded-[var(--radius-sm)] px-2 py-[var(--celula-y)] text-[length:var(--fs-base)] hover:bg-[var(--surface-3)]"
+            >
+              <input
+                type="checkbox"
+                checked={selecionadas.includes(f.codFilial)}
+                onChange={() => alternar(f.codFilial)}
+                className="size-4 accent-[var(--primary)]"
+              />
+              <span className="flex-1 truncate">{f.label}</span>
+              <span className="tabular text-[length:var(--fs-apoio)] text-[var(--text-muted)]">
+                {f.codFilial}
+              </span>
+            </label>
           ))}
         </div>
       )}
