@@ -93,6 +93,22 @@ docs/                    documentação do monólito (raiz, não por projeto)
 - Pipeline: GlobalException → NoStore → CORS → Authentication → Authorization → Controllers.
 - Um módulo por rotina, descoberto por reflexão. Ver [docs/ARQUITETURA.md](docs/ARQUITETURA.md).
 
+### Toda tela leva `<ControlesDeExibicao />`
+
+**Tema claro e leitura ampliada vão em todas as páginas, sem exceção — inclusive o login.**
+Regra do Gabriel em 16/09/2026. Não são preferência de uma rotina, são preferência de quem
+está lendo: quem precisa de fonte grande precisa dela na tela de entrada também, e uma tela
+sem o controle obriga a pessoa a atravessá-la no tamanho errado para só então poder ajustar.
+
+O componente está em `components/layout/ControlesDeExibicao.tsx`, e o `AppShell` já o inclui —
+uma rotina nova que use a casca não precisa fazer nada. Tela fora da casca (como o login) o
+posiciona por conta própria, no alto à direita.
+
+**Consequência para qualquer efeito visual:** ele tem de existir nos dois temas. O campo de
+estrelas do login mostrou o preço de ignorar isso — no claro ele saía com opacidade média de
+23 em 255, invisível, e a correção não foi cor: um círculo de meio pixel é quase todo
+antialiasing, e o que sobra desaparece contra o branco. Meça, não olhe.
+
 ## Regras de negócio críticas
 
 A versão web da 9815 tem que produzir **exatamente os mesmos números** da rotina Delphi,

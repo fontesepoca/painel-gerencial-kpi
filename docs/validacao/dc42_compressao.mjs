@@ -106,9 +106,10 @@ conferir("o brotli descomprimido é idêntico ao cru",
 // ── 3. A autenticação NÃO comprime ─────────────────────────────────────────
 // Credencial inválida de propósito: o que se mede é o cabeçalho da resposta, não o acesso.
 //
-// A rota vem da branch da autenticação e pode ainda não existir aqui. Quando não existe, o
-// bloco AVISA e não falha — a isenção está configurada e passa a ser exercitada no dia em
-// que as duas branches se encontrarem. Falhar aqui só ensinaria a ignorar a dc42.
+// Desde 18/09/2026 esta rota existe e o bloco roda de verdade — antes disso a autenticação
+// vivia em outra branch. O caminho do 404 ficou porque continua correto: quem rodar isto
+// contra uma API sem o módulo de autenticação recebe um aviso, não uma falha. Falhar ali só
+// ensinaria a ignorar a dc42.
 console.log("\nRota isenta — /api/auth/login");
 
 const login = await pedir("/api/auth/login", {

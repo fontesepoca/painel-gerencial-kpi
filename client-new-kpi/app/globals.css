@@ -1463,3 +1463,73 @@ html[data-tema="claro"] .tabela-rolagem thead th.faixa-mes-4 {
     background-image: none;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   TELA DE LOGIN
+
+   Os campos aqui não reaproveitam os da tela de filtros: lá eles vivem numa
+   barra densa, com altura reduzida e fundo opaco; aqui estão sobre vidro, com
+   o campo de estrelas atrás, e precisam de contraste próprio para o texto
+   digitado não brigar com o que passa por trás.
+   ═══════════════════════════════════════════════════════════════ */
+
+.campo-login {
+  width: 100%;
+  height: var(--altura-controle);
+  padding-inline: 0.875rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-strong);
+  /* Opaco de propósito, e não translúcido como o cartão: texto digitado sobre
+     estrelas em movimento é desconfortável de ler, e senha é o pior lugar
+     possível para a pessoa duvidar do que digitou. */
+  background: var(--surface-2);
+  color: var(--text-primary);
+  font-size: var(--fs-base);
+  font-family: var(--font-ui);
+  transition:
+    border-color var(--dur-instant),
+    box-shadow var(--dur-instant);
+}
+
+.campo-login::placeholder {
+  color: var(--text-muted);
+}
+
+.campo-login:focus {
+  outline: none;
+  border-color: var(--primary);
+  /* O anel vem do token do tema, o mesmo dos outros controles: o foco tem de
+     ser reconhecível como o foco do sistema, não como um efeito desta tela. */
+  box-shadow: 0 0 0 3px var(--primary-ring);
+}
+
+/* Preenchimento automático do navegador: o Chrome pinta o campo de amarelo e
+   ignora `background`. A sombra interna é o único jeito de repintar sem quebrar
+   o autofill — e sem ela o campo fica ilegível sobre o tema escuro. */
+.campo-login:-webkit-autofill,
+.campo-login:-webkit-autofill:hover,
+.campo-login:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--text-primary);
+  -webkit-box-shadow: 0 0 0 1000px var(--surface-2) inset;
+  caret-color: var(--text-primary);
+}
+
+/* O cartão de vidro do login.
+
+   A cor vem de `--surface-1`, não de um rgb fixo: a tela de login segue o tema
+   como todas as outras, e um fundo escuro cravado aqui viraria um retângulo
+   preto no tema claro.
+
+   `color-mix` em vez de opacidade no elemento: `opacity` apagaria o texto junto
+   com o fundo, e o que precisa ser translúcido é só a cor de trás. */
+.cartao-login {
+  background: color-mix(in srgb, var(--surface-1) 78%, transparent);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: 0 24px 64px rgb(0 0 0 / 0.45);
+}
+
+html[data-tema="claro"] .cartao-login {
+  /* No claro a sombra do escuro fica pesada e suja a borda. */
+  box-shadow: 0 16px 48px rgb(15 23 42 / 0.12);
+}

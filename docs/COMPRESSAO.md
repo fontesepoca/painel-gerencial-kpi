@@ -102,10 +102,11 @@ compressão, os dois nunca aparecem na mesma resposta comprimida.
 O terceiro ingrediente — TLS — hoje não existe: a API fala HTTP em rede interna. Ali o BREACH
 não faz sentido, porque quem está no caminho lê o token direto e não precisa de ataque nenhum.
 
-> **Nesta branch a rota `/api/auth` ainda não existe** — ela vem da `feat/autenticacao`. A
-> isenção está configurada desde já, de propósito: quando as duas se encontrarem, a proteção
-> já está no lugar, em vez de depender de alguém lembrar no dia. Enquanto isso ela não faz
-> nada, e a [dc42](validacao/dc42_compressao.mjs) avisa em vez de falhar.
+> **A rota `/api/auth` passou a existir em 18/09/2026**, quando a `feat/autenticacao` entrou
+> na `main`. Até ali a isenção estava configurada sem nada para isentar — de propósito, para
+> a proteção já estar no lugar em vez de depender de alguém lembrar no dia do encontro. Agora
+> a [dc42](validacao/dc42_compressao.mjs) a exercita de verdade: ela confere que as rotas do
+> DRE encolhem e que a do token **não**.
 
 **No dia em que houver HTTPS**, `HabilitarEmHttps: true` só é seguro depois de conferir que
 `RotasIsentas` cobre toda rota que devolva segredo no corpo. Se estiver em dúvida, deixe

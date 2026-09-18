@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useSyncExternalStore } from "react";
 
 /**
  * Tema da aplicação. `escuro` é o padrão — a paleta Época Analytics nasceu escura, e
@@ -20,6 +20,55 @@ const CHAVE = "epoca:tema";
  */
 export const SCRIPT_TEMA_INICIAL = `try{var t=localStorage.getItem(${JSON.stringify(CHAVE)});document.documentElement.dataset.tema=t==="claro"?"claro":"escuro"}catch(e){document.documentElement.dataset.tema="escuro"}`;
 
+/**
+ * ── O `<html>` é a fonte da verdade, e o React só o lê ──
+ *
+ * Até 16/09/2026 este provedor guardava o tema em `useState` e o escrevia no `<html>` por
+ * efeito. Isso produzia uma **piscada em toda navegação de quem usa o tema claro**, e a
+ * sequência explica por quê:
+ *
+ *   1. o script acima roda no `<head>` e escreve `data-tema="claro"` antes da primeira
+ *      pintura — exatamente o que ele existe para fazer;
+ *   2. o React hidrata com o estado nascendo `"escuro"`, e o efeito de sincronização
+ *      **sobrescreve o atributo com `"escuro"`** — a tela inteira clareia por um quadro;
+ *   3. o outro efeito lê o `localStorage`, chama `setTema("claro")`, e o atributo volta.
+ *
+ * O provedor desfazia o trabalho do script e refazia logo depois. Agora o estado não é dele:
+ * `useSyncExternalStore` lê o atributo que o script já pôs, e escrever só acontece quando
+ * alguém aperta o interruptor.
+ */
+
+/**
+ * O valor corrente, em memória.
+ *
+ * `useSyncExternalStore` compara snapshots por identidade e chama `getSnapshot` várias vezes
+ * por render. Ler o DOM a cada chamada funcionaria — são strings, comparadas por valor —, mas
+ * este cache existe por outro motivo: durante a impressão o atributo é trocado para `claro` e
+ * não pode arrastar o tema da tela junto. Ver o efeito de impressão abaixo.
+ */
+let corrente: Tema | null = null;
+
+const ouvintes = new Set<() => void>();
+
+function lerDoDocumento(): Tema {
+  return document.documentElement.dataset.tema === "claro" ? "claro" : "escuro";
+}
+
+function inscrever(ouvinte: () => void): () => void {
+  ouvintes.add(ouvinte);
+  return () => ouvintes.delete(ouvinte);
+}
+
+function snapshot(): Tema {
+  corrente ??= lerDoDocumento();
+  return corrente;
+}
+
+/** No servidor não há `<html>` para ler; o HTML sai no padrão, e o script corrige antes da pintura. */
+function snapshotDoServidor(): Tema {
+  return "escuro";
+}
+
 const Contexto = createContext<{
   tema: Tema;
   claro: boolean;
@@ -27,22 +76,7 @@ const Contexto = createContext<{
 } | null>(null);
 
 export function TemaProvider({ children }: { children: React.ReactNode }) {
-  // Nasce escuro para bater com o que o script já escreveu no <html>.
-  const [tema, setTema] = useState<Tema>("escuro");
-
-  // Só depois da hidratação: no servidor não existe localStorage, e divergir do
-  // HTML inicial quebraria a hidratação.
-  useEffect(() => {
-    try {
-      if (localStorage.getItem(CHAVE) === "claro") setTema("claro");
-    } catch {
-      // Armazenamento bloqueado: fica no escuro.
-    }
-  }, []);
-
-  useEffect(() => {
-    document.documentElement.dataset.tema = tema;
-  }, [tema]);
+  const tema = useSyncExternalStore(inscrever, snapshot, snapshotDoServidor);
 
   /**
    * Impressão sai sempre no tema claro, seja qual for o tema da tela.
@@ -51,8 +85,9 @@ export function TemaProvider({ children }: { children: React.ReactNode }) {
    * texto quase branco em papel branco. Forçar o claro aqui, e não duplicar a paleta
    * dentro de `@media print`, mantém uma fonte de verdade só para as cores.
    *
-   * Escreve direto no `<html>` em vez de mexer no estado: assim não persiste em
-   * `localStorage` nem pisca a tela, e o `afterprint` devolve o tema de antes.
+   * Escreve direto no `<html>` **sem avisar os inscritos**: é uma troca temporária de
+   * aparência, não uma escolha do usuário. O `afterprint` devolve o tema de antes, lido de
+   * `corrente` — e não do documento, que nesse instante está mentindo.
    */
   useEffect(() => {
     const raiz = document.documentElement;
@@ -60,7 +95,7 @@ export function TemaProvider({ children }: { children: React.ReactNode }) {
       raiz.dataset.tema = "claro";
     };
     const aoTerminar = () => {
-      raiz.dataset.tema = tema;
+      raiz.dataset.tema = snapshot();
     };
 
     window.addEventListener("beforeprint", aoImprimir);
@@ -69,16 +104,21 @@ export function TemaProvider({ children }: { children: React.ReactNode }) {
       window.removeEventListener("beforeprint", aoImprimir);
       window.removeEventListener("afterprint", aoTerminar);
     };
-  }, [tema]);
+  }, []);
 
   const alternar = useCallback((claro: boolean) => {
     const novo: Tema = claro ? "claro" : "escuro";
-    setTema(novo);
+
+    corrente = novo;
+    document.documentElement.dataset.tema = novo;
+
     try {
       localStorage.setItem(CHAVE, novo);
     } catch {
       // Sem persistência, a escolha vale só para esta sessão.
     }
+
+    for (const ouvinte of ouvintes) ouvinte();
   }, []);
 
   return (

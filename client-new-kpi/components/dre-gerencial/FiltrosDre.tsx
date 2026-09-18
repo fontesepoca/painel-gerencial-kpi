@@ -518,13 +518,17 @@ function Segmentado({
 }
 
 /**
- * Multisseleção de filiais, em lista corrida. Vêm do cadastro, menos as que têm dados em
- * outra base — ver `docs/DIVERGENCIAS.md`. No Winthor essa escolha acontecia numa tela
+ * Multisseleção de filiais, em lista corrida. No Winthor essa escolha acontecia numa tela
  * separada, antes de abrir a rotina.
  *
- * <b>Sem agrupamento por empresa.</b> A lista já é curta, e os cabeçalhos EPC, FUT e
- * VIVALOG ocupavam uma linha cada para separar grupos de uma ou duas filiais — mais ruído
- * que orientação. Decisão do Gabriel em 17/09/2026.
+ * <b>A lista já vem recortada pelo que a pessoa logada pode apurar</b> — o cruzamento com o
+ * `PCLIB` acontece no `useFiliais`. Aqui não há filtro nenhum: o que chega é o que se mostra.
+ *
+ * <b>Sem agrupamento por empresa.</b> Os cabeçalhos `EPC`, `FUT` e companhia faziam sentido
+ * quando a lista era o cadastro inteiro e passava de vinte linhas. Com o recorte do usuário
+ * sobram poucas filiais, e cada título passou a ocupar mais altura que as opções que
+ * separava — três deles encabeçavam uma filial só. Pedido pelo Gabriel em 16/09/2026 e
+ * outra vez em 17/09, em duas frentes de trabalho que não se enxergavam.
  */
 function SeletorFiliais({
   filiais,
@@ -626,6 +630,14 @@ function SeletorFiliais({
               </span>
             </label>
           ))}
+
+          {/* Lista vazia com a sessão carregada significa PCLIB sem filial liberada. A tela
+              precisa dizer isso, senão o campo parece quebrado. */}
+          {!carregando && filiais.length === 0 && (
+            <p className="px-2 py-3 text-[length:var(--fs-apoio)] leading-relaxed text-[var(--text-muted)]">
+              Nenhuma filial liberada para o seu usuário no Winthor.
+            </p>
+          )}
         </div>
       )}
     </div>

@@ -10,7 +10,7 @@ public static class OpenApiConfiguration
         {
             options.AddDocumentTransformer((documento, _, _) =>
             {
-                documento.Info.Title = "Época KPI — API";
+                documento.Info.Title = "Época Analytics — API";
                 documento.Info.Version = "v1";
                 documento.Info.Description =
                     "Rotinas do Winthor migradas para web. Um módulo por rotina.";
@@ -31,7 +31,7 @@ public static class OpenApiConfiguration
         {
             app.MapOpenApi();
             app.MapScalarApiReference(options => options
-                .WithTitle("Época KPI — API")
+                .WithTitle("Época Analytics — API")
                 .WithTheme(ScalarTheme.BluePlanet));
         }
 

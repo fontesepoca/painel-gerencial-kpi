@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Época KPI",
+  title: "Época Analytics",
   description: "Inteligência financeira — rotinas gerenciais da Época",
 };
 
