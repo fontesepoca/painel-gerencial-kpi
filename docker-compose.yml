@@ -19,7 +19,7 @@ services:
       # token. O `:?` faz o `docker compose up` parar com a mensagem em vez de subir com ela.
       #
       # A API também recusa subir sem isto -- OpcoesDeToken.Validar() roda no boot.
-      Jwt__Chave: ${JWT_CHAVE:?Configure JWT_CHAVE no arquivo .env -- gere com: openssl rand -base64 48}
+      Jwt__Chave: "${JWT_CHAVE:?Configure JWT_CHAVE no .env. Gere com  openssl rand -base64 48}"
     ports:
       - "${API_PORT:-5207}:8080"
 
