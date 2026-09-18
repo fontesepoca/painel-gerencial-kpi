@@ -18,7 +18,23 @@ import { esquecerTentativas, registrarTentativa } from "@/lib/servidor/limiteDeT
  * `POST` entra · `GET` diz quem está logado · `DELETE` sai.
  */
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5207";
+/**
+ * Onde a API .NET está, do ponto de vista DESTE processo.
+ *
+ * <b>Não é o mesmo endereço que o navegador usa.</b> `NEXT_PUBLIC_API_URL` é o endereço
+ * público — serve para o navegador chamar a API direto, e é fixado no build. Este arquivo
+ * roda no servidor Next, e em container os dois vivem na mesma rede: falar por
+ * `http://api:8080` é direto e não depende de IP, domínio ou de o host deixar o container
+ * sair e voltar.
+ *
+ * A ordem dos fallbacks cobre os três ambientes sem ninguém configurar nada a mais:
+ * `API_URL_INTERNA` em container, `NEXT_PUBLIC_API_URL` quando só ela existe, e o localhost
+ * do desenvolvimento.
+ */
+const API =
+  process.env.API_URL_INTERNA ??
+  process.env.NEXT_PUBLIC_API_URL ??
+  "http://localhost:5207";
 
 /** Oito horas, o mesmo fôlego do token — o cookie não deve sobreviver ao que ele aponta. */
 const VALIDADE_DO_COOKIE_SEGUNDOS = 8 * 60 * 60;

@@ -25,6 +25,19 @@ Preencha:
 - `NEXT_PUBLIC_API_URL`: URL pública da API vista pelo navegador, por exemplo `http://192.168.0.227:5207`.
 - `FRONTEND_ORIGIN`: URL pública do front, por exemplo `http://192.168.0.227:3000`.
 - `ORACLE_EPOCA`: string de conexão do Oracle. Não commitar este valor.
+- `JWT_CHAVE`: a chave que assina os tokens de login. **Obrigatória — sem ela a API não**
+  **sobe.** Gere uma sua na VM e guarde só lá:
+
+  ```bash
+  openssl rand -base64 48
+  ```
+
+  Mínimo 32 caracteres; a API recusa menos que isso no boot. **Trocar a chave derruba todas
+  as sessões abertas** — quem estiver logado precisa entrar de novo.
+
+  Ela não tem valor padrão no `docker-compose.yml`, e isso é de propósito: uma chave de
+  assinatura com fallback no compose seria uma chave versionada, e qualquer um que lesse o
+  repositório poderia forjar um token.
 
 Opcionais, com padrão já definido — só mexa se precisar:
 
@@ -148,6 +161,23 @@ docker compose exec api printenv | grep -E 'Oracle__|Compressao__'
 Uma variável que não aparece aí não está valendo, e o container está rodando com o padrão
 da imagem — que é o erro mais comum ao mexer nisso: editar o `.env` e esquecer o
 `docker compose up -d`.
+
+## Dois endereços para a mesma API
+
+Isto confunde, e vale ler antes de mexer em URL.
+
+| Variável | Quem usa | O que é |
+|---|---|---|
+| `NEXT_PUBLIC_API_URL` | o **navegador** | endereço público, ex. `http://192.168.0.227:5207` |
+| `API_URL_INTERNA` | o **servidor Next** | `http://api:8080`, o nome do serviço no compose |
+
+As chamadas do DRE saem do navegador direto para a API, e para elas vale o endereço público.
+Mas **o login não**: ele passa pelo BFF — o navegador manda usuário e senha para o Next, e é
+o Next, de dentro do container, que chama a API. Esse caminho não deve sair para a rede do
+host e voltar; os dois containers estão na mesma rede do compose, e `api` resolve direto.
+
+`API_URL_INTERNA` já vem com `http://api:8080` no compose e não precisa entrar no `.env`.
+Só mexa se a API deixar de ser um serviço deste mesmo compose.
 
 ## Observações
 

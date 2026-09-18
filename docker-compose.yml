@@ -14,6 +14,12 @@ services:
       # padrão que está na imagem. Ver docs/PARALELISMO.md e docs/COMPRESSAO.md.
       Oracle__GrauDeParalelismo: ${GRAU_DE_PARALELISMO:-4}
       Compressao__Habilitada: ${COMPRESSAO_HABILITADA:-true}
+      # SEM VALOR PADRÃO, de propósito: uma chave de assinatura com fallback no compose
+      # seria uma chave versionada, e qualquer um que lesse o repositório poderia forjar um
+      # token. O `:?` faz o `docker compose up` parar com a mensagem em vez de subir com ela.
+      #
+      # A API também recusa subir sem isto -- OpcoesDeToken.Validar() roda no boot.
+      Jwt__Chave: ${JWT_CHAVE:?Configure JWT_CHAVE no arquivo .env -- gere com: openssl rand -base64 48}
     ports:
       - "${API_PORT:-5207}:8080"
 
@@ -24,6 +30,15 @@ services:
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:5207}
     image: novo-kpi-client:teste
     restart: unless-stopped
+    environment:
+      # POR ONDE O SERVIDOR NEXT FALA COM A API -- e não é o mesmo endereço do navegador.
+      #
+      # O login passa pelo BFF: o navegador manda usuário e senha para o Next, e é o Next,
+      # de dentro deste container, que chama a API. `NEXT_PUBLIC_API_URL` é o endereço
+      # PÚBLICO, que serve para o navegador e obrigaria este container a sair para a rede do
+      # host e voltar -- quando funciona. Aqui os dois containers estão na mesma rede do
+      # compose, e `api` é o nome do serviço: o caminho é direto e não depende de IP.
+      API_URL_INTERNA: ${API_URL_INTERNA:-http://api:8080}
     depends_on:
       - api
     ports:
