@@ -11,11 +11,21 @@ import type { FiltroApuracao, ModoPeriodo, PeriodoDre } from "@/types/dre-gerenc
 /**
  * Espelha `MaximoDeAnos` em `DreGerencialService`. Se divergir, o filtro deixa montar um
  * pedido que a API recusa — e o usuário descobre o limite depois de esperar.
+ *
+ * Subiu de 3 para 5 em 18/09/2026. O 3 tinha sido calibrado quando um ano de uma filial
+ * custava 316 s; com o paralelismo na consulta de faturamento a varredura ficou cerca de
+ * três vezes mais rápida, e cinco anos hoje saem por menos que três saíam.
  */
-export const MAXIMO_DE_ANOS = 3;
+export const MAXIMO_DE_ANOS = 5;
 
-/** Quantos anos para trás o seletor oferece. Além disso o dado fica raro e a espera, longa. */
-const ANOS_OFERECIDOS = 6;
+/**
+ * Quantos anos para trás o seletor oferece.
+ *
+ * **Precisa ser bem maior que `MAXIMO_DE_ANOS`**, senão escolher o máximo vira escolher
+ * quase tudo o que existe. Com 6 oferecidos e 5 selecionáveis, um quinquênio que não
+ * termine no ano corrente simplesmente não caberia na lista.
+ */
+const ANOS_OFERECIDOS = 9;
 
 export const MODOS: ReadonlyArray<{
   valor: ModoPeriodo;

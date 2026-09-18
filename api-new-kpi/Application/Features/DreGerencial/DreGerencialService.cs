@@ -208,10 +208,16 @@ public sealed class DreGerencialService
             return "O período não pode passar de 12 meses.";
         }
 
-        // Teto de três anos — decisão do Gabriel em 10/09/2026. Vale só para o modo
-        // `anos`: lá cada coluna é uma varredura de doze meses, e um ano de uma filial
-        // custou 316 s medidos. Três cobre a comparação de triênio, que é o que se pede num
-        // DRE; acima disso o tempo cresce mais rápido que o valor da informação.
+        // Teto de CINCO anos — subiu de três em 18/09/2026, a pedido do Gabriel.
+        //
+        // O três de 10/09 foi calibrado contra um custo que não existe mais: um ano de uma
+        // filial custava 316 s medidos, e cada coluna do modo `anos` é uma varredura de doze
+        // meses. Com o PARALLEL(4) na consulta de faturamento, a mesma varredura ficou
+        // cerca de três vezes mais rápida — ver docs/PARALELISMO.md. Cinco anos hoje custam
+        // menos que os três de então.
+        //
+        // O teto continua existindo porque o custo continua linear no número de anos: cada
+        // um é uma varredura a mais. O que mudou foi onde a conta fecha.
         //
         // O comparativo NÃO entra neste teto desde 11/09/2026: ele deixou de repetir um
         // molde em N anos e passou a ter dois intervalos livres, cada um custando o mesmo
@@ -245,7 +251,7 @@ public sealed class DreGerencialService
         return null;
     }
 
-    private const int MaximoDeAnos = 3;
+    private const int MaximoDeAnos = 5;
 
     /// <summary>
     /// Apura o DRE completo: estrutura, despesas e faturamento, montados pelo
