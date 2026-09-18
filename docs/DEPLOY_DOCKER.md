@@ -162,6 +162,22 @@ Uma variável que não aparece aí não está valendo, e o container está rodan
 da imagem — que é o erro mais comum ao mexer nisso: editar o `.env` e esquecer o
 `docker compose up -d`.
 
+## O login em HTTP
+
+**O cookie de sessão acompanha a conexão, não o ambiente.** Em http ele sai sem a marca
+`Secure`; em https, com ela. Isso é automático e não precisa de configuração.
+
+Vale saber porque o contrário derrubou o login em 18/09/2026: o código marcava `Secure`
+sempre que `NODE_ENV` fosse `production`, e no container ele é. Com acesso por http, o
+navegador **descartava o cookie sem avisar** — o login dava certo, a sessão era criada no
+Next, o cookie sumia, e o proxy devolvia a pessoa para a tela de login. Na tela, parecia que
+a página tinha recarregado.
+
+**Quando houver proxy reverso com HTTPS na frente**, ele precisa mandar o cabeçalho
+`X-Forwarded-Proto: https` — é por ele que o Next sabe que a conexão externa era segura,
+já que a interna continua sendo http. E ele deve **sobrescrever** o cabeçalho, não repassar
+o que veio de fora.
+
 ## Dois endereços para a mesma API
 
 Isto confunde, e vale ler antes de mexer em URL.

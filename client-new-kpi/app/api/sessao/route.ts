@@ -55,6 +55,36 @@ interface RespostaDaApi {
   } | null;
 }
 
+/**
+ * Se o navegador chegou por https — o que decide se o cookie pode ser `Secure`.
+ *
+ * <b>`x-forwarded-proto` vem primeiro</b> porque atrás de um proxy reverso que termina TLS a
+ * requisição interna é http, e só esse cabeçalho sabe que a externa era https. Sem proxy, ele
+ * não existe e vale o protocolo da própria URL.
+ *
+ * <b>O cabeçalho é forjável por quem chama.</b> Dizer `https` sendo http faz o cookie sair
+ * `Secure` e o próprio navegador o descartar — quem forja só se prejudica. O caminho que
+ * importaria, dizer `http` sendo https, exige já estar no meio da conexão, e aí o cookie não
+ * é a primeira preocupação. Quando houver proxy reverso na frente, ele deve sobrescrever este
+ * cabeçalho em vez de repassar o que veio.
+ */
+async function conexaoSegura(requisicao: Request): Promise<boolean> {
+  const repassado = (await headers()).get("x-forwarded-proto");
+
+  if (repassado) {
+    // Pode vir como lista quando há mais de um proxy: `https, http`. O primeiro é o de fora.
+    return repassado.split(",")[0]?.trim().toLowerCase() === "https";
+  }
+
+  try {
+    return new URL(requisicao.url).protocol === "https:";
+  } catch {
+    // URL impossível de ler não deveria acontecer numa requisição que chegou até aqui. Se
+    // acontecer, `false` mantém o login funcionando em vez de quebrá-lo — o cookie continua
+    // `HttpOnly` e `SameSite=Lax`, que é o que protege de script e de outro site.
+    return false;
+  }
+}
 export async function POST(requisicao: Request) {
   let corpo: { login?: unknown; senha?: unknown };
 
@@ -144,9 +174,17 @@ export async function POST(requisicao: Request) {
     // um link externo, e quem clicasse no endereço da tela num e-mail cairia no login mesmo
     // com sessão viva. `lax` já barra o envio em requisição de outro site.
     sameSite: "lax",
-    // Em desenvolvimento o endereço é http, e um cookie `Secure` simplesmente não seria
-    // gravado — o login pareceria funcionar e nunca logaria ninguém.
-    secure: process.env.NODE_ENV === "production",
+    // `Secure` acompanha a CONEXÃO, não o ambiente.
+    //
+    // Aqui havia `NODE_ENV === "production"`, e ele derrubou o login no Docker em
+    // 18/09/2026: no container o Next roda em produção, o acesso era por http, e o navegador
+    // DESCARTA um cookie `Secure` em conexão não-segura — sem erro, sem aviso. O login dava
+    // certo, a sessão era criada, o cookie sumia, o proxy mandava de volta para o login. Na
+    // tela, parecia que a página tinha recarregado.
+    //
+    // Ambiente e protocolo são coisas diferentes: há desenvolvimento em https e produção em
+    // http atrás de rede interna, que é justamente o caso desta empresa hoje.
+    secure: await conexaoSegura(requisicao),
     path: "/",
     maxAge: VALIDADE_DO_COOKIE_SEGUNDOS,
   });
