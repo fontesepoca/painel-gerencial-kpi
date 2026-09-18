@@ -26,6 +26,15 @@ public sealed class GeradorDeToken
     /// <summary>Uma claim por filial liberada.</summary>
     public const string ClaimFilial = "filial";
 
+    /// <summary>
+    /// Uma claim por rotina que a pessoa pode abrir — o código do Winthor, como <c>9815</c>.
+    ///
+    /// <para><b>Vai no token, e não só na resposta do login</b>, porque é com isto que a API
+    /// vai recusar uma chamada ao DRE de quem não pode abri-lo. A resposta do login some
+    /// depois do primeiro uso; o token acompanha cada requisição.</para>
+    /// </summary>
+    public const string ClaimRotina = "rotina";
+
     private readonly OpcoesDeToken _opcoes;
     private readonly SigningCredentials _assinatura;
 
@@ -63,6 +72,14 @@ public sealed class GeradorDeToken
         foreach (var filial in usuario.Filiais)
         {
             identidade.AddClaim(new Claim(ClaimFilial, filial));
+        }
+
+        // Pelo mesmo motivo, uma claim por rotina. Lista vazia é estado válido: desde
+        // 18/09/2026 quem não tem permissão nenhuma entra assim mesmo, e o token diz isso
+        // em vez de não existir.
+        foreach (var rotina in usuario.Rotinas)
+        {
+            identidade.AddClaim(new Claim(ClaimRotina, rotina));
         }
 
         var descritor = new SecurityTokenDescriptor

@@ -11,6 +11,9 @@ namespace Epoca.Kpi.Api.Application.Features.Autenticacao;
 /// inativas — todas elas, com a mensagem genérica, tentariam de novo achando que erraram a
 /// digitação, e depois ligariam para o Gabriel.</para>
 ///
+/// <para><b>Falta de permissão não está aqui.</b> Desde 18/09/2026 ela não recusa login: quem
+/// não tem a 9815 entra e vê a tela inicial sem rotina nenhuma. Ver <see cref="AutenticacaoService"/>.</para>
+///
 /// <para><b>A exceção é <see cref="Credenciais"/>.</b> Usuário inexistente e senha errada
 /// compartilham a mesma mensagem de propósito: distinguir os dois transformaria a tela num
 /// verificador de quem trabalha na empresa, e nenhuma pessoa legítima precisa dessa
@@ -25,10 +28,13 @@ public enum MotivoDaRecusa
     SemSenhaCadastrada,
 
     /// <summary><c>SITUACAO</c> diferente de <c>'A'</c>.</summary>
-    CadastroInativo,
+    CadastroInativo
 
-    /// <summary>Sem a rotina 9815 ou sem a <c>GUIA 4-DRE</c>.</summary>
-    SemPermissao
+    // NÃO existe mais um motivo "sem permissão". Até 18/09/2026 quem não tinha a 9815 era
+    // barrado no login, e lia "Você não tem acesso ao DRE Gerencial" numa tela onde não
+    // havia nada a fazer além de fechar. Agora a pessoa entra: permissão deixou de ser
+    // condição para autenticar e passou a ser o conteúdo do `UsuarioDto.Rotinas`, que a tela
+    // inicial usa para decidir o que mostrar. Decisão do Gabriel em 18/09/2026.
 }
 
 public static class MotivoDaRecusaExtensoes
@@ -47,9 +53,6 @@ public static class MotivoDaRecusaExtensoes
 
         MotivoDaRecusa.CadastroInativo =>
             "Seu cadastro está inativo no Winthor. Procure o setor de TI — não é a senha.",
-
-        MotivoDaRecusa.SemPermissao =>
-            "Você não tem acesso ao DRE Gerencial. A liberação é a mesma da rotina 9815, guia 4-DRE.",
 
         _ => "Não foi possível entrar."
     };

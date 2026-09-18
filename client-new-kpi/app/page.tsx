@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { NOME_DO_COOKIE, lerSessaoPublica } from "@/lib/servidor/sessoes";
 import { MenuDoUsuario } from "@/components/layout/MenuDoUsuario";
 import { ControlesDeExibicao } from "@/components/layout/ControlesDeExibicao";
+import { ROTINA_DRE, podeAbrir } from "@/lib/rotinas";
 
 /**
  * A tela inicial: por onde se escolhe a rotina.
@@ -23,6 +24,7 @@ export default async function Home() {
 
   const { usuario } = sessao;
   const primeiroNome = usuario.nome.trim().split(/\s+/)[0] ?? usuario.nomeGuerra;
+  const temDre = podeAbrir(usuario.rotinas, ROTINA_DRE);
 
   return (
     <div className="min-h-dvh bg-[var(--bg)]">
@@ -57,46 +59,29 @@ export default async function Home() {
           </h1>
         </div>
 
-        <h2 className="mb-3 text-[length:var(--fs-rotulo)] font-medium tracking-[0.14em] text-[var(--text-muted)] uppercase">
-          Rotinas disponíveis
-        </h2>
+        {temDre ? (
+          <>
+            <h2 className="mb-3 text-[length:var(--fs-rotulo)] font-medium tracking-[0.14em] text-[var(--text-muted)] uppercase">
+              Rotinas disponíveis
+            </h2>
 
-        <div className="grid gap-4 md:grid-cols-[1.4fr_1fr]">
-          <CartaoDeRotina
-            href="/dre-gerencial"
-            codigo="9815"
-            nome="DRE Gerencial"
-            descricao="Demonstrativo de resultado por filial e período, em quatro dimensões de análise, com detalhamento por duplo clique e exportação."
-          />
+            <div className="grid gap-4 md:grid-cols-[1.4fr_1fr]">
+              <CartaoDeRotina
+                href="/dre-gerencial"
+                codigo={ROTINA_DRE}
+                nome="DRE Gerencial"
+                descricao="Demonstrativo de resultado por filial e período, em quatro dimensões de análise, com detalhamento por duplo clique e exportação."
+              />
 
-          {/* O cartão de acesso ao lado da rotina, e não escondido no menu: a pergunta
-              "por que a filial 12 não aparece" nasce aqui, antes de a pessoa abrir o DRE e
-              esperar dois minutos por uma apuração que não tem a filial que ela queria. */}
-          <aside className="flex flex-col gap-3 rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface-1)] p-5">
-            <span className="text-[length:var(--fs-rotulo)] font-medium tracking-[0.14em] text-[var(--text-muted)] uppercase">
-              Seu acesso
-            </span>
-
-            <div className="flex flex-wrap gap-1">
-              {usuario.filiais.map((filial) => (
-                <span
-                  key={filial}
-                  className="tabular rounded-[var(--radius-sm)] bg-[var(--surface-3)] px-2 py-0.5 text-[length:var(--fs-apoio)] text-[var(--text-secondary)]"
-                >
-                  {filial}
-                </span>
-              ))}
+              {/* O cartão de acesso ao lado da rotina, e não escondido no menu: a pergunta
+                  "por que a filial 12 não aparece" nasce aqui, antes de a pessoa abrir o DRE
+                  e esperar dois minutos por uma apuração sem a filial que ela queria. */}
+              <SeuAcesso filiais={usuario.filiais} />
             </div>
-
-            <p className="text-[length:var(--fs-apoio)] leading-relaxed text-[var(--text-muted)]">
-              {usuario.filiais.length === 1
-                ? "Uma filial liberada"
-                : `${usuario.filiais.length} filiais liberadas`}{" "}
-              no Winthor. O acesso às rotinas é o mesmo de lá — mudanças passam a valer no
-              próximo login.
-            </p>
-          </aside>
-        </div>
+          </>
+        ) : (
+          <SemRotinas />
+        )}
       </main>
     </div>
   );
@@ -118,6 +103,72 @@ function saudacao(): string {
   if (hora < 12) return "Bom dia";
   if (hora < 18) return "Boa tarde";
   return "Boa noite";
+}
+
+/**
+ * A tela de quem entrou e não tem nada para abrir.
+ *
+ * <b>Esta pessoa não errou nada.</b> Digitou usuário e senha certos, e o sistema a reconheceu
+ * — o que falta é liberação no Winthor. Até 18/09/2026 ela era barrada no login com "Você não
+ * tem acesso ao DRE Gerencial", numa tela onde a única ação possível era fechar a aba; o texto
+ * soava como senha errada e a pessoa tentava de novo.
+ *
+ * Por isso o tom não é de erro: sem ícone de alerta, sem cor de aviso.
+ *
+ * <b>E sem detalhe técnico.</b> A primeira versão listava o que pedir — a guia 4-DRE da 9815,
+ * uma filial no PCLIB. Saiu a pedido do Gabriel em 18/09/2026, e ele tem razão: nada disso é
+ * acionável por quem lê. Quem precisa desses nomes é o setor de TI, e eles estão no log da
+ * API, gravados no momento do login, com qual das condições faltou.
+ */
+function SemRotinas() {
+  return (
+    <div className="rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface-1)] px-6 py-12 sm:px-10 sm:py-16">
+      <div className="mx-auto flex max-w-md flex-col gap-3 text-center">
+        <h2 className="text-[length:var(--fs-secao)] font-semibold text-[var(--text-primary)]">
+          Você ainda não tem nada por aqui
+        </h2>
+
+        <p className="text-[length:var(--fs-base)] leading-relaxed text-[var(--text-secondary)]">
+          Se estiver precisando de alguma rotina, entre em contato com o setor de TI.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * As filiais que a pessoa pode apurar, ao lado da rotina.
+ *
+ * Só aparece para quem tem o DRE — quem não tem também não tem filial que importe, e o
+ * painel viraria uma caixa vazia ao lado de uma explicação.
+ */
+function SeuAcesso({ filiais }: { filiais: readonly string[] }) {
+  return (
+    <aside className="flex flex-col gap-3 rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface-1)] p-5">
+      <span className="text-[length:var(--fs-rotulo)] font-medium tracking-[0.14em] text-[var(--text-muted)] uppercase">
+        Seu acesso
+      </span>
+
+      <div className="flex flex-wrap gap-1">
+        {filiais.map((filial) => (
+          <span
+            key={filial}
+            className="tabular rounded-[var(--radius-sm)] bg-[var(--surface-3)] px-2 py-0.5 text-[length:var(--fs-apoio)] text-[var(--text-secondary)]"
+          >
+            {filial}
+          </span>
+        ))}
+      </div>
+
+      <p className="text-[length:var(--fs-apoio)] leading-relaxed text-[var(--text-muted)]">
+        {filiais.length === 1
+          ? "Uma filial liberada"
+          : `${filiais.length} filiais liberadas`}{" "}
+        no Winthor. O acesso às rotinas é o mesmo de lá — mudanças passam a valer no próximo
+        login.
+      </p>
+    </aside>
+  );
 }
 
 function CartaoDeRotina({

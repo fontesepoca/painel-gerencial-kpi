@@ -33,8 +33,15 @@ public sealed record LoginResponse(string Token, DateTimeOffset ExpiraEm, Usuari
 /// <param name="NomeGuerra">O que a pessoa digita para entrar.</param>
 /// <param name="Filiais">As filiais que ela pode apurar, vindas do <c>PCLIB</c>. É o recorte
 /// que a tela oferece — e que a API vai passar a exigir.</param>
+/// <param name="Rotinas">Os códigos das rotinas do Winthor que ela pode abrir. Vazia é um
+/// estado válido: a pessoa entra, vê a tela inicial e não encontra nada para abrir.
+///
+/// <para><b>Lista, e não um booleano por rotina.</b> Hoje só existe a 9815, e um
+/// <c>PodeVerDre</c> seria mais curto — mas a próxima rotina obrigaria a mudar o contrato,
+/// o BFF e a tela de uma vez. Com a lista, ela entra acrescentando um código.</para></param>
 public sealed record UsuarioDto(
     int Matricula,
     string Nome,
     string NomeGuerra,
-    IReadOnlyList<string> Filiais);
+    IReadOnlyList<string> Filiais,
+    IReadOnlyList<string> Rotinas);

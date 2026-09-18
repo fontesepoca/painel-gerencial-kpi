@@ -49,14 +49,54 @@ O ganho maior não é evitar o cadastro: é que **quem perde o acesso na 9815 pe
 mesmo instante**. Acesso que mora em dois lugares é acesso que alguém esquece de revogar em
 um deles, e o esquecido é sempre o que ninguém olha.
 
-A regra do login, inteira:
+A regra, inteira:
 
 ```
-PCCONTRO  (9815, ACESSO = 'S')           →  pode abrir a rotina
-PCCONTROI (9815, controle 3, ACESSO='S') →  GUIA 4-DRE: pode ver o DRE
-PCEMPR    NOME_GUERRA preenchido, SENHABD preenchida, SITUACAO = 'A'
-PCLIB     (CODTABELA = 1)                →  as filiais que ele pode apurar
+PCEMPR    NOME_GUERRA preenchido, SENHABD preenchida, SITUACAO = 'A'   →  ENTRA
+
+PCCONTRO  (9815, ACESSO = 'S')           ┐
+PCCONTROI (9815, controle 3, ACESSO='S') ├─ as três juntas  →  ABRE O DRE
+PCLIB     (CODTABELA = 1), ao menos uma  ┘
 ```
+
+### Permissão não barra o login — 18/09/2026
+
+As duas metades acima eram uma só até 18/09: quem não tinha a 9815 era **recusado no login**
+e lia *"Você não tem acesso ao DRE Gerencial"*.
+
+**O problema era o lugar da mensagem, não o texto.** A pessoa digitava usuário e senha
+corretos, o sistema a reconhecia, e ela recebia de volta a mesma tela de login com uma frase
+em vermelho — onde a única ação possível era fechar a aba. Quem lê uma recusa numa tela de
+login entende "errei a senha", e tenta de novo.
+
+Agora **autenticar e poder abrir são coisas separadas**:
+
+| | |
+|---|---|
+| Autenticar | senha certa e `SITUACAO = 'A'`. Só isso |
+| Abrir o DRE | as três condições de permissão, juntas |
+
+Quem entra sem nenhuma rotina vê a tela inicial dizendo que não há nada ali, e a quem pedir.
+Sem detalhe técnico na tela: `guia 4-DRE` e `PCLIB` não são acionáveis por quem lê, e quem
+precisa desses nomes é o setor de TI — que os encontra no **log da API**, gravados no momento
+do login com qual das três condições faltou.
+
+**A filial entrou no mesmo balaio.** Ter permissão e nenhuma filial dá no mesmo resultado
+prático — o filtro abre vazio e a primeira apuração falha com uma mensagem que não explica
+nada. Do lado de quem usa, os três casos são "não dá para abrir"; a distinção fica no log.
+
+A sessão passou a carregar `rotinas`, uma lista de códigos do Winthor — `9815` é o DRE. É
+lista, e não um `podeVerDre`, porque a próxima rotina obrigaria a mudar contrato, BFF e tela
+de uma vez; assim ela entra acrescentando um código. A lista vai também como claim no token,
+para a API poder recusar quando o `[Authorize]` existir.
+
+**A rota está fechada por um layout de servidor** em `app/dre-gerencial/layout.tsx`, e não
+pelo `proxy.ts`: o proxy roda num bundle separado e só enxerga se o cookie existe, não o que
+há dentro da sessão. Quem não pode abrir é devolvido à tela inicial **em silêncio** — uma
+página de "acesso negado" só confirmaria que a rota existe.
+
+Conferido na [dc55](validacao/dc55_permissao_nao_barra_o_login.mjs) e testado pelo Gabriel
+com dois usuários, um com permissão e um sem, inclusive pela URL digitada à mão.
 
 O **3** veio da tela da rotina 530 em 16/09/2026 — `GUIA 4-DRE`, entre os 43 controles da
 9815. Registrado aqui porque o banco não guarda essa descrição: em `PCCONTROI` ele é só o
@@ -376,6 +416,11 @@ não manda credencial nenhuma. Isso entra junto com a tela de login.
 
 **A apuração ainda aceita qualquer filial** que o corpo da requisição pedir. As filiais já
 viajam no token; passar a exigi-las é o passo seguinte, e é o que fecha o furo.
+
+**E o bloqueio de permissão é de TELA.** Desde 18/09 quem não tem a 9815 não alcança
+`/dre-gerencial` pelo navegador — mas quem montar a chamada a `/api/dre-gerencial/apuracao`
+à mão continua alcançando os dados. A rotina agora viaja no token como claim `rotina`, então
+o fechamento é o mesmo `[Authorize]` de sempre, lendo dali.
 
 ## Desenho da sessão
 

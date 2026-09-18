@@ -92,10 +92,17 @@ public sealed class AutenticacaoController : ControllerBase
             .Select(c => c.Value)
             .ToList();
 
+        // Lista vazia é resposta legítima desde 18/09/2026: quem não tem rotina nenhuma
+        // continua tendo sessão válida, e é a tela inicial que decide o que fazer com isso.
+        var rotinas = User.FindAll(GeradorDeToken.ClaimRotina)
+            .Select(c => c.Value)
+            .ToList();
+
         return Ok(ApiResponse<UsuarioDto>.Ok(new UsuarioDto(
             codigo,
             User.FindFirstValue(GeradorDeToken.ClaimNome) ?? string.Empty,
             User.FindFirstValue(ClaimTypes.Name) ?? string.Empty,
-            filiais)));
+            filiais,
+            rotinas)));
     }
 }

@@ -14,6 +14,8 @@ export interface UsuarioLogado {
   nome: string;
   nomeGuerra: string;
   filiais: string[];
+  /** Códigos das rotinas que esta pessoa pode abrir. Vazia é estado válido. */
+  rotinas: string[];
 }
 
 export function useSessao() {

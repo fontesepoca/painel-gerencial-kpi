@@ -1,5 +1,6 @@
 using Epoca.Kpi.Api.Application.Common;
 using Epoca.Kpi.Api.Application.Features.Autenticacao.Dtos;
+using Epoca.Kpi.Api.Domain.Entities;
 using Epoca.Kpi.Api.Domain.Interfaces;
 
 namespace Epoca.Kpi.Api.Application.Features.Autenticacao;
@@ -78,43 +79,77 @@ public sealed class AutenticacaoService
             return Recusar(login, MotivoDaRecusa.CadastroInativo);
         }
 
-        if (!credenciais.PodeAbrirRotina || !credenciais.PodeVerDre)
-        {
-            return Recusar(login, MotivoDaRecusa.SemPermissao);
-        }
+        // A PARTIR DAQUI NINGUÉM MAIS É RECUSADO. Permissão deixou de ser condição para
+        // entrar e virou conteúdo da sessão — decisão do Gabriel em 18/09/2026.
+        //
+        // Antes, quem não tinha a 9815 lia "Você não tem acesso ao DRE Gerencial" na tela de
+        // login, onde não há nada a fazer além de fechar a aba. A pessoa autenticou com
+        // sucesso e mesmo assim foi tratada como quem errou a senha. Agora ela entra, e a tela
+        // inicial mostra o que ela pode abrir — que pode ser nada.
 
         var filiais = await _repositorio.ObterFiliaisDoUsuarioAsync(
             credenciais.Matricula, cancellationToken);
 
-        // Sem filial não há o que apurar, e a tela abriria com o filtro vazio e um erro
-        // incompreensível na primeira consulta. Barrar aqui transforma isso numa frase.
-        if (filiais.Count == 0)
-        {
-            _logger.LogWarning(
-                "Login recusado para a matrícula {Matricula}: nenhuma filial em PCLIB.",
-                credenciais.Matricula);
+        var rotinas = RotinasDe(credenciais, filiais);
 
-            return Result<LoginResponse>.Proibido(
-                "Você tem acesso ao DRE, mas nenhuma filial liberada no Winthor. " +
-                "Procure o setor de TI.");
+        if (rotinas.Count == 0)
+        {
+            // Aviso, e não recusa. Fica no log porque é a única pista de por que alguém está
+            // vendo a tela inicial vazia — e as duas causas pedem providências diferentes:
+            // liberar a guia 4-DRE na 9815, ou cadastrar filial no PCLIB.
+            _logger.LogWarning(
+                "Matrícula {Matricula} entrou sem rotina nenhuma. " +
+                "Rotina 9815: {Rotina}. Guia 4-DRE: {Guia}. Filiais em PCLIB: {Filiais}.",
+                credenciais.Matricula,
+                credenciais.PodeAbrirRotina,
+                credenciais.PodeVerDre,
+                filiais.Count);
         }
 
         var usuario = new UsuarioDto(
             credenciais.Matricula,
             credenciais.Nome.Trim(),
             credenciais.NomeGuerra.Trim(),
-            filiais);
+            filiais,
+            rotinas);
 
         var (token, expiraEm) = _tokens.Emitir(usuario);
 
         // Matrícula, não nome de guerra, e nunca a senha: o log serve para investigar acesso,
         // e a matrícula é o identificador estável. Ver a regra de nunca logar dado sensível.
         _logger.LogInformation(
-            "Login concluído para a matrícula {Matricula}, com {Filiais} filiais.",
+            "Login concluído para a matrícula {Matricula}, com {Filiais} filiais e " +
+            "{Rotinas} rotinas.",
             credenciais.Matricula,
-            filiais.Count);
+            filiais.Count,
+            rotinas.Count);
 
         return Result<LoginResponse>.Ok(new LoginResponse(token, expiraEm, usuario));
+    }
+
+    /// <summary>
+    /// As rotinas que esta pessoa pode abrir.
+    ///
+    /// <para>A 9815 exige as <b>três</b> coisas: poder abrir a rotina (<c>PCCONTRO</c>), ter a
+    /// guia 4-DRE (<c>PCCONTROI</c>, controle 3) e ao menos uma filial no <c>PCLIB</c>. As
+    /// duas primeiras são permissão; a terceira é o que torna a tela utilizável — sem filial
+    /// o filtro abre vazio e a primeira apuração falha com uma mensagem que não explica nada.
+    /// Do ponto de vista de quem usa, os três casos são o mesmo: não dá para abrir.</para>
+    ///
+    /// <para>Qual dos três faltou fica no log, que é onde a TI vai procurar.</para>
+    /// </summary>
+    private static IReadOnlyList<string> RotinasDe(
+        CredenciaisWinthor credenciais,
+        IReadOnlyList<string> filiais)
+    {
+        var rotinas = new List<string>();
+
+        if (credenciais.PodeAbrirRotina && credenciais.PodeVerDre && filiais.Count > 0)
+        {
+            rotinas.Add(RotinasDoWinthor.DreGerencial);
+        }
+
+        return rotinas;
     }
 
     /// <summary>

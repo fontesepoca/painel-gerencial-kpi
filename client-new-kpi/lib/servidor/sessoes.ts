@@ -30,6 +30,14 @@ export interface UsuarioDaSessao {
   readonly nome: string;
   readonly nomeGuerra: string;
   readonly filiais: readonly string[];
+  /**
+   * Os códigos das rotinas do Winthor que esta pessoa pode abrir — `9815` é o DRE.
+   *
+   * **Vazia é estado válido.** Desde 18/09/2026 quem não tem permissão nenhuma entra do
+   * mesmo jeito: antes era barrado no login e lia "você não tem acesso ao DRE" numa tela
+   * onde não havia nada a fazer. Agora entra e a tela inicial mostra que não há o que abrir.
+   */
+  readonly rotinas: readonly string[];
 }
 
 /** O que pode ser entregue ao navegador: tudo menos o token. */
@@ -90,6 +98,19 @@ export function lerSessao(id: string | undefined): Sessao | null {
   if (!sessao) return null;
 
   if (sessao.expiraEm <= Date.now()) {
+    sessoes.delete(id);
+    return null;
+  }
+
+  // Sessão criada antes de as rotinas existirem no `UsuarioDaSessao` (18/09/2026) morre
+  // aqui, e não é preguiça de migrar: sem a lista, `podeAbrir` devolve `false` para tudo, e
+  // quem estava logado veria a tela inicial dizendo que não tem acesso a nada — sem entender,
+  // e sem que sair e entrar fosse a primeira coisa a tentar. Preferimos o login a mais.
+  //
+  // Na prática isto quase nunca dispara: o Map vive na memória do processo, e subir a versão
+  // nova já derruba todas as sessões. Fica para o Fast Refresh em desenvolvimento, que
+  // recarrega o módulo sem reiniciar o processo.
+  if (!Array.isArray(sessao.usuario.rotinas)) {
     sessoes.delete(id);
     return null;
   }

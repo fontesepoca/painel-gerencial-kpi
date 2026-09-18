@@ -34,6 +34,7 @@ interface RespostaDaApi {
       nome: string;
       nomeGuerra: string;
       filiais: string[];
+      rotinas: string[];
     };
   } | null;
 }
@@ -112,6 +113,10 @@ export async function POST(requisicao: Request) {
     nome: usuario.nome,
     nomeGuerra: usuario.nomeGuerra,
     filiais: usuario.filiais,
+    // `?? []` porque uma API mais antiga que este campo devolveria `undefined`, e aí
+    // ninguém abriria nada — o que é o padrão seguro, mas quebrado de um jeito difícil de
+    // diagnosticar. Com a lista vazia explícita, a tela inicial diz o que está acontecendo.
+    rotinas: usuario.rotinas ?? [],
   });
 
   esquecerTentativas(await enderecoDeOrigem(), login);
