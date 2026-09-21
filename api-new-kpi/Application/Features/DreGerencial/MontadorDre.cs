@@ -134,13 +134,20 @@ public static class MontadorDre
             .GroupBy(d => (d.GrupoConta, d.AntesRo, d.AntesLl, d.AntesLf))
             .ToDictionary(g => g.Key, g => g.Sum(d => d.QdeReg));
 
-        var linhas = PromoverCreditos(
-            MarcarInformativas(
-                estrutura
-                    .Select(e => new LinhaEmMontagem(e, Normalizar(e.Grupo), e.CodGruConta.StartsWith('-')))
-                    .ToList(),
-                filtro.Analise),
-            filtro.Analise);
+        // A ordem destes elos importa. `RemoverTotalDespesas` e `DescerAsInformativas`
+        // mexem em quais linhas existem e onde; `AgruparRateios` só reordena o que sobrou,
+        // e por isso vem por último — ordenar antes de mover seria ordenar uma lista que
+        // ainda vai mudar.
+        var linhas = AgruparRateios(
+            DescerAsInformativas(
+                RemoverTotalDespesas(
+                    PromoverCreditos(
+                        MarcarInformativas(
+                            estrutura
+                                .Select(e => new LinhaEmMontagem(e, Normalizar(e.Grupo), e.CodGruConta.StartsWith('-')))
+                                .ToList(),
+                            filtro.Analise),
+                        filtro.Analise))));
 
         // Cada coluna é montada por inteiro, de forma independente — inclusive os
         // totalizadores, que dependem só das linhas daquela coluna.
@@ -279,6 +286,129 @@ public static class MontadorDre
                 : l)
             .ToList();
     }
+
+    /// <summary>
+    /// Tira a linha `TOTAL DAS DESPESAS` da tela.
+    ///
+    /// <para>Pedido do Gabriel em 21/09/2026: a linha deixou de ser usada. <b>Nenhum valor
+    /// muda</b> — o `LUCRO LIQUIDO` é calculado em <see cref="MontarMes"/> a partir da
+    /// variável <c>totalDespesas</c>, que soma as linhas de conta; ele nunca leu o valor
+    /// desta linha. Some a exibição, fica a aritmética.</para>
+    ///
+    /// <para><b>O preço, aceito na mesma conversa:</b> a tela deixa de fechar lendo de cima
+    /// para baixo. Quem quiser conferir o `LUCRO LIQUIDO` soma as linhas do bloco à mão, em
+    /// vez de ler o total pronto uma linha acima.</para>
+    /// </summary>
+    private static List<LinhaEmMontagem> RemoverTotalDespesas(List<LinhaEmMontagem> linhas) =>
+        linhas.Where(l => !(l.Calculada && l.Rotulo == TotalDespesas)).ToList();
+
+    /// <summary>
+    /// Desce as linhas informativas para depois do `LUCRO LIQUIDO`.
+    ///
+    /// <para>Pedido do Gabriel em 21/09/2026 para `INDENIZACAO DE MERC. VENC. E AVARIA`, que
+    /// é hoje a única informativa por pedido — ver <see cref="InformativasPorPedido"/>. Ela
+    /// deixou de somar em 14/09 e continuava aparecendo no meio do bloco pós-operacional,
+    /// onde tudo em volta soma. Agora está onde o comportamento dela diz.</para>
+    ///
+    /// <para><b>Nenhum valor muda</b>, e é por isso que a regra é segura: informativa já está
+    /// fora dos dois blocos de soma, então mover não tira nem põe nada em lugar nenhum. Se um
+    /// dia uma linha que SOMA for descida daqui, o número muda — e aí a regra deixou de ser
+    /// esta.</para>
+    ///
+    /// <para>O critério é <c>Informativa</c>, e não o nome da conta: quem marcar outra
+    /// informativa amanhã não precisa lembrar de mexer aqui, e a tela continua coerente — o
+    /// que não soma fica junto do que não soma.</para>
+    /// </summary>
+    private static List<LinhaEmMontagem> DescerAsInformativas(List<LinhaEmMontagem> linhas)
+    {
+        var descer = linhas.Where(l => l.Informativa).ToList();
+        if (descer.Count == 0) return linhas;
+
+        var lucroLiquido = linhas.FindIndex(l => l.Calculada && l.Rotulo == LucroLiquido);
+        if (lucroLiquido < 0) return linhas;
+
+        var resultado = new List<LinhaEmMontagem>(linhas.Count);
+
+        for (var i = 0; i < linhas.Count; i++)
+        {
+            if (linhas[i].Informativa) continue;
+
+            resultado.Add(linhas[i]);
+
+            // Logo DEPOIS do LUCRO LIQUIDO, e não no fim da lista: o bloco final já tem
+            // outras linhas que não somam, e jogar as informativas para o fim as separaria
+            // das companheiras sem motivo.
+            if (i == lucroLiquido) resultado.AddRange(descer);
+        }
+
+        return resultado;
+    }
+
+    /// <summary>
+    /// Põe as contas de rateio no começo do bloco a que já pertencem.
+    ///
+    /// <para>Pedido do Gabriel em 21/09/2026. São as oito que terminam em <c>- RAT</c>:
+    /// COMPRAS, CONTABILIDADE, FINANCEIRO, INFORMATICA, MARKETING, RECURSOS HUMANOS,
+    /// DEPARTAMENTO PESSOAL e JURIDICO.</para>
+    ///
+    /// <para><b>O bloco é o trecho entre duas linhas calculadas</b>, e não as flags
+    /// `AntesRo`/`AntesLl`. A diferença importa: os créditos promovidos por
+    /// <see cref="PromoverCreditos"/> aparecem entre o `LUCRO BRUTO` e o `SUBTOTAL POSITIVO`
+    /// carregando <c>AntesLl = 'S'</c>, que é a flag do bloco pós-operacional. Ordenar pelas
+    /// flags os mandaria de volta para baixo e desfaria a promoção.</para>
+    ///
+    /// <para><b>Nenhuma conta atravessa uma calculada</b>, então nenhum valor muda — e a
+    /// decisão do Gabriel foi explicitamente essa, entre reordenar dentro do bloco e
+    /// reordenar o DRE inteiro. `COMPRAS - RAT` existe nos DOIS blocos, e a de baixo passaria
+    /// a somar no `Sub-Total` se subisse.</para>
+    ///
+    /// <para><b>Por que sufixo e não substring.</b> <c>ADMINISTRATIVO</c> contém `RAT` —
+    /// administ<b>RAT</b>ivo —, e `RATEIO DESP. CORPORATIVAS` começa com ele. Procurar a
+    /// sequência de letras em qualquer posição arrastaria as duas para o topo, e a tela
+    /// pareceria certa para quem não conferisse conta por conta.</para>
+    /// </summary>
+    private static List<LinhaEmMontagem> AgruparRateios(List<LinhaEmMontagem> linhas)
+    {
+        var resultado = new List<LinhaEmMontagem>(linhas.Count);
+        var bloco = new List<LinhaEmMontagem>();
+
+        void DespejarBloco()
+        {
+            if (bloco.Count == 0) return;
+
+            // `OrderBy` do LINQ é ESTÁVEL: entre as de rateio, e entre as demais, a ordem do
+            // cadastro é preservada. Quem ler a tela ao lado da 9815 encontra a mesma
+            // sequência relativa dentro de cada metade.
+            resultado.AddRange(bloco.OrderBy(l => EhRateio(l) ? 0 : 1));
+            bloco.Clear();
+        }
+
+        foreach (var linha in linhas)
+        {
+            if (linha.Calculada)
+            {
+                DespejarBloco();
+                resultado.Add(linha);
+            }
+            else
+            {
+                bloco.Add(linha);
+            }
+        }
+
+        DespejarBloco();
+        return resultado;
+    }
+
+    /// <summary>
+    /// Se a conta é de rateio — <c>RAT</c> como última palavra do nome.
+    ///
+    /// <para>O rótulo já vem por <see cref="Normalizar"/>: maiúsculas e espaços colapsados,
+    /// então o teste não precisa se preocupar com espaço duplo nem com caixa.</para>
+    /// </summary>
+    private static bool EhRateio(LinhaEmMontagem linha) =>
+        linha.Rotulo.EndsWith(" RAT", StringComparison.Ordinal)
+        || linha.Rotulo.EndsWith("-RAT", StringComparison.Ordinal);
 
     /// <summary>
     /// Sobe os créditos para logo abaixo do `LUCRO BRUTO` e cria o `SUBTOTAL POSITIVO`.

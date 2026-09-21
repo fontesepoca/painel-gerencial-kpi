@@ -26,6 +26,7 @@ a aprovação do Gabriel.
 | [8](#8-o-último-centavo-do-modo-anos--14092026) | Arredondamento ao fundir 12 meses | todas, só no modo `anos` | 1 centavo por linha | **corrigida** em 14/09/2026 |
 | [9](#9-o-resultado-operacional-sai-do-subtotal-positivo--14092026) | `RESULTADO OPERACIONAL` a partir do `SUBTOTAL POSITIVO` | C. Custo Principal | R$ 3,22 mi em 2 meses | **a pedido** em 14/09/2026 · dc32 25/25 · dc34 11/11 |
 | [10](#10-indenizacao-de-merc-venc-e-avaria-vira-informativa--14092026) | `INDENIZACAO DE MERC. VENC. E AVARIA` não soma | as três dimensões conferidas | R$ 177 mil em 2 meses | **a pedido** em 14/09/2026 · dc32 25/25 · dc34 11/11 |
+| [11](#11-três-mudanças-de-ordem-e-de-exibição--21092026) | Sai a linha `Total das Despesas`, a indenização desce, as `- RAT` sobem | todas | **nenhum valor muda** | **a pedido** em 21/09/2026 · dc34, dc35 e dc36 |
 
 ---
 
@@ -1966,3 +1967,77 @@ entrada do montador deixa de casar com qualquer linha e a dimensão volta ao que
 
 Para voltar ao casamento por **rótulo**, o commit anterior a este tem as duas listas na forma
 antiga; mas leia a seção acima antes — os dois defeitos que ela descreve continuam lá.
+
+---
+
+## 11. Três mudanças de ordem e de exibição — 21/09/2026
+
+Pedido do Gabriel. **Nenhuma delas muda um número** — e isso não é sorte, é o critério que
+decidiu como cada uma foi feita. As três juntas afastam a tela da 9815 só na aparência.
+
+| O quê | Efeito no valor |
+|---|---|
+| A linha `Total das Despesas` sai da tela | nenhum — o `LUCRO LIQUIDO` nunca leu essa linha |
+| `INDENIZACAO DE MERC. VENC. E AVARIA` desce para depois do `LUCRO LIQUIDO` | nenhum — ela já não somava desde a divergência 10 |
+| As contas terminadas em `- RAT` sobem para o começo do bloco delas | nenhum — nenhuma atravessa uma linha calculada |
+
+### A linha `Total das Despesas`
+
+Ela deixou de ser usada. O `LUCRO LIQUIDO` continua idêntico porque é calculado em
+`MontadorDre.MontarMes` a partir da variável `totalDespesas`, que soma as linhas de conta —
+ele nunca leu o valor da linha exibida.
+
+**O preço, aceito na mesma conversa:** a tela deixa de fechar lendo de cima para baixo. Antes
+dava para conferir `LUCRO BRUTO + Total das Despesas = LUCRO LIQUIDO` a olho; agora quem
+quiser conferir soma as linhas do bloco à mão.
+
+No front, `total-despesas` continua existindo como **passo de cálculo** dentro de
+`recalculoDoDre.ts` — é dele que o lucro líquido sai, lá como aqui. O que mudou é que nenhuma
+conta arrastada cai no encaixe dele: `ancoraDoEncaixe` procura a próxima calculada abaixo, e
+agora essa é o `LUCRO LIQUIDO`. O total se conserva — o que antes chegava ao lucro líquido por
+dentro do total das despesas agora chega direto. **A dc35 é quem garante**, comparando as duas
+aritméticas linha a linha nas três dimensões.
+
+### A indenização desce
+
+Ela deixou de somar em 14/09 (divergência 10) e continuava aparecendo no meio do bloco
+pós-operacional, onde tudo em volta soma. Agora está junto das outras que não somam.
+
+**Mover é seguro exatamente porque ela já é informativa** — está fora dos dois blocos de soma,
+então mudar de lugar não tira nem põe nada. Se um dia uma linha que SOMA for descida por essa
+mesma regra, o número muda, e aí a regra deixou de ser esta.
+
+O critério no código é a marca `Informativa`, não o nome da conta: quem marcar outra
+informativa amanhã não precisa lembrar de mexer na ordenação, e a tela continua coerente.
+
+### As contas de rateio sobem
+
+São as oito terminadas em `- RAT`: COMPRAS, CONTABILIDADE, FINANCEIRO, INFORMATICA, MARKETING,
+RECURSOS HUMANOS, DEPARTAMENTO PESSOAL e JURIDICO.
+
+**O bloco é o trecho entre duas linhas calculadas**, e não as flags `AntesRo`/`AntesLl`. A
+diferença importa: os créditos promovidos pela divergência 9 aparecem entre o `LUCRO BRUTO` e
+o `SUBTOTAL POSITIVO` carregando `AntesLl = 'S'`, que é a flag do bloco pós-operacional.
+Ordenar pelas flags os mandaria de volta para baixo e desfaria a promoção.
+
+**`COMPRAS - RAT` existe nos dois blocos**, e foi ela que definiu o escopo da mudança. O
+Gabriel escolheu reordenar *dentro de cada bloco* em vez de reordenar o DRE inteiro justamente
+por isso: subir a ocorrência pós-operacional a faria somar no `Sub-Total` e no
+`RESULTADO OPERACIONAL`, que hoje não a incluem.
+
+> **A armadilha do `RAT`, e ela quase passou.** `ADMINISTRATIVO` contém a sequência —
+> administ**RAT**ivo —, e `RATEIO DESP. CORPORATIVAS` começa com ela. Um `Contains("RAT")`
+> arrastaria as duas para o topo, e a tela pareceria certa para quem não conferisse conta por
+> conta. O teste é de **sufixo**: `RAT` como última palavra do nome.
+
+### Como foi conferido
+
+| | |
+|---|---|
+| [dc34](validacao/dc34_tres_dimensoes_concordam.mjs) | as três dimensões seguem fechando no mesmo `LUCRO LIQUIDO` |
+| [dc35](validacao/dc35_recalculo_reproduz_a_api.mjs) | o recálculo do front reproduz a API — 6.075 comparações nas três dimensões |
+| [dc36](validacao/dc36_encaixes_da_reordenacao.mjs) | 90 conferências da aritmética dos encaixes |
+
+A dc34 conferia a linha `TOTAL DAS DESPESAS` e passou a calcular `LUCRO LIQUIDO − LUCRO BRUTO`
+no lugar dela: o conceito continua valendo, a linha é que não existe mais. A dc35 e a dc34
+também passaram a aceitar a porta da API pelo ambiente, como a dc41 e a dc51 já faziam.

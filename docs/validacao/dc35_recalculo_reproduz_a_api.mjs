@@ -29,7 +29,9 @@
 import { postar } from "./_postar.mjs";
 import { recalcular } from "@/lib/recalculoDoDre.ts";
 
-const API = "http://localhost:5207/api/dre-gerencial/apuracao";
+// A porta sai do ambiente como nas dc41 e dc51, para dar para rodar contra uma instancia
+// de teste sem derrubar a que o Gabriel usa.
+const API = `${process.env.API ?? "http://localhost:5207"}/api/dre-gerencial/apuracao`;
 
 const BASE = {
   filiais: ["7", "12", "25"],
