@@ -10,7 +10,7 @@
 //   · fornecedor   1 — COLGATE        (verba no centro 90, concorrente da P&G)
 //
 // Uso:
-//   node docs/validacao/dc58_filtro_por_fornecedor_na_filial_7.mjs <sem.xlsx> <815.xlsx> <1.xlsx>
+//   node docs/validacao/dc58_filtro_por_fornecedor_na_filial_7.mjs <sem.xlsx> <815.xlsx> <1.xlsx> [<815 em grupo de contas.xlsx>]
 //
 // Não toca no banco. Só lê planilha.
 //
@@ -58,7 +58,7 @@
 import fs from 'node:fs';
 import zlib from 'node:zlib';
 
-const [semArq, gilArq, colArq] = process.argv.slice(2);
+const [semArq, gilArq, colArq, outraArq] = process.argv.slice(2);
 if (!semArq || !gilArq || !colArq) {
   console.error('uso: node dc58...mjs <sem_filtro.xlsx> <fornecedor_815.xlsx> <fornecedor_1.xlsx>');
   process.exit(2);
@@ -267,6 +267,28 @@ for (const [nome, ls] of [['Gillette', gil], ['Colgate', col]]) {
     '…e ratear o Sub-Total INTEIRO daria outro número',
     `daria ${fmt(stSem * participacao)}`);
 
+  console.log('');
+}
+
+// ── 5. A mesma apuração em outra dimensão (argumento opcional) ──────────────
+// As três dimensões da 9815 são recortes da MESMA apuração, então as linhas calculadas têm
+// de fechar iguais nas três — com ou sem filtro. Importa aqui porque o centro 25 não é uma
+// linha visível em Grupo de Contas: ele está diluído dentro das contas. Se a remoção
+// acontecesse só numa das dimensões, os lucros líquidos se separariam.
+if (outraArq) {
+  console.log('══ a mesma apuração, em Grupo de Contas ══\n');
+  const outra = dreDe(outraArq);
+  console.log(`  linhas: c.custo principal ${gil.length}   ·   grupo de contas ${outra.length}\n`);
+  for (const k of ['(+) RECEITA BRUTA', '(=) RECEITAS LIQUIDAS', 'LUCRO BRUTO',
+                   'SUB-TOTAL -> DESPESAS OPERACIONAIS', 'RESULTADO OPERACIONAL',
+                   'TOTAL DAS DESPESAS', 'LUCRO LIQUIDO']) {
+    const a = linhaDe(gil, k);
+    // Em Grupo de Contas o Sub-Total tem outro rótulo; caso por prefixo quando não achar.
+    const b = linhaDe(outra, k)
+      ?? outra.find((l) => l.desc.toUpperCase().startsWith(k.split(' ->')[0]));
+    afirmar(!!a && !!b && perto(a.valor, b.valor, 0.005), `${k.split(' ->')[0]} fecha igual`,
+      a && b ? `${fmt(a.valor)} · ${fmt(b.valor)}` : 'linha não encontrada');
+  }
   console.log('');
 }
 
