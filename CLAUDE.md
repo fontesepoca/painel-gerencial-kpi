@@ -21,6 +21,7 @@ literal** da tela antiga.
 | 4 | Implementação da 9815 | ✅ as 4 dimensões implementadas e conferidas — [docs/DIVERGENCIAS.md](docs/DIVERGENCIAS.md) |
 | 4.1 | Detalhamento por duplo clique | ✅ **162/162 fecham ao centavo** — [ROTINA_9815 §16](docs/ROTINA_9815.md) |
 | 4.2 | Recursos da tela web | ✅ reordenar, tema, tela cheia, impressão — §15, §17, §18 |
+| 4.3 | Centro de custo por **conta principal** | ✅ 34 linhas viram 60 — **45/45 contra a 9815** ([DIVERGENCIAS §12](docs/DIVERGENCIAS.md)) |
 | 5 | Homologação — matriz de cenários | ⬜ [docs/HOMOLOGACAO.md](docs/HOMOLOGACAO.md) · **a matriz está desatualizada**, ver os riscos em DIVERGENCIAS |
 
 **Em aberto, em ordem de risco** (detalhe na tabela de riscos de `DIVERGENCIAS.md`):
@@ -31,6 +32,7 @@ literal** da tela antiga.
 | Tempo das consultas de imposto | nunca medido isoladamente — a dc6 só dá o total da execução |
 | Período de 3 meses e todas as filiais juntas | **custo medido em 17/09** — 173 s e 122,7 KB (dc41); os valores nunca foram conferidos contra a 9815 |
 | `% AH` em Conta Gerencial | a exportação usada saiu sem análise horizontal |
+| **Agosto/2026 não fecha** | `VERBAS MARGEM` diverge R$ 150.930,28 — 83 lançamentos retroativos entrados em 22/09. Junho fecha 45/45 no mesmo dia ([dc63](docs/validacao/dc63_verbas_margem_150_mil.sql)) |
 
 ## Stack
 

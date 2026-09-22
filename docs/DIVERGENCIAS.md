@@ -27,6 +27,7 @@ a aprovação do Gabriel.
 | [9](#9-o-resultado-operacional-sai-do-subtotal-positivo--14092026) | `RESULTADO OPERACIONAL` a partir do `SUBTOTAL POSITIVO` | C. Custo Principal | R$ 3,22 mi em 2 meses | **a pedido** em 14/09/2026 · dc32 25/25 · dc34 11/11 |
 | [10](#10-indenizacao-de-merc-venc-e-avaria-vira-informativa--14092026) | `INDENIZACAO DE MERC. VENC. E AVARIA` não soma | as três dimensões conferidas | R$ 177 mil em 2 meses | **a pedido** em 14/09/2026 · dc32 25/25 · dc34 11/11 |
 | [11](#11-três-mudanças-de-ordem-e-de-exibição--21092026) | Sai a linha `Total das Despesas`, a indenização desce, as `- RAT` sobem | todas | **nenhum valor muda** | **a pedido** em 21/09/2026 · dc34, dc35 e dc36 |
+| [12](#12-a-linha-é-a-conta-principal-e-não-os-dois-primeiros-dígitos--22092026) | O centro de custo deixa de ser agrupado por dois dígitos | C. Custo Principal | **nenhum valor muda** — 34 linhas viram 60 | **a pedido** em 22/09/2026 · dc61, dc62 e **dc64 45/45** |
 
 ---
 
@@ -324,7 +325,7 @@ acessa de fora do escritório do que qualquer coisa que o BFF faça.
 
 ---
 
-## Quatro armadilhas ao medir divergência
+## Cinco armadilhas ao medir divergência
 
 Todas já produziram conclusão errada neste projeto. Detalhe das duas primeiras em
 [ROTINA_9815.md §11](ROTINA_9815.md).
@@ -342,6 +343,15 @@ Todas já produziram conclusão errada neste projeto. Detalhe das duas primeiras
 4. **Uma coluna zerada pode ser o mapeamento, não o dado.** O Dapper ignora maiúsculas, mas
    **não ignora underscore**: um alias `QDE_NF` não encontra a propriedade `QdeNf` e a
    coluna sai zerada, em silêncio — [o caso completo](#a-armadilha-4-em-detalhe-a-coluna-de-notas-veio-zerada-e-não-era-o-sql).
+5. **Mês recém-fechado ainda recebe lançamento retroativo.** Agosto/2026 ganhou **83
+   lançamentos em 22/09** — três semanas depois de fechar —, com `DTPAGTO` retroativo em
+   31/08 e `DTLANC` do próprio dia. São aplicações automáticas de verba, processadas em
+   lote. A comparação daquele mês acusou R$ 150.930,28 de diferença no `VERBAS MARGEM` e
+   rendeu uma investigação inteira atrás de um defeito que não existia
+   ([dc63](validacao/dc63_verbas_margem_150_mil.sql)). É a armadilha 2 num grau pior: ali
+   a janela era de horas, aqui o mês inteiro se move por semanas. **Para conferir contra a
+   9815, prefira um período com alguns meses de folga** — foi o que fez junho fechar 45/45
+   no mesmo dia em que agosto não fechava.
 
 ---
 
@@ -2041,3 +2051,110 @@ por isso: subir a ocorrência pós-operacional a faria somar no `Sub-Total` e no
 A dc34 conferia a linha `TOTAL DAS DESPESAS` e passou a calcular `LUCRO LIQUIDO − LUCRO BRUTO`
 no lugar dela: o conceito continua valendo, a linha é que não existe mais. A dc35 e a dc34
 também passaram a aceitar a porta da API pelo ambiente, como a dc41 e a dc51 já faziam.
+
+---
+
+## 12. A linha é a **conta principal**, e não os dois primeiros dígitos — 22/09/2026
+
+Pedido das reuniões, decidido com o Gabriel em 22/09/2026. **Nenhum valor muda** — o que muda
+é em quantas linhas o mesmo dinheiro aparece.
+
+| | |
+|---|---|
+| Antes | `SUBSTR(CodigoCentroCusto, 1, 2)` — `2801`, `2802` … `2831` viram **uma** linha, rotulada pelo `min()` do grupo |
+| Agora | o prefixo antes do ponto; sem ponto, o próprio código |
+
+```
+2201.133 · 2201.106  →  2201   TRANSPORTES MATRIZ
+2802                 →  2802   TRANSPORTE T CD UBERLANDIA   (linha nova)
+9001                 →  9001   VERBAS MARGEM                (linha, como sempre)
+```
+
+As subcontas saem da grade e aparecem no **detalhamento**, ao clicar no valor. Na filial 7 em
+agosto/2026 a grade passa de **34 para 60 linhas**, sobre 395 centros distintos.
+
+### A regra é uma só, e cobre todo centro
+
+A primeira leitura partia de `recebe_lancto = 'N'` como definição de conta principal, e
+esbarrava numa pergunta sem resposta: um centro **lançável sem ponto**, como o `2802`, não
+tem prefixo — a qual principal ele pertenceria? O Gabriel respondeu que é justamente isso que
+as reuniões pedem: ele deve ter **linha própria**.
+
+Com isso o `recebe_lancto` deixa de ser critério — ele descreve o cadastro, não o DRE — e
+**não existe lançamento sem linha**, por construção.
+
+Efeito colateral bem-vindo: o `9001` (`VERBAS MARGEM`) tem `recebe_lancto = 'S'` e cairia
+fora pela regra antiga. Pela regra do prefixo ele é linha, como sempre foi, e **não precisa de
+código especial nenhum**. Se um dia quiserem tirá-lo, o caminho é exclusão explícita por
+código no montador — nunca mexer na regra de agrupamento, que derrubaria outras linhas junto.
+
+### A expressão, em onze lugares
+
+```sql
+SUBSTR(x, 1, INSTR(x || '.', '.') - 1)
+```
+
+O `'.'` concatenado é o que a faz servir para os dois casos: com ponto devolve o prefixo, sem
+ponto o `INSTR` acha o ponto recém-colado no fim e a expressão devolve o código inteiro. **Sem
+ele**, um código sem ponto daria `INSTR = 0` e `SUBSTR(x,1,-1)` — string vazia, e a linha
+sumiria do DRE em silêncio.
+
+São dez ocorrências na apuração e uma no detalhamento. **Elas têm de andar juntas:** se as
+duas pontas discordarem, o duplo clique recorta por uma chave diferente da que somou a linha e
+o total deixa de fechar sem nada quebrar. A [dc61](validacao/dc61_conta_principal_no_fonte.mjs)
+confere lendo o fonte.
+
+### Como foi conferido
+
+| | |
+|---|---|
+| [dc61](validacao/dc61_conta_principal_no_fonte.mjs) | a regra é única nos onze lugares — e o montador fala a mesma chave |
+| [dc62](validacao/dc62_subcontas_no_detalhamento.mjs) | a granularidade mudou e o duplo clique acompanhou |
+| [dc64](validacao/dc64_conta_principal_contra_a_9815.mjs) | **45/45 contra a 9815**, junho/2026, filial 7 |
+| dc34 · dc35 | as três dimensões seguem no mesmo `LUCRO LIQUIDO`; o recálculo do front reproduz a API |
+
+A dc64 é a que importa para o negócio: para cada linha da 9815, ela junta as nossas do mesmo
+grupo de dois dígitos e compara a soma. Quatro linhas não batem direto, e as quatro fecham
+**ao centavo** pelo desmembramento:
+
+```
+CONTABILIDADE - RAT    -71.519,31  =  -45.152,31 (1201) + -26.367,00 (1202)
+TRANSPORTES MATRIZ  -3.448.746,10  =  soma de 8 linhas do grupo 22
+VENDAS              -1.079.239,25  =  soma de 16 linhas do grupo 23
+TRANSPORTE T - (28)   -661.935,77  =  soma de 6 linhas do grupo 28
+```
+
+As duas únicas diferenças de valor que sobram são as divergências **9** e **10**, já aprovadas:
+o `RESULTADO OPERACIONAL` difere em 1.669.235,01, que é exatamente `VERBAS MARGEM` mais
+`RATEIO DESP. CORPORATIVAS` — os créditos promovidos —, e o `LUCRO LIQUIDO` em −43.653,86,
+que é a indenização.
+
+**Conferido na tela** em 22/09: `TRANSPORTE T CD TRÊS CORAÇÕES` (centro `2803`), que antes
+não existia como linha, abre com 25 lançamentos somando (28.378,93) — o mesmo valor que a
+dc64 reconciliou.
+
+### O defeito que a dc34 pegou, e por que ele quase passou
+
+O montador identifica linhas especiais por `<chave>|<flags>`, e em C. Custo Principal a chave
+é o centro de custo. A chave mudou nas onze consultas, e **três lugares ficaram para trás**:
+
+```
+97 → 9701   INDENIZACAO                 deixou de ser informativa e VOLTOU A SOMAR
+96 → 9601   RATEIO DESP. CORPORATIVAS   os créditos parariam de subir
+90 → 9001   VERBAS MARGEM               idem
+```
+
+**Não houve sintoma.** As identidades simplesmente deixaram de casar — sem erro, sem exceção.
+O `LUCRO LIQUIDO` veio 177.168,06 a mais, um número perfeitamente plausível na tela. Quem
+percebeu foi a dc34, comparando as três dimensões entre si.
+
+A dc61 passou a ler o montador por causa disso: a primeira versão olhava só as consultas.
+
+### Duas coisas que o cadastro deixou estranhas
+
+O centro `2801` se chama **`TRANSPORTE T - (28)`**. O sufixo fazia sentido quando ele rotulava
+o grupo inteiro; agora ele é um dos seis, e o nome ficou enganoso. É cadastro do Winthor, não
+nosso — renomear é decisão de quem o mantém.
+
+O mesmo vale para o `1801` (`MOVIMENTAÇÃO E ARMAZENAGEM`) e outros que carregavam o nome do
+grupo por serem o `min()` dele.
