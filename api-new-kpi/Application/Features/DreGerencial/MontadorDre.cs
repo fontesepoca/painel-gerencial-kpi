@@ -56,12 +56,19 @@ public static class MontadorDre
     /// custo principal:
     ///
     /// <list type="bullet">
-    ///   <item><c>96|NSS</c> — `RATEIO DESP. CORPORATIVAS`, a ocorrência dos créditos. A
-    ///   operacional é <c>96|SSS</c> e <b>não</b> sobe;</item>
-    ///   <item><c>90|NSS</c> — `VERBAS MARGEM`.</item>
+    ///   <item><c>9601|NSS</c> — `RATEIO DESP. CORPORATIVAS`, a ocorrência dos créditos. A
+    ///   operacional é <c>9601|SSS</c> e <b>não</b> sobe;</item>
+    ///   <item><c>9001|NSS</c> — `VERBAS MARGEM`.</item>
     /// </list>
+    ///
+    /// <para><b>Eram <c>96</c> e <c>90</c> até 22/09/2026</b>, quando a chave da dimensão
+    /// deixou de ser o centro de custo de dois dígitos e passou a ser a conta principal —
+    /// o código inteiro do centro sem ponto. Trocar a chave lá e esquecer aqui não quebra
+    /// nada: as identidades simplesmente deixam de casar, os créditos param de subir e o
+    /// relatório sai com outra cara, sem erro nenhum. Foi o que aconteceu com a entrada da
+    /// indenização em <see cref="InformativasPorPedido"/>, e quem percebeu foi a dc34.</para>
     /// </summary>
-    private static readonly HashSet<string> CreditosPromovidos = ["96|NSS", "90|NSS"];
+    private static readonly HashSet<string> CreditosPromovidos = ["9601|NSS", "9001|NSS"];
 
     /// <summary>
     /// Linhas que passam a <b>não somar em totalizador nenhum</b>, a pedido — o mesmo
@@ -69,8 +76,8 @@ public static class MontadorDre
     /// <see cref="MarcarInformativas"/>.
     ///
     /// <para>É a mesma conta vista por três eixos. Em Conta Gerencial e em Grupo de Contas a
-    /// chave é a própria conta <b>3000165</b>; em C. Custo Principal é o centro de custo
-    /// principal <b>97</b>, que hoje contém só ela.</para>
+    /// chave é a própria conta <b>3000165</b>; em C. Custo Principal é a conta principal
+    /// <b>9701</b>, que hoje contém só ela.</para>
     ///
     /// <para><b>Grupo de Contas só tem essa linha porque a consulta a extrai do grupo 300</b>
     /// — ver a exceção em <see cref="DreGerencialQueries.EstruturaGrupoDeContas"/> e na
@@ -80,7 +87,7 @@ public static class MontadorDre
     private static readonly Dictionary<string, HashSet<string>> InformativasPorPedido =
         new(StringComparer.OrdinalIgnoreCase)
         {
-            ["ccusto-principal"] = ["97|NSS"],
+            ["ccusto-principal"] = ["9701|NSS"],
             ["conta-gerencial"] = ["3000165|NSS"],
             ["grupo-contas"] = ["3000165|NSS"],
         };

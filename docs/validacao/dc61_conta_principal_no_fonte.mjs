@@ -94,7 +94,38 @@ const noventaENove = (tudo.match(/'99' as codccprinc/gi) ?? []).length;
 afirmar(noventaENove === 9, "o '99' sintético está nos nove blocos que o usam",
   `achei ${noventaENove}`);
 
+// ── 5. O montador também fala a chave nova ──────────────────────────────────
+// ESTA SEÇÃO EXISTE POR CAUSA DE UMA FALHA REAL. A primeira versão deste teste olhava só as
+// consultas, e o montador ficou com as chaves antigas de dois dígitos — `97|NSS` para a
+// indenização e `96|NSS`/`90|NSS` para os créditos promovidos.
+//
+// O sintoma: nada quebrou. As identidades simplesmente deixaram de casar, a indenização
+// voltou a somar, e o LUCRO LIQUIDO de C. Custo Principal subiu 177.168,06 em relação às
+// outras duas dimensões. Quem percebeu foi a dc34, que compara as três.
+//
+// A lição é a que a seção 1 já dizia por outro caminho: a chave da dimensão vive em mais
+// lugares do que o arquivo onde ela é montada.
+const montador = ler('api-new-kpi/Application/Features/DreGerencial/MontadorDre.cs');
+
+// Uma identidade é `<chave>|<AntesRo><AntesLl><AntesLf>` — ver `Identidade`. Em C. Custo
+// Principal a chave é a conta principal, e nenhuma delas tem dois dígitos.
+const IDENTIDADES = /"(\d+)\|[NS]{3}"/g;
+const curtas = [...montador.matchAll(IDENTIDADES)]
+  .map((m) => m[1])
+  .filter((k) => k.length <= 2);
+
+afirmar(curtas.length === 0,
+  'o montador não tem identidade de centro com dois dígitos',
+  curtas.length ? `sobrou: ${curtas.join(', ')}` : '');
+
+// As três que a mudança tocou, conferidas pelo nome do centro no cadastro.
+for (const [chave, nome] of [['9601', 'RATEIO DESP. CORPORATIVAS'],
+                             ['9001', 'VERBAS MARGEM'],
+                             ['9701', 'INDENIZACAO DE MERC. VENC. E AVARIA']]) {
+  afirmar(montador.includes(`"${chave}|NSS"`), `${chave} (${nome}) está no montador`);
+}
+
 console.log(falhas === 0
-  ? '\n  a regra é única nos onze lugares\n'
+  ? '\n  a regra é única nos onze lugares, e o montador fala a mesma chave\n'
   : `\n  ${falhas} falha(s)\n`);
 process.exit(falhas === 0 ? 0 : 1);
