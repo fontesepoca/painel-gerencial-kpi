@@ -163,3 +163,20 @@ SELECT CT.CODCONTA,
 --   ausente   → existe uma condição que o trace não mostra
 --
 -- Os três levam a implementações diferentes, e por isso não dá para adivinhar.
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- RESPONDIDA — 22/09/2026
+-- ═══════════════════════════════════════════════════════════════════════════
+-- O terreno escolhido foi a filial 7 em agosto/2026, com os fornecedores 815 (GILLETTE,
+-- 23,9% da receita) e 1 (COLGATE, concorrente da P&G). A comparação está na
+-- dc58_filtro_por_fornecedor_na_filial_7.mjs, com 14 asserções ao centavo.
+--
+-- A RESPOSTA É "AUSENTE": a EQUIPE P&G some para os dois fornecedores.
+--
+-- E o `29` do SQL é um LITERAL FIXO -- o código da P&G escrito no Delphi --, não o fornecedor
+-- selecionado. `29 in (815)` é falso, e o centro 25 sai. Com a P&G selecionada os dois lados
+-- coincidem por acaso, que foi o que confundiu a leitura em c1381a5. Não é defeito: é a regra
+-- de que a equipe dedicada só aparece no DRE do fornecedor dela.
+--
+-- A dc58 traz a mecânica completa e o achado que rege a implementação: remover primeiro,
+-- ratear depois -- as duas operações não comutam.
