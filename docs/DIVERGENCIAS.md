@@ -26,7 +26,7 @@ a aprovação do Gabriel.
 | [8](#8-o-último-centavo-do-modo-anos--14092026) | Arredondamento ao fundir 12 meses | todas, só no modo `anos` | 1 centavo por linha | **corrigida** em 14/09/2026 |
 | [9](#9-o-resultado-operacional-sai-do-subtotal-positivo--14092026) | `RESULTADO OPERACIONAL` a partir do `SUBTOTAL POSITIVO` | C. Custo Principal | R$ 3,22 mi em 2 meses | **a pedido** em 14/09/2026 · dc32 25/25 · dc34 11/11 |
 | [10](#10-indenizacao-de-merc-venc-e-avaria-vira-informativa--14092026) | `INDENIZACAO DE MERC. VENC. E AVARIA` não soma | as três dimensões conferidas | R$ 177 mil em 2 meses | **a pedido** em 14/09/2026 · dc32 25/25 · dc34 11/11 |
-| [11](#11-três-mudanças-de-ordem-e-de-exibição--21092026) | Sai a linha `Total das Despesas`, a indenização desce, as `- RAT` sobem | todas | **nenhum valor muda** | **a pedido** em 21/09/2026 · dc34, dc35 e dc36 |
+| [11](#11-três-mudanças-de-ordem-e-de-exibição--21092026) | Sai a linha `Total das Despesas`, a indenização desce, as `- RAT` sobem, e as `TRANSPORTE T` vêm logo depois | todas | **nenhum valor muda** | **a pedido** em 21 e 23/09/2026 · dc34, dc35, dc36 e **dc65** |
 | [12](#12-a-linha-é-a-conta-principal-e-não-os-dois-primeiros-dígitos--22092026) | O centro de custo deixa de ser agrupado por dois dígitos | C. Custo Principal | **nenhum valor muda** — 34 linhas viram 60 | **a pedido** em 22/09/2026 · dc61, dc62 e **dc64 45/45** |
 
 ---
@@ -2040,6 +2040,42 @@ por isso: subir a ocorrência pós-operacional a faria somar no `Sub-Total` e no
 > arrastaria as duas para o topo, e a tela pareceria certa para quem não conferisse conta por
 > conta. O teste é de **sufixo**: `RAT` como última palavra do nome.
 
+### As de transporte terceirizado vêm logo depois — 23/09/2026
+
+Pedido do Gabriel: as contas `TRANSPORTE T` sobem junto, **imediatamente após** as de rateio.
+A ordenação de cada bloco passa de duas faixas para três:
+
+| | |
+|---|---|
+| 1º | rateio — as oito que terminam em `- RAT` |
+| 2º | transporte terceirizado — as que começam em `TRANSPORTE T`, hoje os `28xx` |
+| 3º | todo o resto, na ordem do cadastro |
+
+`AgruparRateios` virou `AgruparFamilias`, e o `OrderBy` — que é estável no LINQ — passou a
+usar `Familia(linha)`. **Nenhuma conta atravessa uma linha calculada**, então nenhum valor
+muda: dc34, dc35 e dc64 seguem passando sem alteração.
+
+> **A armadilha, e desta vez ela foi evitada antes de acontecer.** O cadastro tem DUAS
+> famílias de transporte separadas por uma letra: os `22xx` — `TRANSPORTES MATRIZ`,
+> `TRANSPORTE MINAS RURAL`, `TRANSPORTE - CD RIO` — e os `28xx` — `TRANSPORTE T - (28)`,
+> `TRANSPORTE T CD UBERLANDIA`, `TRANSPORTE T - P&G`. Um `Contains("TRANSPORTE")` arrastaria
+> as duas, e a tela pareceria certa para quem não conferisse conta por conta — exatamente o
+> erro que o `ADMINISTRATIVO` quase causou na regra do `- RAT`.
+>
+> O teste é `StartsWith("TRANSPORTE T ")`, **com o espaço ao final**. O `S` de `TRANSPORTES`
+> cai antes do espaço, então o prefixo já separa os dois grupos sozinho; o espaço impede que
+> um `TRANSPORTE TERCEIRIZADO` cadastrado amanhã entre por engano. Ele não existe hoje, e é
+> justamente por isso que o teste precisou ser escrito agora.
+
+A [dc65](validacao/dc65_familias_na_ordem.mjs) confere a ordem em cada bloco, que a primeira
+`TRANSPORTE T` vem **imediatamente** depois da última `- RAT` — o pedido foi "logo após", e
+não "em algum lugar acima do resto" —, e que nenhum `22xx` foi classificado como
+terceirizado. Ela reescreve as três regras em vez de importar a implementação: um teste que
+importa o que testa não acusa quando a regra muda de um lado só.
+
+Medido em junho/2026, filial 7: **13 centros `22xx` ficaram no resto, 6 centros `28xx`
+subiram**, e a transição cai entre as posições 7 e 8 do bloco operacional.
+
 ### Como foi conferido
 
 | | |
@@ -2047,6 +2083,7 @@ por isso: subir a ocorrência pós-operacional a faria somar no `Sub-Total` e no
 | [dc34](validacao/dc34_tres_dimensoes_concordam.mjs) | as três dimensões seguem fechando no mesmo `LUCRO LIQUIDO` |
 | [dc35](validacao/dc35_recalculo_reproduz_a_api.mjs) | o recálculo do front reproduz a API — 6.075 comparações nas três dimensões |
 | [dc36](validacao/dc36_encaixes_da_reordenacao.mjs) | 90 conferências da aritmética dos encaixes |
+| [dc65](validacao/dc65_familias_na_ordem.mjs) | as três famílias na ordem, em todo bloco — e a armadilha do `TRANSPORTES` |
 
 A dc34 conferia a linha `TOTAL DAS DESPESAS` e passou a calcular `LUCRO LIQUIDO − LUCRO BRUTO`
 no lugar dela: o conceito continua valendo, a linha é que não existe mais. A dc35 e a dc34

@@ -142,10 +142,10 @@ public static class MontadorDre
             .ToDictionary(g => g.Key, g => g.Sum(d => d.QdeReg));
 
         // A ordem destes elos importa. `RemoverTotalDespesas` e `DescerAsInformativas`
-        // mexem em quais linhas existem e onde; `AgruparRateios` só reordena o que sobrou,
+        // mexem em quais linhas existem e onde; `AgruparFamilias` só reordena o que sobrou,
         // e por isso vem por último — ordenar antes de mover seria ordenar uma lista que
         // ainda vai mudar.
-        var linhas = AgruparRateios(
+        var linhas = AgruparFamilias(
             DescerAsInformativas(
                 RemoverTotalDespesas(
                     PromoverCreditos(
@@ -352,11 +352,18 @@ public static class MontadorDre
     }
 
     /// <summary>
-    /// Põe as contas de rateio no começo do bloco a que já pertencem.
+    /// Põe as contas de rateio, e depois as de transporte terceirizado, no começo do bloco a
+    /// que já pertencem.
     ///
-    /// <para>Pedido do Gabriel em 21/09/2026. São as oito que terminam em <c>- RAT</c>:
-    /// COMPRAS, CONTABILIDADE, FINANCEIRO, INFORMATICA, MARKETING, RECURSOS HUMANOS,
-    /// DEPARTAMENTO PESSOAL e JURIDICO.</para>
+    /// <para><b>São três famílias, nesta ordem:</b></para>
+    /// <list type="number">
+    ///   <item><b>rateio</b> — as oito que terminam em <c>- RAT</c>: COMPRAS, CONTABILIDADE,
+    ///   FINANCEIRO, INFORMATICA, MARKETING, RECURSOS HUMANOS, DEPARTAMENTO PESSOAL e
+    ///   JURIDICO. Pedido do Gabriel em 21/09/2026;</item>
+    ///   <item><b>transporte terceirizado</b> — as que começam em <c>TRANSPORTE T</c>, hoje
+    ///   os centros <c>28xx</c>. Pedido do Gabriel em 23/09/2026;</item>
+    ///   <item>todo o resto, na ordem do cadastro.</item>
+    /// </list>
     ///
     /// <para><b>O bloco é o trecho entre duas linhas calculadas</b>, e não as flags
     /// `AntesRo`/`AntesLl`. A diferença importa: os créditos promovidos por
@@ -369,12 +376,26 @@ public static class MontadorDre
     /// reordenar o DRE inteiro. `COMPRAS - RAT` existe nos DOIS blocos, e a de baixo passaria
     /// a somar no `Sub-Total` se subisse.</para>
     ///
-    /// <para><b>Por que sufixo e não substring.</b> <c>ADMINISTRATIVO</c> contém `RAT` —
-    /// administ<b>RAT</b>ivo —, e `RATEIO DESP. CORPORATIVAS` começa com ele. Procurar a
-    /// sequência de letras em qualquer posição arrastaria as duas para o topo, e a tela
+    /// <para><b>Por que sufixo e não substring, no rateio.</b> <c>ADMINISTRATIVO</c> contém
+    /// `RAT` — administ<b>RAT</b>ivo —, e `RATEIO DESP. CORPORATIVAS` começa com ele. Procurar
+    /// a sequência de letras em qualquer posição arrastaria as duas para o topo, e a tela
     /// pareceria certa para quem não conferisse conta por conta.</para>
+    ///
+    /// <para><b>E por que prefixo COM O ESPAÇO, no transporte.</b> O cadastro tem duas
+    /// famílias de transporte que só se distinguem por uma letra:</para>
+    /// <list type="bullet">
+    ///   <item><c>22xx</c> — `TRANSPORTES MATRIZ`, `TRANSPORTE MINAS RURAL`,
+    ///   `TRANSPORTE - CD RIO` … <b>não</b> sobem;</item>
+    ///   <item><c>28xx</c> — `TRANSPORTE T - (28)`, `TRANSPORTE T CD UBERLANDIA`,
+    ///   `TRANSPORTE T - P&amp;G` … sobem.</item>
+    /// </list>
+    ///
+    /// <para>O <c>S</c> de `TRANSPORTES` cai antes do espaço, então o prefixo
+    /// <c>"TRANSPORTE T "</c> já separa os dois grupos sozinho. O espaço ao final é o que
+    /// impede que um `TRANSPORTE TERCEIRIZADO` cadastrado amanhã entre por engano — hoje ele
+    /// não existe, e é justamente por isso que o teste tem de ser escrito agora.</para>
     /// </summary>
-    private static List<LinhaEmMontagem> AgruparRateios(List<LinhaEmMontagem> linhas)
+    private static List<LinhaEmMontagem> AgruparFamilias(List<LinhaEmMontagem> linhas)
     {
         var resultado = new List<LinhaEmMontagem>(linhas.Count);
         var bloco = new List<LinhaEmMontagem>();
@@ -383,10 +404,10 @@ public static class MontadorDre
         {
             if (bloco.Count == 0) return;
 
-            // `OrderBy` do LINQ é ESTÁVEL: entre as de rateio, e entre as demais, a ordem do
-            // cadastro é preservada. Quem ler a tela ao lado da 9815 encontra a mesma
-            // sequência relativa dentro de cada metade.
-            resultado.AddRange(bloco.OrderBy(l => EhRateio(l) ? 0 : 1));
+            // `OrderBy` do LINQ é ESTÁVEL: dentro de cada família a ordem do cadastro é
+            // preservada. Quem ler a tela ao lado da 9815 encontra a mesma sequência relativa
+            // dentro de cada terço.
+            resultado.AddRange(bloco.OrderBy(Familia));
             bloco.Clear();
         }
 
@@ -416,6 +437,27 @@ public static class MontadorDre
     private static bool EhRateio(LinhaEmMontagem linha) =>
         linha.Rotulo.EndsWith(" RAT", StringComparison.Ordinal)
         || linha.Rotulo.EndsWith("-RAT", StringComparison.Ordinal);
+
+    /// <summary>
+    /// Se a conta é de transporte terceirizado — <c>TRANSPORTE T</c> no começo do nome.
+    ///
+    /// <para>O espaço depois do <c>T</c> é obrigatório, e a comparação com o nome inteiro
+    /// cobre um centro que se chamasse só `TRANSPORTE T`. Ver a armadilha em
+    /// <see cref="AgruparFamilias"/>: sem o espaço, um `TRANSPORTE TERCEIRIZADO` futuro
+    /// entraria junto sem ninguém perceber.</para>
+    /// </summary>
+    private static bool EhTransporteTerceirizado(LinhaEmMontagem linha) =>
+        linha.Rotulo.StartsWith("TRANSPORTE T ", StringComparison.Ordinal)
+        || linha.Rotulo == "TRANSPORTE T";
+
+    /// <summary>
+    /// A família da linha, que é a ordem dela dentro do bloco: rateio, transporte
+    /// terceirizado, resto. Ver <see cref="AgruparFamilias"/>.
+    /// </summary>
+    private static int Familia(LinhaEmMontagem linha) =>
+        EhRateio(linha) ? 0
+        : EhTransporteTerceirizado(linha) ? 1
+        : 2;
 
     /// <summary>
     /// Sobe os créditos para logo abaixo do `LUCRO BRUTO` e cria o `SUBTOTAL POSITIVO`.
