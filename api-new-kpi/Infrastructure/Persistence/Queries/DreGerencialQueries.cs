@@ -160,9 +160,8 @@ public static class DreGerencialQueries
             FROM  PCLANC FIN, PCCONTA CT, PCGRUPO GR, PCRATEIOCENTROCUSTO RC, PCCENTROCUSTO CC, 
                   ( select '99' as codccprinc, 'NÃO USA/NÃO INFORMADO' as DescCCPrinc FROM DUAL 
                     union 
-                    select codccprinc, (select descricao from PCCENTROCUSTO where CodigoCentroCusto = CCP.CodPrinc) as DescCCPrinc 
-                    FROM (select SUBSTR(CodigoCentroCusto,1,2) as CODCCPRINC, min(CodigoCentroCusto) as CodPrinc 
-                    from PCCENTROCUSTO where CodigoCentroCusto not like '%.%' group by SUBSTR(CodigoCentroCusto,1,2)) CCP) CCPrinc  
+                    select CodigoCentroCusto as codccprinc, DESCRICAO as DescCCPrinc
+                    from PCCENTROCUSTO where CodigoCentroCusto not like '%.%') CCPrinc  
            WHERE  FIN.CODCONTA = CT.CODCONTA 
              AND  CT.GRUPOCONTA >= 200 
              AND  FIN.CODFILIAL IN ({0}) 
@@ -170,7 +169,7 @@ public static class DreGerencialQueries
              AND  FIN.CODCONTA = RC.CODCONTA (+) 
              AND  CT.grupoconta = GR.codgrupo (+) 
              AND  RC.CodigoCentroCusto = cc.CodigoCentroCusto (+) 
-             AND  SUBSTR(cc.CodigoCentroCusto,1,2) = CCPrinc.codccprinc (+) 
+             AND  SUBSTR(cc.CodigoCentroCusto, 1, INSTR(cc.CodigoCentroCusto || '.', '.') - 1) = CCPrinc.codccprinc (+) 
              AND  (CT.CodConta,nvl(RC.CodigoCentroCusto,99)) not in (select p.CODGRUCONTA, nvl(ccc.codigocentrocusto,99) from EPCPARDRE p, PCCONTACENTROCUSTO ccc where p.CODGRUCONTA = ccc.codconta (+) ) 
             AND {1} BETWEEN :dtIni AND :dtFim
                          ) GROUP BY CODGRUPO, GRUPO 
@@ -264,9 +263,8 @@ public static class DreGerencialQueries
                   ) FIN, 
                   ( select '99' as codccprinc, 'NÃO USA/NÃO INFORMADO' as DescCCPrinc FROM DUAL 
                     union 
-                    select codccprinc, (select descricao from PCCENTROCUSTO where CodigoCentroCusto = CCP.CodPrinc) as DescCCPrinc 
-                    FROM (select SUBSTR(CodigoCentroCusto,1,2) as CODCCPRINC, min(CodigoCentroCusto) as CodPrinc 
-                    from PCCENTROCUSTO where CodigoCentroCusto not like '%.%' group by SUBSTR(CodigoCentroCusto,1,2)) CCP) CCPrinc  
+                    select CodigoCentroCusto as codccprinc, DESCRICAO as DescCCPrinc
+                    from PCCENTROCUSTO where CodigoCentroCusto not like '%.%') CCPrinc  
            WHERE  FIN.CODCONTA = CT.CODCONTA 
              AND  CT.GRUPOCONTA >= 200 
              AND  FIN.CODFILIAL IN ({0}) 
@@ -274,7 +272,7 @@ public static class DreGerencialQueries
              AND  FIN.CODCONTA = RC.CODCONTA (+) 
              AND  CT.grupoconta = GR.codgrupo (+) 
              AND  RC.CodigoCentroCusto = cc.CodigoCentroCusto (+) 
-             AND  SUBSTR(cc.CodigoCentroCusto,1,2) = CCPrinc.codccprinc (+) 
+             AND  SUBSTR(cc.CodigoCentroCusto, 1, INSTR(cc.CodigoCentroCusto || '.', '.') - 1) = CCPrinc.codccprinc (+) 
              AND  FIN.historico not like 'REF.CANCEL.BORDERO JA BAIXADO' 
              AND not exists (select recnumadiantamento from pclancadiantfornec where recnumpagto is not null and dtestorno is null and recnumadiantamento = fin.recnum) 
             AND {2} BETWEEN :dtIni1 AND :dtFim1
@@ -346,9 +344,8 @@ public static class DreGerencialQueries
             FROM  PCLANC FIN, PCCONTA CT, PCGRUPO GR, PCRATEIOCENTROCUSTO RC, PCCENTROCUSTO CC,
                   ( select '99' as codccprinc, 'NÃO USA/NÃO INFORMADO' as DescCCPrinc FROM DUAL
                     union
-                    select codccprinc, (select descricao from PCCENTROCUSTO where CodigoCentroCusto = CCP.CodPrinc) as DescCCPrinc
-                    FROM (select SUBSTR(CodigoCentroCusto,1,2) as CODCCPRINC, min(CodigoCentroCusto) as CodPrinc
-                    from PCCENTROCUSTO where CodigoCentroCusto not like '%.%' group by SUBSTR(CodigoCentroCusto,1,2)) CCP) CCPrinc
+                    select CodigoCentroCusto as codccprinc, DESCRICAO as DescCCPrinc
+                    from PCCENTROCUSTO where CodigoCentroCusto not like '%.%') CCPrinc
            WHERE  FIN.CODCONTA = CT.CODCONTA
              AND  CT.GRUPOCONTA >= 200
              AND  FIN.CODFILIAL IN ({0})
@@ -356,7 +353,7 @@ public static class DreGerencialQueries
              AND  FIN.CODCONTA = RC.CODCONTA (+)
              AND  CT.grupoconta = GR.codgrupo (+)
              AND  RC.CodigoCentroCusto = cc.CodigoCentroCusto (+)
-             AND  SUBSTR(cc.CodigoCentroCusto,1,2) = CCPrinc.codccprinc (+)
+             AND  SUBSTR(cc.CodigoCentroCusto, 1, INSTR(cc.CodigoCentroCusto || '.', '.') - 1) = CCPrinc.codccprinc (+)
              AND  (CT.CodConta,nvl(RC.CodigoCentroCusto,99)) not in (select p.CODGRUCONTA, nvl(ccc.codigocentrocusto,99) from EPCPARDRE p, PCCONTACENTROCUSTO ccc where p.CODGRUCONTA = ccc.codconta (+) )
             AND {1} BETWEEN :dtIni AND :dtFim
                          ) GROUP BY CODGRUPO, GRUPO
@@ -429,9 +426,8 @@ public static class DreGerencialQueries
                   ) FIN,
                   ( select '99' as codccprinc, 'NÃO USA/NÃO INFORMADO' as DescCCPrinc FROM DUAL
                     union
-                    select codccprinc, (select descricao from PCCENTROCUSTO where CodigoCentroCusto = CCP.CodPrinc) as DescCCPrinc
-                    FROM (select SUBSTR(CodigoCentroCusto,1,2) as CODCCPRINC, min(CodigoCentroCusto) as CodPrinc
-                    from PCCENTROCUSTO where CodigoCentroCusto not like '%.%' group by SUBSTR(CodigoCentroCusto,1,2)) CCP) CCPrinc
+                    select CodigoCentroCusto as codccprinc, DESCRICAO as DescCCPrinc
+                    from PCCENTROCUSTO where CodigoCentroCusto not like '%.%') CCPrinc
            WHERE  FIN.CODCONTA = CT.CODCONTA
              AND  CT.GRUPOCONTA >= 200
              AND  FIN.CODFILIAL IN ({0})
@@ -439,7 +435,7 @@ public static class DreGerencialQueries
              AND  FIN.CODCONTA = RC.CODCONTA (+)
              AND  CT.grupoconta = GR.codgrupo (+)
              AND  RC.CodigoCentroCusto = cc.CodigoCentroCusto (+)
-             AND  SUBSTR(cc.CodigoCentroCusto,1,2) = CCPrinc.codccprinc (+)
+             AND  SUBSTR(cc.CodigoCentroCusto, 1, INSTR(cc.CodigoCentroCusto || '.', '.') - 1) = CCPrinc.codccprinc (+)
              AND  FIN.historico not like 'REF.CANCEL.BORDERO JA BAIXADO'
              AND not exists (select recnumadiantamento from pclancadiantfornec where recnumpagto is not null and dtestorno is null and recnumadiantamento = fin.recnum)
             AND {2} BETWEEN :dtIni1 AND :dtFim1
@@ -463,6 +459,21 @@ public static class DreGerencialQueries
     /// <summary>
     /// Estrutura de linhas do DRE para a análise **C. Custo Principal**. Três blocos:
     /// as linhas calculadas do cadastro, os centros de custo principais, e as contas órfãs.
+    ///
+    /// <para><b>A CONTA PRINCIPAL É O PREFIXO ANTES DO PONTO</b>, e não os dois primeiros
+    /// dígitos como na 9815. A expressão está em onze lugares — nove nesta classe e duas no
+    /// detalhamento — e é sempre a mesma:</para>
+    ///
+    /// <code>SUBSTR(x, 1, INSTR(x || '.', '.') - 1)</code>
+    ///
+    /// <para>O <c>'.'</c> concatenado é o que faz a expressão servir para os dois casos: com
+    /// ponto ela devolve o prefixo, sem ponto o <c>INSTR</c> acha o ponto que acabou de ser
+    /// colado no fim e a expressão devolve o código inteiro. Sem ele, um centro sem ponto
+    /// daria <c>INSTR = 0</c> e <c>SUBSTR(x,1,-1)</c> — string vazia, e a linha sumiria.</para>
+    ///
+    /// <para><b>As onze ocorrências têm de andar juntas.</b> Se a apuração e o detalhamento
+    /// discordarem, o duplo clique recorta por uma chave diferente da que somou a linha e o
+    /// total deixa de fechar sem nada quebrar. A <c>dc61</c> confere isso lendo o fonte.</para>
     ///
     /// <para><b>Divergência deliberada</b> — o subselect `CCC`, que descobre quais centros
     /// de custo existem, usa <b>a lista completa de filiais</b>. Na 9815 ele usa uma só, e
@@ -542,13 +553,12 @@ public static class DreGerencialQueries
                               AND  FIN.historico not like 'REF.CANCEL.BORDERO JA BAIXADO'
                               AND  {1} BETWEEN :dtIniA AND :dtFimA
                           ) CCC,
-                         (  select codccprinc, (select descricao from PCCENTROCUSTO where codigocentrocusto = CCP.CodPrinc) as DescCCPrinc
-                            FROM (select SUBSTR(codigocentrocusto,1,2) as CODCCPRINC, min(codigocentrocusto) as CodPrinc
-                                  from PCCENTROCUSTO where codigocentrocusto not like '%.%' group by SUBSTR(codigocentrocusto,1,2)) CCP) CCPrinc
+                         (  select CodigoCentroCusto as codccprinc, DESCRICAO as DescCCPrinc
+                            from PCCENTROCUSTO where CodigoCentroCusto not like '%.%') CCPrinc
                    where par.codgruconta = CT.codconta (+)
                      and ct.codconta = ccc.codconta (+)
                      and ccc.codigocentrocusto = cc.codigocentrocusto (+)
-                     AND SUBSTR(cc.codigocentrocusto,1,2) = CCPrinc.codccprinc (+)
+                     AND SUBSTR(cc.codigocentrocusto, 1, INSTR(cc.codigocentrocusto || '.', '.') - 1) = CCPrinc.codccprinc (+)
                      and par.codgruconta > 0
                    order by 1
                    )
@@ -562,9 +572,8 @@ public static class DreGerencialQueries
             FROM  PCLANC FIN, PCCONTA CT, PCGRUPO GR, PCRATEIOCENTROCUSTO RC, PCCENTROCUSTO CC,
                   ( select '99' as codccprinc, 'NÃO USA/NÃO INFORMADO' as DescCCPrinc FROM DUAL
                     union
-                    select codccprinc, (select descricao from PCCENTROCUSTO where CodigoCentroCusto = CCP.CodPrinc) as DescCCPrinc
-                    FROM (select SUBSTR(CodigoCentroCusto,1,2) as CODCCPRINC, min(CodigoCentroCusto) as CodPrinc
-                    from PCCENTROCUSTO where CodigoCentroCusto not like '%.%' group by SUBSTR(CodigoCentroCusto,1,2)) CCP) CCPrinc
+                    select CodigoCentroCusto as codccprinc, DESCRICAO as DescCCPrinc
+                    from PCCENTROCUSTO where CodigoCentroCusto not like '%.%') CCPrinc
            WHERE  FIN.CODCONTA = CT.CODCONTA
              AND  CT.GRUPOCONTA >= 200
              AND  FIN.CODFILIAL IN ({2})
@@ -572,7 +581,7 @@ public static class DreGerencialQueries
              AND  FIN.CODCONTA = RC.CODCONTA (+)
              AND  CT.grupoconta = GR.codgrupo (+)
              AND  RC.CodigoCentroCusto = cc.CodigoCentroCusto (+)
-             AND  SUBSTR(cc.CodigoCentroCusto,1,2) = CCPrinc.codccprinc (+)
+             AND  SUBSTR(cc.CodigoCentroCusto, 1, INSTR(cc.CodigoCentroCusto || '.', '.') - 1) = CCPrinc.codccprinc (+)
              AND  (CT.CodConta,nvl(RC.CodigoCentroCusto,99)) not in (select p.CODGRUCONTA, nvl(ccc.codigocentrocusto,99) from EPCPARDRE p, PCCONTACENTROCUSTO ccc where p.CODGRUCONTA = ccc.codconta (+) )
             AND {1} BETWEEN :dtIniB AND :dtFimB
                          ) GROUP BY CODGRUPO, GRUPO
@@ -653,9 +662,8 @@ public static class DreGerencialQueries
                   ) FIN,
                   ( select '99' as codccprinc, 'NÃO USA/NÃO INFORMADO' as DescCCPrinc FROM DUAL
                     union
-                    select codccprinc, (select descricao from PCCENTROCUSTO where CodigoCentroCusto = CCP.CodPrinc) as DescCCPrinc
-                    FROM (select SUBSTR(CodigoCentroCusto,1,2) as CODCCPRINC, min(CodigoCentroCusto) as CodPrinc
-                    from PCCENTROCUSTO where CodigoCentroCusto not like '%.%' group by SUBSTR(CodigoCentroCusto,1,2)) CCP) CCPrinc
+                    select CodigoCentroCusto as codccprinc, DESCRICAO as DescCCPrinc
+                    from PCCENTROCUSTO where CodigoCentroCusto not like '%.%') CCPrinc
            WHERE  FIN.CODCONTA = CT.CODCONTA
              AND  CT.GRUPOCONTA >= 200
              AND  FIN.CODFILIAL IN ({0})
@@ -663,7 +671,7 @@ public static class DreGerencialQueries
              AND  FIN.CODCONTA = RC.CODCONTA (+)
              AND  CT.grupoconta = GR.codgrupo (+)
              AND  RC.CodigoCentroCusto = cc.CodigoCentroCusto (+)
-             AND  SUBSTR(cc.CodigoCentroCusto,1,2) = CCPrinc.codccprinc (+)
+             AND  SUBSTR(cc.CodigoCentroCusto, 1, INSTR(cc.CodigoCentroCusto || '.', '.') - 1) = CCPrinc.codccprinc (+)
              AND  FIN.historico not like 'REF.CANCEL.BORDERO JA BAIXADO'
              AND not exists (select recnumadiantamento from pclancadiantfornec where recnumpagto is not null and dtestorno is null and recnumadiantamento = fin.recnum)
             AND {2} BETWEEN :dtIni1 AND :dtFim1
@@ -688,8 +696,8 @@ public static class DreGerencialQueries
     /// Estrutura de linhas do DRE para a análise **Centro de Custo** — a dimensão que
     /// **nunca funcionou na 9815**.
     ///
-    /// <para>Mesma forma da de C. Custo Principal, com a chave e o rótulo descendo do centro
-    /// de custo principal (dois dígitos) para o centro de custo inteiro:</para>
+    /// <para>Mesma forma da de C. Custo Principal, com a chave e o rótulo descendo da
+    /// conta principal para o centro de custo inteiro:</para>
     /// <list type="bullet">
     ///   <item>chave: o próprio `PCCENTROCUSTO.CODIGOCENTROCUSTO`. `9998` é "usa rateio mas
     ///         não informou", `9999` é "não usa rateio";</item>
@@ -750,13 +758,12 @@ public static class DreGerencialQueries
                               AND  FIN.historico not like 'REF.CANCEL.BORDERO JA BAIXADO'
                               AND  {1} BETWEEN :dtIniA AND :dtFimA
                           ) CCC,
-                         (  select codccprinc, (select descricao from PCCENTROCUSTO where codigocentrocusto = CCP.CodPrinc) as DescCCPrinc
-                            FROM (select SUBSTR(codigocentrocusto,1,2) as CODCCPRINC, min(codigocentrocusto) as CodPrinc
-                                  from PCCENTROCUSTO where codigocentrocusto not like '%.%' group by SUBSTR(codigocentrocusto,1,2)) CCP) CCPrinc
+                         (  select CodigoCentroCusto as codccprinc, DESCRICAO as DescCCPrinc
+                            from PCCENTROCUSTO where CodigoCentroCusto not like '%.%') CCPrinc
                    where par.codgruconta = CT.codconta (+)
                      and ct.codconta = ccc.codconta (+)
                      and ccc.codigocentrocusto = cc.codigocentrocusto (+)
-                     AND SUBSTR(cc.codigocentrocusto,1,2) = CCPrinc.codccprinc (+)
+                     AND SUBSTR(cc.codigocentrocusto, 1, INSTR(cc.codigocentrocusto || '.', '.') - 1) = CCPrinc.codccprinc (+)
                      and par.codgruconta > 0
                    order by 1
                    )
@@ -770,9 +777,8 @@ public static class DreGerencialQueries
             FROM  PCLANC FIN, PCCONTA CT, PCGRUPO GR, PCRATEIOCENTROCUSTO RC, PCCENTROCUSTO CC,
                   ( select '99' as codccprinc, 'NÃO USA/NÃO INFORMADO' as DescCCPrinc FROM DUAL
                     union
-                    select codccprinc, (select descricao from PCCENTROCUSTO where CodigoCentroCusto = CCP.CodPrinc) as DescCCPrinc
-                    FROM (select SUBSTR(CodigoCentroCusto,1,2) as CODCCPRINC, min(CodigoCentroCusto) as CodPrinc
-                    from PCCENTROCUSTO where CodigoCentroCusto not like '%.%' group by SUBSTR(CodigoCentroCusto,1,2)) CCP) CCPrinc
+                    select CodigoCentroCusto as codccprinc, DESCRICAO as DescCCPrinc
+                    from PCCENTROCUSTO where CodigoCentroCusto not like '%.%') CCPrinc
            WHERE  FIN.CODCONTA = CT.CODCONTA
              AND  CT.GRUPOCONTA >= 200
              AND  FIN.CODFILIAL IN ({2})
@@ -780,7 +786,7 @@ public static class DreGerencialQueries
              AND  FIN.CODCONTA = RC.CODCONTA (+)
              AND  CT.grupoconta = GR.codgrupo (+)
              AND  RC.CodigoCentroCusto = cc.CodigoCentroCusto (+)
-             AND  SUBSTR(cc.CodigoCentroCusto,1,2) = CCPrinc.codccprinc (+)
+             AND  SUBSTR(cc.CodigoCentroCusto, 1, INSTR(cc.CodigoCentroCusto || '.', '.') - 1) = CCPrinc.codccprinc (+)
              AND  (CT.CodConta,nvl(RC.CodigoCentroCusto,99)) not in (select p.CODGRUCONTA, nvl(ccc.codigocentrocusto,99) from EPCPARDRE p, PCCONTACENTROCUSTO ccc where p.CODGRUCONTA = ccc.codconta (+) )
             AND {1} BETWEEN :dtIniB AND :dtFimB
                          ) GROUP BY CODGRUPO, GRUPO
@@ -858,9 +864,8 @@ public static class DreGerencialQueries
                   ) FIN,
                   ( select '99' as codccprinc, 'NÃO USA/NÃO INFORMADO' as DescCCPrinc FROM DUAL
                     union
-                    select codccprinc, (select descricao from PCCENTROCUSTO where CodigoCentroCusto = CCP.CodPrinc) as DescCCPrinc
-                    FROM (select SUBSTR(CodigoCentroCusto,1,2) as CODCCPRINC, min(CodigoCentroCusto) as CodPrinc
-                    from PCCENTROCUSTO where CodigoCentroCusto not like '%.%' group by SUBSTR(CodigoCentroCusto,1,2)) CCP) CCPrinc
+                    select CodigoCentroCusto as codccprinc, DESCRICAO as DescCCPrinc
+                    from PCCENTROCUSTO where CodigoCentroCusto not like '%.%') CCPrinc
            WHERE  FIN.CODCONTA = CT.CODCONTA
              AND  CT.GRUPOCONTA >= 200
              AND  FIN.CODFILIAL IN ({0})
@@ -868,7 +873,7 @@ public static class DreGerencialQueries
              AND  FIN.CODCONTA = RC.CODCONTA (+)
              AND  CT.grupoconta = GR.codgrupo (+)
              AND  RC.CodigoCentroCusto = cc.CodigoCentroCusto (+)
-             AND  SUBSTR(cc.CodigoCentroCusto,1,2) = CCPrinc.codccprinc (+)
+             AND  SUBSTR(cc.CodigoCentroCusto, 1, INSTR(cc.CodigoCentroCusto || '.', '.') - 1) = CCPrinc.codccprinc (+)
              AND  FIN.historico not like 'REF.CANCEL.BORDERO JA BAIXADO'
              AND not exists (select recnumadiantamento from pclancadiantfornec where recnumpagto is not null and dtestorno is null and recnumadiantamento = fin.recnum)
             AND {2} BETWEEN :dtIni1 AND :dtFim1

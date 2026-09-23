@@ -263,13 +263,8 @@ public static class DreDetalheQueries
                          WHERE DTPAGTO IS NOT NULL) FIN,
                        (SELECT '99' AS codccprinc, 'NÃO USA/NÃO INFORMADO' AS DescCCPrinc FROM DUAL
                         UNION
-                        SELECT codccprinc,
-                               (SELECT descricao FROM PCCENTROCUSTO
-                                 WHERE codigocentrocusto = CCP.CodPrinc) AS DescCCPrinc
-                          FROM (SELECT SUBSTR(codigocentrocusto,1,2) AS CODCCPRINC,
-                                       min(codigocentrocusto) AS CodPrinc
-                                  FROM PCCENTROCUSTO
-                                 GROUP BY SUBSTR(codigocentrocusto,1,2)) CCP) CCPrinc
+                        select CodigoCentroCusto as codccprinc, DESCRICAO as DescCCPrinc
+                        from PCCENTROCUSTO where CodigoCentroCusto not like '%.%') CCPrinc
                  WHERE FIN.CODCONTA = CT.CODCONTA
                    AND CT.GRUPOCONTA >= 200
                    AND FIN.codfilial IN ({1})
@@ -277,7 +272,7 @@ public static class DreDetalheQueries
                    AND FIN.CODCONTA = RC.CODCONTA (+)
                    AND CT.grupoconta = GR.codgrupo (+)
                    AND RC.codigocentrocusto = cc.codigocentrocusto (+)
-                   AND SUBSTR(NVL(cc.codigocentrocusto,99),1,2) = CCPrinc.codccprinc (+)
+                   AND SUBSTR(NVL(cc.codigocentrocusto,'99'), 1, INSTR(NVL(cc.codigocentrocusto,'99') || '.', '.') - 1) = CCPrinc.codccprinc (+)
                    AND FIN.historico NOT LIKE 'REF.CANCEL.BORDERO JA BAIXADO'
                    AND NOT EXISTS (SELECT recnumadiantamento FROM pclancadiantfornec
                                     WHERE recnumpagto IS NOT NULL AND dtestorno IS NULL
