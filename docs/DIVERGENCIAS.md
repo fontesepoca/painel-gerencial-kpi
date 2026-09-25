@@ -28,6 +28,7 @@ a aprovação do Gabriel.
 | [10](#10-indenizacao-de-merc-venc-e-avaria-vira-informativa--14092026) | `INDENIZACAO DE MERC. VENC. E AVARIA` não soma | as três dimensões conferidas | R$ 177 mil em 2 meses | **a pedido** em 14/09/2026 · dc32 25/25 · dc34 11/11 |
 | [11](#11-três-mudanças-de-ordem-e-de-exibição--21092026) | Sai a linha `Total das Despesas`, a indenização desce, as `- RAT` sobem, e as `TRANSPORTE T` vêm logo depois | todas | **nenhum valor muda** | **a pedido** em 21 e 23/09/2026 · dc34, dc35, dc36 e **dc65** |
 | [12](#12-a-linha-é-a-conta-principal-e-não-os-dois-primeiros-dígitos--22092026) | O centro de custo deixa de ser agrupado por dois dígitos | C. Custo Principal | **nenhum valor muda** — 34 linhas viram 60 | **a pedido** em 22/09/2026 · dc61, dc62 e **dc64 45/45** |
+| [14](#14-manutencao-de-veiculos-e-pneus-e-camaras-entram-nos-cálculos--25092026) | `Manutencao De Veiculos` e `PNEUS E CAMARAS` saem do bloco informativo e somam nas despesas operacionais | todas | **+R$ 1.709.994,73** no lucro de julho/2026 na filial 7 | **a pedido** em 25/09/2026 · dc34, dc62 e dc71 |
 
 ---
 
@@ -2195,3 +2196,91 @@ nosso — renomear é decisão de quem o mantém.
 
 O mesmo vale para o `1801` (`MOVIMENTAÇÃO E ARMAZENAGEM`) e outros que carregavam o nome do
 grupo por serem o `min()` dele.
+
+---
+
+## 14. `Manutencao De Veiculos` e `PNEUS E CAMARAS` entram nos cálculos — 25/09/2026
+
+**Pedido do Gabriel, direto na `main`.** As duas contas estavam no bloco informativo, depois
+do `LUCRO LIQUIDO`, e passam para as **despesas operacionais**: somam no
+`Sub-Total -> Despesas Operacionais` e, por ele, no `RESULTADO OPERACIONAL` e no
+`LUCRO LIQUIDO`.
+
+| | |
+|---|---|
+| `3000067` | Manutencao De Veiculos |
+| `3000080` | PNEUS E CAMARAS |
+
+### Medido em julho/2026, filial 7
+
+| | antes | depois | delta |
+|---|---|---|---|
+| `Sub-Total` | −12.694.555,65 | −10.984.560,92 | **+1.709.994,73** |
+| `RESULTADO OPERACIONAL` | −1.110.932,63 | 599.062,10 | **+1.709.994,73** |
+| `LUCRO LIQUIDO` | 1.304.518,90 | 3.014.513,63 | **+1.709.994,73** |
+| `LUCRO BRUTO` | 11.583.623,02 | 11.583.623,02 | — |
+
+O delta é exatamente a soma das duas contas — 483.723,91 + 1.226.270,82 —, conferida direto no
+`PCLANC` antes da mudança. As três dimensões mudam igual, e a dc34 continua passando.
+
+> **O lucro SOBE, não desce.** As duas contas aparecem na tela com **sinal positivo**,
+> enquanto as demais despesas operacionais aparecem negativas — é o que o `PCLANC` já
+> guardava, e não foi esta mudança que inverteu nada. Mas a consequência é que subi-las
+> **aumenta** o lucro em R$ 1,71 milhão, quando a intuição de "despesa que passa a somar"
+> diria o contrário. Vale conferir com o financeiro se é esse o efeito esperado.
+
+### Onde a mudança mora, e por que não no SQL
+
+No `MontadorDre`, como elo do pipeline (`SubirParaOperacional`). Três razões:
+
+1. a classificação nasce de `EPCPARDRE`, **tabela do Winthor compartilhada com a 9815** —
+   mexer nela mudaria a rotina antiga junto;
+2. abrir exceção no SQL custaria a mesma emenda em **32 pontos** — quatro dimensões × três
+   flags, mais estrutura e detalhamento;
+3. é o mesmo argumento que [PromoverCreditos](#9-o-resultado-operacional-sai-do-subtotal-positivo--14092026)
+   já usa: *a ordem sai daqui, e não do cadastro*.
+
+**A tupla de casamento é reescrita nos dois lados.** A estrutura e o índice das despesas são
+ligados por `(chave, AntesRo, AntesLl, AntesLf)`; reescrever só um faria a busca procurar
+`3000067|SSS` onde a despesa gravou `3000067|NNN`, e a linha apareceria **zerada** com a
+tela inteira parecendo correta.
+
+### A duplicata que a mudança teve de resolver antes
+
+`PNEUS E CAMARAS` **aparecia duas vezes** na Conta Gerencial, com o mesmo valor. A
+[dc71](validacao/dc71_pneus_e_camaras_duplicada.sql) mostrou por quê: a conta entra pelos
+**dois caminhos** da consulta de estrutura — pelo `EPCPARDRE`, onde ela é a única linha com
+`ID` nulo de todo o cadastro, e também pelo `UNION ALL` das órfãs, porque o `NOT IN` que
+deveria barrá-la compara a tupla *(conta, centro de custo)* e ela tem lançamentos em centros
+que o `PCCONTACENTROCUSTO` não cadastra.
+
+**Enquanto informativa isso era inofensivo** — duas linhas que somam zero vezes continuam
+somando zero. Ao subir, as duas passariam a somar, e o Sub-Total receberia **R$ 2.452.541,64
+no lugar de R$ 1.226.270,82**: o dobro, num número plausível o bastante para ninguém
+estranhar. Por isso a subida deduplica por conta.
+
+A `3000067` não está no `EPCPARDRE` de jeito nenhum — é órfã pura. E a dc71 achou de
+passagem que a `3000161` é repetida **dentro** do cadastro (IDs 1271 e 1344); fica anotado,
+não foi tocado.
+
+### O detalhamento não muda, e a primeira versão errou nisso
+
+O duplo clique continua abrindo os mesmos lançamentos, buscados **pela conta**, como sempre
+foram. O que mudou é de que soma a linha participa, não de onde vem o valor dela — o mesmo
+princípio que a divergência 10 já registrou.
+
+> **A primeira versão violou isso.** Com o bloco virando `operacional`, o recorte passava a
+> ser o **centro de custo** enquanto a chave da linha continuava sendo a **conta**: a tela
+> abria vazia, e os lançamentos ainda vazavam para o detalhe das outras linhas operacionais.
+> A dc62 acusou R$ 11.982,92 a mais em `TRANSPORTES MATRIZ`. A correção foi guardar o bloco
+> que a linha tinha **antes** de subir, em vez de deduzi-lo das flags novas.
+
+### Como reverter
+
+Esvaziar `MontadorDre.ContasSubidasParaOperacional`. Tudo volta ao estado anterior, inclusive
+a duplicata de PNEUS — ela é do cadastro, não nossa. O commit é único e isolado.
+
+### O que continua igual
+
+dc34, dc62, dc65 e dc9 passam. dc11 (2 de 10) e dc23 (8 de 24) falham **exatamente como antes**
+— mesmas linhas, mesmos valores, confirmado com `git stash`.

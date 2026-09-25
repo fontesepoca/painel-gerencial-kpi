@@ -32,6 +32,7 @@ literal** da tela antiga.
 | Tempo das consultas de imposto | nunca medido isoladamente — a dc6 só dá o total da execução |
 | Período de 3 meses e todas as filiais juntas | **custo medido em 17/09** — 173 s e 122,7 KB (dc41); os valores nunca foram conferidos contra a 9815 |
 | `% AH` em Conta Gerencial | a exportação usada saiu sem análise horizontal |
+| **O lucro subiu R$ 1,71 mi** | `Manutencao De Veiculos` e `PNEUS E CAMARAS` saíram do bloco informativo e entraram nas despesas operacionais, a pedido. As duas aparecem com **sinal positivo**, então o lucro **sobe** — vale confirmar com o financeiro que é o efeito esperado ([DIVERGENCIAS §14](docs/DIVERGENCIAS.md)) |
 | **Agosto/2026 não fecha** | `VERBAS MARGEM` diverge R$ 150.930,28 — 83 lançamentos retroativos entrados em 22/09. Junho fecha 45/45 no mesmo dia ([dc63](docs/validacao/dc63_verbas_margem_150_mil.sql)) |
 
 ## Stack
