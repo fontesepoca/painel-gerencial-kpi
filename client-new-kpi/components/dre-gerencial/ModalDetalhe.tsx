@@ -11,12 +11,28 @@ import {
   rotuloDaColuna,
 } from "@/lib/colunaDoTotal";
 import { semEstornosQueSeAnulam } from "@/lib/estornosQueSeAnulam";
+import {
+  Cabecalho,
+  Identidade,
+  NUM,
+  ParteDoTotal,
+  TD,
+  TH,
+  TH_BASE,
+  ThNum,
+  Total,
+  Vazio,
+  soma,
+  totalDe,
+} from "@/components/dre-gerencial/primitivosDoDetalhe";
+import { TabelaNotasDaDevolucao } from "@/components/dre-gerencial/TabelaNotasDaDevolucao";
 import { MenuExportar } from "@/components/dre-gerencial/MenuExportar";
 import type {
   DetalheCliente,
   DetalheImposto,
   DetalheLancamento,
   DetalheMotivo,
+  DetalheNota,
   Detalhamento,
 } from "@/types/dre-gerencial";
 
@@ -55,6 +71,9 @@ export function ModalDetalhe({
   onExcel,
   excelOcupado,
   avisoDaAba,
+  onAbrirNotas,
+  voltarPara,
+  onVoltar,
 }: {
   aberto: boolean;
   titulo: string;
@@ -92,6 +111,17 @@ export function ModalDetalhe({
   excelOcupado?: boolean;
   /** Falha ao preparar a outra aba, ou ao gerar o Excel. Fica até o modal fechar. */
   avisoDaAba: string | null;
+  /**
+   * Abre as notas de um motivo, dentro deste mesmo diálogo.
+   *
+   * **Navegar por dentro, e não empilhar outro `<dialog>`.** Dois modais abertos disputam o
+   * `Esc` e o foco do teclado — a pessoa aperta a tecla esperando voltar um nível e fecha
+   * os dois —, e deixariam `Exportar` e `Abrir em nova aba` ambíguos entre os níveis.
+   */
+  onAbrirNotas?: (motivo: DetalheMotivo) => void;
+  /** O rótulo do nível anterior, quando há um. Vira o caminho no topo. */
+  voltarPara?: string | null;
+  onVoltar?: () => void;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
 
@@ -125,6 +155,30 @@ export function ModalDetalhe({
       <div className="flex min-h-0 flex-1 flex-col">
         <header className="flex flex-wrap items-start justify-between gap-3 border-b border-[var(--border)] px-5 py-4">
           <div className="min-w-0">
+            {/* O caminho fica ACIMA do título, e não dentro dele: o título é o que o
+                `aria-labelledby` do diálogo anuncia, e enfiar "voltar para X" ali faria o
+                leitor de tela ler a navegação como se fosse o nome da tela. */}
+            {voltarPara && onVoltar && (
+              <button
+                type="button"
+                onClick={onVoltar}
+                className="-ml-2 mb-1 flex max-w-full items-center gap-1.5 rounded-[var(--radius-md)] px-2 py-1 text-[length:var(--fs-apoio)] text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-2)] hover:text-[var(--text-primary)]"
+              >
+                <svg
+                  aria-hidden
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="size-[1.1em] shrink-0"
+                >
+                  <path d="m15 18-6-6 6-6" />
+                </svg>
+                <span className="truncate">{voltarPara}</span>
+              </button>
+            )}
             <h2
               id="titulo-detalhe"
               className="truncate text-[length:var(--fs-titulo)] font-semibold text-[var(--text-primary)]"
@@ -223,7 +277,11 @@ export function ModalDetalhe({
           )}
 
           {!composicao && dados && !carregando && !erro && (
-            <CorpoDoDetalhe dados={dados} linha={linha} />
+            <CorpoDoDetalhe
+              dados={dados}
+              linha={linha}
+              onAbrirNotas={onAbrirNotas}
+            />
           )}
         </div>
       </div>
@@ -269,9 +327,16 @@ function Esperando() {
 export function CorpoDoDetalhe({
   dados,
   linha,
+  onAbrirNotas,
 }: {
   dados: Detalhamento;
   linha: { descricao: string; valor: number } | null;
+  /**
+   * Abre as notas de um motivo. Ausente na página de impressão e na outra aba, onde não há
+   * para onde navegar — e nesses casos a tabela de motivos não se anuncia como clicável,
+   * em vez de oferecer um clique que não faz nada.
+   */
+  onAbrirNotas?: (motivo: DetalheMotivo) => void;
 }) {
   const nome = nomeDaLinha(linha);
   const coluna = colunaDoTotal(dados.tipo, nome);
@@ -280,7 +345,12 @@ export function CorpoDoDetalhe({
     <>
       <ResumoDoCalculo dados={dados} linha={linha} />
       <OrigemDoTotal linha={linha} coluna={coluna} />
-      <Conteudo dados={dados} coluna={coluna} nome={nome} />
+      <Conteudo
+        dados={dados}
+        coluna={coluna}
+        nome={nome}
+        onAbrirNotas={onAbrirNotas}
+      />
     </>
   );
 }
@@ -289,12 +359,14 @@ function Conteudo({
   dados,
   coluna,
   nome,
+  onAbrirNotas,
 }: {
   dados: Detalhamento;
   /** O rótulo da coluna que soma no valor da célula clicada — ver `colunaDoTotal`. */
   coluna: string | null;
   /** O nome da linha do DRE, sem o sinal, para anunciar a coluna. */
   nome: string | null;
+  onAbrirNotas?: (motivo: DetalheMotivo) => void;
 }) {
   if (dados.tipo === "receita-por-cliente") {
     return (
@@ -307,7 +379,21 @@ function Conteudo({
   }
   if (dados.tipo === "devolucao-por-motivo") {
     return (
-      <TabelaMotivos linhas={dados.motivos ?? []} coluna={coluna} nome={nome} />
+      <TabelaMotivos
+        linhas={dados.motivos ?? []}
+        coluna={coluna}
+        nome={nome}
+        onAbrirNotas={onAbrirNotas}
+      />
+    );
+  }
+  if (dados.tipo === "notas-por-motivo") {
+    return (
+      <TabelaNotasDaDevolucao
+        linhas={dados.notas ?? []}
+        coluna={coluna}
+        nome={nome}
+      />
     );
   }
   if (dados.tipo === "imposto-por-produto") {
@@ -561,66 +647,6 @@ function TabelaComposicao({
   );
 }
 
-function Vazio() {
-  return (
-    <p className="px-5 py-16 text-center text-[length:var(--fs-base)] text-[var(--text-muted)]">
-      Nenhum lançamento no período.
-    </p>
-  );
-}
-
-/**
- * O cabeçalho sem a cor, para quem precisa pintá-lo de outra.
- *
- * **`cn` não resolve conflito entre classes Tailwind** — é concatenação, e no CSS gerado
- * quem ganha é a ordem da folha, não a do atributo. Somar `text-[var(--primary)]` a um `TH`
- * que já traz `text-[var(--text-muted)]` não muda cor nenhuma; foi o que aconteceu na
- * primeira versão do destaque, e o cabeçalho ficou cinza sem erro nenhum aparecer.
- */
-/**
- * **Negrito nos cabeçalhos**, por decisão do Gabriel em 10/09/2026: eles precisam se
- * separar dos dados, e `font-medium` (500) contra o 400 do corpo era diferença que só
- * aparecia lado a lado.
- *
- * **A cor sobe junto, de `--text-muted` para `--text-primary`** — e isso foi medido na tela,
- * não escolhido no escuro. Com o cabeçalho em `--text-secondary`, os números do corpo
- * ficavam em `rgb(241,245,249)` e o cabeçalho em `rgb(203,213,225)`: no tema escuro, mais
- * claro é o que salta, então o cabeçalho continuava **atrás** do dado por mais negrito que
- * tivesse. Igualando a cor, o que separa os dois passa a ser peso, caixa alta e
- * letter-spacing, e o cabeçalho vem para a frente.
- */
-const TH_BASE =
-  "px-3 py-[var(--celula-y)] text-[length:var(--fs-rotulo)] font-bold tracking-[0.14em] uppercase whitespace-nowrap";
-const TH = `${TH_BASE} text-[var(--text-primary)]`;
-const TD = "px-3 py-[var(--celula-y)] whitespace-nowrap";
-const NUM = `${TD} tabular text-right`;
-
-/** Cabeçalho da tabela do modal, colado no topo da própria área de rolagem. */
-function Cabecalho({ children }: { children: React.ReactNode }) {
-  return (
-    <thead>
-      <tr className="border-b border-[var(--border-strong)]">{children}</tr>
-    </thead>
-  );
-}
-
-/**
- * Linha de totais. Existe para o usuário poder conferir com a célula que clicou sem
- * somar 15 mil linhas na mão — é a razão de a §4 ter sido corrigida.
- */
-function Total({ children }: { children: React.ReactNode }) {
-  return (
-    <tfoot>
-      <tr className="border-t border-[var(--border-strong)] font-semibold">
-        {children}
-      </tr>
-    </tfoot>
-  );
-}
-
-const soma = <T,>(linhas: readonly T[], campo: (l: T) => number) =>
-  linhas.reduce((s, l) => s + campo(l), 0);
-
 /**
  * Diz, em uma linha, de onde vem o número que estava na tabela do DRE.
  *
@@ -650,95 +676,6 @@ function OrigemDoTotal({
       </strong>
       .
     </p>
-  );
-}
-
-/**
- * `<th>` de coluna numérica, que se anuncia quando é ela que fecha o total.
- *
- * O nome da linha do DRE entra **acima** do rótulo, não no lugar dele: quem confere contra
- * a 9815 procura a coluna pelo nome que ela sempre teve, e trocar `Líquido` por `ST` faria
- * a coluna sumir para esse olhar.
- */
-function ThNum({
-  rotulo,
-  coluna,
-  nome,
-}: {
-  rotulo: string;
-  coluna: string | null;
-  nome: string | null;
-}) {
-  const eOTotal = coluna === rotulo;
-  const prefixo =
-    eOTotal && nome !== null && !igual(nome, rotulo) ? `(${nome})` : null;
-
-  return (
-    <th
-      className={cn(
-        TH_BASE,
-        "text-right",
-        eOTotal ? "text-[var(--primary)]" : "text-[var(--text-primary)]",
-      )}
-      title={
-        eOTotal && nome !== null
-          ? `A soma desta coluna é o valor de ${nome} na tabela do DRE.`
-          : undefined
-      }
-    >
-      {prefixo && <span className="block">{prefixo}</span>}
-      {rotulo}
-    </th>
-  );
-}
-
-/** Célula de rodapé: o mesmo destaque do cabeçalho, para o olho ligar as duas pontas. */
-const totalDe = (coluna: string | null, rotulo: string) =>
-  cn(NUM, coluna === rotulo && "text-[var(--primary)]");
-
-/**
- * `% part.` — duas casas na tela, uma no papel.
- *
- * Mesmo par de `%AV` e `%AH` na tabela do DRE: as duas grafias vivem no DOM e o CSS
- * escolhe, em vez de um estado trocado no `beforeprint` que um `Ctrl+P` direto não espera.
- */
-function ParteDoTotal({ valor }: { valor: number | null }) {
-  return (
-    <>
-      <span className="so-na-tela">{formatarPercentual(valor, 2)}</span>
-      <span className="so-no-papel">{formatarPercentual(valor, 1)}</span>
-    </>
-  );
-}
-
-/**
- * Célula que identifica a linha, e a única que fica parada na rolagem lateral.
- *
- * Código e nome moram **na mesma célula**, não em duas colunas fixas lado a lado. Duas
- * teriam que concordar até o pixel sobre onde a primeira termina, e o algoritmo de tabela
- * não garante isso — foi assim que a tabela principal abriu uma fresta por onde os valores
- * passavam por baixo. Uma coluna não tem com o que discordar.
- */
-function Identidade({
-  codigo,
-  nome,
-}: {
-  codigo: React.ReactNode;
-  nome: string;
-}) {
-  return (
-    <td className={cn(TD, "col-identidade max-w-[24rem]")}>
-      <div className="flex items-baseline gap-2">
-        <span className="tabular shrink-0 text-[length:var(--fs-apoio)] text-[var(--text-muted)]">
-          {codigo}
-        </span>
-        {/* `descricao-conta` deixa o `@media print` desligar o corte: no papel não há
-            hover para ler o `title`, e nome cortado com reticências é dado perdido. */}
-        <span className="descricao-conta truncate" title={nome}>
-          {nome}
-        </span>
-      </div>
-    </td>
   );
 }
 
@@ -920,10 +857,12 @@ function TabelaMotivos({
   linhas,
   coluna,
   nome,
+  onAbrirNotas,
 }: {
   linhas: readonly DetalheMotivo[];
   coluna: string | null;
   nome: string | null;
+  onAbrirNotas?: (motivo: DetalheMotivo) => void;
 }) {
   if (linhas.length === 0) return <Vazio />;
 
@@ -938,9 +877,31 @@ function TabelaMotivos({
       </Cabecalho>
       <tbody>
         {linhas.map((m) => (
+          // A LINHA INTEIRA é o alvo, e não só o número: um alvo de 3 caracteres é o
+          // tamanho que faz a pessoa mirar. O `tabIndex` põe a linha na ordem do teclado —
+          // uma tabela em que só o mouse chega ao segundo nível deixa quem navega por
+          // teclado sem caminho nenhum.
           <tr
             key={m.codMotivo ?? "sem-motivo"}
-            className="border-b border-[var(--border)] odd:bg-[var(--zebra)] hover:bg-[var(--surface-2)]"
+            className={cn(
+              "border-b border-[var(--border)] odd:bg-[var(--zebra)] hover:bg-[var(--surface-2)]",
+              onAbrirNotas &&
+                "cursor-pointer focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--primary)]",
+            )}
+            {...(onAbrirNotas
+              ? {
+                  tabIndex: 0,
+                  role: "button" as const,
+                  "aria-label": `Ver as ${m.qdeNf} notas de ${m.motivo ?? "sem motivo cadastrado"}`,
+                  onClick: () => onAbrirNotas(m),
+                  onKeyDown: (e: React.KeyboardEvent) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      onAbrirNotas(m);
+                    }
+                  },
+                }
+              : {})}
           >
             {/* Devolução sem motivo cadastrado entra no total mesmo assim: a junção com
                 PCTABDEV é externa de propósito, aqui e na 9815. */}
@@ -951,7 +912,17 @@ function TabelaMotivos({
             <td className={TD}>
               <CulpaRca valor={m.culpaRca} />
             </td>
-            <td className={NUM}>{m.qdeNf}</td>
+            {/* O número ganha aparência de link para dizer que ali há mais — mas quem
+                recebe o clique é a linha toda, logo acima. */}
+            <td className={NUM}>
+              {onAbrirNotas ? (
+                <span className="underline decoration-dotted underline-offset-4 text-[var(--primary)]">
+                  {m.qdeNf}
+                </span>
+              ) : (
+                m.qdeNf
+              )}
+            </td>
             <td className={NUM}>{formatarValor(m.vlDevolucao)}</td>
             {/* Duas casas: o valor vem arredondado assim da consulta, e é o que a
                 9815 mostra nesta coluna. */}

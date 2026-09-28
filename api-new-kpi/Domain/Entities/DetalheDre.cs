@@ -129,3 +129,41 @@ public class DetalheImpostoDre
     /// <summary>`Vendas − Devolucoes`. É a soma desta coluna que fecha com a linha do DRE.</summary>
     public decimal Liquido { get; init; }
 }
+
+/// <summary>
+/// Uma nota da tela **Notas do Motivo** — o segundo nível do detalhamento de
+/// `(-) DEVOLUCAO`, que responde *quais* notas compõem a coluna NOTAS de um motivo.
+///
+/// <para><b>A soma de <see cref="VlDevolucao"/> fecha com o valor do motivo</b>, e a
+/// contagem de linhas com a coluna NOTAS dele. É a mesma invariante dos 162/162 do duplo
+/// clique, um nível abaixo — e é o que a `dc72` mede.</para>
+/// </summary>
+public class DetalheNotaDre
+{
+    public decimal NumNota { get; init; }
+
+    /// <summary>Série da nota. Texto porque o Winthor usa `1`, `U`, `C1`.</summary>
+    public string? Serie { get; init; }
+
+    /// <summary>Data de entrada — a mesma que filtra o período da tela.</summary>
+    public DateTime? DtEnt { get; init; }
+
+    /// <summary>
+    /// A transação de entrada. É a <b>chave real</b> da nota no Winthor: o número sozinho
+    /// se repete entre séries e entre filiais.
+    /// </summary>
+    public decimal NumTransEnt { get; init; }
+
+    public int? CodParceiro { get; init; }
+
+    /// <summary>Quem devolveu.</summary>
+    public string? Parceiro { get; init; }
+
+    /// <summary>Quantos itens da nota entraram no valor — não é a quantidade devolvida.</summary>
+    public int Itens { get; init; }
+
+    public decimal VlDevolucao { get; init; }
+
+    /// <summary>Participação no total do motivo, em porcento. Como nas outras telas.</summary>
+    public decimal PPart { get; init; }
+}

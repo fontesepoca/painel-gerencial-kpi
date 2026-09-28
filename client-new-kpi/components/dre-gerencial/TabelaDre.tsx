@@ -144,6 +144,22 @@ export function TabelaDre({
   } | null>(null);
 
   /**
+   * O nível anterior do detalhamento, quando se desceu um — hoje só de um motivo de
+   * devolução para as notas dele.
+   *
+   * **Guarda o pedido inteiro, e não só um rótulo.** Voltar refaz a consulta do nível de
+   * cima com exatamente os mesmos argumentos que a trouxeram; reconstruí-los na hora do
+   * clique é onde moram os enganos, porque o filtro da tela pode ter mudado no caminho.
+   *
+   * É um nível só, e não uma pilha, porque só existe um lugar para descer. Uma pilha
+   * genérica aqui seria estrutura para um caso que não existe.
+   */
+  const [nivelAnterior, setNivelAnterior] = useState<{
+    pedido: PedidoDetalhe;
+    rotulo: string;
+  } | null>(null);
+
+  /**
    * Um detalhamento à espera de confirmação, quando o recorte é longo. Guarda o pedido
    * pronto: o que a confirmação faz é deixá-lo seguir, sem recalcular nada.
    */
@@ -524,8 +540,56 @@ export function TabelaDre({
     setDetalhe(null);
     setComposicao(null);
     setAvisoDaAba(null);
+    setNivelAnterior(null);
     consultaDetalhe.reset();
   }, [consultaDetalhe]);
+
+  /**
+   * Desce para as notas de um motivo de devolução.
+   *
+   * O período e as filiais são os do nível de cima, não os do filtro da tela: a pessoa
+   * clicou numa coluna, e as notas têm de ser as daquela coluna. É a mesma regra que fez
+   * `abrirDetalhe` carregar o recorte da célula em vez de derivá-lo do mês.
+   */
+  const abrirNotasDoMotivo = useCallback(
+    (motivo: { codMotivo: number | null; motivo: string | null; vlDevolucao: number }) => {
+      if (!detalhe) return;
+
+      const nome = motivo.motivo?.trim() || "Sem motivo cadastrado";
+
+      setNivelAnterior({
+        pedido: {
+          tipo: { tipo: "devolucao-por-motivo", bloco: null, chave: null },
+          titulo: detalhe.titulo,
+          periodo: detalhe.periodo,
+          linha: detalhe.linha,
+        },
+        rotulo: detalhe.titulo,
+      });
+
+      consultarDetalhe({
+        tipo: {
+          tipo: "notas-por-motivo",
+          bloco: null,
+          // Nulo vira string vazia: é a linha "sem motivo cadastrado", e o servidor a
+          // reconhece pela chave ausente. Mandar "null" como texto viraria um código.
+          chave: motivo.codMotivo === null ? null : String(motivo.codMotivo),
+        },
+        titulo: nome,
+        periodo: detalhe.periodo,
+        linha: { descricao: nome, valor: motivo.vlDevolucao },
+      });
+    },
+    [detalhe, consultarDetalhe],
+  );
+
+  /** Sobe de volta, refazendo a consulta que trouxe o nível de cima. */
+  const voltarUmNivel = useCallback(() => {
+    if (!nivelAnterior) return;
+    const { pedido } = nivelAnterior;
+    setNivelAnterior(null);
+    consultarDetalhe(pedido);
+  }, [nivelAnterior, consultarDetalhe]);
 
   const restaurar = useCallback(() => {
     limpar();
@@ -809,6 +873,15 @@ export function TabelaDre({
         onExcel={composicao || !detalhe || !consultaDetalhe.data ? null : exportarExcel}
         excelOcupado={exportando}
         avisoDaAba={avisoDaAba ?? erroExcel}
+        // Só a tela de motivos desce um nível. Nas outras a prop não vai, e a tabela
+        // deixa de se anunciar como clicável em vez de oferecer um clique morto.
+        onAbrirNotas={
+          consultaDetalhe.data?.tipo === "devolucao-por-motivo"
+            ? abrirNotasDoMotivo
+            : undefined
+        }
+        voltarPara={nivelAnterior?.rotulo ?? null}
+        onVoltar={nivelAnterior ? voltarUmNivel : undefined}
       />
     </>
   );

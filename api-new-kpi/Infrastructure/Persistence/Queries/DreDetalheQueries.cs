@@ -172,6 +172,68 @@ public static class DreDetalheQueries
         """;
 
     /// <summary>
+    /// **Notas do motivo** — o segundo nível do detalhamento de `(-) DEVOLUCAO`.
+    ///
+    /// <para>A tela de motivos mostra uma coluna NOTAS com a quantidade de notas fiscais.
+    /// Esta consulta responde <b>quais</b> são: uma linha por nota, com o valor devolvido
+    /// naquele motivo.</para>
+    ///
+    /// <para><b>É a <see cref="DevolucaoPorMotivo"/> com os mesmos joins e os mesmos oito
+    /// filtros</b>, trocando o `GROUP BY` do motivo pelo da nota. Copiar os filtros ao pé da
+    /// letra não é preguiça: é o que faz o total desta tela fechar com o valor do motivo.
+    /// Qualquer critério a mais ou a menos aqui e a soma passa a ser de outro conjunto de
+    /// notas — a mesma lição de <see cref="ImpostoPorProduto"/> e da divergência §4.</para>
+    ///
+    /// <para><b>O agrupamento leva `NUMTRANSENT`, e não só o número da nota.</b> O número
+    /// sozinho se repete entre séries e entre filiais; a transação de entrada é a chave real.
+    /// Como a tela de motivos conta `COUNT(DISTINCT NFE.numnota)`, as duas contagens só
+    /// batem se as três formas de contar coincidirem no período — e é isso que a consulta 2
+    /// da `dc72` mede, motivo a motivo.</para>
+    ///
+    /// <para><b>O motivo nulo é caso legítimo.</b> A junção com `PCTABDEV` é externa, e
+    /// devolução sem motivo cadastrado entra no total da tela com o motivo vazio. Por isso o
+    /// filtro usa `NVL(..., -1)` dos dois lados em vez de igualdade simples: `= NULL` não
+    /// casa com nada, e a linha "sem motivo" abriria vazia.</para>
+    ///
+    /// <para>Binds, nesta ordem: :dtIni, :dtFim, {0} filiais, :codMotivo.</para>
+    /// </summary>
+    public const string NotasDaDevolucao = """
+        SELECT NUMNOTA, SERIE, DTENT, NUMTRANSENT, CODPARCEIRO, PARCEIRO, ITENS, VLDEVOLUCAO,
+               round((VLDEVOLUCAO / SUM(VLDEVOLUCAO) OVER (PARTITION BY NULL)) * 100, 2) AS PPART
+          FROM (
+                SELECT NFE.NUMNOTA                AS NUMNOTA,
+                       NFE.SERIE                  AS SERIE,
+                       NFE.DTENT                  AS DTENT,
+                       NFE.NUMTRANSENT            AS NUMTRANSENT,
+                       NFE.CODFORNEC              AS CODPARCEIRO,
+                       (SELECT FORNECEDOR FROM PCFORNEC
+                         WHERE CODFORNEC = NFE.CODFORNEC) AS PARCEIRO,
+                       COUNT(*)                   AS ITENS,
+                       SUM( round( NVL(nvl(MV.QT, mv.QTCONT),0)
+                                 * NVL(nvl(MV.punit, mv.punitcont),0), 2) ) AS VLDEVOLUCAO
+                  FROM PCNFENT NFE, PCMOV MV, PCMOVCOMPLE MVC, PCPEDC PED,
+                       PCPRODUT PR, PCTABDEV MOTIVO
+                 WHERE NFE.numnota     = MV.numnota      (+)
+                   AND NFE.numtransent = MV.numtransent  (+)
+                   AND mv.numtransitem = mvc.numtransitem (+)
+                   AND MV.numped       = PED.numped      (+)
+                   AND MV.CODPROD      = PR.CODPROD
+                   AND NFE.CODDEVOL    = MOTIVO.CODDEVOL (+)
+                   AND nvl(PED.CONDVENDA,1) IN ('1','3','5','6','8')
+                   AND NFE.DTENT BETWEEN :dtIni AND :dtFim
+                   AND NFE.CODFILIAL IN ({0})
+                   AND NFE.TIPODESCARGA IN ('6','7')
+                   AND MV.DTCANCEL IS NULL
+                   AND (NVL(NFE.OBS,'X') <> 'NF CANCELADA')
+                   AND MV.CODFISCAL IN (1202,1411,1949,2202,2411,2949)
+                   AND MV.CODSEC <> 1601
+                   AND NVL(MOTIVO.CODDEVOL, -1) = NVL(:codMotivo, -1)
+                 GROUP BY NFE.NUMNOTA, NFE.SERIE, NFE.DTENT, NFE.NUMTRANSENT, NFE.CODFORNEC
+               )
+         ORDER BY VLDEVOLUCAO DESC
+        """;
+
+    /// <summary>
     /// Lançamentos — a tela de toda linha de grupo. **Fiel à 9815**: esta já somava o valor
     /// da linha clicada (`DIRETORIA` fecha em −256.840,02 e `COMPRAS - RAT` em −278.024,83),
     /// e nada aqui foi corrigido.

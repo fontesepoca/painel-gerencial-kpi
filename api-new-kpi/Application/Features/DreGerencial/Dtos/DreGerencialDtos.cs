@@ -287,6 +287,22 @@ public record DetalheMotivoDto(
     decimal VlDevolucao,
     decimal PPart);
 
+/// <summary>
+/// Uma nota da tela "Notas do Motivo" — o segundo nível de `(-) DEVOLUCAO`.
+/// A soma de `VlDevolucao` fecha com o valor do motivo, e a contagem de linhas com a
+/// coluna NOTAS dele.
+/// </summary>
+public record DetalheNotaDto(
+    decimal NumNota,
+    string? Serie,
+    DateTime? DtEnt,
+    decimal NumTransEnt,
+    int? CodParceiro,
+    string? Parceiro,
+    int Itens,
+    decimal VlDevolucao,
+    decimal PPart);
+
 /// <summary>Um lançamento da tela de detalhamento das linhas de grupo.</summary>
 public record DetalheLancamentoDto(
     decimal RecNum,
@@ -337,7 +353,8 @@ public record DetalhamentoDto(
     IReadOnlyList<DetalheMotivoDto>? Motivos,
     IReadOnlyList<DetalheLancamentoDto>? Lancamentos,
     IReadOnlyList<DetalheImpostoDto>? Impostos,
-    long DuracaoMs);
+    long DuracaoMs,
+    IReadOnlyList<DetalheNotaDto>? Notas = null);
 
 /// <summary>
 /// Uma linha da tela de ST, PIS e COFINS: o imposto de um produto no período.

@@ -49,7 +49,11 @@ export type Folha = "a4-em-pe" | "a4-deitada" | "a3-deitada";
  * decisão de negócio, igual à do `AH %` na tabela do DRE.
  */
 export function folhaDoDetalhe(tipo: TipoDetalhe): Folha {
-  return tipo === "devolucao-por-motivo" ? "a4-deitada" : "a3-deitada";
+  // As notas de um motivo têm seis colunas, uma a mais que os motivos e ainda bem longe
+  // das 25 dos lançamentos: cabem na mesma A4 deitada.
+  return tipo === "devolucao-por-motivo" || tipo === "notas-por-motivo"
+    ? "a4-deitada"
+    : "a3-deitada";
 }
 
 /**

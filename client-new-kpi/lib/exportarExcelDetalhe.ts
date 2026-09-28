@@ -98,6 +98,26 @@ function corpoDoDetalhe(dados: Detalhamento): Corpo {
     };
   }
 
+  if (dados.tipo === "notas-por-motivo") {
+    return {
+      rotulos: ["Nota", "Série", "Entrada", "Transação", "Parceiro", "Itens", "Devolução", "% part."],
+      larguras: [12, 8, 12, 14, 42, 8, 16, 10],
+      linhas: (dados.notas ?? []).map((n) => [
+        num(n.numNota, INTEIRO),
+        txt(n.serie),
+        txt(n.dtEnt ? n.dtEnt.slice(0, 10).split("-").reverse().join("/") : null),
+        // A transação vira COLUNA na planilha, ao contrário da tela — quem exporta está
+        // levando o dado para cruzar com outro sistema, e ali a chave real importa mais
+        // do que a largura da coluna.
+        num(n.numTransEnt, INTEIRO),
+        txt(n.parceiro ?? "Sem parceiro identificado"),
+        num(n.itens, INTEIRO),
+        num(n.vlDevolucao),
+        num(n.pPart, PERCENTUAL_2),
+      ]),
+    };
+  }
+
   if (dados.tipo === "imposto-por-produto") {
     return {
       rotulos: ["Código", "Produto", "Notas", "Vendas", "Devoluções", "Líquido", "% part."],

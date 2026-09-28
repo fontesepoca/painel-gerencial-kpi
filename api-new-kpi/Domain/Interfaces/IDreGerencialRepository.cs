@@ -71,6 +71,19 @@ public interface IDreGerencialRepository
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// As notas de um motivo de devolução — o segundo nível de `(-) DEVOLUCAO`.
+    ///
+    /// <para><paramref name="codMotivo"/> nulo é a linha "sem motivo cadastrado", que existe
+    /// porque a junção com `PCTABDEV` é externa e aquelas notas entram no total.</para>
+    /// </summary>
+    Task<IReadOnlyList<DetalheNotaDre>> ObterDetalheNotasDaDevolucaoAsync(
+        int? codMotivo,
+        IReadOnlyList<string> filiais,
+        DateOnly dataInicio,
+        DateOnly dataFim,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Detalhamento de `(-) ST`, `(-) PIS` e `(-) COFINS`, agregado por produto.
     /// <paramref name="imposto"/> é `st`, `pis` ou `cofins` — lista fechada, validada na
     /// consulta antes de virar SQL.
