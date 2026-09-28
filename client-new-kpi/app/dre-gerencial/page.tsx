@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { AppShell } from "@/components/layout/AppShell";
 import { FiltrosDre } from "@/components/dre-gerencial/FiltrosDre";
 import { TabelaDre } from "@/components/dre-gerencial/TabelaDre";
+import { FiltroDeLinhas } from "@/components/dre-gerencial/FiltroDeLinhas";
 import { FolhaDaImpressao } from "@/components/dre-gerencial/impressao";
 import { MenuExportar } from "@/components/dre-gerencial/MenuExportar";
 import { exportarApuracao } from "@/lib/exportarExcel";
@@ -22,6 +23,16 @@ export default function DreGerencialPage() {
   const apuracao = useApuracao();
   const [mostrarZeradas, setMostrarZeradas] = useState(false);
   const [expandida, setExpandida] = useState(false);
+
+  /**
+   * O texto que filtra as linhas da tabela.
+   *
+   * **Limpa a cada nova apuração** — decisão do Gabriel em 28/09/2026. Um filtro escrito
+   * para o mês passado, ainda aplicado sobre números recém-chegados, esconde linhas sem
+   * dizer por quê: quem apura de novo espera ver a apuração, e uma tabela com três linhas
+   * parece defeito, não filtro.
+   */
+  const [filtroDeLinhas, setFiltroDeLinhas] = useState("");
 
   /**
    * `Esc` sai da tela cheia, como em qualquer coisa que ocupa a tela inteira.
@@ -125,7 +136,10 @@ export default function DreGerencialPage() {
             carregandoFiliais={filiais.isPending}
             apurando={apuracao.isPending}
             onMudar={setFiltro}
-            onApurar={() => apuracao.mutate(filtro)}
+            onApurar={() => {
+              setFiltroDeLinhas("");
+              apuracao.mutate(filtro);
+            }}
           />
 
           {filiais.isError && (
@@ -203,6 +217,11 @@ export default function DreGerencialPage() {
                   e 68px de altura. Inteiro, ele desce para a própria linha quando não cabe,
                   que é a quebra que o olho espera. */}
               <div className="nao-imprime flex flex-wrap items-center gap-x-4 gap-y-2">
+                {/* Ao lado do `Mostrar contas zeradas`, e não junto de exportar e imprimir:
+                    os dois primeiros decidem QUAIS LINHAS aparecem, os outros decidem o que
+                    fazer com elas. */}
+                <FiltroDeLinhas valor={filtroDeLinhas} onMudar={setFiltroDeLinhas} />
+
                 <label className="flex cursor-pointer items-center gap-2.5 text-[length:var(--fs-apoio)] whitespace-nowrap text-[var(--text-secondary)]">
                   <input
                     type="checkbox"
@@ -251,6 +270,8 @@ export default function DreGerencialPage() {
               periodos={dados.periodos}
               linhas={dados.linhas}
               mostrarZeradas={mostrarZeradas}
+              filtroDeLinhas={filtroDeLinhas}
+              onLimparFiltro={() => setFiltroDeLinhas("")}
               // Deliberadamente `dados`, e não `filtro`: o detalhamento tem que usar os
               // parâmetros que produziram os números na tela. Mexer no formulário depois
               // de apurar e só então clicar duplo devolveria outro recorte, e o total não

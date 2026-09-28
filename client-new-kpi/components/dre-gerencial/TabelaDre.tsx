@@ -17,6 +17,7 @@ import {
 } from "@/lib/modosDePeriodo";
 import { useOrdemSalva } from "@/hooks/useOrdemSalva";
 import { passoDeRolagem } from "@/lib/rolagemAutomatica";
+import { filtrarLinhas } from "@/lib/filtrarLinhas";
 import { guardar } from "@/lib/detalheAberto";
 import { cn } from "@/lib/cn";
 import { descreverVariacao, lerVariacao } from "@/lib/leituraDaVariacao";
@@ -82,6 +83,8 @@ export function TabelaDre({
   periodos,
   linhas,
   mostrarZeradas,
+  filtroDeLinhas,
+  onLimparFiltro,
   filtro,
   modo,
   filiaisApuradas,
@@ -89,6 +92,13 @@ export function TabelaDre({
   periodos: PeriodoDre[];
   linhas: LinhaDre[];
   mostrarZeradas: boolean;
+  /**
+   * Texto do filtro de linhas. Vazio é o estado normal, e **não** um filtro que casa com
+   * nada — ver `filtrarLinhas`.
+   */
+  filtroDeLinhas: string;
+  /** Devolve a tabela inteira a partir da tela vazia, sem passar pelo campo. */
+  onLimparFiltro: () => void;
   /** Filiais, período, regime e dimensão da apuração — o detalhamento repete todos. */
   filtro: FiltroApuracao;
   /** O modo que formou as colunas. Decide o bloco final: total ou variação. */
@@ -192,10 +202,23 @@ export function TabelaDre({
 
   // Esconde por AUSÊNCIA DE MOVIMENTO, não por valor zero — é o critério da 9815.
   // `DESCONTO FUNCIONÁRIOS` fecha em 0,00 com 16 lançamentos e continua na tela.
-  const visiveis = useMemo(
+  const comMovimento = useMemo(
     () => (mostrarZeradas ? ordenadas : ordenadas.filter((l) => !l.semMovimento)),
     [ordenadas, mostrarZeradas],
   );
+
+  /**
+   * O filtro de texto vem DEPOIS do de zeradas, e a ordem tem consequência: filtrar por
+   * `pneus` com `Mostrar contas zeradas` desmarcado não traz a conta de pneus que não teve
+   * movimento no período. É o comportamento certo — os dois controles respondem à mesma
+   * pergunta, "o que aparece", e o segundo não deveria desfazer o primeiro.
+   */
+  const visiveis = useMemo(
+    () => filtrarLinhas(comMovimento, filtroDeLinhas),
+    [comMovimento, filtroDeLinhas],
+  );
+
+  const filtrando = filtroDeLinhas.trim() !== "";
 
   const indiceCompleto = useCallback(
     (chaveOrdem: string) => ordenadas.findIndex((l) => l.chaveOrdem === chaveOrdem),
@@ -608,7 +631,29 @@ export function TabelaDre({
   const personalizada = ordemPersonalizada(linhas, ordenadas);
 
   if (visiveis.length === 0) {
-    return (
+    // Duas causas, duas saídas. Dizer "nenhum lançamento no período" quando o que esvaziou
+    // a tabela foi o texto digitado manda a pessoa mexer no período — e o período está
+    // certo. O botão devolve a tabela sem obrigar a apagar letra por letra.
+    return filtrando ? (
+      <div className="px-[var(--celula-x)] py-16 text-center">
+        <p className="text-[length:var(--fs-base)] text-[var(--text-primary)]">
+          Nenhuma linha encontrada para{" "}
+          <strong className="font-semibold">“{filtroDeLinhas.trim()}”</strong>.
+        </p>
+        <p className="mt-2 text-[length:var(--fs-apoio)] text-[var(--text-muted)]">
+          O filtro procura na descrição e no código da conta.
+          {!mostrarZeradas &&
+            " Contas sem movimento no período estão ocultas — marque Mostrar contas zeradas para incluí-las."}
+        </p>
+        <button
+          type="button"
+          onClick={onLimparFiltro}
+          className="mt-5 rounded-[var(--radius-md)] border border-[var(--border-strong)] px-4 py-2 text-[length:var(--fs-base)] font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-2)] hover:text-[var(--text-primary)]"
+        >
+          Limpar o filtro
+        </button>
+      </div>
+    ) : (
       <p className="px-[var(--celula-x)] py-16 text-center text-[length:var(--fs-base)] text-[var(--text-muted)]">
         Nenhum lançamento no período selecionado.
       </p>
@@ -673,6 +718,29 @@ export function TabelaDre({
             para mudá-la de bloco, ou use <kbd className="tecla">Alt</kbd> +{" "}
             <kbd className="tecla">↑</kbd> <kbd className="tecla">↓</kbd>. Os totais se
             refazem.
+          </p>
+        )}
+
+        {/* ENQUANTO FILTRA, A TABELA NÃO É O DRE.
+
+            As linhas calculadas saem junto com as que não casam — ver `filtrarLinhas` —, e
+            este aviso é o que diz por que o `LUCRO BRUTO` sumiu. Sem ele, a tabela
+            recortada e uma apuração de poucas contas ficam indistinguíveis.
+
+            `role="status"` porque a contagem muda a cada tecla: quem usa leitor de tela
+            precisa ouvir quantas linhas sobraram sem sair do campo. */}
+        {filtrando && (
+          <p
+            role="status"
+            className="w-full text-[length:var(--fs-apoio)] text-[var(--text-secondary)]"
+          >
+            Filtrando por{" "}
+            <strong className="font-semibold text-[var(--text-primary)]">
+              “{filtroDeLinhas.trim()}”
+            </strong>{" "}
+            — {visiveis.length} de {comMovimento.filter((l) => !l.calculada).length} linhas.
+            Os totalizadores ficam ocultos: eles somam a apuração inteira, não o que está à
+            vista.
           </p>
         )}
 
