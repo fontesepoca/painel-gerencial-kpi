@@ -9,13 +9,32 @@ import {
   NUM,
   ParteDoTotal,
   TD,
-  TH,
-  ThNum,
+  ThDetalhe,
   Total,
   soma,
   totalDe,
 } from "@/components/dre-gerencial/primitivosDoDetalhe";
+import { useOrdenacaoDoDetalhe } from "@/hooks/useOrdenacaoDoDetalhe";
+import type { ColunaOrdenavel } from "@/lib/ordenacaoDoDetalhe";
 import type { DetalheNota } from "@/types/dre-gerencial";
+
+/**
+ * As colunas, declaradas como dado.
+ *
+ * <b>O `ler` devolve o valor bruto, não o que aparece na célula.</b> Ordenar pelo texto
+ * renderizado poria `9,50` depois de `1.226.270,82`, porque `9` &gt; `1` quando se compara
+ * string. A data sai em ISO pelo mesmo motivo: `02/09` e `14/09` comparam errado no formato
+ * brasileiro, e certo em `2026-09-02`.
+ */
+const COLUNAS: readonly ColunaOrdenavel<DetalheNota>[] = [
+  { rotulo: "Nota", tipo: "numero", ler: (n) => n.numNota },
+  { rotulo: "Série", tipo: "texto", ler: (n) => n.serie },
+  { rotulo: "Entrada", tipo: "texto", ler: (n) => n.dtEnt },
+  { rotulo: "Parceiro", tipo: "texto", ler: (n) => n.parceiro },
+  { rotulo: "Itens", tipo: "numero", ler: (n) => n.itens },
+  { rotulo: "Devolução", tipo: "numero", ler: (n) => n.vlDevolucao },
+  { rotulo: "% part.", tipo: "numero", ler: (n) => n.pPart },
+];
 
 /**
  * As notas de um motivo de devolução — o segundo nível de `(-) DEVOLUCAO`.
@@ -43,20 +62,24 @@ export function TabelaNotasDaDevolucao({
   /** O nome da linha do DRE, sem o sinal, para anunciar a coluna. */
   nome: string | null;
 }) {
+  const { ordem, ordenar, ordenadas } = useOrdenacaoDoDetalhe(linhas, COLUNAS);
+
   if (linhas.length === 0) return <SemNotas />;
+
+  const th = { ordem, onOrdenar: ordenar, coluna, nome };
 
   return (
     <table className="w-full border-collapse text-[length:var(--fs-base)]">
       <Cabecalho>
-        <th className={cn(TH, "col-identidade text-left")}>Nota</th>
-        <th className={cn(TH, "text-left")}>Série</th>
-        <th className={cn(TH, "text-left")}>Entrada</th>
-        <th className={cn(TH, "text-right")}>Itens</th>
-        <ThNum rotulo="Devolução" coluna={coluna} nome={nome} />
-        <th className={cn(TH, "text-right")}>% part.</th>
+        <ThDetalhe {...th} rotulo="Nota" tipo="numero" className="col-identidade" />
+        <ThDetalhe {...th} rotulo="Série" tipo="texto" />
+        <ThDetalhe {...th} rotulo="Entrada" tipo="texto" />
+        <ThDetalhe {...th} rotulo="Itens" tipo="numero" numerica />
+        <ThDetalhe {...th} rotulo="Devolução" tipo="numero" numerica />
+        <ThDetalhe {...th} rotulo="% part." tipo="numero" numerica />
       </Cabecalho>
       <tbody>
-        {linhas.map((n) => (
+        {ordenadas.map((n) => (
           // `numTransEnt` na chave, e não o número da nota: duas notas com a mesma
           // numeração em séries diferentes dariam chave repetida, e o React passaria a
           // reaproveitar a linha errada ao reordenar.
@@ -119,4 +142,3 @@ function SemNotas() {
     </div>
   );
 }
-

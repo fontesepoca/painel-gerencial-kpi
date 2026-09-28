@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useRef } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { formatarPercentual, formatarValor } from "@/lib/formato";
 import { paraBr } from "@/lib/periodos";
 import { cn } from "@/lib/cn";
@@ -19,6 +19,7 @@ import {
   TD,
   TH,
   TH_BASE,
+  ThDetalhe,
   ThNum,
   Total,
   Vazio,
@@ -26,6 +27,14 @@ import {
   totalDe,
 } from "@/components/dre-gerencial/primitivosDoDetalhe";
 import { TabelaNotasDaDevolucao } from "@/components/dre-gerencial/TabelaNotasDaDevolucao";
+import { useOrdenacaoDoDetalhe } from "@/hooks/useOrdenacaoDoDetalhe";
+import {
+  ordenarLinhas,
+  proximaOrdem,
+  type ColunaOrdenavel,
+  type Ordem,
+  type TipoDaColuna,
+} from "@/lib/ordenacaoDoDetalhe";
 import { MenuExportar } from "@/components/dre-gerencial/MenuExportar";
 import type {
   DetalheCliente,
@@ -697,6 +706,32 @@ function OrigemDoTotal({
   );
 }
 
+/**
+ * As cinco colunas de dinheiro da tela de clientes, na ordem em que aparecem.
+ *
+ * <b>Uma delas é a que fecha o total da linha do DRE</b>, e qual depende de por onde a tela
+ * foi aberta: pela `RECEITA BRUTA` é a bruta, pelas `RECEITAS LIQUIDAS` é a líquida. Quem
+ * resolve isso é `colunaDoTotal`, e é essa mesma coluna que serve de base para o `% part.`.
+ */
+const VALOR_DO_CLIENTE: Readonly<Record<string, (c: DetalheCliente) => number>> = {
+  "Receita bruta": (c) => c.receitaBruta,
+  Desconto: (c) => c.desconto,
+  Devolução: (c) => c.devolucao,
+  "Custo líq.": (c) => c.custoLiq,
+  "Receita líq.": (c) => c.receitaLiquida,
+};
+
+const COLUNAS_CLIENTE: readonly ColunaOrdenavel<DetalheCliente>[] = [
+  { rotulo: "Cliente", tipo: "texto", ler: (c) => c.cliente },
+  { rotulo: "Cidade", tipo: "texto", ler: (c) => c.cidade },
+  { rotulo: "Notas", tipo: "numero", ler: (c) => c.qdeNf },
+  ...Object.entries(VALOR_DO_CLIENTE).map(([rotulo, ler]) => ({
+    rotulo,
+    tipo: "numero" as const,
+    ler,
+  })),
+];
+
 function TabelaClientes({
   linhas,
   coluna,
@@ -706,22 +741,57 @@ function TabelaClientes({
   coluna: string | null;
   nome: string | null;
 }) {
+  /**
+   * A base do `% part.`: a coluna que fecha o total da linha do DRE.
+   *
+   * <b>Sem ela não há percentual honesto.</b> Cinco colunas de dinheiro dariam cinco
+   * percentuais diferentes para a mesma linha, e escolher uma no chute faria a tela
+   * responder a uma pergunta que ninguém fez. Quando `colunaDoTotal` devolve nulo — a
+   * tela aberta sem saber de que linha veio —, a coluna simplesmente não aparece.
+   */
+  const base = coluna != null ? VALOR_DO_CLIENTE[coluna] : undefined;
+  const totalDaBase = base ? soma(linhas, base) : 0;
+
+  const colunas = useMemo(
+    () =>
+      base
+        ? [
+            ...COLUNAS_CLIENTE,
+            {
+              rotulo: "% part.",
+              tipo: "numero" as const,
+              ler: (c: DetalheCliente) => base(c),
+            },
+          ]
+        : COLUNAS_CLIENTE,
+    [base],
+  );
+
+  const { ordem, ordenar, ordenadas } = useOrdenacaoDoDetalhe(linhas, colunas);
+
   if (linhas.length === 0) return <Vazio />;
+
+  const th = { ordem, onOrdenar: ordenar, coluna, nome };
+  // Percentual de zero não é zero: é indefinido. Com a base somando zero, a coluna mostra
+  // traço em vez de encher a tela de 0,000 que ninguém pode interpretar.
+  const parte = (c: DetalheCliente) =>
+    base && totalDaBase !== 0 ? (base(c) / totalDaBase) * 100 : null;
 
   return (
     <table className="w-full border-collapse text-[length:var(--fs-base)]">
       <Cabecalho>
-        <th className={cn(TH, "col-identidade text-left")}>Cliente</th>
-        <th className={cn(TH, "text-left")}>Cidade</th>
-        <th className={cn(TH, "text-right")}>Notas</th>
-        <ThNum rotulo="Receita bruta" coluna={coluna} nome={nome} />
-        <ThNum rotulo="Desconto" coluna={coluna} nome={nome} />
-        <ThNum rotulo="Devolução" coluna={coluna} nome={nome} />
-        <ThNum rotulo="Custo líq." coluna={coluna} nome={nome} />
-        <ThNum rotulo="Receita líq." coluna={coluna} nome={nome} />
+        <ThDetalhe {...th} rotulo="Cliente" tipo="texto" className="col-identidade" />
+        <ThDetalhe {...th} rotulo="Cidade" tipo="texto" />
+        <ThDetalhe {...th} rotulo="Notas" tipo="numero" numerica />
+        <ThDetalhe {...th} rotulo="Receita bruta" tipo="numero" numerica />
+        <ThDetalhe {...th} rotulo="Desconto" tipo="numero" numerica />
+        <ThDetalhe {...th} rotulo="Devolução" tipo="numero" numerica />
+        <ThDetalhe {...th} rotulo="Custo líq." tipo="numero" numerica />
+        <ThDetalhe {...th} rotulo="Receita líq." tipo="numero" numerica />
+        {base && <ThDetalhe {...th} rotulo="% part." tipo="numero" numerica />}
       </Cabecalho>
       <tbody>
-        {linhas.map((c) => (
+        {ordenadas.map((c) => (
           <tr
             key={c.codCli}
             className="border-b border-[var(--border)] odd:bg-[var(--zebra)] hover:bg-[var(--surface-2)]"
@@ -739,6 +809,11 @@ function TabelaClientes({
             <td className={NUM}>{formatarValor(c.devolucao)}</td>
             <td className={NUM}>{formatarValor(c.custoLiq)}</td>
             <td className={NUM}>{formatarValor(c.receitaLiquida)}</td>
+            {base && (
+              <td className={NUM}>
+                <ParteDoTotal valor={parte(c)} />
+              </td>
+            )}
           </tr>
         ))}
       </tbody>
@@ -761,6 +836,11 @@ function TabelaClientes({
         <td className={totalDe(coluna, "Receita líq.")}>
           {formatarValor(soma(linhas, (c) => c.receitaLiquida))}
         </td>
+        {base && (
+          <td className={NUM}>
+            <ParteDoTotal valor={totalDaBase !== 0 ? 100 : null} />
+          </td>
+        )}
       </Total>
     </table>
   );
@@ -810,6 +890,15 @@ function CulpaRca({ valor }: { valor: string | null }) {
  * **`Vendas` e `Devoluções` somam imposto + FECP no mesmo número**, como a apuração faz.
  * Separar os dois aqui daria uma tela que não fecha com a linha que ela detalha.
  */
+const COLUNAS_IMPOSTO: readonly ColunaOrdenavel<DetalheImposto>[] = [
+  { rotulo: "Produto", tipo: "texto", ler: (i) => i.produto },
+  { rotulo: "Notas", tipo: "numero", ler: (i) => i.qdeNf },
+  { rotulo: "Vendas", tipo: "numero", ler: (i) => i.vendas },
+  { rotulo: "Devoluções", tipo: "numero", ler: (i) => i.devolucoes },
+  { rotulo: "Líquido", tipo: "numero", ler: (i) => i.liquido },
+  { rotulo: "% part.", tipo: "numero", ler: (i) => i.pPart },
+];
+
 function TabelaImpostos({
   linhas,
   coluna,
@@ -819,20 +908,24 @@ function TabelaImpostos({
   coluna: string | null;
   nome: string | null;
 }) {
+  const { ordem, ordenar, ordenadas } = useOrdenacaoDoDetalhe(linhas, COLUNAS_IMPOSTO);
+
   if (linhas.length === 0) return <Vazio />;
+
+  const th = { ordem, onOrdenar: ordenar, coluna, nome };
 
   return (
     <table className="w-full border-collapse text-[length:var(--fs-base)]">
       <Cabecalho>
-        <th className={cn(TH, "col-identidade text-left")}>Produto</th>
-        <th className={cn(TH, "text-right")}>Notas</th>
-        <th className={cn(TH, "text-right")}>Vendas</th>
-        <th className={cn(TH, "text-right")}>Devoluções</th>
-        <ThNum rotulo="Líquido" coluna={coluna} nome={nome} />
-        <th className={cn(TH, "text-right")}>% part.</th>
+        <ThDetalhe {...th} rotulo="Produto" tipo="texto" className="col-identidade" />
+        <ThDetalhe {...th} rotulo="Notas" tipo="numero" numerica />
+        <ThDetalhe {...th} rotulo="Vendas" tipo="numero" numerica />
+        <ThDetalhe {...th} rotulo="Devoluções" tipo="numero" numerica />
+        <ThDetalhe {...th} rotulo="Líquido" tipo="numero" numerica />
+        <ThDetalhe {...th} rotulo="% part." tipo="numero" numerica />
       </Cabecalho>
       <tbody>
-        {linhas.map((i) => (
+        {ordenadas.map((i) => (
           <tr
             key={i.codProd}
             className="border-b border-[var(--border)] odd:bg-[var(--zebra)] hover:bg-[var(--surface-2)]"
@@ -871,6 +964,16 @@ function TabelaImpostos({
   );
 }
 
+const COLUNAS_MOTIVO: readonly ColunaOrdenavel<DetalheMotivo>[] = [
+  // Ordena pelo NOME, não pelo código: quem clica em "Motivo" procura um motivo, e a
+  // ordem por código devolveria uma lista que só faz sentido para quem decorou o cadastro.
+  { rotulo: "Motivo", tipo: "texto", ler: (m) => m.motivo },
+  { rotulo: "Culpa RCA", tipo: "texto", ler: (m) => m.culpaRca },
+  { rotulo: "Notas", tipo: "numero", ler: (m) => m.qdeNf },
+  { rotulo: "Devolução", tipo: "numero", ler: (m) => m.vlDevolucao },
+  { rotulo: "% part.", tipo: "numero", ler: (m) => m.pPart },
+];
+
 function TabelaMotivos({
   linhas,
   coluna,
@@ -882,19 +985,23 @@ function TabelaMotivos({
   nome: string | null;
   onAbrirNotas?: (motivo: DetalheMotivo) => void;
 }) {
+  const { ordem, ordenar, ordenadas } = useOrdenacaoDoDetalhe(linhas, COLUNAS_MOTIVO);
+
   if (linhas.length === 0) return <Vazio />;
+
+  const th = { ordem, onOrdenar: ordenar, coluna, nome };
 
   return (
     <table className="w-full border-collapse text-[length:var(--fs-base)]">
       <Cabecalho>
-        <th className={cn(TH, "col-identidade text-left")}>Motivo</th>
-        <th className={cn(TH, "text-left")}>Culpa RCA</th>
-        <th className={cn(TH, "text-right")}>Notas</th>
-        <ThNum rotulo="Devolução" coluna={coluna} nome={nome} />
-        <th className={cn(TH, "text-right")}>% part.</th>
+        <ThDetalhe {...th} rotulo="Motivo" tipo="texto" className="col-identidade" />
+        <ThDetalhe {...th} rotulo="Culpa RCA" tipo="texto" />
+        <ThDetalhe {...th} rotulo="Notas" tipo="numero" numerica />
+        <ThDetalhe {...th} rotulo="Devolução" tipo="numero" numerica />
+        <ThDetalhe {...th} rotulo="% part." tipo="numero" numerica />
       </Cabecalho>
       <tbody>
-        {linhas.map((m) => (
+        {ordenadas.map((m) => (
           // A LINHA INTEIRA é o alvo, e não só o número: um alvo de 3 caracteres é o
           // tamanho que faz a pessoa mirar. O `tabIndex` põe a linha na ordem do teclado —
           // uma tabela em que só o mouse chega ao segundo nível deixa quem navega por
@@ -984,21 +1091,50 @@ const COLUNAS: ReadonlyArray<{
   rotulo: string;
   numerica?: boolean;
   ler: (l: DetalheLancamento) => React.ReactNode;
+  /**
+   * O valor para ORDENAR, quando o renderizado ordenaria errado.
+   *
+   * Só as seis colunas abaixo precisam dele, e por dois motivos distintos. `V. Pago` sai
+   * formatado — `9,50` viria depois de `1.226.270,82` porque `9` &gt; `1` quando se
+   * compara texto. As cinco de data saem em `dd/mm/aaaa`, e nesse formato 02/09 e 14/08
+   * comparam pelo dia antes do mês; o ISO que vem da API ordena certo sozinho.
+   *
+   * As outras dezenove já são texto, e o texto renderizado é o que a pessoa vê e é por ele
+   * que ela espera ordenar.
+   */
+  bruto?: (l: DetalheLancamento) => string | number | null;
 }> = [
   { rotulo: "Rec.Num.", numerica: true, ler: (l) => l.recNum },
   { rotulo: "Histórico", ler: (l) => texto(l.historico) },
-  { rotulo: "V. Pago", numerica: true, ler: (l) => formatarValor(l.vPago) },
-  { rotulo: "Dt.Lançamento", numerica: true, ler: (l) => data(l.dtLanc) },
-  { rotulo: "Dt. Pagto.", numerica: true, ler: (l) => data(l.dtPagto) },
+  {
+    rotulo: "V. Pago",
+    numerica: true,
+    ler: (l) => formatarValor(l.vPago),
+    bruto: (l) => l.vPago,
+  },
+  {
+    rotulo: "Dt.Lançamento",
+    numerica: true,
+    ler: (l) => data(l.dtLanc),
+    bruto: (l) => l.dtLanc,
+  },
+  {
+    rotulo: "Dt. Pagto.",
+    numerica: true,
+    ler: (l) => data(l.dtPagto),
+    bruto: (l) => l.dtPagto,
+  },
   {
     rotulo: "Dt.Competência",
     numerica: true,
     ler: (l) => data(l.dtCompetencia),
+    bruto: (l) => l.dtCompetencia,
   },
   {
     rotulo: "Dt.Compensação",
     numerica: true,
     ler: (l) => data(l.dtCompensacao),
+    bruto: (l) => l.dtCompensacao,
   },
   { rotulo: "Filial", numerica: true, ler: (l) => texto(l.codFilial) },
   { rotulo: "Nota", numerica: true, ler: (l) => texto(l.numNota) },
@@ -1020,7 +1156,12 @@ const COLUNAS: ReadonlyArray<{
     ler: (l) => texto(l.numSeqBordero),
   },
   { rotulo: "Localização", ler: (l) => texto(l.localizacao) },
-  { rotulo: "Dt. Reclass.", numerica: true, ler: (l) => data(l.dtReclassific) },
+  {
+    rotulo: "Dt. Reclass.",
+    numerica: true,
+    ler: (l) => data(l.dtReclassific),
+    bruto: (l) => l.dtReclassific,
+  },
   {
     rotulo: "Cod. Func. Reclass.",
     numerica: true,
@@ -1087,6 +1228,37 @@ function agrupar(linhas: readonly DetalheLancamento[]): CentroAgrupado[] {
   return centros;
 }
 
+/**
+ * <b>Quantas colunas a tabela tem de verdade:</b> as declaradas mais o `% part.`.
+ *
+ * Existe porque as linhas de grupo e de subtotal atravessam a tabela com `colSpan`, e elas
+ * contavam `COLUNAS.length`. Com a coluna nova fora daquele array, os `colSpan` ficariam
+ * uma célula curtos — e o sintoma não é erro nenhum: é a tabela desalinhando a partir do
+ * primeiro cabeçalho de centro de custo.
+ *
+ * O `% part.` fica fora de `COLUNAS` porque o `ler` de lá recebe só a linha, e a
+ * porcentagem precisa do total da tabela.
+ */
+const TOTAL_DE_COLUNAS = COLUNAS.length + 1;
+
+/**
+ * As mesmas colunas acima, na forma que o comparador entende.
+ *
+ * Derivada de `COLUNAS` em vez de escrita de novo: duas listas com os mesmos rótulos
+ * divergem no primeiro dia em que alguém acrescentar uma coluna a só uma delas, e o sintoma
+ * seria um cabeçalho que responde ao clique sem reordenar nada.
+ */
+const COLUNAS_ORDENAVEIS: readonly ColunaOrdenavel<DetalheLancamento>[] = [
+  ...COLUNAS.map((c) => ({
+    rotulo: c.rotulo,
+    tipo: c.numerica && !c.rotulo.startsWith("Dt") ? ("numero" as const) : ("texto" as const),
+    ler: c.bruto ?? ((l: DetalheLancamento) => String(c.ler(l) ?? "")),
+  })),
+  // Ordenar pelo percentual é ordenar pelo valor: um é o outro dividido por uma constante.
+  // Comparar o número já dividido só acrescentaria erro de arredondamento.
+  { rotulo: "% part.", tipo: "numero", ler: (l) => l.vPago },
+];
+
 function TabelaLancamentos({
   linhas,
   coluna,
@@ -1096,6 +1268,11 @@ function TabelaLancamentos({
   coluna: string | null;
   nome: string | null;
 }) {
+  const [ordem, setOrdem] = useState<Ordem>(null);
+  const ordenar = useCallback((rotulo: string, tipo: TipoDaColuna) => {
+    setOrdem((atual) => proximaOrdem(atual, rotulo, tipo));
+  }, []);
+
   if (linhas.length === 0) return <Vazio />;
 
   /**
@@ -1106,33 +1283,71 @@ function TabelaLancamentos({
    * `lib/estornosQueSeAnulam.ts` para o motivo de não copiarmos o filtro da 9815.
    */
   const { visiveis, omitidos } = semEstornosQueSeAnulam(linhas);
-  const centros = agrupar(visiveis);
+
+  /**
+   * A base do `% part.`: o total da tela, que é o valor da linha do DRE que foi clicada.
+   *
+   * <b>Soma as linhas VISÍVEIS</b>, e não as que a consulta trouxe — os pares de estorno que
+   * se anulam já saíram, e a soma deles é zero de qualquer forma. Usar a lista crua faria a
+   * coluna somar 100% sobre um total que a tela não mostra em lugar nenhum.
+   *
+   * Percentual de zero é indefinido, não zero: com o total em zero a coluna mostra traço.
+   * Uma conta que fecha em 0,00 com dezesseis lançamentos existe de verdade neste projeto —
+   * é o `DESCONTO FUNCIONÁRIOS`.
+   */
+  const totalDaTela = soma(visiveis, (l) => l.vPago);
+  const parte = (valor: number) =>
+    totalDaTela !== 0 ? (valor / totalDaTela) * 100 : null;
+
+  /**
+   * <b>A ordenação acontece DENTRO de cada conta, e a árvore não se desmancha.</b>
+   *
+   * Os cabeçalhos de centro de custo e de conta e os subtotais ficam onde estão; só as
+   * linhas de lançamento se reordenam, conta a conta. Decidido assim em 28/09/2026 porque
+   * <b>são os subtotais que fecham os 162/162 contra a 9815</b> — desmanchá-los ao ordenar
+   * tiraria da tela justamente o número que prova que ela está certa.
+   *
+   * Tem de ser depois do `agrupar`, e não antes: aquele algoritmo fecha um grupo assim que
+   * a chave muda (`centros.at(-1)`), então uma lista reordenada produziria o mesmo centro
+   * de custo várias vezes, cada aparição com o seu próprio subtotal parcial.
+   */
+  const centros = useMemo(() => {
+    const agrupados = agrupar(visiveis);
+    if (ordem === null) return agrupados;
+
+    return agrupados.map((centro) => ({
+      ...centro,
+      contas: centro.contas.map((conta) => ({
+        ...conta,
+        linhas: ordenarLinhas(conta.linhas, COLUNAS_ORDENAVEIS, ordem),
+      })),
+    }));
+  }, [visiveis, ordem]);
 
   return (
     <>
       <table className="w-full border-collapse text-[length:var(--fs-base)]">
         <Cabecalho>
-          {COLUNAS.map((c, i) =>
-            c.rotulo === coluna ? (
-              <ThNum
-                key={c.rotulo}
-                rotulo={c.rotulo}
-                coluna={coluna}
-                nome={nome}
-              />
-            ) : (
-              <th
-                key={c.rotulo}
-                className={cn(
-                  TH,
-                  c.numerica ? "text-right" : "text-left",
-                  i === 0 && "col-identidade",
-                )}
-              >
-                {c.rotulo}
-              </th>
-            ),
-          )}
+          {COLUNAS.map((c, i) => (
+            <ThDetalhe
+              key={c.rotulo}
+              rotulo={c.rotulo}
+              tipo={c.bruto && c.rotulo === "V. Pago" ? "numero" : c.numerica ? "numero" : "texto"}
+              numerica={c.numerica}
+              coluna={coluna}
+              nome={nome}
+              ordem={ordem}
+              onOrdenar={ordenar}
+              className={i === 0 ? "col-identidade" : undefined}
+            />
+          ))}
+          <ThDetalhe
+            rotulo="% part."
+            tipo="numero"
+            numerica
+            ordem={ordem}
+            onOrdenar={ordenar}
+          />
         </Cabecalho>
 
         <tbody>
@@ -1178,6 +1393,9 @@ function TabelaLancamentos({
                           </td>
                         );
                       })}
+                      <td className={NUM}>
+                        <ParteDoTotal valor={parte(l.vPago)} />
+                      </td>
                     </tr>
                   ))}
 
@@ -1205,7 +1423,7 @@ function TabelaLancamentos({
           <td className={totalDe(coluna, "V. Pago")}>
             {formatarValor(soma(visiveis, (l) => l.vPago))}
           </td>
-          <td className={TD} colSpan={COLUNAS.length - 3} />
+          <td className={TD} colSpan={TOTAL_DE_COLUNAS - 3} />
         </Total>
       </table>
 
@@ -1239,7 +1457,7 @@ function TabelaLancamentos({
 function LinhaDeGrupo({ nivel, rotulo }: { nivel: 1 | 2; rotulo: string }) {
   return (
     <tr className="linha-grupo">
-      <td colSpan={COLUNAS.length} className="p-0">
+      <td colSpan={TOTAL_DE_COLUNAS} className="p-0">
         <span
           className={cn(
             "grupo-fixo inline-block px-3 py-[var(--celula-y)] whitespace-nowrap",
@@ -1281,7 +1499,7 @@ function LinhaDeSubtotal({ nivel, valor }: { nivel: 1 | 2; valor: number }) {
       >
         {formatarValor(valor)}
       </td>
-      <td colSpan={COLUNAS.length - 3} />
+      <td colSpan={TOTAL_DE_COLUNAS - 3} />
     </tr>
   );
 }
