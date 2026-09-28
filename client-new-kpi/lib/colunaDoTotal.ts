@@ -42,6 +42,9 @@ export function colunaDoTotal(tipo: TipoDetalhe, nome: string | null): string | 
 
   if (tipo === "imposto-por-produto") return "Líquido";
   if (tipo === "devolucao-por-motivo") return "Devolução";
+  // As notas de um motivo somam na mesma coluna que os motivos: a tela de baixo fecha com
+  // a linha da tela de cima, que por sua vez fecha com a do DRE.
+  if (tipo === "notas-por-motivo") return "Devolução";
   if (tipo === "lancamentos") return "V. Pago";
 
   // A tela de receita abre a partir de quatro linhas do DRE, cada uma fechando numa coluna

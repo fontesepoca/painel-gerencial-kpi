@@ -399,6 +399,38 @@ public sealed class DreGerencialService
                     null, null, cronometro.ElapsedMilliseconds));
             }
 
+            case "notas-por-motivo":
+            {
+                // A chave carrega o código do motivo. VAZIA É CASO LEGÍTIMO, e não erro: a
+                // tela de motivos tem uma linha "sem motivo cadastrado" -- a junção com
+                // PCTABDEV é externa e aquelas notas entram no total. Exigir chave aqui
+                // deixaria justamente essa linha sem detalhamento.
+                int? codMotivo = null;
+
+                if (!string.IsNullOrWhiteSpace(filtro.Chave))
+                {
+                    if (!int.TryParse(filtro.Chave, out var lido))
+                    {
+                        return Result<DetalhamentoDto>.Invalido(
+                            "O código do motivo precisa ser um número inteiro.");
+                    }
+
+                    codMotivo = lido;
+                }
+
+                var notas = await _repositorio.ObterDetalheNotasDaDevolucaoAsync(
+                    codMotivo, filtro.Filiais, filtro.DataInicio, filtro.DataFim,
+                    cancellationToken);
+
+                cronometro.Stop();
+                return Result<DetalhamentoDto>.Ok(new DetalhamentoDto(
+                    filtro.Tipo, filtro.DataInicio, filtro.DataFim,
+                    null, null, null, null, cronometro.ElapsedMilliseconds,
+                    notas.Select(n => new DetalheNotaDto(
+                        n.NumNota, n.Serie, n.DtEnt, n.NumTransEnt, n.CodParceiro,
+                        n.Parceiro, n.Itens, n.VlDevolucao, n.PPart)).ToList()));
+            }
+
             case "lancamentos":
             {
                 if (string.IsNullOrWhiteSpace(filtro.Chave))
@@ -478,7 +510,8 @@ public sealed class DreGerencialService
             default:
                 return Result<DetalhamentoDto>.Invalido(
                     $"Detalhamento '{filtro.Tipo}' não existe. Valores aceitos: " +
-                    "receita-por-cliente, devolucao-por-motivo, lancamentos.");
+                    "receita-por-cliente, devolucao-por-motivo, notas-por-motivo, " +
+                    "lancamentos, imposto-por-produto.");
         }
     }
 }
