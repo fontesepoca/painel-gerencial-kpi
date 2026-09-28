@@ -100,8 +100,8 @@ function corpoDoDetalhe(dados: Detalhamento): Corpo {
 
   if (dados.tipo === "notas-por-motivo") {
     return {
-      rotulos: ["Nota", "Série", "Entrada", "Transação", "Parceiro", "Itens", "Devolução", "% part."],
-      larguras: [12, 8, 12, 14, 42, 8, 16, 10],
+      rotulos: ["Nota", "Série", "Entrada", "Transação", "Cód. parceiro", "Parceiro", "Itens", "Devolução", "% part."],
+      larguras: [12, 8, 12, 14, 14, 42, 8, 16, 10],
       linhas: (dados.notas ?? []).map((n) => [
         num(n.numNota, INTEIRO),
         txt(n.serie),
@@ -110,6 +110,11 @@ function corpoDoDetalhe(dados: Detalhamento): Corpo {
         // levando o dado para cruzar com outro sistema, e ali a chave real importa mais
         // do que a largura da coluna.
         num(n.numTransEnt, INTEIRO),
+        // O código pode ser de CLIENTE (o do pedido) ou de FORNECEDOR (o da nota, quando
+        // não há pedido vinculado) — a mesma ordem de preferência do nome ao lado. Vai só
+        // na planilha, e não na tela, porque quem exporta está cruzando com outro sistema
+        // e ali a ambiguidade se resolve olhando o nome.
+        num(n.codParceiro, INTEIRO),
         txt(n.parceiro ?? "Sem parceiro identificado"),
         num(n.itens, INTEIRO),
         num(n.vlDevolucao),
