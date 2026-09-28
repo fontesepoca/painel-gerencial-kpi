@@ -155,28 +155,46 @@ export function ModalDetalhe({
       <div className="flex min-h-0 flex-1 flex-col">
         <header className="flex flex-wrap items-start justify-between gap-3 border-b border-[var(--border)] px-5 py-4">
           <div className="min-w-0">
-            {/* O caminho fica ACIMA do título, e não dentro dele: o título é o que o
+            {/* O botão fica ACIMA do título, e não dentro dele: o título é o que o
                 `aria-labelledby` do diálogo anuncia, e enfiar "voltar para X" ali faria o
-                leitor de tela ler a navegação como se fosse o nome da tela. */}
+                leitor de tela ler a navegação como se fosse o nome da tela.
+
+                <b>Ele tem a mesma moldura de `Fechar` e `Abrir em nova aba`, e não a
+                aparência de um caminho de migalhas.</b> Pedido do Gabriel em 28/09/2026,
+                pelo público: parte de quem usa o sistema é idosa, e a primeira versão era
+                texto pequeno em cinza claro, sem borda — que se lê como rótulo, não como
+                algo em que se clica. Quem não reconhece o alvo fica preso no segundo nível
+                e fecha o modal inteiro para recomeçar.
+
+                A palavra <b>Voltar</b> vem primeiro e sozinha no peso do texto; o destino
+                vem depois, truncado quando não couber. Assim o que a pessoa precisa ler
+                para agir cabe numa olhada, e o resto é confirmação. */}
             {voltarPara && onVoltar && (
               <button
                 type="button"
                 onClick={onVoltar}
-                className="-ml-2 mb-1 flex max-w-full items-center gap-1.5 rounded-[var(--radius-md)] px-2 py-1 text-[length:var(--fs-apoio)] text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-2)] hover:text-[var(--text-primary)]"
+                title={`Voltar para ${voltarPara}`}
+                className="mb-2 flex max-w-full items-center gap-2 rounded-[var(--radius-md)] border border-[var(--border-strong)] px-4 py-2 text-[length:var(--fs-base)] font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-2)] hover:text-[var(--text-primary)]"
               >
+                {/* Seta cheia e do tamanho do texto. A versão anterior usava um chevron a
+                    1,1em num texto de apoio — riscado fino, quase invisível em tela clara. */}
                 <svg
                   aria-hidden
                   viewBox="0 0 24 24"
                   fill="none"
                   stroke="currentColor"
-                  strokeWidth="2"
+                  strokeWidth="2.5"
                   strokeLinecap="round"
                   strokeLinejoin="round"
-                  className="size-[1.1em] shrink-0"
+                  className="size-[1.25em] shrink-0"
                 >
-                  <path d="m15 18-6-6 6-6" />
+                  <path d="M19 12H5" />
+                  <path d="m12 19-7-7 7-7" />
                 </svg>
-                <span className="truncate">{voltarPara}</span>
+                <span className="shrink-0">Voltar</span>
+                <span className="truncate text-[var(--text-muted)]">
+                  para {voltarPara}
+                </span>
               </button>
             )}
             <h2
