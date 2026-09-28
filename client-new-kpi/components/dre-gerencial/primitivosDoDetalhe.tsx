@@ -15,6 +15,8 @@
 import { formatarPercentual } from "@/lib/formato";
 import { cn } from "@/lib/cn";
 import { igual } from "@/lib/colunaDoTotal";
+import { ariaSort } from "@/lib/ordenacaoDoDetalhe";
+import type { Ordem, TipoDaColuna } from "@/lib/ordenacaoDoDetalhe";
 
 export function Vazio() {
   return (
@@ -162,5 +164,102 @@ export function Identidade({
         </span>
       </div>
     </td>
+  );
+}
+
+/**
+ * `<th>` que ordena ao ser clicado.
+ *
+ * <b>Substitui o `<th>` simples em todas as tabelas do detalhamento</b>, e acumula o papel
+ * que o `ThNum` já tinha: anunciar, em azul, qual coluna fecha o total da linha do DRE.
+ * Eram duas responsabilidades no mesmo elemento e separá-las daria dois componentes que
+ * precisam concordar sobre a mesma célula.
+ *
+ * <b>Sem `onOrdenar` ele vira um `<th>` comum</b> — e é assim que a página de impressão e a
+ * outra aba o recebem. Um cabeçalho que parece clicável no papel é uma promessa que o papel
+ * não cumpre.
+ *
+ * A seta só aparece na coluna ativa. Marcar todas as colunas com uma seta apagada, como
+ * fazem algumas tabelas, transforma o indicador em ruído: quando tudo tem seta, nenhuma
+ * seta chama atenção.
+ */
+export function ThDetalhe<T>({
+  rotulo,
+  tipo,
+  numerica,
+  coluna,
+  nome,
+  ordem,
+  onOrdenar,
+  className,
+}: {
+  rotulo: string;
+  /** Como a coluna compara. Decide a direção do primeiro clique. */
+  tipo: TipoDaColuna;
+  /** Alinha à direita e usa tabular. Nem toda coluna numérica é de dinheiro. */
+  numerica?: boolean;
+  /** O rótulo da coluna que fecha o total — ver `colunaDoTotal`. */
+  coluna?: string | null;
+  /** O nome da linha do DRE, para anunciar a coluna do total. */
+  nome?: string | null;
+  ordem?: Ordem;
+  onOrdenar?: (rotulo: string, tipo: TipoDaColuna) => void;
+  className?: string;
+}) {
+  const eOTotal = coluna != null && coluna === rotulo;
+  const prefixo =
+    eOTotal && nome != null && !igual(nome, rotulo) ? `(${nome})` : null;
+
+  const ativa = ordem != null && ordem.rotulo === rotulo;
+
+  const conteudo = (
+    <>
+      {prefixo && <span className="block">{prefixo}</span>}
+      {rotulo}
+      {ativa && (
+        <span aria-hidden className="ml-1 inline-block">
+          {ordem.direcao === "asc" ? "▲" : "▼"}
+        </span>
+      )}
+    </>
+  );
+
+  const titulo = eOTotal && nome != null
+    ? `A soma desta coluna é o valor de ${nome} na tabela do DRE.`
+    : undefined;
+
+  return (
+    <th
+      aria-sort={onOrdenar ? ariaSort(ordem ?? null, rotulo) : undefined}
+      className={cn(
+        TH_BASE,
+        numerica ? "text-right" : "text-left",
+        eOTotal ? "text-[var(--primary)]" : "text-[var(--text-primary)]",
+        className,
+      )}
+      title={titulo}
+    >
+      {onOrdenar ? (
+        <button
+          type="button"
+          onClick={() => onOrdenar(rotulo, tipo)}
+          // `w-full` com o alinhamento herdado: o alvo ocupa a célula inteira, em vez de só
+          // o texto. Num cabeçalho de 4 caracteres a diferença é entre acertar e não.
+          className={cn(
+            "w-full cursor-pointer rounded-[var(--radius-sm)] transition-colors hover:text-[var(--primary)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)]",
+            numerica ? "text-right" : "text-left",
+          )}
+          title={
+            ativa && ordem.direcao === "desc"
+              ? `Ordenar por ${rotulo} — clique de novo para voltar à ordem original`
+              : `Ordenar por ${rotulo}`
+          }
+        >
+          {conteudo}
+        </button>
+      ) : (
+        conteudo
+      )}
+    </th>
   );
 }
