@@ -163,43 +163,52 @@ SELECT F.CODFORNECPRINC,
 -- aprovada, e por quem. Sem ela a tabela vira um conjunto de números sem procedência, que é
 -- exatamente o problema que ela nasceu para resolver.
 --
--- ── AUDITORIA: TRÊS PARES DE COLUNAS, E NENHUM DELETE ─────────────────────────────────
+-- ── AUDITORIA: A MATRÍCULA DO PAINEL, NÃO O USUÁRIO DO BANCO ──────────────────────────
 --
--- Pedido do Gabriel em 01/10/2026. O desenho cobre o CICLO INTEIRO, e não só o meio dele:
+-- Decisão do Gabriel em 01/10/2026, e ela corrige a primeira versão deste arquivo: guardar
+-- `USER` não serve. O `USER` do Oracle é a conta da APLICAÇÃO — depois que a tela de
+-- manutenção existir ele vai dizer a mesma coisa em 100% das linhas, e a pergunta "quem
+-- cadastrou isso?" continua sem resposta.
 --
---   DTCADASTRO  / USUARIOCADASTRO     quem ligou o vínculo
---   DTALTERACAO / USUARIOALTERACAO    quem mexeu depois
---   DTINATIVACAO/ USUARIOINATIVACAO   quem desligou
+-- O que identifica a pessoa é a MATRÍCULA do PCEMPR, a mesma que o nosso login já carrega
+-- (`GeradorDeToken.ClaimMatricula`, e também o `sub` do JWT). É o 4893 que aparece no próprio
+-- log da 9815: "4893 - GABRIEL HENRIQUE COELHO FREITAS".
 --
--- <b>Desligar é UPDATE, nunca DELETE.</b> Nesta tabela as duas colunas de dado são a própria
--- chave primária, então "alterar" só pode ser a OBSERVACAO — e um DELETE levaria junto a
--- observação, o autor e a data, que é exatamente o que a auditoria existe para guardar. Seis
--- meses depois, a pergunta "por que o DRE da P&G mudou em março?" não teria resposta na
--- tabela, porque não teria sobrado linha para consultar.
+--   DTCADASTRO   / MATRICULACADASTRO     quem ligou o vínculo
+--   DTALTERACAO  / MATRICULAALTERACAO    quem mexeu depois
+--   DTINATIVACAO / MATRICULAINATIVACAO   quem desligou
+--
+-- DESLIGAR É UPDATE, NUNCA DELETE. Nesta tabela as duas colunas de dado são a própria chave
+-- primária, então "alterar" só pode ser a OBSERVACAO — e um DELETE levaria junto a observação,
+-- o autor e a data, que é exatamente o que a auditoria existe para guardar. Seis meses depois,
+-- a pergunta "por que o DRE da P&G mudou em março?" não teria resposta na tabela, porque não
+-- teria sobrado linha para consultar.
 --
 -- Em troca, as consultas ganham `AND D.DTINATIVACAO IS NULL` (ver a seção 6), e a linha
 -- desligada continua lá contando a própria história: valeu de tal data a tal data, por quem.
 --
--- O CHECK do par de inativação impede o estado meio-preenchido: data sem usuário é uma linha
--- que diz que foi desligada e não diz por quem.
+-- SEM FOREIGN KEY PARA PCEMPR, de propósito. A integridade seria bem-vinda, mas uma FK nossa
+-- apontando para tabela legada amarra o cadastro de funcionários a esta tabela — um
+-- funcionário removido lá passaria a esbarrar aqui. A matrícula é guardada como o número que
+-- é, e quem quiser o nome resolve por junção na hora de ler.
 
 CREATE TABLE TAB_WEB_CENTROC_FORNEC (
   CODCENTRO            VARCHAR2(10) NOT NULL,
   CODFORNEC            NUMBER       NOT NULL,
   OBSERVACAO           VARCHAR2(400),
 
-  DTCADASTRO           DATE         DEFAULT SYSDATE NOT NULL,
-  USUARIOCADASTRO      VARCHAR2(60) DEFAULT USER    NOT NULL,
+  DTCADASTRO           DATE   DEFAULT SYSDATE NOT NULL,
+  MATRICULACADASTRO    NUMBER                 NOT NULL,
   DTALTERACAO          DATE,
-  USUARIOALTERACAO     VARCHAR2(60),
+  MATRICULAALTERACAO   NUMBER,
   DTINATIVACAO         DATE,
-  USUARIOINATIVACAO    VARCHAR2(60),
+  MATRICULAINATIVACAO  NUMBER,
 
   CONSTRAINT PK_TAB_WEB_CENTROC_FORNEC PRIMARY KEY (CODCENTRO, CODFORNEC),
   CONSTRAINT CK_TAB_WEB_CENTROC_NIVEL  CHECK (LENGTH(CODCENTRO) >= 2),
   CONSTRAINT CK_TAB_WEB_CENTROC_INAT   CHECK (
-    (DTINATIVACAO IS     NULL AND USUARIOINATIVACAO IS     NULL) OR
-    (DTINATIVACAO IS NOT NULL AND USUARIOINATIVACAO IS NOT NULL))
+    (DTINATIVACAO IS     NULL AND MATRICULAINATIVACAO IS     NULL) OR
+    (DTINATIVACAO IS NOT NULL AND MATRICULAINATIVACAO IS NOT NULL))
 );
 
 -- O nome foi decidido pelo Gabriel em 01/10/2026, e segue a convenção que o próprio banco já
@@ -209,36 +218,50 @@ CREATE TABLE TAB_WEB_CENTROC_FORNEC (
 -- centro de distribuição e centro de resultado.
 
 
--- ── O TRIGGER, que é o que faz a auditoria valer ──────────────────────────────────────
+-- ── O TRIGGER: carimba a DATA, e EXIGE a matrícula ────────────────────────────────────
 --
--- Sem ele, DTALTERACAO e DTINATIVACAO só são preenchidas se quem escreve o UPDATE lembrar.
--- Auditoria que depende de alguém lembrar é auditoria que falha exatamente no dia em que
--- importa — e o dia em que importa é sempre meses depois, quando ninguém lembra de nada.
+-- A data o banco sabe sozinho. A matrícula ele NÃO sabe — ela vive no token do painel, do
+-- outro lado da conexão. Então o trigger faz o que pode: carimba a data e RECUSA o UPDATE que
+-- não se identifica.
 --
--- Desligar um vínculo passa a ser só isto, e o resto o banco carimba sozinho:
+-- `UPDATING(coluna)` é o que torna isso honesto: ele diz se a coluna está no SET desta
+-- instrução, e não apenas se o valor dela é diferente de nulo. Sem isso, a matrícula de uma
+-- alteração anterior ficaria valendo para a próxima, e a auditoria apontaria a pessoa errada —
+-- pior do que não apontar ninguém.
+--
+-- Desligar um vínculo fica assim, e a data vem sozinha:
 --
 --     UPDATE TAB_WEB_CENTROC_FORNEC
---        SET DTINATIVACAO = SYSDATE
+--        SET DTINATIVACAO = SYSDATE, MATRICULAINATIVACAO = 4893,
+--            MATRICULAALTERACAO = 4893
 --      WHERE CODCENTRO = '2806' AND CODFORNEC = 29;
 --
--- E religar é `SET DTINATIVACAO = NULL`, que limpa o usuário junto e mantém o CHECK
--- satisfeito. O trigger sobrescreve o que vier no UPDATE de propósito: data de alteração
--- digitada à mão é data que pode ser escolhida, e aí não é auditoria, é anotação.
+-- Religar é SET DTINATIVACAO = NULL, MATRICULAALTERACAO = <quem>: o trigger limpa a matrícula
+-- de inativação junto, e o CHECK continua valendo.
 
 CREATE OR REPLACE TRIGGER TRG_TAB_WEB_CENTROC_FORNEC
   BEFORE UPDATE ON TAB_WEB_CENTROC_FORNEC
   FOR EACH ROW
 BEGIN
-  :NEW.DTALTERACAO      := SYSDATE;
-  :NEW.USUARIOALTERACAO := USER;
+  -- Quem altera tem de dizer quem é, NESTA instrução.
+  IF NOT UPDATING('MATRICULAALTERACAO') OR :NEW.MATRICULAALTERACAO IS NULL THEN
+    RAISE_APPLICATION_ERROR(-20001,
+      'TAB_WEB_CENTROC_FORNEC: informe MATRICULAALTERACAO com a matricula de quem altera.');
+  END IF;
 
-  -- Ligar e desligar carimbam sozinhos. O primeiro ramo pega a inativação; o segundo, a
-  -- reativação, e limpa o par para o CHECK continuar valendo.
+  :NEW.DTALTERACAO := SYSDATE;
+
+  -- Inativando: a data é do banco, a matrícula tem de vir desta instrução também.
   IF :OLD.DTINATIVACAO IS NULL AND :NEW.DTINATIVACAO IS NOT NULL THEN
-     :NEW.DTINATIVACAO      := SYSDATE;
-     :NEW.USUARIOINATIVACAO := USER;
+    IF NOT UPDATING('MATRICULAINATIVACAO') OR :NEW.MATRICULAINATIVACAO IS NULL THEN
+      RAISE_APPLICATION_ERROR(-20002,
+        'TAB_WEB_CENTROC_FORNEC: informe MATRICULAINATIVACAO ao inativar o vinculo.');
+    END IF;
+    :NEW.DTINATIVACAO := SYSDATE;
+
+  -- Reativando: limpa o par, para o CHECK continuar satisfeito.
   ELSIF :NEW.DTINATIVACAO IS NULL THEN
-     :NEW.USUARIOINATIVACAO := NULL;
+    :NEW.MATRICULAINATIVACAO := NULL;
   END IF;
 END;
 /
@@ -252,13 +275,15 @@ END;
 -- tabela não muda número nenhum: o DRE sai idêntico ao de hoje, para quem filtra 29 e para
 -- quem filtra 2453. É o que permite subir a estrutura NO MEIO da homologação sem ruído.
 --
--- DTCADASTRO e USUARIOCADASTRO têm DEFAULT e não precisam ser escritos.
+-- A matrícula é de quem está cadastrando. Enquanto a tela de manutenção não existe, é quem
+-- roda este script; depois, é o que vier da claim `matricula` do token.
 
-INSERT INTO TAB_WEB_CENTROC_FORNEC (CODCENTRO, CODFORNEC, OBSERVACAO)
-VALUES ('25', 29,
+INSERT INTO TAB_WEB_CENTROC_FORNEC (CODCENTRO, CODFORNEC, MATRICULACADASTRO, OBSERVACAO)
+VALUES ('25', 29, 4893,
         'Fiel a 9815 - UBase.pas:27217, literal escrito a mao. Centro 2501 EQUIPE P&G');
 
 COMMIT;
+
 
 -- ═══════════════════════════════════════════════════════════════════════════
 -- 5. AS LINHAS QUE FALTAM — nenhuma entra sem o financeiro
@@ -294,13 +319,13 @@ COMMIT;
 
 -- -- TRANSPORTE T - P&G. Centro dedicado à P&G que hoje vai rateado junto com o transporte
 -- -- geral. Confirmar com o negócio a quem ele pertence -- 29, 2453, os dois?
--- INSERT INTO TAB_WEB_CENTROC_FORNEC (CODCENTRO, CODFORNEC, OBSERVACAO)
--- VALUES ('2806', 29, 'TRANSPORTE T - P&G, aprovado por <quem> em <data>');
+-- INSERT INTO TAB_WEB_CENTROC_FORNEC (CODCENTRO, CODFORNEC, MATRICULACADASTRO, OBSERVACAO)
+-- VALUES ('2806', 29, <matricula>, 'TRANSPORTE T - P&G, aprovado por <quem> em <data>');
 
 -- -- UNILEVER: dois centros dedicados, nenhum tratado pela 9815. Quatro cadastros de
 -- -- fornecedor (11, 51, 89, 1044) -- e cada combinação que o negócio confirmar é uma linha.
--- INSERT INTO TAB_WEB_CENTROC_FORNEC (CODCENTRO, CODFORNEC, OBSERVACAO)
--- VALUES ('24', 11, 'VENDAS UNILEVER');
+-- INSERT INTO TAB_WEB_CENTROC_FORNEC (CODCENTRO, CODFORNEC, MATRICULACADASTRO, OBSERVACAO)
+-- VALUES ('24', 11, <matricula>, 'VENDAS UNILEVER');
 -- INSERT ... ('26', 11, ...);   -- centro 2601 UNILEVER
 -- -- ... e as demais, se o negócio disser que os outros cadastros também usam esses centros.
 
@@ -308,10 +333,10 @@ COMMIT;
 -- -- A equipe do centro 25 trabalha só para o 29, ou também para o 2453 e para a Gillette?
 -- -- Se a resposta for "também", são estas linhas -- e aí sim é DIVERGÊNCIA, porque muda o
 -- -- número que a 9815 mostra hoje. Escolha de negócio, não correção de defeito.
--- INSERT INTO TAB_WEB_CENTROC_FORNEC (CODCENTRO, CODFORNEC, OBSERVACAO)
--- VALUES ('25', 2453, 'DIVERGENCIA - a equipe 25 tambem atende o cadastro 2453');
--- INSERT INTO TAB_WEB_CENTROC_FORNEC (CODCENTRO, CODFORNEC, OBSERVACAO)
--- VALUES ('25',  815, 'DIVERGENCIA - a equipe 25 tambem atende a Gillette');
+-- INSERT INTO TAB_WEB_CENTROC_FORNEC (CODCENTRO, CODFORNEC, MATRICULACADASTRO, OBSERVACAO)
+-- VALUES ('25', 2453, <matricula>, 'DIVERGENCIA - a equipe 25 tambem atende o cadastro 2453');
+-- INSERT INTO TAB_WEB_CENTROC_FORNEC (CODCENTRO, CODFORNEC, MATRICULACADASTRO, OBSERVACAO)
+-- VALUES ('25',  815, <matricula>, 'DIVERGENCIA - a equipe 25 tambem atende a Gillette');
 --
 -- Só as linhas marcadas DIVERGENCIA mudam número conferido. Registrar em DIVERGENCIAS.md com
 -- data e quem aprovou.

@@ -136,32 +136,48 @@ CREATE TABLE TAB_WEB_CENTROC_FORNEC (
   CODFORNEC            NUMBER       NOT NULL,
   OBSERVACAO           VARCHAR2(400),           -- fiel à 9815, ou divergência aprovada por quem
 
-  DTCADASTRO           DATE         DEFAULT SYSDATE NOT NULL,
-  USUARIOCADASTRO      VARCHAR2(60) DEFAULT USER    NOT NULL,
+  DTCADASTRO           DATE   DEFAULT SYSDATE NOT NULL,
+  MATRICULACADASTRO    NUMBER                 NOT NULL,
   DTALTERACAO          DATE,
-  USUARIOALTERACAO     VARCHAR2(60),
+  MATRICULAALTERACAO   NUMBER,
   DTINATIVACAO         DATE,
-  USUARIOINATIVACAO    VARCHAR2(60),
+  MATRICULAINATIVACAO  NUMBER,
 
   CONSTRAINT PK_TAB_WEB_CENTROC_FORNEC PRIMARY KEY (CODCENTRO, CODFORNEC),
   CONSTRAINT CK_TAB_WEB_CENTROC_NIVEL  CHECK (LENGTH(CODCENTRO) >= 2),
   CONSTRAINT CK_TAB_WEB_CENTROC_INAT   CHECK (
-    (DTINATIVACAO IS     NULL AND USUARIOINATIVACAO IS     NULL) OR
-    (DTINATIVACAO IS NOT NULL AND USUARIOINATIVACAO IS NOT NULL))
+    (DTINATIVACAO IS     NULL AND MATRICULAINATIVACAO IS     NULL) OR
+    (DTINATIVACAO IS NOT NULL AND MATRICULAINATIVACAO IS NOT NULL))
 );
 ```
 
-**Desligar um vínculo é `UPDATE`, nunca `DELETE`.** Pedido do Gabriel em 01/10/2026, e o
-motivo é que nesta tabela as duas colunas de dado são a própria chave primária: "alterar" só
-pode ser a `OBSERVACAO`, e um `DELETE` levaria junto a observação, o autor e a data. Seis meses
-depois, a pergunta *"por que o DRE da P&G mudou em março?"* não teria resposta na tabela,
-porque não teria sobrado linha para consultar. A linha desligada continua lá contando a própria
-história: valeu de tal data a tal data, por quem.
+**A auditoria guarda a matrícula do painel, não o usuário do banco.** Decisão do Gabriel em
+01/10/2026. O `USER` do Oracle é a conta da **aplicação** — depois que a tela de manutenção
+existir, ele diria a mesma coisa em 100% das linhas, e a pergunta "quem cadastrou isso?"
+continuaria sem resposta. O que identifica a pessoa é a matrícula do `PCEMPR`, a mesma que o
+nosso login já carrega: [`GeradorDeToken.ClaimMatricula`](../api-new-kpi/Application/Features/Autenticacao/GeradorDeToken.cs),
+e também o `sub` do JWT. É o `4893` que aparece no próprio log da 9815.
 
-Um trigger `BEFORE UPDATE` carimba os três pares — auditoria que depende de alguém lembrar de
-preencher falha exatamente no dia em que importa. Desligar vira só
-`SET DTINATIVACAO = SYSDATE`, e religar `SET DTINATIVACAO = NULL`, que limpa o usuário junto e
-mantém o `CHECK` satisfeito. O trigger está na [dc73](validacao/dc73_carga_do_vinculo_centro_fornecedor.sql).
+**Desligar um vínculo é `UPDATE`, nunca `DELETE`.** Nesta tabela as duas colunas de dado são a
+própria chave primária: "alterar" só pode ser a `OBSERVACAO`, e um `DELETE` levaria junto a
+observação, o autor e a data. Seis meses depois, *"por que o DRE da P&G mudou em março?"* não
+teria resposta na tabela, porque não teria sobrado linha. A linha desligada continua lá
+contando a própria história: valeu de tal data a tal data, por quem.
+
+**Sem `FOREIGN KEY` para `PCEMPR`**, de propósito: uma FK nossa apontando para tabela legada
+amarraria o cadastro de funcionários a esta tabela, e um funcionário removido lá passaria a
+esbarrar aqui.
+
+O trigger `BEFORE UPDATE` faz o que o banco pode fazer sozinho — carimba a **data** — e
+**recusa** o `UPDATE` que não se identifica. A matrícula ele não tem como saber: ela vive no
+token, do outro lado da conexão. Ele usa `UPDATING(coluna)`, que diz se a coluna está no `SET`
+desta instrução e não apenas se o valor é não-nulo — sem isso, a matrícula de uma alteração
+anterior ficaria valendo para a próxima, e a auditoria apontaria a pessoa errada, que é pior do
+que não apontar ninguém. O trigger inteiro está na
+[dc73](validacao/dc73_carga_do_vinculo_centro_fornecedor.sql).
+
+Quando a tela de manutenção existir, é a claim `matricula` que preenche essas colunas — e é
+isso que fecha o ciclo: a tabela deixa de guardar "a aplicação mexeu" e passa a guardar quem.
 
 O nome foi decidido em 01/10/2026, e segue a convenção que o próprio banco já usa para tabelas
 de apoio: `TAB_GER_RESTRICAO_DATA_DRE`, `TAB_LOG_EXEC_ROTINA`. O prefixo `TAB_WEB_` marca o que
@@ -248,8 +264,8 @@ produziu estão em
 [dc73](validacao/dc73_carga_do_vinculo_centro_fornecedor.sql):
 
 ```sql
-INSERT INTO TAB_WEB_CENTROC_FORNEC (CODCENTRO, CODFORNEC, OBSERVACAO)
-VALUES ('25', 29,
+INSERT INTO TAB_WEB_CENTROC_FORNEC (CODCENTRO, CODFORNEC, MATRICULACADASTRO, OBSERVACAO)
+VALUES ('25', 29, 4893,
         'Fiel a 9815 - UBase.pas:27217, literal escrito a mao. Centro 2501 EQUIPE P&G');
 ```
 
