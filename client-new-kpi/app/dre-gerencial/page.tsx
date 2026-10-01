@@ -15,7 +15,7 @@ import { cn } from "@/lib/cn";
 import { formatarDataIso, formatarDuracao } from "@/lib/formato";
 import { descreverFiliais } from "@/lib/filiaisApuradas";
 import { estimativaDeTempo, impedimento } from "@/lib/modosDePeriodo";
-import { periodoPadrao } from "@/lib/periodos";
+import { dataHoraBr, periodoPadrao } from "@/lib/periodos";
 import type { Apuracao, FiltroApuracao } from "@/types/dre-gerencial";
 
 export default function DreGerencialPage() {
@@ -121,6 +121,10 @@ export default function DreGerencialPage() {
   // detalhamento toma ao usar `dados` em vez de `filtro`.
   const filiaisApuradas = descreverFiliais(dados?.filiais ?? [], filiais.data ?? []);
 
+  // Pela mesma razão: a hora é a da apuração que está na tela, não a de agora. Ela congela
+  // junto com os números e não anda enquanto a folha espera para ser impressa.
+  const apuradoEm = dataHoraBr(dados?.apuradoEm);
+
   return (
     // O nome da rotina vive só na trilha do cabeçalho. Um `h1` repetindo "DRE
     // Gerencial" logo abaixo dela custava duas linhas de altura para dizer o que já
@@ -194,7 +198,26 @@ export default function DreGerencialPage() {
                   {/* O separador vai DENTRO do span: escondido, ele leva o ` · ` junto e a
                       linha não fica com dois pontos seguidos. */}
                   <span className="filiais-resumo">{filiaisApuradas.resumo} · </span>
-                  {descreverColunas(dados)} · apurado em {formatarDuracao(dados.duracaoMs)}
+                  {descreverColunas(dados)} ·{" "}
+                  {/* NA TELA O TEMPO QUE A CONSULTA LEVOU, NO PAPEL A HORA EM QUE ELA FOI
+                      FEITA — duas grafias do mesmo trecho, como o `%AH` em `Variacao`, e
+                      quem escolhe é o CSS: `Ctrl+P` não espera re-render.
+
+                      O tempo de consulta responde "a tela travou?", pergunta de quem está
+                      sentado na frente dela. No papel ele não diz nada, e o que falta é
+                      justamente o contrário: a base é viva, e dois papéis do mesmo recorte
+                      impressos em horas diferentes trazem números diferentes. Sem a hora,
+                      não há como saber qual folha é a mais nova — e é por isso que ela vai
+                      aqui, na mesma linha do período e das filiais.
+
+                      A hora é a do SERVIDOR, que apurou, e não a do navegador que imprimiu.
+                      Ver `dataHoraBr`. */}
+                  <span className="so-na-tela">
+                    apurado em {formatarDuracao(dados.duracaoMs)}
+                  </span>
+                  {apuradoEm !== null && (
+                    <span className="so-no-papel">apurado em {apuradoEm}</span>
+                  )}
                 </p>
 
                 {/* Os nomes das filiais em linha própria, na tela cheia e no papel — ver o
