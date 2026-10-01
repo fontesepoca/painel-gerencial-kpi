@@ -134,7 +134,8 @@ public sealed class DreGerencialService
         }
 
         var despesas = await _repositorio.ObterDespesasAsync(
-            filtro.Filiais, filtro.DataInicio, filtro.DataFim, regime, analise, cancellationToken);
+            filtro.Filiais, filtro.DataInicio, filtro.DataFim, regime, analise,
+            filtro.Fornecedores, cancellationToken);
 
         var dtos = despesas
             .Select(d => new DespesaDto(
@@ -327,7 +328,7 @@ public sealed class DreGerencialService
         {
             var despesas = await _repositorio.ObterDespesasAsync(
                 filtro.Filiais, recorte.DataInicio, recorte.DataFim, regime, analise,
-                cancellationToken);
+                filtro.Fornecedores, cancellationToken);
 
             var faturamento = await _repositorio.ObterFaturamentoPorMesAsync(
                 filtro.Filiais, recorte.DataInicio, recorte.DataFim, filtro.Fornecedores,

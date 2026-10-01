@@ -33,12 +33,19 @@ public interface IDreGerencialRepository
     /// Despesas do período agregadas pela chave da dimensão e por mês. Replica o
     /// `GetValorGrupo` da 9815 — SQL validado contra o original.
     /// </summary>
+    /// <param name="fornecedores">
+    /// Os códigos de fornecedor a apurar. Aqui o filtro <b>não</b> corta valor: ele separa o
+    /// que é <b>exclusivo</b> do fornecedor — a verba do centro 90 e os centros dedicados a
+    /// ele — do que vai ser rateado pela participação, e tira do DRE os centros que pertencem
+    /// a outro fornecedor. Quem rateia é o montador. Nulo ou vazio é o DRE inteiro.
+    /// </param>
     Task<IReadOnlyList<DespesaDre>> ObterDespesasAsync(
         IReadOnlyList<string> filiais,
         DateOnly dataInicio,
         DateOnly dataFim,
         RegimeDre regime,
         AnaliseDre analise,
+        IReadOnlyList<decimal>? fornecedores = null,
         CancellationToken cancellationToken = default);
 
     /// <summary>

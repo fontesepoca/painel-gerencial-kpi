@@ -160,6 +160,7 @@ public sealed class DreGerencialRepository : IDreGerencialRepository
         DateOnly dataFim,
         RegimeDre regime,
         AnaliseDre analise,
+        IReadOnlyList<decimal>? fornecedores = null,
         CancellationToken cancellationToken = default)
     {
         if (filiais.Count == 0)
@@ -180,12 +181,64 @@ public sealed class DreGerencialRepository : IDreGerencialRepository
         var placeholdersA = string.Join(", ", filiais.Select((_, i) => $":filialA{i}"));
         var placeholdersB = string.Join(", ", filiais.Select((_, i) => $":filialB{i}"));
 
+        // ── O FILTRO POR FORNECEDOR, nas despesas ────────────────────────────────────
+        //
+        // Aqui ele NÃO filtra valor: ele SEPARA o que é exclusivo do fornecedor do que vai
+        // ser rateado, e tira do DRE os centros que pertencem a outro. Quem rateia é o
+        // montador, na fase seguinte.
+        //
+        // Sem fornecedor selecionado os dois fragmentos voltam a ser o que a consulta já
+        // tinha: um `0 as VPAGO_EXCLUSIVO_FORNEC,` e nenhuma condição a mais. Não é
+        // "equivalente", é o MESMO texto — e a dc76 confere isso caractere por caractere.
+        var temFornecedor = fornecedores is { Count: > 0 };
+
+        // Quatro listas, numeradas na ordem em que o SQL as apresenta. O nome não é o que
+        // liga — o ODP.NET liga por POSIÇÃO —, mas numerar deixa o erro visível na depuração.
+        string Lista(int n) =>
+            string.Join(", ", fornecedores!.Select((_, i) => $":fd{n}_{i}"));
+
+        // O centro dedicado, lido da tabela de parâmetro. Na 9815 isto é o literal 29 escrito
+        // à mão (UBase.pas:27217); aqui é cadastro. O `DTINATIVACAO IS NULL` respeita o
+        // desligamento sem apagar o histórico — ver docs/FILTRO_FORNECEDOR.md.
+        const string DedicadoAberto =
+            "EXISTS (SELECT 1 FROM TAB_WEB_CENTROC_FORNEC D " +
+            "WHERE cc.CodigoCentroCusto LIKE D.CODCENTRO || '%' AND D.DTINATIVACAO IS NULL";
+
+        var exclusivo = "0 as VPAGO_EXCLUSIVO_FORNEC,";
+        var condicoes = string.Empty;
+
+        if (temFornecedor)
+        {
+            // {4} — o valor que NÃO pode ser rateado. A expressão do THEN é a mesma do VPAGO
+            // algumas linhas acima: o valor do lançamento, ou o do rateio quando existe.
+            exclusivo =
+                "case when (CCPrinc.codccprinc IN (90) AND FIN.CODFORNEC IN (" + Lista(0) + ")) " +
+                "or " + DedicadoAberto + " AND D.CODFORNEC IN (" + Lista(1) + ")) " +
+                "then DECODE(RC.valor,NULL,NVL(FIN.VPAGO,0)*(-1),NVL(RC.valor,FIN.VPAGO)*(-1)) " +
+                "else 0 end as VPAGO_EXCLUSIVO_FORNEC,";
+
+            // {5} — quem SAI do DRE. O centro 90 só aparece para o dono da verba; o centro
+            // dedicado, só para o fornecedor a quem pertence.
+            //
+            // O `DTINATIVACAO IS NULL` está nos DOIS ramos (ele vem dentro de
+            // `DedicadoAberto`). Esquecê-lo no primeiro faria um vínculo desligado continuar
+            // marcando o centro como "dedicado a alguém", e o centro sumiria do DRE de todo
+            // mundo — o oposto de desligar a regra.
+            condicoes =
+                "AND (  (CCPrinc.codccprinc IN (90) AND FIN.CODFORNEC IN (" + Lista(2) + ")) " +
+                "OR (CCPrinc.codccprinc NOT IN (90)) )\n" +
+                "             AND ( NOT " + DedicadoAberto + ")\n" +
+                "                   OR " + DedicadoAberto + " AND D.CODFORNEC IN (" + Lista(3) + ")) )";
+        }
+
         var sql = string.Format(
             analise.SqlDespesas,
             placeholdersA,
             regime.ExpressaoBucket,
             regime.ExpressaoFiltro,
-            placeholdersB);
+            placeholdersB,
+            exclusivo,
+            condicoes);
 
         // Meia-noite nas duas pontas, de propósito: a 9815 usa
         // To_Date('27/08/2026','dd/mm/yyyy'), que é 00:00. Usar o fim do dia incluiria
@@ -194,11 +247,32 @@ public sealed class DreGerencialRepository : IDreGerencialRepository
         var fim = dataFim.ToDateTime(TimeOnly.MinValue);
 
         // A ORDEM DOS Add TEM QUE SER ESTA — é a ordem em que os binds aparecem no SQL.
+        //
+        // As listas 0 e 1 vêm primeiro porque {4} está entre as COLUNAS, antes de qualquer
+        // filtro. Depois as filiais, e só então as listas 2 e 3, que moram no WHERE.
         var parametros = new DynamicParameters();
+        void LigarFornecedores(params int[] listas)
+        {
+            if (!temFornecedor)
+            {
+                return;
+            }
+
+            foreach (var n in listas)
+            {
+                for (var i = 0; i < fornecedores!.Count; i++)
+                {
+                    parametros.Add($"fd{n}_{i}", fornecedores[i]);
+                }
+            }
+        }
+
+        LigarFornecedores(0, 1);   // {4}: centro 90 e centro dedicado
         for (var i = 0; i < filiais.Count; i++)
         {
             parametros.Add($"filialA{i}", filiais[i]);
         }
+        LigarFornecedores(2, 3);   // {5}: as mesmas duas, agora no WHERE
         parametros.Add("dtIni1", inicio);
         parametros.Add("dtFim1", fim);
         parametros.Add("dtIni2", inicio);

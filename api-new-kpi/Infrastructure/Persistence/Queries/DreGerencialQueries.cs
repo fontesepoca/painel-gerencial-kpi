@@ -214,6 +214,25 @@ public static class DreGerencialQueries
     /// <see cref="Application.Features.DreGerencial.RegimeDre"/> — não são valores,
     /// são trechos de SQL.</para>
     /// </summary>
+    /// <summary>
+    /// <para><b>{4} e {5} são o FILTRO POR FORNECEDOR</b>, e as quatro consultas de despesa os
+    /// recebem iguais — é assim na 9815 também, onde <c>GetValorGrupo</c> monta uma consulta
+    /// só para as quatro dimensões e o tipo de análise escolhe apenas o <c>GRUPOCONTA</c> do
+    /// <c>SELECT</c>. Tudo o mais, inclusive estas duas peças, é compartilhado.</para>
+    ///
+    /// <para><b>{4}</b> é a coluna <c>VPAGO_EXCLUSIVO_FORNEC</c>: o valor que pertence ao
+    /// fornecedor e por isso <b>não</b> pode ser rateado. Sem filtro é o <c>0</c> de sempre,
+    /// e a consulta sai caractere por caractere igual à de antes.</para>
+    ///
+    /// <para><b>{5}</b> são as duas condições do <c>WHERE</c>, e sem filtro é <b>vazio</b>.
+    /// A primeira é a do centro 90 (<c>VERBAS MARGEM</c>), que casa com o
+    /// <c>FIN.CODFORNEC</c> do próprio lançamento — não precisa de cadastro nenhum. A segunda
+    /// é a do centro dedicado, que na 9815 é o literal <c>29</c> escrito à mão e aqui lê
+    /// <c>TAB_WEB_CENTROC_FORNEC</c>.</para>
+    ///
+    /// <para>Ver <c>docs/FILTRO_FORNECEDOR.md</c> para a mecânica inteira, e
+    /// <c>docs/validacao/dc73...</c> para a tabela.</para>
+    /// </summary>
     public const string DespesasGrupoDeContas = """
          SELECT  GRUPOCONTA AS GRUPOCONTA, AntesRO AS ANTESRO, AntesLL AS ANTESLL, AntesLF AS ANTESLF, MES_ANO AS MESANO, MES AS MES, ANO AS ANO, sum(VLREALIZADO) AS VLREALIZADO, sum(VPAGO_EXCLUSIVO_FORNEC) AS VPAGOEXCLUSIVOFORNEC, sum(QdeReg) AS QDEREG 
          FROM ( 
@@ -243,7 +262,7 @@ public static class DreGerencialQueries
                   extract(YEAR FROM {1}) as ANO, 
                   SUBSTR(CONCAT(CONCAT(TRIM(FIN.HISTORICO), '. '), TRIM(FIN.HISTORICO2)),0,200) HISTORICO, 
                   DECODE(RC.valor,NULL,NVL(FIN.VPAGO,0)*(-1),NVL(RC.valor,FIN.VPAGO)*(-1)) as VPAGO,  
-                  0 as VPAGO_EXCLUSIVO_FORNEC, 
+                  {4} 
                   FIN.DTPAGTO, FIN.NUMBANCO,FIN.NumCheque,FIN.numbordero,FIN.numseqbordero, FIN.NUMCHEQUE2, 
                   FIN.LOCALIZACAO, FIN.NOMEFUNC, 
                   DECODE(FIN.TIPOPARCEIRO, 
@@ -277,6 +296,7 @@ public static class DreGerencialQueries
              AND  SUBSTR(cc.CodigoCentroCusto,1,2) = CCPrinc.codccprinc (+) 
              AND  FIN.historico not like 'REF.CANCEL.BORDERO JA BAIXADO' 
              AND not exists (select recnumadiantamento from pclancadiantfornec where recnumpagto is not null and dtestorno is null and recnumadiantamento = fin.recnum) 
+        {5}
             AND {2} BETWEEN :dtIni1 AND :dtFim1
          AND FIN.CODCONTA NOT IN ( SELECT codconta FROM EPCPARDRE_NAOEXIBIR) 
                          ) GROUP BY  to_char(case when AntesLF = 'N' or CODCONTA = 3000165 then CODCONTA else codgrupo end), AntesRO, AntesLL, AntesLF, MES_ANO, MES, ANO
@@ -408,7 +428,7 @@ public static class DreGerencialQueries
                   extract(YEAR FROM {1}) as ANO,
                   SUBSTR(CONCAT(CONCAT(TRIM(FIN.HISTORICO), '. '), TRIM(FIN.HISTORICO2)),0,200) HISTORICO,
                   DECODE(RC.valor,NULL,NVL(FIN.VPAGO,0)*(-1),NVL(RC.valor,FIN.VPAGO)*(-1)) as VPAGO,
-                  0 as VPAGO_EXCLUSIVO_FORNEC,
+                  {4}
                   FIN.DTPAGTO, FIN.NUMBANCO,FIN.NumCheque,FIN.numbordero,FIN.numseqbordero, FIN.NUMCHEQUE2,
                   FIN.LOCALIZACAO, FIN.NOMEFUNC,
                   DECODE(FIN.TIPOPARCEIRO,
@@ -442,6 +462,7 @@ public static class DreGerencialQueries
              AND  SUBSTR(cc.CodigoCentroCusto,1,2) = CCPrinc.codccprinc (+)
              AND  FIN.historico not like 'REF.CANCEL.BORDERO JA BAIXADO'
              AND not exists (select recnumadiantamento from pclancadiantfornec where recnumpagto is not null and dtestorno is null and recnumadiantamento = fin.recnum)
+        {5}
             AND {2} BETWEEN :dtIni1 AND :dtFim1
          AND FIN.CODCONTA NOT IN ( SELECT codconta FROM EPCPARDRE_NAOEXIBIR)
                          ) GROUP BY codconta, AntesRO, AntesLL, AntesLF, MES_ANO, MES, ANO
@@ -632,7 +653,7 @@ public static class DreGerencialQueries
                   extract(YEAR FROM {1}) as ANO,
                   SUBSTR(CONCAT(CONCAT(TRIM(FIN.HISTORICO), '. '), TRIM(FIN.HISTORICO2)),0,200) HISTORICO,
                   DECODE(RC.valor,NULL,NVL(FIN.VPAGO,0)*(-1),NVL(RC.valor,FIN.VPAGO)*(-1)) as VPAGO,
-                  0 as VPAGO_EXCLUSIVO_FORNEC,
+                  {4}
                   FIN.DTPAGTO, FIN.NUMBANCO,FIN.NumCheque,FIN.numbordero,FIN.numseqbordero, FIN.NUMCHEQUE2,
                   FIN.LOCALIZACAO, FIN.NOMEFUNC,
                   DECODE(FIN.TIPOPARCEIRO,
@@ -666,6 +687,7 @@ public static class DreGerencialQueries
              AND  SUBSTR(cc.CodigoCentroCusto,1,2) = CCPrinc.codccprinc (+)
              AND  FIN.historico not like 'REF.CANCEL.BORDERO JA BAIXADO'
              AND not exists (select recnumadiantamento from pclancadiantfornec where recnumpagto is not null and dtestorno is null and recnumadiantamento = fin.recnum)
+        {5}
             AND {2} BETWEEN :dtIni1 AND :dtFim1
          AND FIN.CODCONTA NOT IN ( SELECT codconta FROM EPCPARDRE_NAOEXIBIR)
                          ) GROUP BY  decode(AntesLF,'N',to_char(CODCONTA),  NVL(codccprinc,'99')), AntesRO, AntesLL, AntesLF, MES_ANO, MES, ANO
@@ -837,7 +859,7 @@ public static class DreGerencialQueries
                   extract(YEAR FROM {1}) as ANO,
                   SUBSTR(CONCAT(CONCAT(TRIM(FIN.HISTORICO), '. '), TRIM(FIN.HISTORICO2)),0,200) HISTORICO,
                   DECODE(RC.valor,NULL,NVL(FIN.VPAGO,0)*(-1),NVL(RC.valor,FIN.VPAGO)*(-1)) as VPAGO,
-                  0 as VPAGO_EXCLUSIVO_FORNEC,
+                  {4}
                   FIN.DTPAGTO, FIN.NUMBANCO,FIN.NumCheque,FIN.numbordero,FIN.numseqbordero, FIN.NUMCHEQUE2,
                   FIN.LOCALIZACAO, FIN.NOMEFUNC,
                   DECODE(FIN.TIPOPARCEIRO,
@@ -871,6 +893,7 @@ public static class DreGerencialQueries
              AND  SUBSTR(cc.CodigoCentroCusto,1,2) = CCPrinc.codccprinc (+)
              AND  FIN.historico not like 'REF.CANCEL.BORDERO JA BAIXADO'
              AND not exists (select recnumadiantamento from pclancadiantfornec where recnumpagto is not null and dtestorno is null and recnumadiantamento = fin.recnum)
+        {5}
             AND {2} BETWEEN :dtIni1 AND :dtFim1
          AND FIN.CODCONTA NOT IN ( SELECT codconta FROM EPCPARDRE_NAOEXIBIR)
                          ) GROUP BY  decode(AntesLF,'N',to_char(CODCONTA),  CODCENTROCUSTO), AntesRO, AntesLL, AntesLF, MES_ANO, MES, ANO
