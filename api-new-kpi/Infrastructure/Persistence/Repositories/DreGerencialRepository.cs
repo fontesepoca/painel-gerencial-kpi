@@ -1,4 +1,5 @@
 using Epoca.Kpi.Api.Application.Features.DreGerencial;
+using System.Text.RegularExpressions;
 using Dapper;
 using Epoca.Kpi.Api.Domain.Entities;
 using Epoca.Kpi.Api.Domain.Interfaces;
@@ -312,24 +313,39 @@ public sealed class DreGerencialRepository : IDreGerencialRepository
         var placeholdersB = string.Join(", ", filiais.Select((_, i) => $":filialB{i}"));
         var placeholdersC = string.Join(", ", filiais.Select((_, i) => $":filialC{i}"));
 
-        // O PREDICADO DO FORNECEDOR, que entra onze vezes na consulta -- seis no bloco das
+        // O PREDICADO DO FORNECEDOR, que entra ONZE VEZES na consulta -- seis no bloco das
         // vendas por item e cinco no das devolucoes.
         //
-        // Binds nomeados, nunca os codigos concatenados: o valor vem do cliente, e
-        // concatena-lo abriria injecao numa consulta que roda contra producao. Mesmo cuidado
-        // das filiais, pelo mesmo motivo.
+        // CADA OCORRENCIA PRECISA DO PROPRIO NOME DE BIND. O ODP.NET liga por POSICAO, e um
+        // mesmo ":fornec0" repetido onze vezes pede onze valores: o driver recusa com
+        // ORA-50028 (Invalid parameter binding) se encontrar um nome so. Dai o Regex com
+        // contador no lugar de um string.Format: ele numera as ocorrencias, e os binds saem
+        // f0_*, f1_*, ... f10_*, na mesma ordem em que o texto do SQL as apresenta.
+        //
+        // Binds, nunca os codigos concatenados: o valor vem do cliente, e concatena-lo
+        // abriria injecao numa consulta que roda contra producao.
         //
         // SEM FILTRO o predicado e 1=1, e "case when 1=1 then X else 0 end" e
         // aritmeticamente o X de hoje -- o otimizador descarta o predicado constante. O
         // numero nao muda; o que precisa ser medido e o PLANO, porque esta e a consulta mais
-        // cara da rotina. E o que a dc41 faz antes desta fase ser dada por encerrada.
+        // cara da rotina. E o que a dc41 faz.
         var temFornecedor = fornecedores is { Count: > 0 };
-        var filtroProduto = temFornecedor
-            ? $"pr.codfornec in ({string.Join(", ", fornecedores!.Select((_, i) => $":fornec{i}"))})"
-            : "1=1";
+
+        var ocorrencia = 0;
+        var sqlComFornecedor = Regex.Replace(
+            DreGerencialQueries.FaturamentoPorMes,
+            @"\{4\}",
+            _ =>
+            {
+                var n = ocorrencia++;
+                return temFornecedor
+                    ? $"pr.codfornec in ({string.Join(", ", fornecedores!.Select((_, i) => $":f{n}_{i}"))})"
+                    : "1=1";
+            });
 
         // As notas SEM item nao tem produto, logo nao tem fornecedor: com filtro ligado elas
-        // entram so no denominador da participacao. Ver o bloco 3 do SQL.
+        // entram so no denominador da participacao. Ver o bloco 3 do SQL. Este nao tem bind,
+        // entao continua pelo string.Format.
         var filtroSemItem = temFornecedor ? "1=0" : "1=1";
 
         // {3} é o hint de paralelismo, e vem vazio quando ele está desligado — a consulta
@@ -338,8 +354,8 @@ public sealed class DreGerencialRepository : IDreGerencialRepository
         var hint = _paralelismo.HintPara(MesesDoRecorte(dataInicio, dataFim));
 
         var sql = string.Format(
-            DreGerencialQueries.FaturamentoPorMes,
-            placeholdersA, placeholdersB, placeholdersC, hint, filtroProduto, filtroSemItem);
+            sqlComFornecedor,
+            placeholdersA, placeholdersB, placeholdersC, hint, string.Empty, filtroSemItem);
 
         var inicio = dataInicio.ToDateTime(TimeOnly.MinValue);
         var fim = dataFim.ToDateTime(TimeOnly.MinValue);
@@ -359,7 +375,7 @@ public sealed class DreGerencialRepository : IDreGerencialRepository
         // nao e o que liga: o que liga e a ordem de insercao. Nomes repetidos se
         // sobrescreveriam no DynamicParameters e a consulta receberia parametros a menos --
         // e errar a contagem aqui NAO da erro, da numero errado.
-        var ocorrencia = 0;
+        var ligada = 0;
         void LigarFornecedores(int vezes)
         {
             if (!temFornecedor)
@@ -369,11 +385,12 @@ public sealed class DreGerencialRepository : IDreGerencialRepository
 
             for (var v = 0; v < vezes; v++)
             {
-                ocorrencia++;
                 for (var i = 0; i < fornecedores!.Count; i++)
                 {
-                    parametros.Add($"f{ocorrencia}_{i}", fornecedores[i]);
+                    parametros.Add($"f{ligada}_{i}", fornecedores[i]);
                 }
+
+                ligada++;
             }
         }
 
