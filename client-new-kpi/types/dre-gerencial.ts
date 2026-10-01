@@ -324,6 +324,15 @@ export interface Detalhamento {
   impostos: DetalheImposto[] | null;
   duracaoMs: number;
   notas: DetalheNota[] | null;
+  /**
+   * Quando a API apurou — a hora do servidor, com fuso. Sai no cabeçalho da impressão.
+   *
+   * **Opcional embora a API sempre mande.** Este objeto também é lido de volta do
+   * `localStorage` pela página de tela cheia (`lib/detalheAberto.ts`), e um detalhamento
+   * guardado antes de 01/10/2026 não tem o campo. Declarar obrigatório faria o tipo mentir
+   * justamente no caso em que ele falta.
+   */
+  apuradoEm?: string;
 }
 
 export interface Apuracao {
