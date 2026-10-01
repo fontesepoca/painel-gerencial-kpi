@@ -15,6 +15,7 @@ import {
   usaDatas,
   usaSegundoIntervalo,
 } from "@/lib/modosDePeriodo";
+import { SelecaoDeFornecedores } from "@/components/dre-gerencial/SelecaoDeFornecedores";
 import {
   ANALISES,
   REGIMES,
@@ -97,6 +98,16 @@ export function FiltrosDre({
             carregando={carregandoFiliais}
             selecionadas={filtro.filiais}
             onMudar={(f) => onMudar({ ...filtro, filiais: f })}
+          />
+        </Campo>
+
+        {/* Depois da filial e antes do regime: os três dizem QUAL recorte apurar, e o
+            fornecedor é o mais novo dos três — quem não usa passa direto por ele, porque o
+            campo diz "Todos os fornecedores" e não pede nada. */}
+        <Campo rotulo="Fornecedor">
+          <SelecaoDeFornecedores
+            selecionados={filtro.fornecedores}
+            onMudar={(f) => onMudar({ ...filtro, fornecedores: f })}
           />
         </Campo>
 

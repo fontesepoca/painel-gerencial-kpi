@@ -49,6 +49,18 @@ public interface IDreGerencialRepository
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Os fornecedores que casam com <paramref name="busca"/>, por nome ou por código exato,
+    /// no máximo <paramref name="limite"/> deles.
+    ///
+    /// <para>É BUSCA, não listagem: o cadastro tem mais de treze mil, e quem filtra o DRE sabe
+    /// de quem está falando.</para>
+    /// </summary>
+    Task<IReadOnlyList<FornecedorDre>> BuscarFornecedoresAsync(
+        string busca,
+        int limite,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Faturamento, CMV e impostos, uma linha por mês do período. Não recebe regime:
     /// caixa e competência produzem os mesmos valores aqui.
     ///

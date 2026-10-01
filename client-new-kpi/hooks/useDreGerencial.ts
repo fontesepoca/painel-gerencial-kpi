@@ -9,6 +9,7 @@ import type {
   Filial,
   FiltroApuracao,
   FiltroDetalhe,
+  Fornecedor,
 } from "@/types/dre-gerencial";
 
 /**
@@ -26,6 +27,32 @@ import type {
  *
  * Cadastro muda raramente, então segura por meia hora.
  */
+/**
+ * Busca fornecedores para o filtro, pelo que a pessoa digitou.
+ *
+ * <b>Só consulta a partir do segundo caractere.</b> Com um só, a busca devolveria centenas de
+ * linhas que ninguém ia ler, a cada tecla — e o cadastro tem mais de treze mil fornecedores.
+ *
+ * <b>O `staleTime` é generoso de propósito.</b> Cadastro de fornecedor não muda durante uma
+ * sessão de DRE, e quem está procurando digita, apaga e redigita o mesmo prefixo várias vezes:
+ * o cache evita a viagem repetida sem custo nenhum de atualidade.
+ *
+ * Quem debounce é a tela, não este hook — ela é quem sabe o ritmo de quem digita.
+ */
+export function useBuscarFornecedores(busca: string) {
+  const termo = busca.trim();
+
+  return useQuery({
+    queryKey: ["dre-gerencial", "fornecedores", termo],
+    queryFn: () =>
+      apiClient.get<Fornecedor[]>(
+        `/api/dre-gerencial/fornecedores?busca=${encodeURIComponent(termo)}&limite=20`,
+      ),
+    enabled: termo.length >= 2,
+    staleTime: 30 * 60 * 1000,
+  });
+}
+
 export function useFiliais() {
   const { data: usuario } = useSessao();
 
@@ -65,8 +92,28 @@ function normalizarCodigo(codigo: string): string {
 export function useApuracao() {
   return useMutation({
     mutationFn: (filtro: FiltroApuracao) =>
-      apiClient.post<Apuracao>("/api/dre-gerencial/apuracao", filtro),
+      apiClient.post<Apuracao>("/api/dre-gerencial/apuracao", paraApi(filtro)),
   });
+}
+
+/**
+ * O filtro como a API o espera.
+ *
+ * <b>A tela guarda os fornecedores como OBJETOS</b> — precisa do nome para mostrar o que está
+ * selecionado e para escrever no cabeçalho de quem é o DRE. O servidor só quer os códigos, e
+ * mandar o objeto inteiro faria a desserialização falhar no primeiro campo que ele não
+ * conhece.
+ *
+ * Lista vazia some do corpo: é o DRE inteiro, e `undefined` é o que o contrato chama de
+ * "sem filtro". Mandar `[]` funcionaria igual hoje, mas documenta o oposto do que acontece.
+ */
+function paraApi(filtro: FiltroApuracao) {
+  const { fornecedores, ...resto } = filtro;
+  return {
+    ...resto,
+    fornecedores:
+      fornecedores.length > 0 ? fornecedores.map((f) => f.codFornec) : undefined,
+  };
 }
 
 /**

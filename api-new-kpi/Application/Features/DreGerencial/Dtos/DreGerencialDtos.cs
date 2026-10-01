@@ -26,6 +26,18 @@ public record LinhaEstruturaDto(
     bool AntesLucroLiquido,
     bool AntesLucroFinal);
 
+/// <summary>
+/// Um fornecedor na busca do filtro.
+///
+/// <para><c>CodFornecPrinc</c> vem junto para a tela poder AVISAR que o cadastro escolhido tem
+/// irmãos — o filtro continua sendo por código, e um não puxa o outro.</para>
+/// </summary>
+public record FornecedorDto(
+    decimal CodFornec,
+    string Fornecedor,
+    string? Cgc,
+    decimal? CodFornecPrinc);
+
 /// <summary>Filtro da consulta de despesas. `Filiais` são códigos em texto.</summary>
 public record DespesasFiltroDto(
     IReadOnlyList<string> Filiais,
@@ -386,4 +398,13 @@ public record ApuracaoDto(
     IReadOnlyList<LinhaDreDto> Linhas,
     IReadOnlyList<string> Avisos,
     DateTimeOffset ApuradoEm,
-    long DuracaoMs);
+    long DuracaoMs,
+    /// <summary>
+    /// Os fornecedores que esta apuração usou. Vazio quando o DRE é o inteiro.
+    ///
+    /// <para><b>Volta junto pelo mesmo motivo das filiais:</b> a tela precisa dizer de quem
+    /// são os números que está mostrando, e tem de dizê-lo a partir do que foi APURADO, não
+    /// do formulário. Mexer no filtro depois de apurar não pode reescrever o cabeçalho do que
+    /// já está na tela.</para>
+    /// </summary>
+    IReadOnlyList<decimal> Fornecedores);

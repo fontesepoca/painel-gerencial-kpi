@@ -14,6 +14,38 @@ public sealed class DreGerencialService
     public DreGerencialService(IDreGerencialRepository repositorio) => _repositorio = repositorio;
 
     /// <summary>
+    /// Busca fornecedores para o filtro do DRE, por nome ou por código exato.
+    ///
+    /// <para><b>Busca vazia devolve lista vazia</b>, e não o cadastro inteiro. São treze mil
+    /// fornecedores: devolver tudo seria caro para a API, pesado para a tela e inútil para
+    /// quem está procurando um. A tela só consulta depois do segundo caractere.</para>
+    ///
+    /// <para>O <paramref name="limite"/> é preso entre 1 e 50. Quem pede mil está enganado
+    /// sobre o que a busca faz, e deixar passar transformaria o campo num exportador do
+    /// cadastro de fornecedores.</para>
+    /// </summary>
+    public async Task<Result<IReadOnlyList<FornecedorDto>>> BuscarFornecedoresAsync(
+        string? busca,
+        int limite = 20,
+        CancellationToken cancellationToken = default)
+    {
+        var termo = (busca ?? string.Empty).Trim();
+        if (termo.Length == 0)
+        {
+            return Result<IReadOnlyList<FornecedorDto>>.Ok([]);
+        }
+
+        var fornecedores = await _repositorio.BuscarFornecedoresAsync(
+            termo, Math.Clamp(limite, 1, 50), cancellationToken);
+
+        var dtos = fornecedores
+            .Select(f => new FornecedorDto(f.CodFornec, f.Fornecedor, f.Cgc, f.CodFornecPrinc))
+            .ToList();
+
+        return Result<IReadOnlyList<FornecedorDto>>.Ok(dtos);
+    }
+
+    /// <summary>
     /// Filiais do filtro. Lista vazia é resultado válido, não erro — cadastro sem filial
     /// é problema de configuração do banco, e o front trata mostrando o filtro vazio.
     /// </summary>

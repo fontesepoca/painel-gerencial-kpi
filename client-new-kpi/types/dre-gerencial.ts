@@ -27,6 +27,21 @@ export type Analise =
  */
 export type ModoPeriodo = "meses" | "anos" | "comparar-anos";
 
+/**
+ * Um fornecedor na busca do filtro.
+ *
+ * `codFornecPrinc` existe para a tela AVISAR, não para filtrar: quem escolhe a Gillette
+ * merece saber que há outros dois cadastros da mesma empresa e que este DRE não os inclui.
+ * O filtro continua sendo por CÓDIGO, e um cadastro não puxa o outro — ver
+ * `docs/FILTRO_FORNECEDOR.md`.
+ */
+export interface Fornecedor {
+  codFornec: number;
+  fornecedor: string;
+  cgc: string | null;
+  codFornecPrinc: number | null;
+}
+
 export interface FiltroApuracao {
   filiais: string[];
   /**
@@ -47,6 +62,16 @@ export interface FiltroApuracao {
    * O SEGUNDO intervalo do comparativo, em ISO. Livre em relação ao primeiro: não precisa
    * ter o mesmo tamanho nem os mesmos meses.
    */
+  /**
+   * Os fornecedores escolhidos — os OBJETOS, não só os códigos.
+   *
+   * <b>A tela precisa do nome</b> para mostrar o que está selecionado sem ter de consultar a
+   * API de novo a cada render, e para escrever no cabeçalho de quem é o DRE. O que vai para o
+   * servidor é só `codFornec`.
+   *
+   * Vazio é o DRE inteiro, que é o comportamento de sempre.
+   */
+  fornecedores: Fornecedor[];
   comparacaoInicio?: string;
   comparacaoFim?: string;
 }
@@ -313,6 +338,13 @@ export interface Apuracao {
   avisos: string[];
   apuradoEm: string;
   duracaoMs: number;
+  /**
+   * Os CÓDIGOS dos fornecedores que esta apuração usou — vazio quando é o DRE inteiro.
+   *
+   * Vêm da apuração, e não do formulário, pela mesma razão das filiais: mexer no filtro
+   * depois de apurar não pode reescrever o cabeçalho do que já está na tela.
+   */
+  fornecedores: number[];
 }
 
 export const REGIMES: ReadonlyArray<{ valor: Regime; rotulo: string }> = [

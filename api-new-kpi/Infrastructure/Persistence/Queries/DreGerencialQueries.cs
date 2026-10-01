@@ -96,6 +96,42 @@ public static class DreGerencialQueries
         """;
 
     /// <summary>
+    /// Os fornecedores que o filtro do DRE oferece, para a busca da tela.
+    ///
+    /// <para><b>Busca, não listagem.</b> O cadastro tem mais de treze mil fornecedores, e
+    /// mandar todos para o navegador a cada abertura de tela seria caro para resolver um
+    /// problema que ninguém tem: quem filtra sabe de quem está falando. A tela manda o que a
+    /// pessoa digitou e recebe no máximo <c>:limite</c> linhas.</para>
+    ///
+    /// <para><b>O código vem primeiro, e por isso o <c>ORDER BY</c> começa por ele.</b> Quem
+    /// digita <c>29</c> quer o fornecedor 29, não os 180 cujo nome contém "29". A ordenação
+    /// põe a igualdade exata no topo e o resto em ordem alfabética.</para>
+    ///
+    /// <para><b>Acento não atrapalha</b>: os dois lados passam por
+    /// <c>CONVERT(..., 'US7ASCII')</c>, então <i>GUARANY</i> acha <i>GUARANÝ</i> e vice-versa.
+    /// É o mesmo tratamento que o ESTOQUE REVENDA usa para comparar histórico.</para>
+    ///
+    /// <para><b>Binds, nesta ordem</b> — o ODP.NET liga por posição, e <c>:busca</c> aparece
+    /// três vezes: <c>:busca1</c> (o <c>LIKE</c> do nome), <c>:busca2</c> (o código exato),
+    /// <c>:busca3</c> (o desempate do <c>ORDER BY</c>) e <c>:limite</c>.</para>
+    /// </summary>
+    public const string Fornecedores = """
+        SELECT * FROM (
+          SELECT F.CODFORNEC                                  AS CODFORNEC,
+                 TRIM(F.FORNECEDOR)                           AS FORNECEDOR,
+                 F.CGC                                        AS CGC,
+                 F.CODFORNECPRINC                             AS CODFORNECPRINC
+            FROM PCFORNEC F
+           WHERE UPPER(CONVERT(TRIM(F.FORNECEDOR), 'US7ASCII'))
+                   LIKE '%' || UPPER(CONVERT(TRIM(:busca1), 'US7ASCII')) || '%'
+              OR TO_CHAR(F.CODFORNEC) = TRIM(:busca2)
+           ORDER BY CASE WHEN TO_CHAR(F.CODFORNEC) = TRIM(:busca3) THEN 0 ELSE 1 END,
+                    TRIM(F.FORNECEDOR)
+        )
+        WHERE ROWNUM <= :limite
+        """;
+
+    /// <summary>
     /// Estrutura de linhas do DRE para a análise **Grupo de Contas**, já com o bloco de
     /// **contas órfãs** — as que têm movimento no período e não estão parametrizadas em
     /// `EPCPARDRE`. São elas que dão rótulo ao bloco final do relatório

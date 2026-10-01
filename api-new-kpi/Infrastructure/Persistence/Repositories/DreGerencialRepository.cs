@@ -297,6 +297,32 @@ public sealed class DreGerencialRepository : IDreGerencialRepository
         return despesas.ToList();
     }
 
+    public async Task<IReadOnlyList<FornecedorDre>> BuscarFornecedoresAsync(
+        string busca,
+        int limite,
+        CancellationToken cancellationToken = default)
+    {
+        using var conexao = await _conexoes.CriarConexaoAsync(cancellationToken);
+
+        // Os três :busca são a MESMA palavra em três lugares do SQL, e cada ocorrência consome
+        // um parâmetro porque o ODP.NET liga por posição. Repetir o valor é o preço de não
+        // concatenar texto vindo do cliente numa consulta que roda contra produção.
+        var parametros = new DynamicParameters();
+        parametros.Add("busca1", busca);
+        parametros.Add("busca2", busca);
+        parametros.Add("busca3", busca);
+        parametros.Add("limite", limite);
+
+        var fornecedores = await conexao.QueryAsync<FornecedorDre>(
+            new CommandDefinition(
+                DreGerencialQueries.Fornecedores,
+                parametros,
+                commandTimeout: 30,
+                cancellationToken: cancellationToken));
+
+        return fornecedores.ToList();
+    }
+
     public async Task<IReadOnlyList<FaturamentoDre>> ObterFaturamentoPorMesAsync(
         IReadOnlyList<string> filiais,
         DateOnly dataInicio,

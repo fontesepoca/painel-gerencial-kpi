@@ -250,6 +250,7 @@ public static class MontadorDre
                 .ToList(),
             Linhas: resultado,
             Avisos: avisos,
+            Fornecedores: filtro.Fornecedores ?? [],
             ApuradoEm: DateTimeOffset.Now,
             DuracaoMs: duracaoMs);
     }
