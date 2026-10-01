@@ -104,6 +104,50 @@ SELECT FIN.CODFORNEC,
 -- verba no 90 não implica centro próprio. Foi um dos dois fornecedores da dc58.
 
 
+-- ───────────────────────────────────────────────────────────────────────────
+-- 2b. Os cadastros que são a MESMA empresa — e por que isso não resolve o filtro
+-- ───────────────────────────────────────────────────────────────────────────
+SELECT F.CODFORNECPRINC,
+       F.CODFORNEC,
+       TRIM(F.FORNECEDOR)   AS FORNECEDOR,
+       F.CGC,
+       F.DTCADASTRO
+  FROM PCFORNEC F
+ WHERE F.CODFORNEC IN (29, 2453, 815)
+ ORDER BY F.CODFORNEC;
+
+-- RESULTADO — 01/10/2026:
+--
+--   CODFORNECPRINC  CODFORNEC  FORNECEDOR                        CGC
+--         29            29     PROCTER & GAMBLE ... COMERCIAL    01358874000188
+--         29           815     GILLETTE DO BRASIL                04490850000680
+--         29          2453     PROCTER & GAMBLE ... COML         01358874001664
+--
+-- Três CNPJs distintos — o 2453 é outra filial do mesmo raiz do 29 (01358874), e a Gillette é
+-- empresa separada —, e o Winthor JÁ SABE que as três são a mesma coisa. "A Gillette é P&G"
+-- deixa de ser inferência sobre o mundo e passa a ser dado da empresa.
+--
+-- ⚠ E MESMO ASSIM O FILTRO NÃO VAI USAR O CODFORNECPRINC. Decisão do Gabriel em 01/10/2026.
+--
+--   Seria tentador: a seleção traduzida para o principal antes de comparar faria a carga cair
+--   para quatro linhas e corrigiria os três defeitos conhecidos de uma vez, sem cadastrar nada.
+--
+--       -- O QUE **NÃO** VAMOS FAZER:
+--       OR EXISTS (SELECT 1 FROM EPCKPI_CENTRO_FORNEC D, PCFORNEC FP
+--                   WHERE cc.CodigoCentroCusto LIKE D.CODCENTRO || '%'
+--                     AND FP.CODFORNEC IN (<seleção>)
+--                     AND NVL(FP.CODFORNECPRINC, FP.CODFORNEC) = D.CODFORNEC)
+--
+--   Mas resolver pelo principal NÃO É FIEL À 9815: lá `29 in (815)` é falso e a equipe some;
+--   pelo principal ela apareceria. A regra governante do projeto é a fidelidade numérica, e uma
+--   correção automática — por mais correta que pareça — muda número sem que ninguém tenha
+--   aprovado.
+--
+--   A tabela é PARÂMETRO À PARTE: cada vínculo entra porque alguém decidiu que ele entra. O
+--   CODFORNECPRINC serve para DESCOBRIR quais linhas propor ao financeiro, nunca para
+--   dispensá-las. Esta consulta é a ferramenta de descoberta, não a regra.
+
+
 -- ═══════════════════════════════════════════════════════════════════════════
 -- 3. A TABELA
 -- ═══════════════════════════════════════════════════════════════════════════

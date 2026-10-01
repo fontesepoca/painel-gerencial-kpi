@@ -173,6 +173,39 @@ ali o principal **é** a equipe P&G. O `2806` é o único que exige descer:
 | Unilever | `2601` UNILEVER | sim, `26` |
 | P&G | `2806` TRANSPORTE T - P&G | **não** — o principal 28 tem 20 centros de transporte |
 
+### O `CODFORNECPRINC` existe — e NÃO vamos usá-lo
+
+`PCFORNEC` tem a coluna `CODFORNECPRINC`, e ela já agrupa os cadastros da mesma empresa:
+
+```
+CODFORNECPRINC  CODFORNEC  FORNECEDOR                        CGC
+      29            29     PROCTER & GAMBLE ... COMERCIAL    01358874000188
+      29           815     GILLETTE DO BRASIL                04490850000680
+      29          2453     PROCTER & GAMBLE ... COML         01358874001664
+```
+
+São três CNPJs distintos — o `2453` é outra filial do mesmo raiz do `29` (`01358874`), e a
+Gillette é empresa separada —, e o Winthor já sabe que as três são a mesma coisa. "A Gillette é
+P&G" deixa de ser inferência sobre o mundo e passa a ser **dado da empresa**.
+
+Seria tentador resolver o filtro por ele: a seleção traduzida para o principal antes de
+comparar faria a carga cair para quatro linhas, e os três defeitos conhecidos se corrigiriam de
+uma vez, sem cadastrar nada.
+
+**Decisão do Gabriel em 01/10/2026: não.** Resolver pelo principal **não é fiel à 9815** — lá
+`29 in (815)` é falso e a equipe some; pelo principal ela apareceria. A regra governante do
+projeto é a fidelidade numérica, e uma correção automática, por mais correta que pareça, muda
+número sem que ninguém tenha aprovado. A tabela é **parâmetro à parte**: cada vínculo entra
+porque alguém decidiu que ele entra, e o `CODFORNECPRINC` serve para *descobrir* quais linhas
+propor ao financeiro, nunca para dispensá-las.
+
+Na prática, a comparação é direta:
+
+```sql
+AND D.CODFORNEC IN (<seleção>)          -- e NÃO:
+--  NVL(FP.CODFORNECPRINC, FP.CODFORNEC) = D.CODFORNEC
+```
+
 **O que se perde com os pares diretos.** O produto cartesiano. A Unilever tem **quatro**
 cadastros de fornecedor e dois centros: oito linhas, e um quinto cadastro amanhã exige lembrar
 de inserir duas. A carga completa fica em torno de 14 linhas. Escolhemos a clareza de leitura
@@ -200,20 +233,24 @@ Os fornecedores com verba no centro 90 em 2026, que são os candidatos a víncul
     29   PROCTER & GAMBLE INDUSTRIAL E COMERCIAL LTDA    2.466.610,41   ← o do hardcode
    815   GILLETTE DO BRASIL LTDA                         2.265.040,81   ← subsidiária da P&G
   2453   PROCTER & GAMBLE INDUSTRIAL E COML LTDA         1.868.982,34   ← 2º cadastro da P&G
+
+Os três primeiros têm `CODFORNECPRINC = 29` — o cadastro já diz que são a mesma empresa. Ver
+"O `CODFORNECPRINC` existe" acima para por que isso **não** resolve o filtro sozinho.
   1044   UNILEVER BRASIL LTDA HC                            10.136,68
     51   UNILEVER BRASIL LTDA FR                             4.517,31
     89   UNILEVER FOODS SOLUTIONS                            3.211,70
     11   UNILEVER BRASIL LTDA                                2.787,70
 ```
 
-**A Gillette é P&G**, e tem mais verba que o segundo cadastro da própria P&G. Foi por ela que
-a dc58 descobriu o hardcode: filtrando por `815` a `EQUIPE P&G` desaparece. Pela regra da 9815
-isso está certo; pelo organograma do fornecedor, é discutível. É a linha de maior impacto, e a
-única cuja resposta não está no cadastro nem no código.
+**A Gillette é P&G** — e isso está no cadastro: `CODFORNECPRINC = 29`. Tem mais verba que o
+segundo cadastro da própria P&G. Foi por ela que a dc58 descobriu o hardcode: filtrando por
+`815` a `EQUIPE P&G` desaparece. Pela regra da 9815 isso está certo; pelo cadastro da própria
+empresa, não. É a linha de maior impacto.
 
 **Os dois cadastros da P&G** (`29` e `2453`) existem hoje e juntos somam 10,2% da receita da
-filial 7. Filtrar só pelo `2453` faz `29 in (2453)` ser falso, e a `EQUIPE P&G` desaparece do
-DRE **da própria P&G**.
+filial 7. São CNPJs diferentes da mesma raiz (`01358874000188` e `01358874001664`), os dois com
+`CODFORNECPRINC = 29`. Filtrar só pelo `2453` faz `29 in (2453)` ser falso, e a `EQUIPE P&G`
+desaparece do DRE **da própria P&G**.
 
 **A Unilever não é tratada em nada**: filtrar por ela não traz os centros dela.
 
