@@ -132,15 +132,36 @@ Uma tabela, pares diretos, com o código do centro guardado **como ele é cadast
 
 ```sql
 CREATE TABLE TAB_WEB_CENTROC_FORNEC (
-  CODCENTRO   VARCHAR2(10) NOT NULL,   -- '25' (principal inteiro) ou '2806' (um centro só)
-  CODFORNEC   NUMBER       NOT NULL,
-  DTCADASTRO  DATE         DEFAULT SYSDATE NOT NULL,
-  USUARIO     VARCHAR2(60),
-  OBSERVACAO  VARCHAR2(400),           -- fiel à 9815, ou divergência aprovada por quem
+  CODCENTRO            VARCHAR2(10) NOT NULL,   -- '25' (principal) ou '2806' (um centro só)
+  CODFORNEC            NUMBER       NOT NULL,
+  OBSERVACAO           VARCHAR2(400),           -- fiel à 9815, ou divergência aprovada por quem
+
+  DTCADASTRO           DATE         DEFAULT SYSDATE NOT NULL,
+  USUARIOCADASTRO      VARCHAR2(60) DEFAULT USER    NOT NULL,
+  DTALTERACAO          DATE,
+  USUARIOALTERACAO     VARCHAR2(60),
+  DTINATIVACAO         DATE,
+  USUARIOINATIVACAO    VARCHAR2(60),
+
   CONSTRAINT PK_TAB_WEB_CENTROC_FORNEC PRIMARY KEY (CODCENTRO, CODFORNEC),
-  CONSTRAINT CK_TAB_WEB_CENTROC_NIVEL  CHECK (LENGTH(CODCENTRO) >= 2)
+  CONSTRAINT CK_TAB_WEB_CENTROC_NIVEL  CHECK (LENGTH(CODCENTRO) >= 2),
+  CONSTRAINT CK_TAB_WEB_CENTROC_INAT   CHECK (
+    (DTINATIVACAO IS     NULL AND USUARIOINATIVACAO IS     NULL) OR
+    (DTINATIVACAO IS NOT NULL AND USUARIOINATIVACAO IS NOT NULL))
 );
 ```
+
+**Desligar um vínculo é `UPDATE`, nunca `DELETE`.** Pedido do Gabriel em 01/10/2026, e o
+motivo é que nesta tabela as duas colunas de dado são a própria chave primária: "alterar" só
+pode ser a `OBSERVACAO`, e um `DELETE` levaria junto a observação, o autor e a data. Seis meses
+depois, a pergunta *"por que o DRE da P&G mudou em março?"* não teria resposta na tabela,
+porque não teria sobrado linha para consultar. A linha desligada continua lá contando a própria
+história: valeu de tal data a tal data, por quem.
+
+Um trigger `BEFORE UPDATE` carimba os três pares — auditoria que depende de alguém lembrar de
+preencher falha exatamente no dia em que importa. Desligar vira só
+`SET DTINATIVACAO = SYSDATE`, e religar `SET DTINATIVACAO = NULL`, que limpa o usuário junto e
+mantém o `CHECK` satisfeito. O trigger está na [dc73](validacao/dc73_carga_do_vinculo_centro_fornecedor.sql).
 
 O nome foi decidido em 01/10/2026, e segue a convenção que o próprio banco já usa para tabelas
 de apoio: `TAB_GER_RESTRICAO_DATA_DRE`, `TAB_LOG_EXEC_ROTINA`. O prefixo `TAB_WEB_` marca o que
@@ -154,11 +175,17 @@ aos dois níveis de uma vez:
 
 ```sql
 AND ( NOT EXISTS (SELECT 1 FROM TAB_WEB_CENTROC_FORNEC D
-                   WHERE cc.CodigoCentroCusto LIKE D.CODCENTRO || '%')
+                   WHERE cc.CodigoCentroCusto LIKE D.CODCENTRO || '%'
+                     AND D.DTINATIVACAO IS NULL)
       OR EXISTS (SELECT 1 FROM TAB_WEB_CENTROC_FORNEC D
                   WHERE cc.CodigoCentroCusto LIKE D.CODCENTRO || '%'
+                    AND D.DTINATIVACAO IS NULL
                     AND D.CODFORNEC IN (<seleção>)) )
 ```
+
+O `DTINATIVACAO IS NULL` entra nos **dois** ramos. Esquecê-lo no primeiro faria um vínculo
+desligado continuar marcando o centro como "dedicado a alguém", e o centro sumiria do DRE de
+todo mundo — o oposto de desligar a regra.
 
 O primeiro ramo diz *"este centro não é dedicado a ninguém, passa"*; o segundo, *"é dedicado,
 e a seleção contém alguém da marca dele"*. Tabela vazia é neutra. Substitui o par do centro 25
@@ -221,8 +248,8 @@ produziu estão em
 [dc73](validacao/dc73_carga_do_vinculo_centro_fornecedor.sql):
 
 ```sql
-INSERT INTO TAB_WEB_CENTROC_FORNEC (CODCENTRO, CODFORNEC, USUARIO, OBSERVACAO)
-VALUES ('25', 29, USER,
+INSERT INTO TAB_WEB_CENTROC_FORNEC (CODCENTRO, CODFORNEC, OBSERVACAO)
+VALUES ('25', 29,
         'Fiel a 9815 - UBase.pas:27217, literal escrito a mao. Centro 2501 EQUIPE P&G');
 ```
 

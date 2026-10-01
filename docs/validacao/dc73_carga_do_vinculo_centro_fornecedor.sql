@@ -156,26 +156,92 @@ SELECT F.CODFORNECPRINC,
 -- inteiro pertence à marca, `2806` quando só um centro pertence. Quem compara é o `LIKE`
 -- (ver a seção 1), e a granularidade passa a ser escolha de quem cadastra, linha a linha.
 --
--- O CHECK existe porque `CODCENTRO` com UM caractere casaria dez principais de uma vez — um
--- `2` traria todo o 20, 21, 22, 23... A regra é barata e o estrago seria silencioso.
+-- O CHECK do nível existe porque `CODCENTRO` com UM caractere casaria dez principais de uma
+-- vez — um `2` traria todo o 20, 21, 22, 23... A regra é barata e o estrago seria silencioso.
 --
 -- `OBSERVACAO` não é enfeite: é onde fica escrito se a linha é fiel à 9815 ou divergência
 -- aprovada, e por quem. Sem ela a tabela vira um conjunto de números sem procedência, que é
 -- exatamente o problema que ela nasceu para resolver.
+--
+-- ── AUDITORIA: TRÊS PARES DE COLUNAS, E NENHUM DELETE ─────────────────────────────────
+--
+-- Pedido do Gabriel em 01/10/2026. O desenho cobre o CICLO INTEIRO, e não só o meio dele:
+--
+--   DTCADASTRO  / USUARIOCADASTRO     quem ligou o vínculo
+--   DTALTERACAO / USUARIOALTERACAO    quem mexeu depois
+--   DTINATIVACAO/ USUARIOINATIVACAO   quem desligou
+--
+-- <b>Desligar é UPDATE, nunca DELETE.</b> Nesta tabela as duas colunas de dado são a própria
+-- chave primária, então "alterar" só pode ser a OBSERVACAO — e um DELETE levaria junto a
+-- observação, o autor e a data, que é exatamente o que a auditoria existe para guardar. Seis
+-- meses depois, a pergunta "por que o DRE da P&G mudou em março?" não teria resposta na
+-- tabela, porque não teria sobrado linha para consultar.
+--
+-- Em troca, as consultas ganham `AND D.DTINATIVACAO IS NULL` (ver a seção 6), e a linha
+-- desligada continua lá contando a própria história: valeu de tal data a tal data, por quem.
+--
+-- O CHECK do par de inativação impede o estado meio-preenchido: data sem usuário é uma linha
+-- que diz que foi desligada e não diz por quem.
 
 CREATE TABLE TAB_WEB_CENTROC_FORNEC (
-  CODCENTRO   VARCHAR2(10) NOT NULL,
-  CODFORNEC   NUMBER       NOT NULL,
-  DTCADASTRO  DATE         DEFAULT SYSDATE NOT NULL,
-  USUARIO     VARCHAR2(60),
-  OBSERVACAO  VARCHAR2(400),
+  CODCENTRO            VARCHAR2(10) NOT NULL,
+  CODFORNEC            NUMBER       NOT NULL,
+  OBSERVACAO           VARCHAR2(400),
+
+  DTCADASTRO           DATE         DEFAULT SYSDATE NOT NULL,
+  USUARIOCADASTRO      VARCHAR2(60) DEFAULT USER    NOT NULL,
+  DTALTERACAO          DATE,
+  USUARIOALTERACAO     VARCHAR2(60),
+  DTINATIVACAO         DATE,
+  USUARIOINATIVACAO    VARCHAR2(60),
+
   CONSTRAINT PK_TAB_WEB_CENTROC_FORNEC PRIMARY KEY (CODCENTRO, CODFORNEC),
-  CONSTRAINT CK_TAB_WEB_CENTROC_NIVEL  CHECK (LENGTH(CODCENTRO) >= 2)
+  CONSTRAINT CK_TAB_WEB_CENTROC_NIVEL  CHECK (LENGTH(CODCENTRO) >= 2),
+  CONSTRAINT CK_TAB_WEB_CENTROC_INAT   CHECK (
+    (DTINATIVACAO IS     NULL AND USUARIOINATIVACAO IS     NULL) OR
+    (DTINATIVACAO IS NOT NULL AND USUARIOINATIVACAO IS NOT NULL))
 );
 
 -- O nome foi decidido pelo Gabriel em 01/10/2026, e segue a convenção que o próprio banco já
--- usa para tabelas de apoio: TAB_GER_RESTRICAO_DATA_DRE, TAB_LOG_EXEC_ROTINA. O prefixo TAB_WEB_
--- marca o que nasceu com a versão web, e separa das EPC* da Época e das PC* do Winthor.
+-- usa para tabelas de apoio: TAB_GER_RESTRICAO_DATA_DRE, TAB_LOG_EXEC_ROTINA. O prefixo
+-- TAB_WEB_ marca o que nasceu com a versão web, e separa das EPC* da Época e das PC* do
+-- Winthor. O CENTROC deixa explícito que é CENTRO DE CUSTO, num banco onde também convivem
+-- centro de distribuição e centro de resultado.
+
+
+-- ── O TRIGGER, que é o que faz a auditoria valer ──────────────────────────────────────
+--
+-- Sem ele, DTALTERACAO e DTINATIVACAO só são preenchidas se quem escreve o UPDATE lembrar.
+-- Auditoria que depende de alguém lembrar é auditoria que falha exatamente no dia em que
+-- importa — e o dia em que importa é sempre meses depois, quando ninguém lembra de nada.
+--
+-- Desligar um vínculo passa a ser só isto, e o resto o banco carimba sozinho:
+--
+--     UPDATE TAB_WEB_CENTROC_FORNEC
+--        SET DTINATIVACAO = SYSDATE
+--      WHERE CODCENTRO = '2806' AND CODFORNEC = 29;
+--
+-- E religar é `SET DTINATIVACAO = NULL`, que limpa o usuário junto e mantém o CHECK
+-- satisfeito. O trigger sobrescreve o que vier no UPDATE de propósito: data de alteração
+-- digitada à mão é data que pode ser escolhida, e aí não é auditoria, é anotação.
+
+CREATE OR REPLACE TRIGGER TRG_TAB_WEB_CENTROC_FORNEC
+  BEFORE UPDATE ON TAB_WEB_CENTROC_FORNEC
+  FOR EACH ROW
+BEGIN
+  :NEW.DTALTERACAO      := SYSDATE;
+  :NEW.USUARIOALTERACAO := USER;
+
+  -- Ligar e desligar carimbam sozinhos. O primeiro ramo pega a inativação; o segundo, a
+  -- reativação, e limpa o par para o CHECK continuar valendo.
+  IF :OLD.DTINATIVACAO IS NULL AND :NEW.DTINATIVACAO IS NOT NULL THEN
+     :NEW.DTINATIVACAO      := SYSDATE;
+     :NEW.USUARIOINATIVACAO := USER;
+  ELSIF :NEW.DTINATIVACAO IS NULL THEN
+     :NEW.USUARIOINATIVACAO := NULL;
+  END IF;
+END;
+/
 
 
 -- ═══════════════════════════════════════════════════════════════════════════
@@ -183,15 +249,16 @@ CREATE TABLE TAB_WEB_CENTROC_FORNEC (
 -- ═══════════════════════════════════════════════════════════════════════════
 --
 -- UMA LINHA. É todo o vínculo que existe no código da 9815 (UBase.pas:27217), e com ela a
--- tabela não muda número nenhum: o DRE sai idêntico ao de hoje, inclusive no defeito dos dois
--- cadastros da P&G. É o que permite subir a estrutura NO MEIO da homologação sem ruído.
+-- tabela não muda número nenhum: o DRE sai idêntico ao de hoje, para quem filtra 29 e para
+-- quem filtra 2453. É o que permite subir a estrutura NO MEIO da homologação sem ruído.
+--
+-- DTCADASTRO e USUARIOCADASTRO têm DEFAULT e não precisam ser escritos.
 
-INSERT INTO TAB_WEB_CENTROC_FORNEC (CODCENTRO, CODFORNEC, USUARIO, OBSERVACAO)
-VALUES ('25', 29, USER,
+INSERT INTO TAB_WEB_CENTROC_FORNEC (CODCENTRO, CODFORNEC, OBSERVACAO)
+VALUES ('25', 29,
         'Fiel a 9815 - UBase.pas:27217, literal escrito a mao. Centro 2501 EQUIPE P&G');
 
 COMMIT;
-
 
 -- ═══════════════════════════════════════════════════════════════════════════
 -- 5. AS LINHAS QUE FALTAM — nenhuma entra sem o financeiro
@@ -227,13 +294,13 @@ COMMIT;
 
 -- -- TRANSPORTE T - P&G. Centro dedicado à P&G que hoje vai rateado junto com o transporte
 -- -- geral. Confirmar com o negócio a quem ele pertence -- 29, 2453, os dois?
--- INSERT INTO TAB_WEB_CENTROC_FORNEC (CODCENTRO, CODFORNEC, USUARIO, OBSERVACAO)
--- VALUES ('2806', 29, USER, 'TRANSPORTE T - P&G, aprovado por <quem> em <data>');
+-- INSERT INTO TAB_WEB_CENTROC_FORNEC (CODCENTRO, CODFORNEC, OBSERVACAO)
+-- VALUES ('2806', 29, 'TRANSPORTE T - P&G, aprovado por <quem> em <data>');
 
 -- -- UNILEVER: dois centros dedicados, nenhum tratado pela 9815. Quatro cadastros de
 -- -- fornecedor (11, 51, 89, 1044) -- e cada combinação que o negócio confirmar é uma linha.
--- INSERT INTO TAB_WEB_CENTROC_FORNEC (CODCENTRO, CODFORNEC, USUARIO, OBSERVACAO)
--- VALUES ('24', 11, USER, 'VENDAS UNILEVER');
+-- INSERT INTO TAB_WEB_CENTROC_FORNEC (CODCENTRO, CODFORNEC, OBSERVACAO)
+-- VALUES ('24', 11, 'VENDAS UNILEVER');
 -- INSERT ... ('26', 11, ...);   -- centro 2601 UNILEVER
 -- -- ... e as demais, se o negócio disser que os outros cadastros também usam esses centros.
 
@@ -241,10 +308,10 @@ COMMIT;
 -- -- A equipe do centro 25 trabalha só para o 29, ou também para o 2453 e para a Gillette?
 -- -- Se a resposta for "também", são estas linhas -- e aí sim é DIVERGÊNCIA, porque muda o
 -- -- número que a 9815 mostra hoje. Escolha de negócio, não correção de defeito.
--- INSERT INTO TAB_WEB_CENTROC_FORNEC (CODCENTRO, CODFORNEC, USUARIO, OBSERVACAO)
--- VALUES ('25', 2453, USER, 'DIVERGENCIA - a equipe 25 tambem atende o cadastro 2453');
--- INSERT INTO TAB_WEB_CENTROC_FORNEC (CODCENTRO, CODFORNEC, USUARIO, OBSERVACAO)
--- VALUES ('25',  815, USER, 'DIVERGENCIA - a equipe 25 tambem atende a Gillette');
+-- INSERT INTO TAB_WEB_CENTROC_FORNEC (CODCENTRO, CODFORNEC, OBSERVACAO)
+-- VALUES ('25', 2453, 'DIVERGENCIA - a equipe 25 tambem atende o cadastro 2453');
+-- INSERT INTO TAB_WEB_CENTROC_FORNEC (CODCENTRO, CODFORNEC, OBSERVACAO)
+-- VALUES ('25',  815, 'DIVERGENCIA - a equipe 25 tambem atende a Gillette');
 --
 -- Só as linhas marcadas DIVERGENCIA mudam número conferido. Registrar em DIVERGENCIAS.md com
 -- data e quem aprovou.
@@ -258,10 +325,16 @@ COMMIT;
 -- do `VPAGO_EXCLUSIVO_FORNEC` e o `WHERE`. O par do centro 90 NÃO muda.
 --
 --     AND ( NOT EXISTS (SELECT 1 FROM TAB_WEB_CENTROC_FORNEC D
---                        WHERE cc.CodigoCentroCusto LIKE D.CODCENTRO || '%')
+--                        WHERE cc.CodigoCentroCusto LIKE D.CODCENTRO || '%'
+--                          AND D.DTINATIVACAO IS NULL)
 --           OR EXISTS (SELECT 1 FROM TAB_WEB_CENTROC_FORNEC D
 --                       WHERE cc.CodigoCentroCusto LIKE D.CODCENTRO || '%'
+--                         AND D.DTINATIVACAO IS NULL
 --                         AND D.CODFORNEC IN (<seleção>)) )
+--
+-- O `DTINATIVACAO IS NULL` entra nos DOIS ramos, e não só no segundo. Esquecê-lo no primeiro
+-- faria um vínculo desligado continuar marcando o centro como "dedicado a alguém" — o centro
+-- sumiria do DRE de todo mundo, que é o oposto de desligar a regra.
 --
 -- O primeiro ramo diz "este centro não é dedicado a ninguém, passa". O segundo, "é dedicado,
 -- e a seleção contém alguém da marca dele".
