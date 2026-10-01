@@ -189,8 +189,8 @@ Gillette é empresa separada —, e o Winthor já sabe que as três são a mesma
 P&G" deixa de ser inferência sobre o mundo e passa a ser **dado da empresa**.
 
 Seria tentador resolver o filtro por ele: a seleção traduzida para o principal antes de
-comparar faria a carga cair para quatro linhas, e os três defeitos conhecidos se corrigiriam de
-uma vez, sem cadastrar nada.
+comparar faria a carga cair para quatro linhas, e os três cadastros da P&G passariam a ver os
+mesmos centros, sem cadastrar nada.
 
 **Decisão do Gabriel em 01/10/2026: não.** Resolver pelo principal **não é fiel à 9815** — lá
 `29 in (815)` é falso e a equipe some; pelo principal ela apareceria. A regra governante do
@@ -242,19 +242,44 @@ Os três primeiros têm `CODFORNECPRINC = 29` — o cadastro já diz que são a 
     11   UNILEVER BRASIL LTDA                                2.787,70
 ```
 
-**A Gillette é P&G** — e isso está no cadastro: `CODFORNECPRINC = 29`. Tem mais verba que o
-segundo cadastro da própria P&G. Foi por ela que a dc58 descobriu o hardcode: filtrando por
-`815` a `EQUIPE P&G` desaparece. Pela regra da 9815 isso está certo; pelo cadastro da própria
-empresa, não. É a linha de maior impacto.
+### A regra é por CÓDIGO DE FORNECEDOR, e um cadastro não puxa o outro
 
-**Os dois cadastros da P&G** (`29` e `2453`) existem hoje e juntos somam 10,2% da receita da
-filial 7. São CNPJs diferentes da mesma raiz (`01358874000188` e `01358874001664`), os dois com
-`CODFORNECPRINC = 29`. Filtrar só pelo `2453` faz `29 in (2453)` ser falso, e a `EQUIPE P&G`
-desaparece do DRE **da própria P&G**.
+Esta é a chave para ler o resto, e eu a registrei errado na primeira versão deste documento.
 
-**A Unilever não é tratada em nada**: filtrar por ela não traz os centros dela.
+**Cada código de fornecedor é um recorte legítimo.** Filtrar `29` mostra o DRE do `29`;
+filtrar `2453` mostra o do `2453`. Que a `EQUIPE P&G` suma no segundo **não é defeito** — é o
+recorte funcionando, porque aquele centro de custo é do `29`. Os cadastros são CNPJs
+diferentes (`01358874000188` e `01358874001664`), empresas distintas na nota fiscal, e o
+usuário que apura um não está pedindo o outro.
 
-**O `2806`** (`TRANSPORTE T - P&G`) é P&G e vai rateado junto com o resto do transporte.
+Pela mesma razão, o `29` ver 8,22% da receita e o `2453` ver 4,39% **não é perda**: são dois
+recortes de empresas diferentes, e o produto pertence a um `codfornec` só. Confirmado na
+apuração de 01/10/2026 — ver [dc74](validacao/dc74_filtro_por_fornecedor_29_e_2453.mjs).
+
+Daí a decisão de **não** resolver pelo `CODFORNECPRINC`: ele agruparia os três num recorte só,
+que é precisamente o que ninguém pediu.
+
+### O que a tabela resolve, então
+
+**A 9815 conhece UM centro dedicado.** Só o `25` foi escrito à mão, e os outros ficaram de
+fora — não porque alguém decidiu que não deviam entrar, mas porque cada um exigiria mais uma
+linha de código:
+
+| Centro | Fornecedor a que pertence | Na 9815 hoje |
+|---|---|---|
+| `2501` EQUIPE P&G | `29` | **tratado** — o hardcode |
+| `2806` TRANSPORTE T - P&G | `29` | rateado junto com o transporte geral |
+| `2401` VENDAS UNILEVER | Unilever | não tratado |
+| `2601` UNILEVER | Unilever | não tratado |
+
+É isso que a tabela destrava: **completar a lista**, sem recompilar nada. O `2806` e os dois
+centros da Unilever são as linhas que faltam, e cada uma precisa do negócio confirmando a quem
+o centro pertence.
+
+Caso à parte, e que só o negócio resolve: **se um centro atende mais de um cadastro**. A equipe
+do centro 25 trabalha só para o `29`, ou também para o `2453` e para a Gillette? Se a resposta
+for "também", é mais uma linha na tabela — mas é escolha de negócio, não correção de defeito, e
+muda o número que a 9815 mostra hoje.
 
 A Colgate (`1`, R$ 838 mil) tem verba e **não** tem centro dedicado — é o controle que mostra
 que verba no 90 não implica centro próprio.
@@ -269,17 +294,34 @@ o lançamento **passa**. O resultado final não deve mudar, porque o par do cent
 como está e já elimina esses lançamentos antes — mas isso precisa ser **medido, não deduzido**.
 Em agosto/2026 os afetados eram `FECH-RESULTADO`, `FECH. VB APLICAR` e `DESPESAS SOCIOS`.
 
-**A dc58 quebra na primeira linha de divergência.** As 21 asserções foram escritas contra o
-comportamento atual: com `2453` ou `815` cadastrados, a `EQUIPE P&G` passa a aparecer onde hoje
-ela some, e o script acusa. Isso é o teste funcionando — mas ele precisa aprender a diferença
-entre "fiel" e "divergência aprovada" no mesmo movimento.
+**A dc58 acusa se um centro passar a atender mais de um cadastro.** Ela foi escrita com
+Gillette e Colgate, onde a `EQUIPE P&G` sempre some, e tem cravado que a linha não aparece. As
+linhas que apenas COMPLETAM a lista (o `2806`, a Unilever) não a afetam; as marcadas
+`DIVERGENCIA` na [dc73](validacao/dc73_carga_do_vinculo_centro_fornecedor.sql) sim, e aí ela
+precisa aprender a diferença entre "fiel" e "divergência aprovada". A
+[dc74](validacao/dc74_filtro_por_fornecedor_29_e_2453.mjs) já nasceu com os dois casos — centro
+dentro e centro fora — e serve de molde.
 
-**Correção nº 2 — o centro 25 entrar inteiro deixou de ser hipótese.** Esta seção dizia que
-*"o centro 25 com a P&G selecionada nunca foi visto funcionando"*, e pedia duas exportações
-para decidir se ele entra inteiro ou rateado. O fonte responde: `if (sCodGruConta = '90') or
-(sCodGruConta = '25') then rValor := VLREALIZADO`. **Inteiro.** As duas exportações (filial 7,
-agosto/2026, pelo `29` e pelo `2453`) continuam valendo como conferência de ponta a ponta — a
-dc58 já as compara, basta passar os arquivos —, mas não bloqueiam mais nada.
+**Correção nº 2 — o centro 25 entrar inteiro está MEDIDO.** Esta seção dizia que *"o centro 25
+com a P&G selecionada nunca foi visto funcionando"*, e pedia duas exportações. Elas foram
+feitas em 01/10/2026, e a [dc74](validacao/dc74_filtro_por_fornecedor_29_e_2453.mjs) fecha com
+21 asserções:
+
+```
+EQUIPE P&G   sem filtro -531.264,84   ·   com 29  -531.264,84   ·   100,0000%
+                                          com 2453      0,00    ·   some
+```
+
+E a fórmula do rateio ganhou o caso que a distingue da leitura antiga — com Gillette e Colgate
+a equipe sempre sumia, e as duas davam o mesmo número:
+
+```
+Sub-Total real com 29                                  -1.252.539,51
+(sem filtro − equipe) × part + equipe   ← o fonte       -1.252.539,52   dif  -0,01
+(sem filtro − equipe) × part            ← leitura velha   -721.274,68   dif  531.264,83
+```
+
+O erro da fórmula velha é, ao centavo, o valor da própria `EQUIPE P&G`.
 
 Também deixou de importar o `ALL_SOURCE` sem consulta de controle, que mantinha viva a leitura
 "não enxergo o código": a regra está no Delphi, e nós a lemos.
@@ -294,3 +336,4 @@ Também deixou de importar o `ALL_SOURCE` sem consulta de controle, que mantinha
 | [dc58](validacao/dc58_filtro_por_fornecedor_na_filial_7.mjs) | **a mecânica, com 21 asserções ao centavo** |
 | [dc59](validacao/dc59_vinculo_centro_fornecedor.sql) | o vínculo centro→fornecedor não existe no cadastro |
 | [dc73](validacao/dc73_carga_do_vinculo_centro_fornecedor.sql) | **a tabela, a carga e o levantamento que a produziu** |
+| [dc74](validacao/dc74_filtro_por_fornecedor_29_e_2453.mjs) | **a P&G filtrando a si mesma — 21 asserções, 01/10/2026** |

@@ -193,44 +193,46 @@ COMMIT;
 
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- 5. AS LINHAS QUE SÃO DIVERGÊNCIA — nenhuma delas entra sem o financeiro
+-- 5. AS LINHAS QUE FALTAM — nenhuma entra sem o financeiro
 -- ═══════════════════════════════════════════════════════════════════════════
 --
--- Cada uma corrige uma inconsistência REAL da 9815, e cada uma faz a web mostrar número
--- diferente da rotina Delphi para a mesma apuração. As duas rodam em paralelo: isso tem de
--- ser combinado ANTES da linha existir, não descoberto pelo setor depois.
+-- ⚠ A REGRA É POR CÓDIGO DE FORNECEDOR, e um cadastro NÃO puxa o outro.
 --
--- Registrar em DIVERGENCIAS.md, uma seção por grupo, com data e quem aprovou.
+--   Filtrar 29 mostra o DRE do 29; filtrar 2453 mostra o do 2453. Que a EQUIPE P&G suma no
+--   segundo NÃO É DEFEITO — é o recorte funcionando, porque aquele centro é do 29. São CNPJs
+--   diferentes (01358874000188 e 01358874001664), empresas distintas na nota fiscal, e quem
+--   apura uma não está pedindo a outra.
+--
+--   A primeira versão deste arquivo classificava isso como defeito a corrigir. Estava errado,
+--   e é a razão de as linhas abaixo terem mudado de natureza: elas não CORRIGEM o filtro,
+--   elas COMPLETAM a lista de centros dedicados que a 9815 nunca conheceu.
+--
+-- O QUE DE FATO FALTA: a 9815 trata UM centro. Os outros ficaram de fora não porque alguém
+-- decidiu que não deviam entrar, mas porque cada um exigiria mais uma linha de Delphi.
 
--- -- O 2º cadastro da P&G. Hoje, filtrar só por ele faz `29 in (2453)` ser falso e a EQUIPE
--- -- P&G desaparecer do DRE DA PRÓPRIA P&G.
+-- -- TRANSPORTE T - P&G. Centro dedicado à P&G que hoje vai rateado junto com o transporte
+-- -- geral. Confirmar com o negócio a quem ele pertence -- 29, 2453, os dois?
 -- INSERT INTO EPCKPI_CENTRO_FORNEC (CODCENTRO, CODFORNEC, USUARIO, OBSERVACAO)
--- VALUES ('25', 2453, USER, 'DIVERGENCIA - 2o cadastro da P&G, aprovado por <quem> em <data>');
+-- VALUES ('2806', 29, USER, 'TRANSPORTE T - P&G, aprovado por <quem> em <data>');
 
--- -- O transporte dedicado da P&G, que a 9815 rateia junto com o transporte geral.
+-- -- UNILEVER: dois centros dedicados, nenhum tratado pela 9815. Quatro cadastros de
+-- -- fornecedor (11, 51, 89, 1044) -- e cada combinação que o negócio confirmar é uma linha.
 -- INSERT INTO EPCKPI_CENTRO_FORNEC (CODCENTRO, CODFORNEC, USUARIO, OBSERVACAO)
--- VALUES ('2806',   29, USER, 'DIVERGENCIA - TRANSPORTE T - P&G');
--- INSERT INTO EPCKPI_CENTRO_FORNEC (CODCENTRO, CODFORNEC, USUARIO, OBSERVACAO)
--- VALUES ('2806', 2453, USER, 'DIVERGENCIA - TRANSPORTE T - P&G');
+-- VALUES ('24', 11, USER, 'VENDAS UNILEVER');
+-- INSERT ... ('26', 11, ...);   -- centro 2601 UNILEVER
+-- -- ... e as demais, se o negócio disser que os outros cadastros também usam esses centros.
 
--- -- A GILLETTE. Subsidiária da P&G, R$ 2,27 mi de verba no centro 90. CONFIRMAR: é a linha
--- -- de maior impacto, e a única cuja resposta não está no cadastro nem no código.
+-- -- CASO À PARTE, que só o negócio resolve: UM CENTRO ATENDER MAIS DE UM CADASTRO.
+-- -- A equipe do centro 25 trabalha só para o 29, ou também para o 2453 e para a Gillette?
+-- -- Se a resposta for "também", são estas linhas -- e aí sim é DIVERGÊNCIA, porque muda o
+-- -- número que a 9815 mostra hoje. Escolha de negócio, não correção de defeito.
 -- INSERT INTO EPCKPI_CENTRO_FORNEC (CODCENTRO, CODFORNEC, USUARIO, OBSERVACAO)
--- VALUES ('25',   815, USER, 'DIVERGENCIA - Gillette e subsidiaria da P&G');
+-- VALUES ('25', 2453, USER, 'DIVERGENCIA - a equipe 25 tambem atende o cadastro 2453');
 -- INSERT INTO EPCKPI_CENTRO_FORNEC (CODCENTRO, CODFORNEC, USUARIO, OBSERVACAO)
--- VALUES ('2806', 815, USER, 'DIVERGENCIA - Gillette e subsidiaria da P&G');
-
--- -- A UNILEVER: dois centros x quatro cadastros. A 9815 não trata nenhum dos dois centros,
--- -- então filtrar por Unilever hoje não traz os centros dela.
--- INSERT INTO EPCKPI_CENTRO_FORNEC (CODCENTRO, CODFORNEC, USUARIO, OBSERVACAO)
--- VALUES ('24',   11, USER, 'DIVERGENCIA - VENDAS UNILEVER');
--- INSERT ... ('24',   51, ...);   -- UNILEVER BRASIL LTDA FR
--- INSERT ... ('24',   89, ...);   -- UNILEVER FOODS SOLUTIONS
--- INSERT ... ('24', 1044, ...);   -- UNILEVER BRASIL LTDA HC
--- INSERT ... ('26',   11, ...);   -- os mesmos quatro no centro 2601 UNILEVER
--- INSERT ... ('26',   51, ...);
--- INSERT ... ('26',   89, ...);
--- INSERT ... ('26', 1044, ...);
+-- VALUES ('25',  815, USER, 'DIVERGENCIA - a equipe 25 tambem atende a Gillette');
+--
+-- Só as linhas marcadas DIVERGENCIA mudam número conferido. Registrar em DIVERGENCIAS.md com
+-- data e quem aprovou.
 
 
 -- ═══════════════════════════════════════════════════════════════════════════
