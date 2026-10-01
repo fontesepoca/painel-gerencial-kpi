@@ -362,3 +362,39 @@ process.exit(falhas === 0 ? 0 : 1);
 // O que procurar no resultado: a soma da coluna EXCLUSIVO. Se der -965,18, o nosso está certo
 // e a 9815 tem outro critério; se der -944,58, o nosso marca um lançamento a mais, e o de 20,60
 // aparece na lista.
+
+// ── O QUE A INVESTIGAÇÃO DE 01/10/2026 FECHOU, E ONDE ELA PAROU ──────────────────────
+//
+// 1. O BANCO ENTREGA A MESMA COISA PARA OS DOIS. A consulta de despesas da 9815, recortada
+//    para a conta 3000067 e com o WHERE do fornecedor, devolve:
+//
+//        VLREALIZADO -149.459,80    EXCLUSIVO -965,18    QDEREG 345
+//
+//    Exatamente o que a nossa API recebe. Não é dado diferente.
+//
+// 2. O SQL É O MESMO. Comparando os traces A_sem.txt e B_29.txt linha a linha, as ÚNICAS
+//    diferenças entre a consulta sem filtro e a com filtro são as três peças que
+//    implementamos — o CASE do exclusivo e as duas condições do WHERE. Nada mais.
+//
+// 3. O FATOR É CONSTANTE, E ESSA É A PISTA. Invertendo a fórmula nos dois fornecedores:
+//
+//        pelo 29     a 9815 parte de -149.459,80 × 0,998452
+//        pelo 2453   a 9815 parte de -149.459,80 × 0,998452   ← o MESMO fator
+//
+//    Dois recortes com participações bem diferentes (8,22% e 4,39%) produzindo o mesmo fator
+//    descarta acaso, descarta arredondamento e descarta a base viva. A 9815 aplica algo a
+//    esta conta DEPOIS da consulta, e esse algo vale ~R$ 231 — cerca de 0,155% do valor.
+//
+//    Para o 2453 a conta fecha assim, e confirma que a nossa parte está consistente:
+//        o centro 25 SAI do DRE (o WHERE o remove), então a base vira
+//        -149.459,80 + 965,18 = -148.494,62, e -148.494,62 × 4,3943% = -6.525,31, que é
+//        exatamente o que a nossa API mostra.
+//
+// 4. ONDE PAROU: no Delphi, entre receber a consulta e escrever na grade. O rateio em
+//    UBase.pas 5797-5812 não explica — ele usa VLREALIZADO e VPAGO_EXCLUSIVO_FORNEC crus, que
+//    são os números do item 1. Falta achar o trecho que trata as linhas ABAIXO do LUCRO
+//    LIQUIDO (AntesLF = 'N'), onde esta conta vive.
+//
+// TAMANHO: R$ 18,90 em R$ 13 mil, numa linha informativa, com as outras 147 batendo ao
+// centavo. Não bloqueia a fase 4 — mas também não é "diferença de arredondamento", e não deve
+// ser fechada como tal.
