@@ -133,7 +133,7 @@ SELECT F.CODFORNECPRINC,
 --   para quatro linhas e corrigiria os três defeitos conhecidos de uma vez, sem cadastrar nada.
 --
 --       -- O QUE **NÃO** VAMOS FAZER:
---       OR EXISTS (SELECT 1 FROM TAB_WEB_CENTRO_FORNEC D, PCFORNEC FP
+--       OR EXISTS (SELECT 1 FROM TAB_WEB_CENTROC_FORNEC D, PCFORNEC FP
 --                   WHERE cc.CodigoCentroCusto LIKE D.CODCENTRO || '%'
 --                     AND FP.CODFORNEC IN (<seleção>)
 --                     AND NVL(FP.CODFORNECPRINC, FP.CODFORNEC) = D.CODFORNEC)
@@ -163,14 +163,14 @@ SELECT F.CODFORNECPRINC,
 -- aprovada, e por quem. Sem ela a tabela vira um conjunto de números sem procedência, que é
 -- exatamente o problema que ela nasceu para resolver.
 
-CREATE TABLE TAB_WEB_CENTRO_FORNEC (
+CREATE TABLE TAB_WEB_CENTROC_FORNEC (
   CODCENTRO   VARCHAR2(10) NOT NULL,
   CODFORNEC   NUMBER       NOT NULL,
   DTCADASTRO  DATE         DEFAULT SYSDATE NOT NULL,
   USUARIO     VARCHAR2(60),
   OBSERVACAO  VARCHAR2(400),
-  CONSTRAINT PK_TAB_WEB_CENTRO_FORNEC PRIMARY KEY (CODCENTRO, CODFORNEC),
-  CONSTRAINT CK_TAB_WEB_CENTRO_NIVEL  CHECK (LENGTH(CODCENTRO) >= 2)
+  CONSTRAINT PK_TAB_WEB_CENTROC_FORNEC PRIMARY KEY (CODCENTRO, CODFORNEC),
+  CONSTRAINT CK_TAB_WEB_CENTROC_NIVEL  CHECK (LENGTH(CODCENTRO) >= 2)
 );
 
 -- O nome foi decidido pelo Gabriel em 01/10/2026, e segue a convenção que o próprio banco já
@@ -186,7 +186,7 @@ CREATE TABLE TAB_WEB_CENTRO_FORNEC (
 -- tabela não muda número nenhum: o DRE sai idêntico ao de hoje, inclusive no defeito dos dois
 -- cadastros da P&G. É o que permite subir a estrutura NO MEIO da homologação sem ruído.
 
-INSERT INTO TAB_WEB_CENTRO_FORNEC (CODCENTRO, CODFORNEC, USUARIO, OBSERVACAO)
+INSERT INTO TAB_WEB_CENTROC_FORNEC (CODCENTRO, CODFORNEC, USUARIO, OBSERVACAO)
 VALUES ('25', 29, USER,
         'Fiel a 9815 - UBase.pas:27217, literal escrito a mao. Centro 2501 EQUIPE P&G');
 
@@ -227,12 +227,12 @@ COMMIT;
 
 -- -- TRANSPORTE T - P&G. Centro dedicado à P&G que hoje vai rateado junto com o transporte
 -- -- geral. Confirmar com o negócio a quem ele pertence -- 29, 2453, os dois?
--- INSERT INTO TAB_WEB_CENTRO_FORNEC (CODCENTRO, CODFORNEC, USUARIO, OBSERVACAO)
+-- INSERT INTO TAB_WEB_CENTROC_FORNEC (CODCENTRO, CODFORNEC, USUARIO, OBSERVACAO)
 -- VALUES ('2806', 29, USER, 'TRANSPORTE T - P&G, aprovado por <quem> em <data>');
 
 -- -- UNILEVER: dois centros dedicados, nenhum tratado pela 9815. Quatro cadastros de
 -- -- fornecedor (11, 51, 89, 1044) -- e cada combinação que o negócio confirmar é uma linha.
--- INSERT INTO TAB_WEB_CENTRO_FORNEC (CODCENTRO, CODFORNEC, USUARIO, OBSERVACAO)
+-- INSERT INTO TAB_WEB_CENTROC_FORNEC (CODCENTRO, CODFORNEC, USUARIO, OBSERVACAO)
 -- VALUES ('24', 11, USER, 'VENDAS UNILEVER');
 -- INSERT ... ('26', 11, ...);   -- centro 2601 UNILEVER
 -- -- ... e as demais, se o negócio disser que os outros cadastros também usam esses centros.
@@ -241,9 +241,9 @@ COMMIT;
 -- -- A equipe do centro 25 trabalha só para o 29, ou também para o 2453 e para a Gillette?
 -- -- Se a resposta for "também", são estas linhas -- e aí sim é DIVERGÊNCIA, porque muda o
 -- -- número que a 9815 mostra hoje. Escolha de negócio, não correção de defeito.
--- INSERT INTO TAB_WEB_CENTRO_FORNEC (CODCENTRO, CODFORNEC, USUARIO, OBSERVACAO)
+-- INSERT INTO TAB_WEB_CENTROC_FORNEC (CODCENTRO, CODFORNEC, USUARIO, OBSERVACAO)
 -- VALUES ('25', 2453, USER, 'DIVERGENCIA - a equipe 25 tambem atende o cadastro 2453');
--- INSERT INTO TAB_WEB_CENTRO_FORNEC (CODCENTRO, CODFORNEC, USUARIO, OBSERVACAO)
+-- INSERT INTO TAB_WEB_CENTROC_FORNEC (CODCENTRO, CODFORNEC, USUARIO, OBSERVACAO)
 -- VALUES ('25',  815, USER, 'DIVERGENCIA - a equipe 25 tambem atende a Gillette');
 --
 -- Só as linhas marcadas DIVERGENCIA mudam número conferido. Registrar em DIVERGENCIAS.md com
@@ -257,9 +257,9 @@ COMMIT;
 -- Substitui o par de condições do centro 25 nos DOIS lugares em que ele aparece — o `CASE`
 -- do `VPAGO_EXCLUSIVO_FORNEC` e o `WHERE`. O par do centro 90 NÃO muda.
 --
---     AND ( NOT EXISTS (SELECT 1 FROM TAB_WEB_CENTRO_FORNEC D
+--     AND ( NOT EXISTS (SELECT 1 FROM TAB_WEB_CENTROC_FORNEC D
 --                        WHERE cc.CodigoCentroCusto LIKE D.CODCENTRO || '%')
---           OR EXISTS (SELECT 1 FROM TAB_WEB_CENTRO_FORNEC D
+--           OR EXISTS (SELECT 1 FROM TAB_WEB_CENTROC_FORNEC D
 --                       WHERE cc.CodigoCentroCusto LIKE D.CODCENTRO || '%'
 --                         AND D.CODFORNEC IN (<seleção>)) )
 --

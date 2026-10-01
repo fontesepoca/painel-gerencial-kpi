@@ -131,14 +131,14 @@ conferência. Com a carga inicial fiel, o comportamento não muda.
 Uma tabela, pares diretos, com o código do centro guardado **como ele é cadastrado**:
 
 ```sql
-CREATE TABLE TAB_WEB_CENTRO_FORNEC (
+CREATE TABLE TAB_WEB_CENTROC_FORNEC (
   CODCENTRO   VARCHAR2(10) NOT NULL,   -- '25' (principal inteiro) ou '2806' (um centro só)
   CODFORNEC   NUMBER       NOT NULL,
   DTCADASTRO  DATE         DEFAULT SYSDATE NOT NULL,
   USUARIO     VARCHAR2(60),
   OBSERVACAO  VARCHAR2(400),           -- fiel à 9815, ou divergência aprovada por quem
-  CONSTRAINT PK_TAB_WEB_CENTRO_FORNEC PRIMARY KEY (CODCENTRO, CODFORNEC),
-  CONSTRAINT CK_TAB_WEB_CENTRO_NIVEL  CHECK (LENGTH(CODCENTRO) >= 2)
+  CONSTRAINT PK_TAB_WEB_CENTROC_FORNEC PRIMARY KEY (CODCENTRO, CODFORNEC),
+  CONSTRAINT CK_TAB_WEB_CENTROC_NIVEL  CHECK (LENGTH(CODCENTRO) >= 2)
 );
 ```
 
@@ -153,9 +153,9 @@ nasceu com a versão web, e separa das `EPC*` da Época e das `PC*` do Winthor.
 aos dois níveis de uma vez:
 
 ```sql
-AND ( NOT EXISTS (SELECT 1 FROM TAB_WEB_CENTRO_FORNEC D
+AND ( NOT EXISTS (SELECT 1 FROM TAB_WEB_CENTROC_FORNEC D
                    WHERE cc.CodigoCentroCusto LIKE D.CODCENTRO || '%')
-      OR EXISTS (SELECT 1 FROM TAB_WEB_CENTRO_FORNEC D
+      OR EXISTS (SELECT 1 FROM TAB_WEB_CENTROC_FORNEC D
                   WHERE cc.CodigoCentroCusto LIKE D.CODCENTRO || '%'
                     AND D.CODFORNEC IN (<seleção>)) )
 ```
@@ -221,7 +221,7 @@ produziu estão em
 [dc73](validacao/dc73_carga_do_vinculo_centro_fornecedor.sql):
 
 ```sql
-INSERT INTO TAB_WEB_CENTRO_FORNEC (CODCENTRO, CODFORNEC, USUARIO, OBSERVACAO)
+INSERT INTO TAB_WEB_CENTROC_FORNEC (CODCENTRO, CODFORNEC, USUARIO, OBSERVACAO)
 VALUES ('25', 29, USER,
         'Fiel a 9815 - UBase.pas:27217, literal escrito a mao. Centro 2501 EQUIPE P&G');
 ```
