@@ -226,6 +226,7 @@ public sealed class DreGerencialRepository : IDreGerencialRepository
         IReadOnlyList<string> filiais,
         DateOnly dataInicio,
         DateOnly dataFim,
+        IReadOnlyList<decimal>? fornecedores = null,
         CancellationToken cancellationToken = default)
     {
         if (filiais.Count == 0)
@@ -237,6 +238,26 @@ public sealed class DreGerencialRepository : IDreGerencialRepository
         var placeholdersB = string.Join(", ", filiais.Select((_, i) => $":filialB{i}"));
         var placeholdersC = string.Join(", ", filiais.Select((_, i) => $":filialC{i}"));
 
+        // O PREDICADO DO FORNECEDOR, que entra onze vezes na consulta -- seis no bloco das
+        // vendas por item e cinco no das devolucoes.
+        //
+        // Binds nomeados, nunca os codigos concatenados: o valor vem do cliente, e
+        // concatena-lo abriria injecao numa consulta que roda contra producao. Mesmo cuidado
+        // das filiais, pelo mesmo motivo.
+        //
+        // SEM FILTRO o predicado e 1=1, e "case when 1=1 then X else 0 end" e
+        // aritmeticamente o X de hoje -- o otimizador descarta o predicado constante. O
+        // numero nao muda; o que precisa ser medido e o PLANO, porque esta e a consulta mais
+        // cara da rotina. E o que a dc41 faz antes desta fase ser dada por encerrada.
+        var temFornecedor = fornecedores is { Count: > 0 };
+        var filtroProduto = temFornecedor
+            ? $"pr.codfornec in ({string.Join(", ", fornecedores!.Select((_, i) => $":fornec{i}"))})"
+            : "1=1";
+
+        // As notas SEM item nao tem produto, logo nao tem fornecedor: com filtro ligado elas
+        // entram so no denominador da participacao. Ver o bloco 3 do SQL.
+        var filtroSemItem = temFornecedor ? "1=0" : "1=1";
+
         // {3} é o hint de paralelismo, e vem vazio quando ele está desligado — a consulta
         // volta a ser exatamente a de antes. Não é bind: hint é lido pelo otimizador antes
         // de qualquer valor ser ligado, então precisa estar no texto. Ver docs/PARALELISMO.md.
@@ -244,7 +265,7 @@ public sealed class DreGerencialRepository : IDreGerencialRepository
 
         var sql = string.Format(
             DreGerencialQueries.FaturamentoPorMes,
-            placeholdersA, placeholdersB, placeholdersC, hint);
+            placeholdersA, placeholdersB, placeholdersC, hint, filtroProduto, filtroSemItem);
 
         var inicio = dataInicio.ToDateTime(TimeOnly.MinValue);
         var fim = dataFim.ToDateTime(TimeOnly.MinValue);
@@ -253,12 +274,43 @@ public sealed class DreGerencialRepository : IDreGerencialRepository
         // datas das devoluções, filiais do bloco sem item, datas dele. É a ordem em que os
         // binds aparecem no SQL — o ODP.NET liga por POSIÇÃO, não por nome.
         var parametros = new DynamicParameters();
+
+        // CADA OCORRENCIA DE ":fornecN" CONSOME UM PARAMETRO, porque o ODP.NET liga por
+        // POSICAO e nao por nome. O predicado aparece seis vezes no bloco 1 e cinco no
+        // bloco 2, sempre na lista de COLUNAS -- ou seja, antes das datas e das filiais do
+        // bloco a que pertence. Por isso a lista inteira e repetida a cada ocorrencia, e na
+        // ordem exata em que o texto do SQL as apresenta.
+        //
+        // Os nomes saem sequenciais e unicos (f1_0, f1_1, f2_0...) justamente porque o nome
+        // nao e o que liga: o que liga e a ordem de insercao. Nomes repetidos se
+        // sobrescreveriam no DynamicParameters e a consulta receberia parametros a menos --
+        // e errar a contagem aqui NAO da erro, da numero errado.
+        var ocorrencia = 0;
+        void LigarFornecedores(int vezes)
+        {
+            if (!temFornecedor)
+            {
+                return;
+            }
+
+            for (var v = 0; v < vezes; v++)
+            {
+                ocorrencia++;
+                for (var i = 0; i < fornecedores!.Count; i++)
+                {
+                    parametros.Add($"f{ocorrencia}_{i}", fornecedores[i]);
+                }
+            }
+        }
+
+        LigarFornecedores(6);   // bloco 1: custo, venda, tabela, ST, PIS e COFINS
         parametros.Add("dtIni1", inicio);
         parametros.Add("dtFim1", fim);
         for (var i = 0; i < filiais.Count; i++)
         {
             parametros.Add($"filialA{i}", filiais[i]);
         }
+        LigarFornecedores(5);   // bloco 2: devolucao, CMV, ST, PIS e COFINS
         for (var i = 0; i < filiais.Count; i++)
         {
             parametros.Add($"filialB{i}", filiais[i]);

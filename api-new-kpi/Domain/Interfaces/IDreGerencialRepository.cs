@@ -44,11 +44,17 @@ public interface IDreGerencialRepository
     /// <summary>
     /// Faturamento, CMV e impostos, uma linha por mês do período. Não recebe regime:
     /// caixa e competência produzem os mesmos valores aqui.
+    ///
+    /// <para><paramref name="fornecedores"/> filtra por <c>pr.codfornec</c> — o fornecedor do
+    /// PRODUTO, item a item. Cada linha traz também a receita líquida <b>sem</b> o filtro, que
+    /// é o denominador da participação com que as despesas são rateadas. Nulo ou vazio é a
+    /// filial inteira, e aí as duas receitas são iguais e a participação é 1.</para>
     /// </summary>
     Task<IReadOnlyList<FaturamentoDre>> ObterFaturamentoPorMesAsync(
         IReadOnlyList<string> filiais,
         DateOnly dataInicio,
         DateOnly dataFim,
+        IReadOnlyList<decimal>? fornecedores = null,
         CancellationToken cancellationToken = default);
 
     /// <summary>

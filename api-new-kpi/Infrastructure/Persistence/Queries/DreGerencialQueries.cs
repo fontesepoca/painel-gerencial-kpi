@@ -967,15 +967,23 @@ public static class DreGerencialQueries
                Sum(NVL(VLCUSTOFIN,0)) - Sum(NVL(VLCMVDEVOL,0))     AS CMVLIQ,
                sum(nvl(VLST,0))     - sum(nvl(VLST_DEV,0))         AS STLIQ,
                sum(nvl(VLPIS,0))    - sum(nvl(VLPIS_DEV,0))        AS PISLIQ,
-               sum(nvl(VLCOFINS,0)) - sum(nvl(VLCOFINS_DEV,0))     AS COFINSLIQ
+               sum(nvl(VLCOFINS,0)) - sum(nvl(VLCOFINS_DEV,0))     AS COFINSLIQ,
+               /* O DENOMINADOR DA PARTICIPAÇÃO: a receita líquida da filial INTEIRA, sem o
+                  filtro de fornecedor. É o que a 9815 chama de VlVendaLiq_Total, e dividir
+                  RECEITALIQUIDA por ele dá o `P.23,852%` que ela mostra no lugar do %AV.
+
+                  Sem fornecedor selecionado as colunas filtradas e as _Total são a MESMA
+                  expressão, e esta sai igual a RECEITALIQUIDA — a participação é 1, e o
+                  rateio não muda número nenhum. */
+               Sum(NVL(VLVENDA_Total,0)) - Sum(NVL(VLDEVOLUCAO_total,0)) AS RECEITALIQUIDATOTAL
           FROM (
-          SELECT {3} TO_CHAR(NF.DTSAIDA,'mm/yyyy') AS MESANO, SUM(  decode(MV.custofin,0,MV.custofinest-nvl(MV.st,0)-nvl(MVC.vlfecp,0), (MV.custofin-nvl(MV.st,0)-nvl(MVC.vlfecp,0)) ) * MV.qt) as VLCUSTOFIN, 
-                 SUM(  MV.punit * MV.qt) as VLVENDA,  
+          SELECT {3} TO_CHAR(NF.DTSAIDA,'mm/yyyy') AS MESANO, SUM(  case when {4} then decode(MV.custofin,0,MV.custofinest-nvl(MV.st,0)-nvl(MVC.vlfecp,0), (MV.custofin-nvl(MV.st,0)-nvl(MVC.vlfecp,0)) ) * MV.qt else 0 end) as VLCUSTOFIN, 
+                 SUM(  case when {4} then MV.punit * MV.qt else 0 end) as VLVENDA,  
                  SUM(  MV.punit * MV.qt) VLVENDA_Total,   
-                 SUM(  MV.ptabela * MV.qt) as VLTABELA, 0 as VLDEVOLUCAO,  0 as VLDEVOLUCAO_total, 0 as VLCMVDEVOL, 
-                 SUM(  (nvl(MV.st,0)+nvl(MVC.vlfecp,0)) * MV.qt) VLST, 0 as VLST_DEV, 
-                 SUM(  ( mv.VLPIS - (mv.custocont * mv.PERPIS/100) ) * MV.qt  ) as VLPIS, 0 AS VLPIS_dev, 
-                 SUM(  ( mv.vlcofins - (mv.custocont * mv.PERCOFINS/100) ) * MV.qt ) as vlcofins, 0 AS vlcofins_dev 
+                 SUM(  case when {4} then MV.ptabela * MV.qt else 0 end) as VLTABELA, 0 as VLDEVOLUCAO,  0 as VLDEVOLUCAO_total, 0 as VLCMVDEVOL, 
+                 SUM(  case when {4} then (nvl(MV.st,0)+nvl(MVC.vlfecp,0)) * MV.qt else 0 end) VLST, 0 as VLST_DEV, 
+                 SUM(  case when {4} then ( mv.VLPIS - (mv.custocont * mv.PERPIS/100) ) * MV.qt else 0 end  ) as VLPIS, 0 AS VLPIS_dev, 
+                 SUM(  case when {4} then ( mv.vlcofins - (mv.custocont * mv.PERCOFINS/100) ) * MV.qt else 0 end ) as vlcofins, 0 AS vlcofins_dev 
            FROM PCNFSAID NF, PCMOV MV, PCMOVCOMPLE MVC, PCPRODUT PR,  
                 (select clie.codcli, ce.codfil, ce.mostra_dre from cliente_especial ce, pcclient clie where clie.codcliprinc = ce.codcli) esp 
           WHERE NF.numtransvenda = MV.numtransvenda 
@@ -995,12 +1003,12 @@ public static class DreGerencialQueries
           GROUP BY TO_CHAR(NF.DTSAIDA,'mm/yyyy') 
          UNION ALL 
          SELECT TO_CHAR(NFE.DTENT,'mm/yyyy') AS MESANO, 0 as VLCUSTOCONT, 0 as VLVENDA, 0 as VLVENDA_Total, 0 as VLTABELA, 
-                SUM( round( NVL(nvl(MV.QT,mv.QTCONT),0)*NVL(nvl(MV.punit,mv.punitcont),0) ,2)) as VLDEVOLUCAO, 
+                SUM( case when {4} then round( NVL(nvl(MV.QT,mv.QTCONT),0)*NVL(nvl(MV.punit,mv.punitcont),0) ,2) else 0 end) as VLDEVOLUCAO, 
                 SUM( round( NVL(nvl(MV.QT,mv.QTCONT),0)*NVL(nvl(MV.punit,mv.punitcont),0) ,2)) as VLDEVOLUCAO_total, 
-                SUM( NVL(MV.QT,0) * (NVL(decode(MV.custofin,0,MV.custofinest,MV.custofin),0)-nvl(MV.st,0)-nvl(MVC.vlfecp,0))  ) VLCMVDEVOL, 
-                0 as VLST,     SUM( (nvl(MV.st,0)+nvl(MVC.vlfecp,0)) * MV.qt) as VLST_DEV, 
-                0 AS VLPIS,    SUM( ( mv.VLPIS - (mv.custocont * mv.PERPIS/100) ) * MV.qt ) AS VLPIS_dev, 
-                0 AS vlcofins, SUM( ( mv.vlcofins - (mv.custocont * mv.PERCOFINS/100) ) * MV.qt ) AS vlcofins_dev 
+                SUM( case when {4} then NVL(MV.QT,0) * (NVL(decode(MV.custofin,0,MV.custofinest,MV.custofin),0)-nvl(MV.st,0)-nvl(MVC.vlfecp,0)) else 0 end  ) VLCMVDEVOL, 
+                0 as VLST,     SUM( case when {4} then (nvl(MV.st,0)+nvl(MVC.vlfecp,0)) * MV.qt else 0 end) as VLST_DEV, 
+                0 AS VLPIS,    SUM( case when {4} then ( mv.VLPIS - (mv.custocont * mv.PERPIS/100) ) * MV.qt else 0 end ) AS VLPIS_dev, 
+                0 AS vlcofins, SUM( case when {4} then ( mv.vlcofins - (mv.custocont * mv.PERCOFINS/100) ) * MV.qt else 0 end ) AS vlcofins_dev 
            FROM PCNFENT NFE, PCMOV MV, PCMOVCOMPLE MVC, PCPEDC PED, PCPRODUT PR, 
                 (select clie.codcli, ce.codfil, ce.mostra_dre from cliente_especial ce, pcclient clie where clie.codcliprinc = ce.codcli) esp 
           WHERE NFE.numnota       = MV.numnota      (+) 
@@ -1038,11 +1046,19 @@ public static class DreGerencialQueries
             `NOT EXISTS` é o que garante que os dois blocos não se sobreponham: nota com
             item soma lá, nota sem item soma aqui, e nenhuma soma duas vezes. Os filtros
             são os DA 9815, porque para este caso é ela a referência. */
+         /* ESTE BLOCO NÃO TEM COMO SER FILTRADO POR FORNECEDOR, e isso é do dado, não do
+            código: são as notas SEM item em PCMOV, e sem item não há PCPRODUT de onde ler o
+            `codfornec`. O CT-e da transportadora é o caso típico.
+
+            Com filtro ligado o predicado abaixo é falso e elas entram só no DENOMINADOR:
+            contam para a receita da filial, não para a do fornecedor. É o tratamento honesto —
+            atribuí-las a quem quer que esteja selecionado seria inventar origem para uma nota
+            que não declara nenhuma. Sem filtro ele é verdadeiro e tudo volta a ser como era. */
          SELECT TO_CHAR(NF.DTSAIDA,'mm/yyyy') AS MESANO,
-                SUM(NVL(NF.VLCUSTOFIN,0)) as VLCUSTOFIN,
-                SUM(DECODE(NF.CONDVENDA, 8, NF.VLTOTAL, NF.VLTOTGER)) as VLVENDA,
+                SUM(case when {5} then NVL(NF.VLCUSTOFIN,0) else 0 end) as VLCUSTOFIN,
+                SUM(case when {5} then DECODE(NF.CONDVENDA, 8, NF.VLTOTAL, NF.VLTOTGER) else 0 end) as VLVENDA,
                 SUM(DECODE(NF.CONDVENDA, 8, NF.VLTOTAL, NF.VLTOTGER)) VLVENDA_Total,
-                SUM(NVL(NF.VLTABELA, NF.VLTOTGER)) as VLTABELA,
+                SUM(case when {5} then NVL(NF.VLTABELA, NF.VLTOTGER) else 0 end) as VLTABELA,
                 0 as VLDEVOLUCAO, 0 as VLDEVOLUCAO_total, 0 as VLCMVDEVOL,
                 0 as VLST, 0 as VLST_DEV,
                 0 as VLPIS, 0 AS VLPIS_dev,

@@ -164,7 +164,8 @@ public sealed class DreGerencialService
         }
 
         var meses = await _repositorio.ObterFaturamentoPorMesAsync(
-            filtro.Filiais, filtro.DataInicio, filtro.DataFim, cancellationToken);
+            filtro.Filiais, filtro.DataInicio, filtro.DataFim, filtro.Fornecedores,
+            cancellationToken);
 
         var dtos = meses
             .Select(f => new FaturamentoDto(
@@ -329,7 +330,8 @@ public sealed class DreGerencialService
                 cancellationToken);
 
             var faturamento = await _repositorio.ObterFaturamentoPorMesAsync(
-                filtro.Filiais, recorte.DataInicio, recorte.DataFim, cancellationToken);
+                filtro.Filiais, recorte.DataInicio, recorte.DataFim, filtro.Fornecedores,
+                cancellationToken);
 
             return recorte.EmColunas(despesas, faturamento);
         }));
