@@ -239,54 +239,126 @@ afirmar(
   'as duas ocorrências de RATEIO DESP. CORPORATIVAS têm os mesmos valores, trocadas de lugar',
   `9815 [${rateio9815.map(fmt).join(' · ')}]   nosso [${rateioNosso.map(fmt).join(' · ')}]`);
 
-// ── 2. COM FILTRO: o que já está implementado ────────────────────────────────────────
+// ── 2. COM FILTRO: a apuração inteira, linha a linha ─────────────────────────────────
+//
+// Não três linhas escolhidas a dedo: TODAS as que as duas telas têm em comum. Uma verificação
+// por amostragem não encontraria a conta que o rateio esqueceu — e é justamente a que ninguém
+// olha que vai aparecer errada no fechamento.
 for (const [nome, arquivo, codigos] of [['29', pgArq, [29]], ['2453', pg2Arq, [2453]]]) {
   console.log(`\n  ── fornecedor ${nome} ──`);
   const n9815 = planilha(arquivo);
   const nAPI = await apurar(codigos);
 
-  const rlSem = nove.get('(=) RECEITAS LIQUIDAS');
-  const participacao = n9815.get('(=) RECEITAS LIQUIDAS') / rlSem;
+  const participacao = n9815.get('(=) RECEITAS LIQUIDAS') / nove.get('(=) RECEITAS LIQUIDAS');
+  console.log(`       participação ${(participacao * 100).toFixed(4)}%\n`);
 
-  // O faturamento sai do pr.codfornec, e isso é a fase 1 — tem de bater agora.
-  for (const k of ['(+) RECEITA BRUTA', '(-) ABAT./DESC.', '(-) DEVOLUCAO',
-                   '(=) RECEITAS LIQUIDAS', '(=) CMV LIQ.', 'LUCRO BRUTO',
-                   '(-) ST', '(-) PIS', '(-) COFINS']) {
-    if (!n9815.has(k) || !nAPI.has(k)) continue;
-    afirmar(perto(nAPI.get(k), n9815.get(k), 0.005), `${k} bate`,
-      `${fmt(n9815.get(k))} · ${fmt(nAPI.get(k))}`);
+  let fora = 0;
+  let vistas = 0;
+  const aprovadas = [];
+  for (const [k, v9815] of n9815) {
+    if (!nAPI.has(k)) continue;
+    vistas++;
+    if (perto(nAPI.get(k), v9815, 0.005)) continue;
+
+    const motivo = APROVADAS.get(k.replace(/ #\d+$/, ''));
+    if (motivo) {
+      aprovadas.push(`${k.slice(0, 36).padEnd(37)}${fmt(v9815).padStart(16)} → ` +
+        `${fmt(nAPI.get(k)).padStart(16)}   ${motivo}`);
+      continue;
+    }
+
+    fora++;
+    if (fora <= 10) {
+      console.log(`       DIVERGE  ${k.slice(0, 38).padEnd(39)}` +
+        `9815 ${fmt(v9815).padStart(15)}   nosso ${fmt(nAPI.get(k)).padStart(15)}` +
+        `   dif ${fmt(nAPI.get(k) - v9815)}`);
+    }
   }
 
-  // O centro 90 e o centro dedicado vêm do WHERE — fase 2, tem de bater agora.
-  for (const k of ['VERBAS MARGEM', 'EQUIPE P&G']) {
-    if (!n9815.has(k)) { afirmar(!nAPI.has(k) || nAPI.get(k) === 0, `${k} some, como na 9815`); continue; }
-    afirmar(perto(nAPI.get(k) ?? 0, n9815.get(k), 0.005), `${k} bate`,
-      `${fmt(n9815.get(k))} · ${fmt(nAPI.get(k))}`);
+  afirmar(fora === 0, `as ${vistas} linhas batem ao centavo`,
+    fora ? `${fora} divergente(s)` : '');
+
+  if (aprovadas.length) {
+    console.log('       divergências já aprovadas:');
+    for (const linha of aprovadas) console.log('       · ' + linha);
   }
 
-  // As contas SEM centro de custo somem — `NULL NOT IN (90)`.
-  for (const k of ['FECH-RESULTADO', 'DESPESAS SOCIOS', 'FECH. VB APLICAR']) {
-    if (!n9815.has(k)) continue;
-    afirmar(perto(n9815.get(k), 0, 0.005) === perto(nAPI.get(k) ?? 0, 0, 0.005),
-      `${k} acompanha a 9815`, `${fmt(n9815.get(k))} · ${fmt(nAPI.get(k))}`);
-  }
-
-  // ── E O QUE FALTA: a despesa comum, que ainda não é rateada ────────────────────────
-  // A conta é a prova de que o que falta é SÓ o rateio: o nosso valor vezes a participação
-  // tem de dar o da 9815. Se der, a fase 3 é exatamente o que ela diz ser.
-  console.log('       ·');
-  for (const k of ['ADMINISTRATIVO', 'TRANSPORTES MATRIZ', 'VENDAS']) {
-    if (!n9815.has(k) || !nAPI.has(k)) continue;
-    const jaBate = perto(nAPI.get(k), n9815.get(k), 0.51);
-    const rateado = nAPI.get(k) * participacao;
-    afirmar(jaBate || perto(rateado, n9815.get(k), 0.51),
-      jaBate ? `${k} já bate` : `${k} falta só ratear`,
-      `nosso ${fmt(nAPI.get(k))} × ${(participacao * 100).toFixed(4)}% = ` +
-      `${fmt(rateado)}   9815 ${fmt(n9815.get(k))}`);
-  }
+  // A PARTICIPAÇÃO NO LUGAR DO %AV. Onde o DRE sem filtro mostra 100,000 nas RECEITAS
+  // LIQUIDAS, a 9815 com filtro escreve `P.23,852%` — é assim que ela conta ao usuário que o
+  // que ele está vendo é uma fatia. A nossa API devolve o número; a tela decide como escrever.
+  const rl = (await (await fetch(`${API}/api/dre-gerencial/apuracao`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...FILTRO_BASE, fornecedores: codigos }),
+  })).json());
+  const linhaRl = (rl.dados ?? rl).linhas
+    .find((l) => chave(l.descricao) === '(=) RECEITAS LIQUIDAS');
+  afirmar(
+    linhaRl?.total?.percentualAv != null &&
+      Math.abs(linhaRl.total.percentualAv - participacao * 100) < 0.001,
+    'o %AV das RECEITAS LIQUIDAS é a participação, e não 100',
+    `${linhaRl?.total?.percentualAv?.toFixed(4) ?? '—'} · ${(participacao * 100).toFixed(4)}`);
 }
 
 console.log(falhas === 0
   ? '\n  TUDO CONFERE para o que já foi implementado.\n'
   : `\n  ${falhas} asserção(ões) falharam.\n`);
 process.exit(falhas === 0 ? 0 : 1);
+
+// ═══════════════════════════════════════════════════════════════════════════
+// A ÚNICA DIVERGÊNCIA QUE SOBROU — 01/10/2026
+// ═══════════════════════════════════════════════════════════════════════════
+//
+//   MANUTENCAO DE VEICULOS (conta 3000067)
+//     pelo 29     9815 -13.153,40   nosso -13.172,30   dif  -18,90
+//     pelo 2453   9815  -6.515,20   nosso  -6.525,31   dif  -10,11
+//
+// Todas as outras 147 linhas batem ao centavo, nos dois recortes. PNEUS E CAMARAS, que tem
+// exclusivo não-zero como esta e também foi promovida pela divergência §14, BATE — então não é
+// a promoção que causa.
+//
+// O que o detalhamento mostra: a conta tem TRÊS lançamentos no centro 2501 (principal 25,
+// EQUIPE P&G), somando -965,18, e NENHUM deles é do fornecedor 29 —
+//
+//     2501.018   fornec 2682  RECREIO BH VEICULOS      -159,17
+//     2501.013   fornec 7063  ALVORADA PNEUS           -260,00
+//     2501.018   fornec 2682  RECREIO BH VEICULOS      -546,01
+//
+// Isso está CERTO: o centro 25 inteiro é exclusivo quando a P&G está selecionada, não importa
+// a quem se pagou — é uma despesa da equipe dela. Nós marcamos os três (-965,18).
+//
+// Invertendo a fórmula do rateio com os números da 9815, o exclusivo dela seria -944,58:
+//
+//     e = (valor_com_filtro - valor_sem_filtro × participação) / (1 - participação)
+//     e = (-13.153,40 - (-149.459,80 × 0,08220582)) / (1 - 0,08220582) = -944,58
+//
+// Diferença de 20,60, que não corresponde a nenhum dos três lançamentos nem a soma de dois
+// deles. O mesmo cálculo aplicado a PNEUS E CAMARAS devolve -3.192,00 nos DOIS lados, o que
+// valida o método — então a conta é essa mesmo, e falta um dado que só o banco tem.
+//
+// PRÓXIMO PASSO: a query de diagnóstico abaixo, para o Gabriel rodar. Ela reproduz o CASE da
+// 9815 para esta conta e lista lançamento a lançamento o que entra no exclusivo.
+//
+//   SELECT FIN.RECNUM, RC.CODIGOCENTROCUSTO, SUBSTR(RC.CODIGOCENTROCUSTO,1,2) AS PRINCIPAL,
+//          FIN.CODFORNEC, SUBSTR(TRIM(FIN.HISTORICO),1,40) AS HISTORICO,
+//          DECODE(RC.valor,NULL,NVL(FIN.VPAGO,0)*(-1),NVL(RC.valor,FIN.VPAGO)*(-1)) AS VPAGO,
+//          CASE WHEN (SUBSTR(RC.CODIGOCENTROCUSTO,1,2) IN ('90') AND FIN.CODFORNEC IN (29))
+//                 OR (SUBSTR(RC.CODIGOCENTROCUSTO,1,2) = '25' AND 29 IN (29))
+//               THEN DECODE(RC.valor,NULL,NVL(FIN.VPAGO,0)*(-1),NVL(RC.valor,FIN.VPAGO)*(-1))
+//               ELSE 0 END AS EXCLUSIVO
+//     FROM PCLANC FIN, PCCONTA CT, PCRATEIOCENTROCUSTO RC
+//    WHERE FIN.CODCONTA = CT.CODCONTA
+//      AND FIN.RECNUM   = RC.RECNUM   (+)
+//      AND FIN.CODCONTA = RC.CODCONTA (+)
+//      AND CT.GRUPOCONTA >= 200
+//      AND FIN.DTPAGTO IS NOT NULL
+//      AND FIN.HISTORICO NOT LIKE 'REF.CANCEL.BORDERO JA BAIXADO'
+//      AND FIN.CODFILIAL IN (7)
+//      AND FIN.CODCONTA = 3000067
+//      AND NVL(FIN.DTCOMPETENCIA, FIN.DTVENC)
+//          BETWEEN TO_DATE('01/08/2026','dd/mm/yyyy') AND TO_DATE('31/08/2026','dd/mm/yyyy')
+//    ORDER BY 3, 1;
+//
+// O que procurar no resultado: a soma da coluna EXCLUSIVO. Se der -965,18, o nosso está certo
+// e a 9815 tem outro critério; se der -944,58, o nosso marca um lançamento a mais, e o de 20,60
+// aparece na lista.
