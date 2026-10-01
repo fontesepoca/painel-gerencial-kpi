@@ -27,7 +27,7 @@ literal** da tela antiga.
 
 | | |
 |---|---|
-| **Filtro por fornecedor** | investigado e medido, **nada implementado** — depende de uma decisão do Gabriel, ver [docs/FILTRO_FORNECEDOR.md](docs/FILTRO_FORNECEDOR.md) |
+| **Filtro por fornecedor** | mecânica **lida no fonte Delphi**, nada implementado. A tabela de vínculo tem desenho e carga prontos; falta o financeiro decidir as linhas que são divergência — ver [docs/FILTRO_FORNECEDOR.md](docs/FILTRO_FORNECEDOR.md) |
 | O duplo clique **pela tela** | a API fecha 162/162, mas as telas novas nunca foram percorridas pela interface com dado real |
 | Tempo das consultas de imposto | nunca medido isoladamente — a dc6 só dá o total da execução |
 | Período de 3 meses e todas as filiais juntas | **custo medido em 17/09** — 173 s e 122,7 KB (dc41); os valores nunca foram conferidos contra a 9815 |
@@ -157,4 +157,4 @@ no `.gitignore`.
 | [docs/CONVENCOES_ORACLE.md](docs/CONVENCOES_ORACLE.md) | ODP.NET, Dapper, armadilhas reais |
 | [docs/HOMOLOGACAO.md](docs/HOMOLOGACAO.md) | matriz de cenários a conferir contra a 9815 |
 | [docs/DIVERGENCIAS.md](docs/DIVERGENCIAS.md) | **toda** diferença numérica entre a web e a 9815 |
-| [docs/FILTRO_FORNECEDOR.md](docs/FILTRO_FORNECEDOR.md) | o filtro por fornecedor — a mecânica medida e **a decisão pendente** |
+| [docs/FILTRO_FORNECEDOR.md](docs/FILTRO_FORNECEDOR.md) | o filtro por fornecedor — a mecânica lida no `UBase.pas` e **a tabela de vínculo** |
