@@ -94,10 +94,29 @@ export function SelecaoDeFornecedores({
     };
   }, [aberto]);
 
-  // O foco vai para a busca ao abrir: o campo existe para ser digitado, e obrigar um clique
-  // a mais seria pedir duas ações para uma intenção.
+  /**
+   * Abrir dá foco à busca; fechar a apaga.
+   *
+   * O foco ao abrir existe porque o campo é para ser digitado, e obrigar um clique a mais
+   * seria pedir duas ações para uma intenção.
+   *
+   * <b>A limpeza ao fechar é o que faz cada abertura começar do zero.</b> Sem ela, quem
+   * procurou `PROCTER`, escolheu o 29 e fechou reabre no mesmo `PROCTER` — e vê uma lista
+   * que parece ser dos selecionados, mas é só a pesquisa velha parada ali.
+   *
+   * <b>Os dois estados, e não só o `busca`.</b> Apagar apenas o que está escrito deixaria o
+   * `termo` com o valor anterior por mais 250 ms — o tempo do debounce —, e a lista antiga
+   * voltaria a aparecer por um instante na abertura seguinte. O que já está SELECIONADO não
+   * se perde: ele vive em `selecionados`, que é do filtro, não da busca.
+   */
   useEffect(() => {
-    if (aberto) campoBusca.current?.focus();
+    if (aberto) {
+      campoBusca.current?.focus();
+      return;
+    }
+
+    setBusca("");
+    setTermo("");
   }, [aberto]);
 
   const { data: achados, isFetching } = useBuscarFornecedores(termo);

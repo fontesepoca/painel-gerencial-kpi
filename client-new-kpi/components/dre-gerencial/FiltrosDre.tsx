@@ -29,6 +29,20 @@ import {
 const ROTULO =
   "text-[length:var(--fs-rotulo)] font-medium uppercase tracking-[0.14em] text-[var(--text-muted)]";
 
+/**
+ * Quantas filiais cabem como NÚMERO no resumo antes de virar contador.
+ *
+ * <b>Três, medido em 02/10/2026.</b> O botão tem 128px e sobram 82 para o texto; `7, 12, 25`
+ * pede 60 e cabe, e a quarta já encosta no limite.
+ *
+ * <b>O teto existe porque número truncado MENTE.</b> Com oito filiais o resumo pedia 169px
+ * e saía `7, 27, 12, 22, 25, 34, 1…` — e aquele `1` final é o começo de `10` ou `13`.
+ * Quem lê vê a filial 1, que não está no recorte. Texto cortado é informação incompleta e
+ * se percebe; número cortado é informação ERRADA e não se percebe — por isso, passando do
+ * teto, a contagem volta, e os códigos ficam no `title`, inteiros.
+ */
+const MAX_NUMEROS_NO_RESUMO = 3;
+
 const CAMPO =
   "h-[var(--altura-controle)] w-full min-w-0 rounded-[var(--radius-md)] border border-[var(--border-strong)] " +
   "bg-[var(--surface-2)] px-3 text-[length:var(--fs-base)] text-[var(--text-primary)] " +
@@ -603,9 +617,12 @@ function SeletorFiliais({
    * dizer menos. Com a coluna no osso, o espaço foi todo para as datas do Período, que
    * cortavam o ano.
    *
-   * <b>Uma filial continua mostrando o NOME</b>, mesmo que trunque: ali o texto é o que
-   * identifica o recorte, e o `title` do botão leva a frase inteira para quem passar o
-   * mouse. Nos outros três casos o número basta.
+   * <b>E passou a mostrar os NÚMEROS, não os nomes</b>, a pedido do Gabriel no mesmo dia —
+   * como o campo de Fornecedor ao lado. O número é o que identifica a filial para quem
+   * trabalha com elas, cabe inteiro onde o nome truncava, e duas filiais passam a caber
+   * onde antes só se dizia "2 filiais": `7, 12` informa o recorte, `2 filiais` não.
+   *
+   * Os nomes continuam na lista aberta e no `title` do botão, que leva a frase inteira.
    */
   const resumo = carregando
     ? "Carregando…"
@@ -613,9 +630,14 @@ function SeletorFiliais({
       ? "Nenhuma"
       : selecionadas.length === filiais.length
         ? `Todas (${filiais.length})`
-        : selecionadas.length === 1
-          ? (filiais.find((f) => f.codFilial === selecionadas[0])?.label ??
-            "1 filial")
+        : selecionadas.length <= MAX_NUMEROS_NO_RESUMO
+          ? // A ORDEM É A DO CADASTRO, não a dos cliques. `selecionadas` acumula na ordem em
+            // que a pessoa marcou, e o mesmo par de filiais apareceria como `12, 7` ou
+            // `7, 12` conforme o caminho — duas telas iguais com resumos diferentes.
+            filiais
+              .filter((f) => selecionadas.includes(f.codFilial))
+              .map((f) => f.codFilial)
+              .join(", ")
           : `${selecionadas.length} filiais`;
 
   return (
@@ -625,9 +647,17 @@ function SeletorFiliais({
         onClick={() => setAberto((a) => !a)}
         disabled={carregando}
         aria-expanded={aberto}
-        // A coluna é estreita e o nome de uma filial pode não caber. O title é o que
-        // devolve a informação inteira sem custar largura nenhuma.
-        title={resumo}
+        // O BOTÃO MOSTRA NÚMEROS; O TITLE DIZ DE QUEM SÃO. Sem isto o resumo vira um
+        // código sem tradução para quem não decorou o cadastro — e decorar cadastro não
+        // pode ser requisito para ler o próprio filtro.
+        title={
+          selecionadas.length === 0
+            ? "Nenhuma filial selecionada"
+            : filiais
+                .filter((f) => selecionadas.includes(f.codFilial))
+                .map((f) => `${f.codFilial} — ${f.label}`)
+                .join("\n")
+        }
         className={cn(CAMPO, "flex items-center justify-between text-left")}
       >
         <span
