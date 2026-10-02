@@ -94,12 +94,20 @@ export function SelecaoDeFornecedores({
         : [...selecionados, f],
     );
 
+  /**
+   * O resumo é curto porque a coluna é estreita — 7rem, a menor da grade.
+   *
+   * <b>"Todos" em vez de "Todos os fornecedores"</b>: o rótulo do campo já diz Fornecedor, e
+   * repetir a palavra dentro dele gastava 60px de uma coluna que não os tem. Com um
+   * selecionado aparece só o CÓDIGO, que é o que identifica o recorte — o nome inteiro está
+   * no cabeçalho da apuração, onde há largura para ele.
+   */
   const resumo =
     selecionados.length === 0
-      ? "Todos os fornecedores"
+      ? "Todos"
       : selecionados.length === 1
-        ? `${selecionados[0]!.codFornec} · ${selecionados[0]!.fornecedor}`
-        : `${selecionados.length} fornecedores`;
+        ? String(selecionados[0]!.codFornec)
+        : `${selecionados.length} forn.`;
 
   return (
     <div ref={caixa} className="relative">

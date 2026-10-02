@@ -35,6 +35,24 @@ const CAMPO =
   "focus:border-[var(--primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary-ring)]";
 
 /**
+ * O MESMO CAMPO, com 8px de recuo em vez de 12 — só para os inputs de data.
+ *
+ * <b>Constante separada, e não `cn(CAMPO, "px-2")`.</b> No Tailwind as duas classes têm a
+ * mesma especificidade, e quem vence é a ordem no CSS gerado, não a ordem na string: o
+ * `px-2` escrito depois continuava perdendo para o `px-3`. Foi medido na tela — o recuo
+ * seguia 12px com o `px-2` aplicado.
+ *
+ * <b>Os 8px importam porque a data não trunca com reticências: ela corta.</b> Em leitura
+ * ampliada, `01/10/2026` pede 186px e o campo dava 173 — o que aparecia era `01/10/2` com
+ * o calendário comendo o resto. Oito pixels de cada lado são a diferença entre ler a data e
+ * adivinhá-la.
+ */
+const CAMPO_DATA =
+  "h-[var(--altura-controle)] w-full min-w-0 rounded-[var(--radius-md)] border border-[var(--border-strong)] " +
+  "bg-[var(--surface-2)] px-2 text-[length:var(--fs-base)] text-[var(--text-primary)] " +
+  "focus:border-[var(--primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary-ring)]";
+
+/**
  * Seta dos campos que abrem lista.
  *
  * Uma só, usada nos dois: no `<select>` de análise — que perde a seta do navegador via
@@ -244,7 +262,7 @@ function CampoPeriodo({
       </span>
 
       <div className="flex flex-col gap-2">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           {/* À esquerda das datas: o botão qualifica o período que vem depois dele, e é
               onde o Gabriel pediu. O menu abre alinhado por aqui, e não pela direita. */}
           <MenuDePeriodo modo={filtro.modo} onModo={trocarModo} />
@@ -263,7 +281,7 @@ function CampoPeriodo({
                 onChange={(e) =>
                   onMudar({ ...filtro, dataInicio: e.target.value })
                 }
-                className={cn(CAMPO, "tabular")}
+                className={cn(CAMPO_DATA, "tabular")}
               />
               <span aria-hidden className="text-[var(--text-muted)]">
                 →
@@ -280,7 +298,7 @@ function CampoPeriodo({
                 onChange={(e) =>
                   onMudar({ ...filtro, dataFim: e.target.value })
                 }
-                className={cn(CAMPO, "tabular")}
+                className={cn(CAMPO_DATA, "tabular")}
               />
               {/* Os atalhos ficam onde sempre estiveram, à direita da data final — e no
                   comparativo cada intervalo tem o seu, porque os dois são independentes.
@@ -310,7 +328,7 @@ function CampoPeriodo({
             INDEPENDENTES: mexer num não mexe no outro, que era o defeito da versão
             anterior — lá, trocar o ano de um lado arrastava o outro junto. */}
         {usaSegundoIntervalo(filtro.modo) && (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             <span
               className="grid h-[var(--altura-controle)] w-[var(--altura-controle)] shrink-0 place-items-center text-[length:var(--fs-rotulo)] font-semibold tracking-[0.08em] text-[var(--text-muted)] uppercase"
               aria-hidden
@@ -325,7 +343,7 @@ function CampoPeriodo({
               onChange={(e) =>
                 onMudar({ ...filtro, comparacaoInicio: e.target.value })
               }
-              className={cn(CAMPO, "tabular")}
+              className={cn(CAMPO_DATA, "tabular")}
             />
             <span aria-hidden className="text-[var(--text-muted)]">
               →
@@ -338,7 +356,7 @@ function CampoPeriodo({
               onChange={(e) =>
                 onMudar({ ...filtro, comparacaoFim: e.target.value })
               }
-              className={cn(CAMPO, "tabular")}
+              className={cn(CAMPO_DATA, "tabular")}
             />
             <AtalhosDePeriodo
               rotulo="Atalhos de período — segundo intervalo"
@@ -577,12 +595,24 @@ function SeletorFiliais({
         : [...selecionadas, codigo],
     );
 
+  /**
+   * O resumo encurtou em 02/10/2026, quando o Fornecedor entrou na grade.
+   *
+   * <b>A palavra "filial" saiu daqui porque o rótulo do campo já a diz.</b> "Nenhuma filial"
+   * pedia 119px e a coluna passou a dar 82 — o campo mostrava "Nenhum…", que é pior do que
+   * dizer menos. Com a coluna no osso, o espaço foi todo para as datas do Período, que
+   * cortavam o ano.
+   *
+   * <b>Uma filial continua mostrando o NOME</b>, mesmo que trunque: ali o texto é o que
+   * identifica o recorte, e o `title` do botão leva a frase inteira para quem passar o
+   * mouse. Nos outros três casos o número basta.
+   */
   const resumo = carregando
     ? "Carregando…"
     : selecionadas.length === 0
-      ? "Nenhuma filial"
+      ? "Nenhuma"
       : selecionadas.length === filiais.length
-        ? `Todas as ${filiais.length}`
+        ? `Todas (${filiais.length})`
         : selecionadas.length === 1
           ? (filiais.find((f) => f.codFilial === selecionadas[0])?.label ??
             "1 filial")
@@ -595,6 +625,9 @@ function SeletorFiliais({
         onClick={() => setAberto((a) => !a)}
         disabled={carregando}
         aria-expanded={aberto}
+        // A coluna é estreita e o nome de uma filial pode não caber. O title é o que
+        // devolve a informação inteira sem custar largura nenhuma.
+        title={resumo}
         className={cn(CAMPO, "flex items-center justify-between text-left")}
       >
         <span

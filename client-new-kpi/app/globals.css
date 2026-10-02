@@ -324,11 +324,50 @@ body {
 
    Abaixo disso continuam duas colunas: entre espremer cinco e usar duas, duas leem
    melhor — foi o que a medição de 1280 mostrou. */
-@media (min-width: 1360px) {
+/* ── A SEXTA COLUNA, 02/10/2026 ──────────────────────────────────────────────────
+   O Fornecedor entrou e a grade tinha CINCO colunas para seis campos: o Apurar caía para
+   a segunda linha e, pior, cada campo herdava a largura do vizinho — o Fornecedor ficava
+   com os 208px do Regime, o Tipo de Análise com os 432px do Período, e o Período se
+   espremia nos 215px que eram do botão. A tela ficava torta sem nada parecer quebrado.
+
+   MEDIDO NA TELA, leitura ampliada, janela de 1425 (a grade recebe 1295):
+
+     Filial 165 · Fornecedor 236 · Regime 198 · Análise 197 · Período 495 · Apurar 105
+     soma 1396 + 80 de gaps = 1476, contra 1295 disponíveis — faltavam 181px.
+
+   De onde saíram os 181, a pedido do Gabriel: o Fornecedor desce para 7rem, porque o que
+   ele mostra é um resumo curto, e o Período deixa de pedir os 495 do conteúdo folgado e
+   volta ao mínimo medido em 11/09. Os outros quatro ficam no tamanho do próprio conteúdo:
+   "C. Custo Principal" pede 197 e truncar o nome da dimensão seria pior que apertar.
+
+   NENHUM campo cresce, menos o Período: ele é o único cujo conteúdo é grande e variável —
+   duas datas, o botão de modo, o relógio e, no comparativo, mais duas datas. Todo pixel
+   que sobra vai para ele, e é por isso que é o único com fração.
+
+   AS DATAS NÃO PODEM SER CORTADAS, 02/10/2026. Na leitura ampliada cada input de data pede
+   186px e recebia 143: a data saía como "01/10/2" com o calendário cortando o resto. O
+   Período inteiro pede 495px, e tinha 430.
+
+   Os 65 que faltavam vieram de três lugares, nenhum deles do próprio Período:
+
+     · a FILIAL, que pedia 126 e recebia 168 — o resumo dela é curto ("Todas as 8"), e
+       os 42 de sobra não estavam fazendo nada;
+     · o GAP entre colunas, de 16 para 12, que devolve 20 nas cinco emendas;
+     · o PADDING dos inputs de data, de 12 para 8 de cada lado, mais 16 nos dois.
+
+   O piso: 128+112+200+200+480+105 = 1225, mais 60 de gaps e ~130 das margens, dá 1415 —
+   daí o corte em 1420. Abaixo disso são duas colunas, e aí a data volta a caber porque
+   cada campo recebe meia tela. Abaixo disso continuam duas colunas, que é o que a
+   medição de 1280 mostrou ser mais legível do que espremer seis. */
+@media (min-width: 1420px) {
   .grade-filtros {
     grid-template-columns:
-      minmax(11rem, 0fr) minmax(13rem, 0.9fr) minmax(12.5rem, 0.6fr)
-      minmax(27rem, 1.4fr) auto;
+      minmax(8rem, 0fr) minmax(6.9rem, 0fr) minmax(12.4rem, 0fr)
+      minmax(12.4rem, 0fr) minmax(31rem, 1fr) auto;
+    /* 12px entre as colunas, não 16: cinco gaps devolvem 20px, e eles vão todos para as
+       datas. Na vertical o espaçamento continua 1rem — ali ele separa LINHAS de campos,
+       que é outra leitura. */
+    column-gap: 0.75rem;
   }
 }
 
