@@ -291,7 +291,7 @@ export function recalcular(
       return {
         ...v,
         valor,
-        percentualAv: calcularAv(l, valor, c, valorDaAncora),
+        percentualAv: calcularAv(l, valor, c, valorDaAncora, v.percentualAv),
         // A coluna anterior do MESMO bloco. No comparativo a primeira coluna do segundo
         // intervalo não tem anterior, e a API já mandou `null` ali — este `=== null`
         // preserva isso sem o front precisar conhecer os blocos de período.
@@ -312,7 +312,13 @@ export function recalcular(
       total: {
         valor: soma,
         media: media(soma, novosValores.length),
-        percentualAv: calcularAvTotal(l, soma, novosValores.length, valorDaAncora),
+        percentualAv: calcularAvTotal(
+          l,
+          soma,
+          novosValores.length,
+          valorDaAncora,
+          l.total.percentualAv,
+        ),
       },
       composicao: recomporParcelas(l, ordenadas),
     };
@@ -330,8 +336,21 @@ function calcularAv(
   valor: number,
   coluna: number,
   valorDaAncora: (papel: PapelDaLinha, c: number) => number | null,
+  avDaApi: number | null,
 ): number | null {
   if (l.papel === "receita-bruta") return null;
+
+  // A PARTICIPAÇÃO NÃO SE RECALCULA AQUI — ela vem pronta do servidor.
+  //
+  // Na célula do %AV das RECEITAS LIQUIDAS a 9815 não escreve 100,000: escreve `P.8,221%`,
+  // a fatia que o fornecedor filtrado representa na receita da filial INTEIRA. O divisor
+  // dessa conta é a receita sem filtro, que o front não tem e não tem como deduzir — só o
+  // `MontadorDre` a conhece, por `FaturamentoDre.ReceitaLiquidaTotal`.
+  //
+  // Recalcular a linha pela base dela mesma devolvia 100, e foi o que apagou a participação
+  // na tela depois que o recálculo por posição entrou. Sem filtro o servidor manda 100 e
+  // preservar dá no mesmo; com filtro, é a diferença entre o número certo e um 100 inútil.
+  if (l.papel === "receitas-liquidas") return avDaApi;
 
   const ehDeducao = l.papel !== null && BASE_RECEITA_BRUTA.has(l.papel);
   const base = ehDeducao
@@ -349,10 +368,15 @@ function calcularAvTotal(
   valor: number,
   colunas: number,
   valorDaAncora: (papel: PapelDaLinha, c: number) => number | null,
+  avDaApi: number | null,
 ): number | null {
   if (l.papel === "receita-bruta" || (l.papel !== null && BASE_RECEITA_BRUTA.has(l.papel))) {
     return null;
   }
+
+  // A participação do período inteiro, pelo mesmo motivo de `calcularAv`: soma dividida por
+  // soma, e o denominador é a receita sem filtro, que só o servidor tem.
+  if (l.papel === "receitas-liquidas") return avDaApi;
 
   let base = 0;
   for (let c = 0; c < colunas; c++) base += valorDaAncora("receitas-liquidas", c) ?? 0;
