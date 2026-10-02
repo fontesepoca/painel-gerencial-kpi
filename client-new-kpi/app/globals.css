@@ -359,15 +359,38 @@ body {
    daí o corte em 1420. Abaixo disso são duas colunas, e aí a data volta a caber porque
    cada campo recebe meia tela. Abaixo disso continuam duas colunas, que é o que a
    medição de 1280 mostrou ser mais legível do que espremer seis. */
+/* ── A SOBRA NÃO É DAS DATAS, 02/10/2026 ────────────────────────────────────────
+   O Período levava `1fr` e, numa janela de 1536, engolia sozinho os ~240px que sobravam:
+   os dois inputs de data ficavam com 290px cada para mostrar dez caracteres. Largura
+   gasta sem nada ganhar — a data não cresce junto, só o vazio ao redor dela.
+
+   Agora o Período tem TETO em 31rem — 496px, que é o pior caso medido: leitura ampliada,
+   comparativo, quatro datas numa coluna. Ele chega até ali e para. A SOBRA VAI PARA A
+   COLUNA DO BOTÃO, a única com fração, e o `justify-self` abaixo mantém o Apurar colado
+   à direita como sempre esteve. O espaço vazio passa a ficar ENTRE os campos e o botão,
+   em vez de dentro dos campos.
+
+   TETO em rem, e não `max-content`: medido na tela, os dois inputs de data têm intrínsecas
+   DIFERENTES — 156 e 178px para o mesmo `01/10/2026` —, e o `max-content` entregava um par
+   de campos visivelmente desiguais. Com teto fixo e os inputs em `w-full`, os dois repartem
+   a coluna por igual e caem nos 179px que cada um pede.
+
+   O `min-content` como piso é o que evita transbordo em 1420 na leitura ampliada: ali as
+   colunas de tamanho fixo não cedem, e quem aperta — 6px, medidos — tem de ser o Período. */
 @media (min-width: 1420px) {
   .grade-filtros {
     grid-template-columns:
       minmax(8rem, 0fr) minmax(6.9rem, 0fr) minmax(12.4rem, 0fr)
-      minmax(12.4rem, 0fr) minmax(31rem, 1fr) auto;
+      minmax(12.4rem, 0fr) minmax(min-content, 31rem) minmax(max-content, 1fr);
     /* 12px entre as colunas, não 16: cinco gaps devolvem 20px, e eles vão todos para as
        datas. Na vertical o espaçamento continua 1rem — ali ele separa LINHAS de campos,
        que é outra leitura. */
     column-gap: 0.75rem;
+  }
+
+  /* O Apurar à direita da grade, sempre. A célula dele é elástica; ele não. */
+  .grade-filtros > :last-child {
+    justify-self: end;
   }
 }
 
