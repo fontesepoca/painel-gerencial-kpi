@@ -377,20 +377,63 @@ body {
 
    O `min-content` como piso é o que evita transbordo em 1420 na leitura ampliada: ali as
    colunas de tamanho fixo não cedem, e quem aperta — 6px, medidos — tem de ser o Período. */
+/* ── NADA DE BURACO: A LINHA INTEIRA É DOS CAMPOS, 02/10/2026 ───────────────────
+   O teto fixo no Período resolveu as datas gigantes e criou outro defeito: a sobra da
+   janela virava um VAZIO entre o Período e o Apurar. O pedido do Gabriel é que os
+   campos se enquadrem e preencham a largura inteira do header.
+
+   Aqui a grade vira FLEX, e é de propósito. Com `grid` a sobra tem de ser atribuída a
+   alguma coluna — foi assim que ela caiu toda no Período —, e frações menores que 1 não
+   distribuem o resto: medido, `0.18fr … 0.24fr` deixava 25px sem dono. O flex reparte o
+   que sobra entre TODOS, na proporção que cada campo merece, e não precisa que a soma
+   feche em 1.
+
+   AS BASES SÃO AS LARGURAS MEDIDAS, e somam exatamente a linha cheia no piso:
+
+     128 + 110 + 198 + 198 + 496 (Período) + 105 (Apurar) + 60 de gaps = 1295
+
+   que é o que a grade recebe numa janela de 1425. No piso nada cresce nem encolhe; daí
+   para cima cada campo ganha a sua parte do que sobrar.
+
+   OS PESOS DIZEM QUEM APROVEITA A LARGURA EXTRA. O Período leva o maior porque o
+   conteúdo dele é variável — duas datas, o botão de modo, o relógio e, no comparativo,
+   mais duas datas. O Fornecedor leva o menor: ele mostra um resumo de uma palavra, e
+   largura ali é desperdício. O Apurar não cresce: botão não melhora esticado. */
 @media (min-width: 1420px) {
   .grade-filtros {
-    grid-template-columns:
-      minmax(8rem, 0fr) minmax(6.9rem, 0fr) minmax(12.4rem, 0fr)
-      minmax(12.4rem, 0fr) minmax(min-content, 31rem) minmax(max-content, 1fr);
-    /* 12px entre as colunas, não 16: cinco gaps devolvem 20px, e eles vão todos para as
-       datas. Na vertical o espaçamento continua 1rem — ali ele separa LINHAS de campos,
-       que é outra leitura. */
+    display: flex;
+    align-items: stretch;
+    /* 12px entre os campos, não 16. Na vertical o espaçamento continua 1rem — ali ele
+       separa LINHAS de campos, que é outra leitura. */
     column-gap: 0.75rem;
   }
 
-  /* O Apurar à direita da grade, sempre. A célula dele é elástica; ele não. */
+  /* `min-width: 0` em todos: sem ele um campo se recusa a encolher abaixo do próprio
+     conteúdo e empurra a linha para fora da tela. */
+  .grade-filtros > * {
+    min-width: 0;
+  }
+
+  .grade-filtros > :nth-child(1) {
+    flex: 0.6 1 8rem;
+  }
+  .grade-filtros > :nth-child(2) {
+    flex: 0.5 1 6.9rem;
+  }
+  .grade-filtros > :nth-child(3) {
+    flex: 0.7 1 12.4rem;
+  }
+  .grade-filtros > :nth-child(4) {
+    flex: 0.7 1 12.4rem;
+  }
+  .grade-filtros > :nth-child(5) {
+    flex: 1 1 31rem;
+  }
+
+  /* O Apurar: largura do próprio conteúdo, e é o último — fica colado à direita sem
+     precisar de alinhamento nenhum, porque não sobra nada à frente dele. */
   .grade-filtros > :last-child {
-    justify-self: end;
+    flex: 0 0 auto;
   }
 }
 
