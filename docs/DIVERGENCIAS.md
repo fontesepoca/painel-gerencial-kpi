@@ -312,6 +312,52 @@ O script também cobra o que não pode mudar: sem filtro, participação exatame
 fornecedores vazio, nenhum lançamento marcado, e a soma crua fechando com a célula como
 sempre fechou.
 
+---
+
+## As regras que nenhuma branch pode desfazer
+
+Tudo nesta página que está marcado **a pedido** é decisão do Gabriel, não defeito. Elas se
+acumulam, e cada branch nova herda todas. Esta seção existe porque o contrário já aconteceu.
+
+Em 02/10/2026 a tela voltou a mostrar `Manutencao De Veiculos` e `PNEUS E CAMARAS` como
+informativas, abaixo do `RESULTADO OPERACIONAL`. A leitura imediata — *"o filtro por
+fornecedor desfez a regra"* — estava errada: a branch `feat/filtro-fornecedor` saiu de
+`0ede10c`, **antes** dos 17 commits que a `main` recebeu entre 21 e 28/09, e portanto nunca
+teve a subida. **Branch atrasada e regra revertida produzem exatamente a mesma tela**, e só o
+histórico distingue uma da outra.
+
+### Como conferir, em um minuto
+
+```bash
+# o que a main tem e a sua branch não — se listar algo, a sua branch está atrasada
+git log --oneline HEAD..main
+```
+
+E, depois do merge, que os valores das constantes são os de hoje — não os de antes da
+mudança de 22/09, quando a chave da dimensão deixou de ser o centro de dois dígitos:
+
+| Onde | Tem de ser | Era antes |
+|---|---|---|
+| `MontadorDre.ContasSubidasParaOperacional` | `["3000067", "3000080"]` | não existia |
+| `MontadorDre.CreditosPromovidos` | `["9601\|NSS", "9001\|NSS"]` | `["96\|NSS", "90\|NSS"]` |
+| `MontadorDre.InformativasPorPedido["ccusto-principal"]` | `["9701\|NSS"]` | `["97\|NSS"]` |
+
+A armadilha dessas três: **errar a chave não quebra nada**. As identidades simplesmente
+deixam de casar, a regra para de valer e o relatório sai com outra cara, sem erro nenhum.
+Foi assim com a indenização, e quem percebeu foi a dc34.
+
+### Onde o merge costuma doer
+
+Duas regras podem tocar a **mesma linha** sem serem a mesma coisa, e aí o git pede ajuda:
+
+- **a chave do índice de despesas** leva a subida (`FlagsDepoisDaSubida`, qual LINHA recebe o
+  valor) e o par `(Valor, Exclusivo)` do filtro (QUANTO é rateado). As duas convivem;
+- **`DetalhamentoDto`** cresce pelo meio. Chamada posicional cai no parâmetro errado em
+  silêncio — use argumentos **nomeados**;
+- **as colunas do detalhamento** deixaram de ser lista fixa quando o filtro acrescentou a
+  `No DRE`. O que era constante derivada virou função, senão a coluna nova ganha cabeçalho
+  clicável que não ordena nada.
+
 ## O que NÃO é divergência
 
 Comportamentos que parecem defeito, foram conferidos, e são **reproduzidos de propósito**.

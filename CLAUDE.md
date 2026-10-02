@@ -132,6 +132,19 @@ que mais confundem quem lê o SQL pela primeira vez:
 
 O detalhamento está em [docs/ROTINA_9815.md](docs/ROTINA_9815.md) e no levantamento.
 
+### As mudanças aprovadas se acumulam — e nenhuma branch as desfaz
+
+Além dos quatro casos acima, o Gabriel pediu mudanças que **alteram** o comportamento da
+9815 de propósito. Todas estão numeradas em [DIVERGENCIAS.md](docs/DIVERGENCIAS.md), com
+data e com o script que as mede, e a lista cresce. Uma branch nova herda todas.
+
+**Antes de abrir trabalho e antes de entregar, traga a `main`** — `git log --oneline HEAD..main`
+tem de vir vazio. Branch atrasada e regra revertida produzem a MESMA tela, e só o histórico
+distingue uma da outra: em 02/10/2026 a subida de `Manutencao De Veiculos` e
+`PNEUS E CAMARAS` pareceu desfeita pelo filtro por fornecedor, e na verdade a branch nunca
+a tivera. A conferência está em DIVERGENCIAS, na seção *As regras que nenhuma branch pode
+desfazer*.
+
 ## Rodar
 
 ```bash
