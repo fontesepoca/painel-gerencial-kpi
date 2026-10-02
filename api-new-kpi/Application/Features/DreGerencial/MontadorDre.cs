@@ -51,17 +51,78 @@ public static class MontadorDre
         $"{e.CodGruConta}|{e.AntesRo}{e.AntesLl}{e.AntesLf}";
 
     /// <summary>
+    /// Os flags que uma chave passa a ter depois da subida — <c>'S'</c> nos três para quem
+    /// está em <see cref="ContasSubidasParaOperacional"/>, e os originais para todo o resto.
+    ///
+    /// <para><b>Tem de ser aplicada nos DOIS lados do casamento</b>, na estrutura e no índice
+    /// das despesas. A tupla <c>(chave, AntesRo, AntesLl, AntesLf)</c> é o que liga uma à
+    /// outra: reescrever só a estrutura faria a busca procurar <c>3000067|SSS</c> onde a
+    /// despesa gravou <c>3000067|NNN</c>, e a linha apareceria <b>zerada</b> — com a tela
+    /// inteira parecendo correta.</para>
+    /// </summary>
+    private static (string Ro, string Ll, string Lf) FlagsDepoisDaSubida(
+        string chave, string ro, string ll, string lf) =>
+        ContasSubidasParaOperacional.Contains(chave) ? ("S", "S", "S") : (ro, ll, lf);
+
+    /// <summary>
     /// As linhas de crédito que sobem para logo abaixo do `LUCRO BRUTO` — ver
     /// <see cref="PromoverCreditos"/>. Só em C. Custo Principal, onde a chave é o centro de
     /// custo principal:
     ///
     /// <list type="bullet">
-    ///   <item><c>96|NSS</c> — `RATEIO DESP. CORPORATIVAS`, a ocorrência dos créditos. A
-    ///   operacional é <c>96|SSS</c> e <b>não</b> sobe;</item>
-    ///   <item><c>90|NSS</c> — `VERBAS MARGEM`.</item>
+    ///   <item><c>9601|NSS</c> — `RATEIO DESP. CORPORATIVAS`, a ocorrência dos créditos. A
+    ///   operacional é <c>9601|SSS</c> e <b>não</b> sobe;</item>
+    ///   <item><c>9001|NSS</c> — `VERBAS MARGEM`.</item>
     /// </list>
+    ///
+    /// <para><b>Eram <c>96</c> e <c>90</c> até 22/09/2026</b>, quando a chave da dimensão
+    /// deixou de ser o centro de custo de dois dígitos e passou a ser a conta principal —
+    /// o código inteiro do centro sem ponto. Trocar a chave lá e esquecer aqui não quebra
+    /// nada: as identidades simplesmente deixam de casar, os créditos param de subir e o
+    /// relatório sai com outra cara, sem erro nenhum. Foi o que aconteceu com a entrada da
+    /// indenização em <see cref="InformativasPorPedido"/>, e quem percebeu foi a dc34.</para>
     /// </summary>
-    private static readonly HashSet<string> CreditosPromovidos = ["96|NSS", "90|NSS"];
+    private static readonly HashSet<string> CreditosPromovidos = ["9601|NSS", "9001|NSS"];
+
+    /// <summary>
+    /// As contas que sobem do bloco informativo para as <b>despesas operacionais</b> —
+    /// passam a somar no <c>Sub-Total -> Despesas Operacionais</c> e, por ele, no
+    /// <c>RESULTADO OPERACIONAL</c> e no <c>LUCRO LIQUIDO</c>.
+    ///
+    /// <list type="bullet">
+    ///   <item><c>3000067</c> — <c>Manutencao De Veiculos</c>;</item>
+    ///   <item><c>3000080</c> — <c>PNEUS E CAMARAS</c>.</item>
+    /// </list>
+    ///
+    /// <para><b>Pedido do Gabriel em 25/09/2026.</b> As duas estavam depois do
+    /// <c>LUCRO LIQUIDO</c> com <c>AntesLl = 'N'</c>, que é a marca de quem não entra em
+    /// totalizador nenhum. <b>Isto muda o lucro</b>, e por isso é divergência com a 9815 —
+    /// ver <c>docs/DIVERGENCIAS.md §14</c>.</para>
+    ///
+    /// <para><b>A chave é a conta, e é a mesma nas quatro dimensões.</b> O SQL escolhe a
+    /// chave com <c>decode(AntesLF,'N', CODCONTA, codgrupo/codccprinc)</c>, e como as duas
+    /// chegam aqui com <c>AntesLF = 'N'</c> vindas do banco, a chave já é a conta em toda
+    /// dimensão. A promoção acontece <b>depois</b> disso, neste arquivo, então elas
+    /// continuam sendo linha própria em vez de se dissolverem no grupo ou no centro de
+    /// custo — que é o que o pedido descreve.</para>
+    ///
+    /// <para><b>Por que aqui e não no SQL.</b> A classificação nasce de <c>EPCPARDRE</c>,
+    /// tabela do Winthor compartilhada com a 9815: mexer nela mudaria a rotina antiga junto.
+    /// E a alternativa de abrir exceção no SQL custaria a mesma emenda em <b>32 pontos</b>
+    /// — quatro dimensões × três flags, mais estrutura e detalhamento. É o mesmo argumento
+    /// de <see cref="PromoverCreditos"/>: a ordem sai daqui, e não do cadastro.</para>
+    ///
+    /// <para><b>O detalhamento não muda.</b> A linha continua abrindo pelos mesmos
+    /// lançamentos, buscados pela conta, como sempre foram — o que muda é de que soma ela
+    /// participa, não de onde vem o valor dela. É o mesmo princípio de
+    /// <see cref="MarcarInformativas"/>, e a primeira versão desta mudança o violou: com o
+    /// bloco virando <c>operacional</c>, o recorte passava a ser o <b>centro de custo</b>
+    /// enquanto a chave da linha continuava sendo a <b>conta</b>. A tela abria vazia, e os
+    /// lançamentos ainda vazavam para o detalhe das outras linhas operacionais — a dc62
+    /// acusou R$ 11.982,92 a mais numa linha que a grade contava sem eles.</para>
+    /// </summary>
+    private static readonly HashSet<string> ContasSubidasParaOperacional =
+        ["3000067", "3000080"];
 
     /// <summary>
     /// Linhas que passam a <b>não somar em totalizador nenhum</b>, a pedido — o mesmo
@@ -69,8 +130,8 @@ public static class MontadorDre
     /// <see cref="MarcarInformativas"/>.
     ///
     /// <para>É a mesma conta vista por três eixos. Em Conta Gerencial e em Grupo de Contas a
-    /// chave é a própria conta <b>3000165</b>; em C. Custo Principal é o centro de custo
-    /// principal <b>97</b>, que hoje contém só ela.</para>
+    /// chave é a própria conta <b>3000165</b>; em C. Custo Principal é a conta principal
+    /// <b>9701</b>, que hoje contém só ela.</para>
     ///
     /// <para><b>Grupo de Contas só tem essa linha porque a consulta a extrai do grupo 300</b>
     /// — ver a exceção em <see cref="DreGerencialQueries.EstruturaGrupoDeContas"/> e na
@@ -80,7 +141,7 @@ public static class MontadorDre
     private static readonly Dictionary<string, HashSet<string>> InformativasPorPedido =
         new(StringComparer.OrdinalIgnoreCase)
         {
-            ["ccusto-principal"] = ["97|NSS"],
+            ["ccusto-principal"] = ["9701|NSS"],
             ["conta-gerencial"] = ["3000165|NSS"],
             ["grupo-contas"] = ["3000165|NSS"],
         };
@@ -127,8 +188,22 @@ public static class MontadorDre
         // centro 90 e os centros dedicados ao fornecedor são dele por inteiro.
         var valorDespesa = colunas
             .SelectMany(c => c.Despesas.Select(d => (Coluna: c.Chave, Despesa: d)))
-            .GroupBy(x => (x.Despesa.GrupoConta, x.Despesa.AntesRo, x.Despesa.AntesLl,
-                           x.Despesa.AntesLf, x.Coluna))
+            // AS DUAS REGRAS CONVIVEM AQUI, e é de propósito.
+            //
+            // `FlagsDepoisDaSubida` é da main: ela reclassifica `Manutencao De Veiculos` e
+            // `PNEUS E CAMARAS` para dentro das despesas operacionais, e tem de valer com
+            // filtro ou sem. O par `(Valor, Exclusivo)` é do filtro por fornecedor, e é o que
+            // permite ratear só o que não é exclusivo.
+            //
+            // Juntar as duas é o ponto do merge: a subida decide EM QUE LINHA o valor cai, o
+            // exclusivo decide QUANTO dele é rateado. São perguntas diferentes sobre o mesmo
+            // lançamento, e nenhuma das duas substitui a outra.
+            .GroupBy(x =>
+            {
+                var (ro, ll, lf) = FlagsDepoisDaSubida(
+                    x.Despesa.GrupoConta, x.Despesa.AntesRo, x.Despesa.AntesLl, x.Despesa.AntesLf);
+                return (x.Despesa.GrupoConta, ro, ll, lf, x.Coluna);
+            })
             .ToDictionary(
                 g => g.Key,
                 g => (Valor: g.Sum(x => x.Despesa.VlRealizado),
@@ -139,16 +214,28 @@ public static class MontadorDre
         // MOVIMENTO, nao por valor zero. Sem a coluna na chave: a visibilidade e da linha.
         var qtdDespesa = colunas
             .SelectMany(c => c.Despesas)
-            .GroupBy(d => (d.GrupoConta, d.AntesRo, d.AntesLl, d.AntesLf))
+            .GroupBy(d =>
+            {
+                var (ro, ll, lf) = FlagsDepoisDaSubida(d.GrupoConta, d.AntesRo, d.AntesLl, d.AntesLf);
+                return (d.GrupoConta, ro, ll, lf);
+            })
             .ToDictionary(g => g.Key, g => g.Sum(d => d.QdeReg));
 
-        var linhas = PromoverCreditos(
-            MarcarInformativas(
-                estrutura
-                    .Select(e => new LinhaEmMontagem(e, Normalizar(e.Grupo), e.CodGruConta.StartsWith('-')))
-                    .ToList(),
-                filtro.Analise),
-            filtro.Analise);
+        // A ordem destes elos importa. `RemoverTotalDespesas` e `DescerAsInformativas`
+        // mexem em quais linhas existem e onde; `AgruparFamilias` só reordena o que sobrou,
+        // e por isso vem por último — ordenar antes de mover seria ordenar uma lista que
+        // ainda vai mudar.
+        var linhas = AgruparFamilias(
+            DescerAsInformativas(
+                RemoverTotalDespesas(
+                    PromoverCreditos(
+                        MarcarInformativas(
+                            SubirParaOperacional(
+                                estrutura
+                                    .Select(e => new LinhaEmMontagem(e, Normalizar(e.Grupo), e.CodGruConta.StartsWith('-')))
+                                    .ToList()),
+                            filtro.Analise),
+                        filtro.Analise))));
 
         // Cada coluna é montada por inteiro, de forma independente — inclusive os
         // totalizadores, que dependem só das linhas daquela coluna.
@@ -273,6 +360,79 @@ public static class MontadorDre
     /// continua abrindo com duplo clique — o que mudou é de que soma ela participa, não de
     /// onde vem o valor dela.</para>
     /// </summary>
+    /// <summary>
+    /// Sobe <see cref="ContasSubidasParaOperacional"/> do bloco informativo para as despesas
+    /// operacionais, logo antes do <c>Sub-Total -> Despesas Operacionais</c>.
+    ///
+    /// <para><b>É o primeiro elo do pipeline, e tem de ser.</b> Os que vêm depois leem as
+    /// flags para decidir onde cada linha fica — <see cref="MarcarInformativas"/> e
+    /// <see cref="DescerAsInformativas"/> em particular. Rodar depois deles faria a linha
+    /// descer e subir na mesma montagem.</para>
+    ///
+    /// <para><b>A deduplicação não é zelo excessivo.</b> O <c>EPCPARDRE</c> tem
+    /// <c>PNEUS E CAMARAS</c> duas vezes — uma com <c>ID</c> nulo, a mesma linha que obriga
+    /// o <c>ORDER BY ID NULLS LAST</c> —, e por isso a conta aparece <b>repetida</b> na tela
+    /// da Conta Gerencial. Hoje isso é inofensivo: as duas são informativas e somam zero
+    /// vezes. <b>Ao subir, as duas passariam a somar</b>, e o Sub-Total receberia
+    /// R$ 2.452.541,64 no lugar de R$ 1.226.270,82 — o dobro, num número plausível o
+    /// bastante para ninguém estranhar. Ver <c>dc71</c>.</para>
+    ///
+    /// <para>O destino é <b>antes</b> do Sub-Total porque é ele quem soma as operacionais:
+    /// uma linha que soma num total e aparece depois dele deixa a tela impossível de
+    /// conferir de cima para baixo, que é a mesma razão da linha
+    /// <c>SUBTOTAL POSITIVO</c> existir.</para>
+    ///
+    /// <para><b>Sem o Sub-Total na tela, nada sobe.</b> A tela continua exatamente como
+    /// estava, em vez de subir linhas para um total que não existe.</para>
+    /// </summary>
+    private static List<LinhaEmMontagem> SubirParaOperacional(List<LinhaEmMontagem> linhas)
+    {
+        static bool Sobe(LinhaEmMontagem l) =>
+            !l.Calculada && ContasSubidasParaOperacional.Contains(l.Estrutura.CodGruConta);
+
+        if (!linhas.Any(Sobe)) return linhas;
+
+        var destino = linhas.FindIndex(l => l.Calculada && l.Rotulo == SubTotal);
+        if (destino < 0) return linhas;
+
+        // Uma linha por conta. `DistinctBy` guarda a primeira, que é a de menor ID — a
+        // ordem da estrutura já vem do cadastro, com os nulos no fim.
+        var subindo = linhas
+            .Where(Sobe)
+            .DistinctBy(l => l.Estrutura.CodGruConta, StringComparer.Ordinal)
+            .Select(l => l with
+            {
+                BlocoDeDetalheOriginal = BlocoDeDetalhe(l.Estrutura),
+                Estrutura = new LinhaEstruturaDre
+                {
+                    Id = l.Estrutura.Id,
+                    CodGruConta = l.Estrutura.CodGruConta,
+                    Grupo = l.Estrutura.Grupo,
+                    InfContas = l.Estrutura.InfContas,
+                    Cor = l.Estrutura.Cor,
+                    // Os mesmos três 'S' que `FlagsDepoisDaSubida` grava no índice das
+                    // despesas. Se um dos lados mudar sozinho, a linha aparece zerada.
+                    AntesRo = "S",
+                    AntesLl = "S",
+                    AntesLf = "S",
+                },
+            })
+            .ToList();
+
+        var resultado = new List<LinhaEmMontagem>(linhas.Count);
+
+        for (var i = 0; i < linhas.Count; i++)
+        {
+            if (Sobe(linhas[i])) continue;
+
+            if (i == destino) resultado.AddRange(subindo);
+
+            resultado.Add(linhas[i]);
+        }
+
+        return resultado;
+    }
+
     private static List<LinhaEmMontagem> MarcarInformativas(
         List<LinhaEmMontagem> linhas,
         string analise)
@@ -288,6 +448,171 @@ public static class MontadorDre
                 : l)
             .ToList();
     }
+
+    /// <summary>
+    /// Tira a linha `TOTAL DAS DESPESAS` da tela.
+    ///
+    /// <para>Pedido do Gabriel em 21/09/2026: a linha deixou de ser usada. <b>Nenhum valor
+    /// muda</b> — o `LUCRO LIQUIDO` é calculado em <see cref="MontarMes"/> a partir da
+    /// variável <c>totalDespesas</c>, que soma as linhas de conta; ele nunca leu o valor
+    /// desta linha. Some a exibição, fica a aritmética.</para>
+    ///
+    /// <para><b>O preço, aceito na mesma conversa:</b> a tela deixa de fechar lendo de cima
+    /// para baixo. Quem quiser conferir o `LUCRO LIQUIDO` soma as linhas do bloco à mão, em
+    /// vez de ler o total pronto uma linha acima.</para>
+    /// </summary>
+    private static List<LinhaEmMontagem> RemoverTotalDespesas(List<LinhaEmMontagem> linhas) =>
+        linhas.Where(l => !(l.Calculada && l.Rotulo == TotalDespesas)).ToList();
+
+    /// <summary>
+    /// Desce as linhas informativas para depois do `LUCRO LIQUIDO`.
+    ///
+    /// <para>Pedido do Gabriel em 21/09/2026 para `INDENIZACAO DE MERC. VENC. E AVARIA`, que
+    /// é hoje a única informativa por pedido — ver <see cref="InformativasPorPedido"/>. Ela
+    /// deixou de somar em 14/09 e continuava aparecendo no meio do bloco pós-operacional,
+    /// onde tudo em volta soma. Agora está onde o comportamento dela diz.</para>
+    ///
+    /// <para><b>Nenhum valor muda</b>, e é por isso que a regra é segura: informativa já está
+    /// fora dos dois blocos de soma, então mover não tira nem põe nada em lugar nenhum. Se um
+    /// dia uma linha que SOMA for descida daqui, o número muda — e aí a regra deixou de ser
+    /// esta.</para>
+    ///
+    /// <para>O critério é <c>Informativa</c>, e não o nome da conta: quem marcar outra
+    /// informativa amanhã não precisa lembrar de mexer aqui, e a tela continua coerente — o
+    /// que não soma fica junto do que não soma.</para>
+    /// </summary>
+    private static List<LinhaEmMontagem> DescerAsInformativas(List<LinhaEmMontagem> linhas)
+    {
+        var descer = linhas.Where(l => l.Informativa).ToList();
+        if (descer.Count == 0) return linhas;
+
+        var lucroLiquido = linhas.FindIndex(l => l.Calculada && l.Rotulo == LucroLiquido);
+        if (lucroLiquido < 0) return linhas;
+
+        var resultado = new List<LinhaEmMontagem>(linhas.Count);
+
+        for (var i = 0; i < linhas.Count; i++)
+        {
+            if (linhas[i].Informativa) continue;
+
+            resultado.Add(linhas[i]);
+
+            // Logo DEPOIS do LUCRO LIQUIDO, e não no fim da lista: o bloco final já tem
+            // outras linhas que não somam, e jogar as informativas para o fim as separaria
+            // das companheiras sem motivo.
+            if (i == lucroLiquido) resultado.AddRange(descer);
+        }
+
+        return resultado;
+    }
+
+    /// <summary>
+    /// Põe as contas de rateio, e depois as de transporte terceirizado, no começo do bloco a
+    /// que já pertencem.
+    ///
+    /// <para><b>São três famílias, nesta ordem:</b></para>
+    /// <list type="number">
+    ///   <item><b>rateio</b> — as oito que terminam em <c>- RAT</c>: COMPRAS, CONTABILIDADE,
+    ///   FINANCEIRO, INFORMATICA, MARKETING, RECURSOS HUMANOS, DEPARTAMENTO PESSOAL e
+    ///   JURIDICO. Pedido do Gabriel em 21/09/2026;</item>
+    ///   <item><b>transporte terceirizado</b> — as que começam em <c>TRANSPORTE T</c>, hoje
+    ///   os centros <c>28xx</c>. Pedido do Gabriel em 23/09/2026;</item>
+    ///   <item>todo o resto, na ordem do cadastro.</item>
+    /// </list>
+    ///
+    /// <para><b>O bloco é o trecho entre duas linhas calculadas</b>, e não as flags
+    /// `AntesRo`/`AntesLl`. A diferença importa: os créditos promovidos por
+    /// <see cref="PromoverCreditos"/> aparecem entre o `LUCRO BRUTO` e o `SUBTOTAL POSITIVO`
+    /// carregando <c>AntesLl = 'S'</c>, que é a flag do bloco pós-operacional. Ordenar pelas
+    /// flags os mandaria de volta para baixo e desfaria a promoção.</para>
+    ///
+    /// <para><b>Nenhuma conta atravessa uma calculada</b>, então nenhum valor muda — e a
+    /// decisão do Gabriel foi explicitamente essa, entre reordenar dentro do bloco e
+    /// reordenar o DRE inteiro. `COMPRAS - RAT` existe nos DOIS blocos, e a de baixo passaria
+    /// a somar no `Sub-Total` se subisse.</para>
+    ///
+    /// <para><b>Por que sufixo e não substring, no rateio.</b> <c>ADMINISTRATIVO</c> contém
+    /// `RAT` — administ<b>RAT</b>ivo —, e `RATEIO DESP. CORPORATIVAS` começa com ele. Procurar
+    /// a sequência de letras em qualquer posição arrastaria as duas para o topo, e a tela
+    /// pareceria certa para quem não conferisse conta por conta.</para>
+    ///
+    /// <para><b>E por que prefixo COM O ESPAÇO, no transporte.</b> O cadastro tem duas
+    /// famílias de transporte que só se distinguem por uma letra:</para>
+    /// <list type="bullet">
+    ///   <item><c>22xx</c> — `TRANSPORTES MATRIZ`, `TRANSPORTE MINAS RURAL`,
+    ///   `TRANSPORTE - CD RIO` … <b>não</b> sobem;</item>
+    ///   <item><c>28xx</c> — `TRANSPORTE T - (28)`, `TRANSPORTE T CD UBERLANDIA`,
+    ///   `TRANSPORTE T - P&amp;G` … sobem.</item>
+    /// </list>
+    ///
+    /// <para>O <c>S</c> de `TRANSPORTES` cai antes do espaço, então o prefixo
+    /// <c>"TRANSPORTE T "</c> já separa os dois grupos sozinho. O espaço ao final é o que
+    /// impede que um `TRANSPORTE TERCEIRIZADO` cadastrado amanhã entre por engano — hoje ele
+    /// não existe, e é justamente por isso que o teste tem de ser escrito agora.</para>
+    /// </summary>
+    private static List<LinhaEmMontagem> AgruparFamilias(List<LinhaEmMontagem> linhas)
+    {
+        var resultado = new List<LinhaEmMontagem>(linhas.Count);
+        var bloco = new List<LinhaEmMontagem>();
+
+        void DespejarBloco()
+        {
+            if (bloco.Count == 0) return;
+
+            // `OrderBy` do LINQ é ESTÁVEL: dentro de cada família a ordem do cadastro é
+            // preservada. Quem ler a tela ao lado da 9815 encontra a mesma sequência relativa
+            // dentro de cada terço.
+            resultado.AddRange(bloco.OrderBy(Familia));
+            bloco.Clear();
+        }
+
+        foreach (var linha in linhas)
+        {
+            if (linha.Calculada)
+            {
+                DespejarBloco();
+                resultado.Add(linha);
+            }
+            else
+            {
+                bloco.Add(linha);
+            }
+        }
+
+        DespejarBloco();
+        return resultado;
+    }
+
+    /// <summary>
+    /// Se a conta é de rateio — <c>RAT</c> como última palavra do nome.
+    ///
+    /// <para>O rótulo já vem por <see cref="Normalizar"/>: maiúsculas e espaços colapsados,
+    /// então o teste não precisa se preocupar com espaço duplo nem com caixa.</para>
+    /// </summary>
+    private static bool EhRateio(LinhaEmMontagem linha) =>
+        linha.Rotulo.EndsWith(" RAT", StringComparison.Ordinal)
+        || linha.Rotulo.EndsWith("-RAT", StringComparison.Ordinal);
+
+    /// <summary>
+    /// Se a conta é de transporte terceirizado — <c>TRANSPORTE T</c> no começo do nome.
+    ///
+    /// <para>O espaço depois do <c>T</c> é obrigatório, e a comparação com o nome inteiro
+    /// cobre um centro que se chamasse só `TRANSPORTE T`. Ver a armadilha em
+    /// <see cref="AgruparFamilias"/>: sem o espaço, um `TRANSPORTE TERCEIRIZADO` futuro
+    /// entraria junto sem ninguém perceber.</para>
+    /// </summary>
+    private static bool EhTransporteTerceirizado(LinhaEmMontagem linha) =>
+        linha.Rotulo.StartsWith("TRANSPORTE T ", StringComparison.Ordinal)
+        || linha.Rotulo == "TRANSPORTE T";
+
+    /// <summary>
+    /// A família da linha, que é a ordem dela dentro do bloco: rateio, transporte
+    /// terceirizado, resto. Ver <see cref="AgruparFamilias"/>.
+    /// </summary>
+    private static int Familia(LinhaEmMontagem linha) =>
+        EhRateio(linha) ? 0
+        : EhTransporteTerceirizado(linha) ? 1
+        : 2;
 
     /// <summary>
     /// Sobe os créditos para logo abaixo do `LUCRO BRUTO` e cria o `SUBTOTAL POSITIVO`.
@@ -405,6 +730,12 @@ public static class MontadorDre
     /// <c>PCNFSAID</c>/<c>PCPREST</c> que a 9815 usa, e a guarda passou a esconder um
     /// detalhamento que funcionava. Ela saiu no mesmo dia.</para>
     /// </summary>
+    /// <summary>Em que bloco o detalhamento procura os lançamentos desta linha.</summary>
+    private static string BlocoDeDetalhe(LinhaEstruturaDre e) =>
+        e.AntesRo == "S" ? "operacional"
+        : e.AntesLl == "S" ? "pos-operacional"
+        : "orfa";
+
     private static DetalheDisponivelDto? ResolverDetalhe(LinhaEmMontagem l)
     {
         if (l.Calculada)
@@ -438,9 +769,9 @@ public static class MontadorDre
             };
         }
 
-        var bloco = l.Estrutura.AntesRo == "S" ? "operacional"
-                  : l.Estrutura.AntesLl == "S" ? "pos-operacional"
-                  : "orfa";
+        // A linha que subiu para as despesas operacionais mantém o bloco que tinha: os
+        // lançamentos dela não se mudaram de lugar, só a soma de que participam.
+        var bloco = l.BlocoDeDetalheOriginal ?? BlocoDeDetalhe(l.Estrutura);
 
         return new("lancamentos", bloco, l.Estrutura.CodGruConta);
     }
@@ -856,5 +1187,12 @@ public static class MontadorDre
         string Rotulo,
         bool Calculada,
         bool Promovida = false,
-        bool Informativa = false);
+        bool Informativa = false,
+        /// <summary>
+        /// O bloco de detalhamento que a linha tinha <b>antes</b> de
+        /// <see cref="SubirParaOperacional"/> mexer nas flags dela, ou nulo para quem não
+        /// subiu. Guardar o valor antigo, em vez de deduzir da lista de contas, mantém a
+        /// regra certa no dia em que uma delas passar a ser operacional no cadastro.
+        /// </summary>
+        string? BlocoDeDetalheOriginal = null);
 }

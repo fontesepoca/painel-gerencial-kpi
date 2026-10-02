@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useRef } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { formatarPercentual, formatarValor } from "@/lib/formato";
 import { paraBr } from "@/lib/periodos";
 import { cn } from "@/lib/cn";
@@ -12,12 +12,37 @@ import {
   rotuloDaColuna,
 } from "@/lib/colunaDoTotal";
 import { semEstornosQueSeAnulam } from "@/lib/estornosQueSeAnulam";
+import {
+  Cabecalho,
+  Identidade,
+  NUM,
+  ParteDoTotal,
+  TD,
+  TH,
+  TH_BASE,
+  ThDetalhe,
+  ThNum,
+  Total,
+  Vazio,
+  soma,
+  totalDe,
+} from "@/components/dre-gerencial/primitivosDoDetalhe";
+import { TabelaNotasDaDevolucao } from "@/components/dre-gerencial/TabelaNotasDaDevolucao";
+import { useOrdenacaoDoDetalhe } from "@/hooks/useOrdenacaoDoDetalhe";
+import {
+  ordenarLinhas,
+  proximaOrdem,
+  type ColunaOrdenavel,
+  type Ordem,
+  type TipoDaColuna,
+} from "@/lib/ordenacaoDoDetalhe";
 import { MenuExportar } from "@/components/dre-gerencial/MenuExportar";
 import type {
   DetalheCliente,
   DetalheImposto,
   DetalheLancamento,
   DetalheMotivo,
+  DetalheNota,
   Detalhamento,
 } from "@/types/dre-gerencial";
 
@@ -56,6 +81,9 @@ export function ModalDetalhe({
   onExcel,
   excelOcupado,
   avisoDaAba,
+  onAbrirNotas,
+  voltarPara,
+  onVoltar,
 }: {
   aberto: boolean;
   titulo: string;
@@ -93,6 +121,17 @@ export function ModalDetalhe({
   excelOcupado?: boolean;
   /** Falha ao preparar a outra aba, ou ao gerar o Excel. Fica até o modal fechar. */
   avisoDaAba: string | null;
+  /**
+   * Abre as notas de um motivo, dentro deste mesmo diálogo.
+   *
+   * **Navegar por dentro, e não empilhar outro `<dialog>`.** Dois modais abertos disputam o
+   * `Esc` e o foco do teclado — a pessoa aperta a tecla esperando voltar um nível e fecha
+   * os dois —, e deixariam `Exportar` e `Abrir em nova aba` ambíguos entre os níveis.
+   */
+  onAbrirNotas?: (motivo: DetalheMotivo) => void;
+  /** O rótulo do nível anterior, quando há um. Vira o caminho no topo. */
+  voltarPara?: string | null;
+  onVoltar?: () => void;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
 
@@ -126,6 +165,48 @@ export function ModalDetalhe({
       <div className="flex min-h-0 flex-1 flex-col">
         <header className="flex flex-wrap items-start justify-between gap-3 border-b border-[var(--border)] px-5 py-4">
           <div className="min-w-0">
+            {/* O botão fica ACIMA do título, e não dentro dele: o título é o que o
+                `aria-labelledby` do diálogo anuncia, e enfiar "voltar para X" ali faria o
+                leitor de tela ler a navegação como se fosse o nome da tela.
+
+                <b>Ele tem a mesma moldura de `Fechar` e `Abrir em nova aba`, e não a
+                aparência de um caminho de migalhas.</b> Pedido do Gabriel em 28/09/2026,
+                pelo público: parte de quem usa o sistema é idosa, e a primeira versão era
+                texto pequeno em cinza claro, sem borda — que se lê como rótulo, não como
+                algo em que se clica. Quem não reconhece o alvo fica preso no segundo nível
+                e fecha o modal inteiro para recomeçar.
+
+                A palavra <b>Voltar</b> vem primeiro e sozinha no peso do texto; o destino
+                vem depois, truncado quando não couber. Assim o que a pessoa precisa ler
+                para agir cabe numa olhada, e o resto é confirmação. */}
+            {voltarPara && onVoltar && (
+              <button
+                type="button"
+                onClick={onVoltar}
+                title={`Voltar para ${voltarPara}`}
+                className="mb-2 flex max-w-full items-center gap-2 rounded-[var(--radius-md)] border border-[var(--border-strong)] px-4 py-2 text-[length:var(--fs-base)] font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-2)] hover:text-[var(--text-primary)]"
+              >
+                {/* Seta cheia e do tamanho do texto. A versão anterior usava um chevron a
+                    1,1em num texto de apoio — riscado fino, quase invisível em tela clara. */}
+                <svg
+                  aria-hidden
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="size-[1.25em] shrink-0"
+                >
+                  <path d="M19 12H5" />
+                  <path d="m12 19-7-7 7-7" />
+                </svg>
+                <span className="shrink-0">Voltar</span>
+                <span className="truncate text-[var(--text-muted)]">
+                  para {voltarPara}
+                </span>
+              </button>
+            )}
             <h2
               id="titulo-detalhe"
               className="truncate text-[length:var(--fs-titulo)] font-semibold text-[var(--text-primary)]"
@@ -224,7 +305,11 @@ export function ModalDetalhe({
           )}
 
           {!composicao && dados && !carregando && !erro && (
-            <CorpoDoDetalhe dados={dados} linha={linha} />
+            <CorpoDoDetalhe
+              dados={dados}
+              linha={linha}
+              onAbrirNotas={onAbrirNotas}
+            />
           )}
         </div>
       </div>
@@ -270,9 +355,16 @@ function Esperando() {
 export function CorpoDoDetalhe({
   dados,
   linha,
+  onAbrirNotas,
 }: {
   dados: Detalhamento;
   linha: { descricao: string; valor: number } | null;
+  /**
+   * Abre as notas de um motivo. Ausente na página de impressão e na outra aba, onde não há
+   * para onde navegar — e nesses casos a tabela de motivos não se anuncia como clicável,
+   * em vez de oferecer um clique que não faz nada.
+   */
+  onAbrirNotas?: (motivo: DetalheMotivo) => void;
 }) {
   const nome = nomeDaLinha(linha);
   const coluna = colunaDoTotal(dados.tipo, nome);
@@ -281,7 +373,12 @@ export function CorpoDoDetalhe({
     <>
       <ResumoDoCalculo dados={dados} linha={linha} />
       <OrigemDoTotal linha={linha} coluna={coluna} />
-      <Conteudo dados={dados} coluna={coluna} nome={nome} />
+      <Conteudo
+        dados={dados}
+        coluna={coluna}
+        nome={nome}
+        onAbrirNotas={onAbrirNotas}
+      />
     </>
   );
 }
@@ -290,12 +387,14 @@ function Conteudo({
   dados,
   coluna,
   nome,
+  onAbrirNotas,
 }: {
   dados: Detalhamento;
   /** O rótulo da coluna que soma no valor da célula clicada — ver `colunaDoTotal`. */
   coluna: string | null;
   /** O nome da linha do DRE, sem o sinal, para anunciar a coluna. */
   nome: string | null;
+  onAbrirNotas?: (motivo: DetalheMotivo) => void;
 }) {
   if (dados.tipo === "receita-por-cliente") {
     return (
@@ -308,7 +407,21 @@ function Conteudo({
   }
   if (dados.tipo === "devolucao-por-motivo") {
     return (
-      <TabelaMotivos linhas={dados.motivos ?? []} coluna={coluna} nome={nome} />
+      <TabelaMotivos
+        linhas={dados.motivos ?? []}
+        coluna={coluna}
+        nome={nome}
+        onAbrirNotas={onAbrirNotas}
+      />
+    );
+  }
+  if (dados.tipo === "notas-por-motivo") {
+    return (
+      <TabelaNotasDaDevolucao
+        linhas={dados.notas ?? []}
+        coluna={coluna}
+        nome={nome}
+      />
     );
   }
   if (dados.tipo === "imposto-por-produto") {
@@ -565,66 +678,6 @@ function TabelaComposicao({
   );
 }
 
-function Vazio() {
-  return (
-    <p className="px-5 py-16 text-center text-[length:var(--fs-base)] text-[var(--text-muted)]">
-      Nenhum lançamento no período.
-    </p>
-  );
-}
-
-/**
- * O cabeçalho sem a cor, para quem precisa pintá-lo de outra.
- *
- * **`cn` não resolve conflito entre classes Tailwind** — é concatenação, e no CSS gerado
- * quem ganha é a ordem da folha, não a do atributo. Somar `text-[var(--primary)]` a um `TH`
- * que já traz `text-[var(--text-muted)]` não muda cor nenhuma; foi o que aconteceu na
- * primeira versão do destaque, e o cabeçalho ficou cinza sem erro nenhum aparecer.
- */
-/**
- * **Negrito nos cabeçalhos**, por decisão do Gabriel em 10/09/2026: eles precisam se
- * separar dos dados, e `font-medium` (500) contra o 400 do corpo era diferença que só
- * aparecia lado a lado.
- *
- * **A cor sobe junto, de `--text-muted` para `--text-primary`** — e isso foi medido na tela,
- * não escolhido no escuro. Com o cabeçalho em `--text-secondary`, os números do corpo
- * ficavam em `rgb(241,245,249)` e o cabeçalho em `rgb(203,213,225)`: no tema escuro, mais
- * claro é o que salta, então o cabeçalho continuava **atrás** do dado por mais negrito que
- * tivesse. Igualando a cor, o que separa os dois passa a ser peso, caixa alta e
- * letter-spacing, e o cabeçalho vem para a frente.
- */
-const TH_BASE =
-  "px-3 py-[var(--celula-y)] text-[length:var(--fs-rotulo)] font-bold tracking-[0.14em] uppercase whitespace-nowrap";
-const TH = `${TH_BASE} text-[var(--text-primary)]`;
-const TD = "px-3 py-[var(--celula-y)] whitespace-nowrap";
-const NUM = `${TD} tabular text-right`;
-
-/** Cabeçalho da tabela do modal, colado no topo da própria área de rolagem. */
-function Cabecalho({ children }: { children: React.ReactNode }) {
-  return (
-    <thead>
-      <tr className="border-b border-[var(--border-strong)]">{children}</tr>
-    </thead>
-  );
-}
-
-/**
- * Linha de totais. Existe para o usuário poder conferir com a célula que clicou sem
- * somar 15 mil linhas na mão — é a razão de a §4 ter sido corrigida.
- */
-function Total({ children }: { children: React.ReactNode }) {
-  return (
-    <tfoot>
-      <tr className="border-t border-[var(--border-strong)] font-semibold">
-        {children}
-      </tr>
-    </tfoot>
-  );
-}
-
-const soma = <T,>(linhas: readonly T[], campo: (l: T) => number) =>
-  linhas.reduce((s, l) => s + campo(l), 0);
-
 /**
  * Diz, em uma linha, de onde vem o número que estava na tabela do DRE.
  *
@@ -658,93 +711,30 @@ function OrigemDoTotal({
 }
 
 /**
- * `<th>` de coluna numérica, que se anuncia quando é ela que fecha o total.
+ * As cinco colunas de dinheiro da tela de clientes, na ordem em que aparecem.
  *
- * O nome da linha do DRE entra **acima** do rótulo, não no lugar dele: quem confere contra
- * a 9815 procura a coluna pelo nome que ela sempre teve, e trocar `Líquido` por `ST` faria
- * a coluna sumir para esse olhar.
+ * <b>Uma delas é a que fecha o total da linha do DRE</b>, e qual depende de por onde a tela
+ * foi aberta: pela `RECEITA BRUTA` é a bruta, pelas `RECEITAS LIQUIDAS` é a líquida. Quem
+ * resolve isso é `colunaDoTotal`, e é essa mesma coluna que serve de base para o `% part.`.
  */
-function ThNum({
-  rotulo,
-  coluna,
-  nome,
-}: {
-  rotulo: string;
-  coluna: string | null;
-  nome: string | null;
-}) {
-  const eOTotal = coluna === rotulo;
-  const prefixo =
-    eOTotal && nome !== null && !igual(nome, rotulo) ? `(${nome})` : null;
+const VALOR_DO_CLIENTE: Readonly<Record<string, (c: DetalheCliente) => number>> = {
+  "Receita bruta": (c) => c.receitaBruta,
+  Desconto: (c) => c.desconto,
+  Devolução: (c) => c.devolucao,
+  "Custo líq.": (c) => c.custoLiq,
+  "Receita líq.": (c) => c.receitaLiquida,
+};
 
-  return (
-    <th
-      className={cn(
-        TH_BASE,
-        "text-right",
-        eOTotal ? "text-[var(--primary)]" : "text-[var(--text-primary)]",
-      )}
-      title={
-        eOTotal && nome !== null
-          ? `A soma desta coluna é o valor de ${nome} na tabela do DRE.`
-          : undefined
-      }
-    >
-      {prefixo && <span className="block">{prefixo}</span>}
-      {rotulo}
-    </th>
-  );
-}
-
-/** Célula de rodapé: o mesmo destaque do cabeçalho, para o olho ligar as duas pontas. */
-const totalDe = (coluna: string | null, rotulo: string) =>
-  cn(NUM, coluna === rotulo && "text-[var(--primary)]");
-
-/**
- * `% part.` — duas casas na tela, uma no papel.
- *
- * Mesmo par de `%AV` e `%AH` na tabela do DRE: as duas grafias vivem no DOM e o CSS
- * escolhe, em vez de um estado trocado no `beforeprint` que um `Ctrl+P` direto não espera.
- */
-function ParteDoTotal({ valor }: { valor: number | null }) {
-  return (
-    <>
-      <span className="so-na-tela">{formatarPercentual(valor, 2)}</span>
-      <span className="so-no-papel">{formatarPercentual(valor, 1)}</span>
-    </>
-  );
-}
-
-/**
- * Célula que identifica a linha, e a única que fica parada na rolagem lateral.
- *
- * Código e nome moram **na mesma célula**, não em duas colunas fixas lado a lado. Duas
- * teriam que concordar até o pixel sobre onde a primeira termina, e o algoritmo de tabela
- * não garante isso — foi assim que a tabela principal abriu uma fresta por onde os valores
- * passavam por baixo. Uma coluna não tem com o que discordar.
- */
-function Identidade({
-  codigo,
-  nome,
-}: {
-  codigo: React.ReactNode;
-  nome: string;
-}) {
-  return (
-    <td className={cn(TD, "col-identidade max-w-[24rem]")}>
-      <div className="flex items-baseline gap-2">
-        <span className="tabular shrink-0 text-[length:var(--fs-apoio)] text-[var(--text-muted)]">
-          {codigo}
-        </span>
-        {/* `descricao-conta` deixa o `@media print` desligar o corte: no papel não há
-            hover para ler o `title`, e nome cortado com reticências é dado perdido. */}
-        <span className="descricao-conta truncate" title={nome}>
-          {nome}
-        </span>
-      </div>
-    </td>
-  );
-}
+const COLUNAS_CLIENTE: readonly ColunaOrdenavel<DetalheCliente>[] = [
+  { rotulo: "Cliente", tipo: "texto", ler: (c) => c.cliente },
+  { rotulo: "Cidade", tipo: "texto", ler: (c) => c.cidade },
+  { rotulo: "Notas", tipo: "numero", ler: (c) => c.qdeNf },
+  ...Object.entries(VALOR_DO_CLIENTE).map(([rotulo, ler]) => ({
+    rotulo,
+    tipo: "numero" as const,
+    ler,
+  })),
+];
 
 function TabelaClientes({
   linhas,
@@ -755,22 +745,57 @@ function TabelaClientes({
   coluna: string | null;
   nome: string | null;
 }) {
+  /**
+   * A base do `% part.`: a coluna que fecha o total da linha do DRE.
+   *
+   * <b>Sem ela não há percentual honesto.</b> Cinco colunas de dinheiro dariam cinco
+   * percentuais diferentes para a mesma linha, e escolher uma no chute faria a tela
+   * responder a uma pergunta que ninguém fez. Quando `colunaDoTotal` devolve nulo — a
+   * tela aberta sem saber de que linha veio —, a coluna simplesmente não aparece.
+   */
+  const base = coluna != null ? VALOR_DO_CLIENTE[coluna] : undefined;
+  const totalDaBase = base ? soma(linhas, base) : 0;
+
+  const colunas = useMemo(
+    () =>
+      base
+        ? [
+            ...COLUNAS_CLIENTE,
+            {
+              rotulo: "% part.",
+              tipo: "numero" as const,
+              ler: (c: DetalheCliente) => base(c),
+            },
+          ]
+        : COLUNAS_CLIENTE,
+    [base],
+  );
+
+  const { ordem, ordenar, ordenadas } = useOrdenacaoDoDetalhe(linhas, colunas);
+
   if (linhas.length === 0) return <Vazio />;
+
+  const th = { ordem, onOrdenar: ordenar, coluna, nome };
+  // Percentual de zero não é zero: é indefinido. Com a base somando zero, a coluna mostra
+  // traço em vez de encher a tela de 0,000 que ninguém pode interpretar.
+  const parte = (c: DetalheCliente) =>
+    base && totalDaBase !== 0 ? (base(c) / totalDaBase) * 100 : null;
 
   return (
     <table className="w-full border-collapse text-[length:var(--fs-base)]">
       <Cabecalho>
-        <th className={cn(TH, "col-identidade text-left")}>Cliente</th>
-        <th className={cn(TH, "text-left")}>Cidade</th>
-        <th className={cn(TH, "text-right")}>Notas</th>
-        <ThNum rotulo="Receita bruta" coluna={coluna} nome={nome} />
-        <ThNum rotulo="Desconto" coluna={coluna} nome={nome} />
-        <ThNum rotulo="Devolução" coluna={coluna} nome={nome} />
-        <ThNum rotulo="Custo líq." coluna={coluna} nome={nome} />
-        <ThNum rotulo="Receita líq." coluna={coluna} nome={nome} />
+        <ThDetalhe {...th} rotulo="Cliente" tipo="texto" className="col-identidade" />
+        <ThDetalhe {...th} rotulo="Cidade" tipo="texto" />
+        <ThDetalhe {...th} rotulo="Notas" tipo="numero" numerica />
+        <ThDetalhe {...th} rotulo="Receita bruta" tipo="numero" numerica />
+        <ThDetalhe {...th} rotulo="Desconto" tipo="numero" numerica />
+        <ThDetalhe {...th} rotulo="Devolução" tipo="numero" numerica />
+        <ThDetalhe {...th} rotulo="Custo líq." tipo="numero" numerica />
+        <ThDetalhe {...th} rotulo="Receita líq." tipo="numero" numerica />
+        {base && <ThDetalhe {...th} rotulo="% part." tipo="numero" numerica />}
       </Cabecalho>
       <tbody>
-        {linhas.map((c) => (
+        {ordenadas.map((c) => (
           <tr
             key={c.codCli}
             className="border-b border-[var(--border)] odd:bg-[var(--zebra)] hover:bg-[var(--surface-2)]"
@@ -788,6 +813,11 @@ function TabelaClientes({
             <td className={NUM}>{formatarValor(c.devolucao)}</td>
             <td className={NUM}>{formatarValor(c.custoLiq)}</td>
             <td className={NUM}>{formatarValor(c.receitaLiquida)}</td>
+            {base && (
+              <td className={NUM}>
+                <ParteDoTotal valor={parte(c)} />
+              </td>
+            )}
           </tr>
         ))}
       </tbody>
@@ -810,6 +840,11 @@ function TabelaClientes({
         <td className={totalDe(coluna, "Receita líq.")}>
           {formatarValor(soma(linhas, (c) => c.receitaLiquida))}
         </td>
+        {base && (
+          <td className={NUM}>
+            <ParteDoTotal valor={totalDaBase !== 0 ? 100 : null} />
+          </td>
+        )}
       </Total>
     </table>
   );
@@ -859,6 +894,15 @@ function CulpaRca({ valor }: { valor: string | null }) {
  * **`Vendas` e `Devoluções` somam imposto + FECP no mesmo número**, como a apuração faz.
  * Separar os dois aqui daria uma tela que não fecha com a linha que ela detalha.
  */
+const COLUNAS_IMPOSTO: readonly ColunaOrdenavel<DetalheImposto>[] = [
+  { rotulo: "Produto", tipo: "texto", ler: (i) => i.produto },
+  { rotulo: "Notas", tipo: "numero", ler: (i) => i.qdeNf },
+  { rotulo: "Vendas", tipo: "numero", ler: (i) => i.vendas },
+  { rotulo: "Devoluções", tipo: "numero", ler: (i) => i.devolucoes },
+  { rotulo: "Líquido", tipo: "numero", ler: (i) => i.liquido },
+  { rotulo: "% part.", tipo: "numero", ler: (i) => i.pPart },
+];
+
 function TabelaImpostos({
   linhas,
   coluna,
@@ -868,20 +912,24 @@ function TabelaImpostos({
   coluna: string | null;
   nome: string | null;
 }) {
+  const { ordem, ordenar, ordenadas } = useOrdenacaoDoDetalhe(linhas, COLUNAS_IMPOSTO);
+
   if (linhas.length === 0) return <Vazio />;
+
+  const th = { ordem, onOrdenar: ordenar, coluna, nome };
 
   return (
     <table className="w-full border-collapse text-[length:var(--fs-base)]">
       <Cabecalho>
-        <th className={cn(TH, "col-identidade text-left")}>Produto</th>
-        <th className={cn(TH, "text-right")}>Notas</th>
-        <th className={cn(TH, "text-right")}>Vendas</th>
-        <th className={cn(TH, "text-right")}>Devoluções</th>
-        <ThNum rotulo="Líquido" coluna={coluna} nome={nome} />
-        <th className={cn(TH, "text-right")}>% part.</th>
+        <ThDetalhe {...th} rotulo="Produto" tipo="texto" className="col-identidade" />
+        <ThDetalhe {...th} rotulo="Notas" tipo="numero" numerica />
+        <ThDetalhe {...th} rotulo="Vendas" tipo="numero" numerica />
+        <ThDetalhe {...th} rotulo="Devoluções" tipo="numero" numerica />
+        <ThDetalhe {...th} rotulo="Líquido" tipo="numero" numerica />
+        <ThDetalhe {...th} rotulo="% part." tipo="numero" numerica />
       </Cabecalho>
       <tbody>
-        {linhas.map((i) => (
+        {ordenadas.map((i) => (
           <tr
             key={i.codProd}
             className="border-b border-[var(--border)] odd:bg-[var(--zebra)] hover:bg-[var(--surface-2)]"
@@ -920,31 +968,69 @@ function TabelaImpostos({
   );
 }
 
+const COLUNAS_MOTIVO: readonly ColunaOrdenavel<DetalheMotivo>[] = [
+  // Ordena pelo NOME, não pelo código: quem clica em "Motivo" procura um motivo, e a
+  // ordem por código devolveria uma lista que só faz sentido para quem decorou o cadastro.
+  { rotulo: "Motivo", tipo: "texto", ler: (m) => m.motivo },
+  { rotulo: "Culpa RCA", tipo: "texto", ler: (m) => m.culpaRca },
+  { rotulo: "Notas", tipo: "numero", ler: (m) => m.qdeNf },
+  { rotulo: "Devolução", tipo: "numero", ler: (m) => m.vlDevolucao },
+  { rotulo: "% part.", tipo: "numero", ler: (m) => m.pPart },
+];
+
 function TabelaMotivos({
   linhas,
   coluna,
   nome,
+  onAbrirNotas,
 }: {
   linhas: readonly DetalheMotivo[];
   coluna: string | null;
   nome: string | null;
+  onAbrirNotas?: (motivo: DetalheMotivo) => void;
 }) {
+  const { ordem, ordenar, ordenadas } = useOrdenacaoDoDetalhe(linhas, COLUNAS_MOTIVO);
+
   if (linhas.length === 0) return <Vazio />;
+
+  const th = { ordem, onOrdenar: ordenar, coluna, nome };
 
   return (
     <table className="w-full border-collapse text-[length:var(--fs-base)]">
       <Cabecalho>
-        <th className={cn(TH, "col-identidade text-left")}>Motivo</th>
-        <th className={cn(TH, "text-left")}>Culpa RCA</th>
-        <th className={cn(TH, "text-right")}>Notas</th>
-        <ThNum rotulo="Devolução" coluna={coluna} nome={nome} />
-        <th className={cn(TH, "text-right")}>% part.</th>
+        <ThDetalhe {...th} rotulo="Motivo" tipo="texto" className="col-identidade" />
+        <ThDetalhe {...th} rotulo="Culpa RCA" tipo="texto" />
+        <ThDetalhe {...th} rotulo="Notas" tipo="numero" numerica />
+        <ThDetalhe {...th} rotulo="Devolução" tipo="numero" numerica />
+        <ThDetalhe {...th} rotulo="% part." tipo="numero" numerica />
       </Cabecalho>
       <tbody>
-        {linhas.map((m) => (
+        {ordenadas.map((m) => (
+          // A LINHA INTEIRA é o alvo, e não só o número: um alvo de 3 caracteres é o
+          // tamanho que faz a pessoa mirar. O `tabIndex` põe a linha na ordem do teclado —
+          // uma tabela em que só o mouse chega ao segundo nível deixa quem navega por
+          // teclado sem caminho nenhum.
           <tr
             key={m.codMotivo ?? "sem-motivo"}
-            className="border-b border-[var(--border)] odd:bg-[var(--zebra)] hover:bg-[var(--surface-2)]"
+            className={cn(
+              "border-b border-[var(--border)] odd:bg-[var(--zebra)] hover:bg-[var(--surface-2)]",
+              onAbrirNotas &&
+                "cursor-pointer focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--primary)]",
+            )}
+            {...(onAbrirNotas
+              ? {
+                  tabIndex: 0,
+                  role: "button" as const,
+                  "aria-label": `Ver as ${m.qdeNf} notas de ${m.motivo ?? "sem motivo cadastrado"}`,
+                  onClick: () => onAbrirNotas(m),
+                  onKeyDown: (e: React.KeyboardEvent) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      onAbrirNotas(m);
+                    }
+                  },
+                }
+              : {})}
           >
             {/* Devolução sem motivo cadastrado entra no total mesmo assim: a junção com
                 PCTABDEV é externa de propósito, aqui e na 9815. */}
@@ -955,7 +1041,17 @@ function TabelaMotivos({
             <td className={TD}>
               <CulpaRca valor={m.culpaRca} />
             </td>
-            <td className={NUM}>{m.qdeNf}</td>
+            {/* O número ganha aparência de link para dizer que ali há mais — mas quem
+                recebe o clique é a linha toda, logo acima. */}
+            <td className={NUM}>
+              {onAbrirNotas ? (
+                <span className="underline decoration-dotted underline-offset-4 text-[var(--primary)]">
+                  {m.qdeNf}
+                </span>
+              ) : (
+                m.qdeNf
+              )}
+            </td>
             <td className={NUM}>{formatarValor(m.vlDevolucao)}</td>
             {/* Duas casas: o valor vem arredondado assim da consulta, e é o que a
                 9815 mostra nesta coluna. */}
@@ -999,21 +1095,50 @@ const COLUNAS: ReadonlyArray<{
   rotulo: string;
   numerica?: boolean;
   ler: (l: DetalheLancamento) => React.ReactNode;
+  /**
+   * O valor para ORDENAR, quando o renderizado ordenaria errado.
+   *
+   * Só as seis colunas abaixo precisam dele, e por dois motivos distintos. `V. Pago` sai
+   * formatado — `9,50` viria depois de `1.226.270,82` porque `9` &gt; `1` quando se
+   * compara texto. As cinco de data saem em `dd/mm/aaaa`, e nesse formato 02/09 e 14/08
+   * comparam pelo dia antes do mês; o ISO que vem da API ordena certo sozinho.
+   *
+   * As outras dezenove já são texto, e o texto renderizado é o que a pessoa vê e é por ele
+   * que ela espera ordenar.
+   */
+  bruto?: (l: DetalheLancamento) => string | number | null;
 }> = [
   { rotulo: "Rec.Num.", numerica: true, ler: (l) => l.recNum },
   { rotulo: "Histórico", ler: (l) => texto(l.historico) },
-  { rotulo: "V. Pago", numerica: true, ler: (l) => formatarValor(l.vPago) },
-  { rotulo: "Dt.Lançamento", numerica: true, ler: (l) => data(l.dtLanc) },
-  { rotulo: "Dt. Pagto.", numerica: true, ler: (l) => data(l.dtPagto) },
+  {
+    rotulo: "V. Pago",
+    numerica: true,
+    ler: (l) => formatarValor(l.vPago),
+    bruto: (l) => l.vPago,
+  },
+  {
+    rotulo: "Dt.Lançamento",
+    numerica: true,
+    ler: (l) => data(l.dtLanc),
+    bruto: (l) => l.dtLanc,
+  },
+  {
+    rotulo: "Dt. Pagto.",
+    numerica: true,
+    ler: (l) => data(l.dtPagto),
+    bruto: (l) => l.dtPagto,
+  },
   {
     rotulo: "Dt.Competência",
     numerica: true,
     ler: (l) => data(l.dtCompetencia),
+    bruto: (l) => l.dtCompetencia,
   },
   {
     rotulo: "Dt.Compensação",
     numerica: true,
     ler: (l) => data(l.dtCompensacao),
+    bruto: (l) => l.dtCompensacao,
   },
   { rotulo: "Filial", numerica: true, ler: (l) => texto(l.codFilial) },
   { rotulo: "Nota", numerica: true, ler: (l) => texto(l.numNota) },
@@ -1035,7 +1160,12 @@ const COLUNAS: ReadonlyArray<{
     ler: (l) => texto(l.numSeqBordero),
   },
   { rotulo: "Localização", ler: (l) => texto(l.localizacao) },
-  { rotulo: "Dt. Reclass.", numerica: true, ler: (l) => data(l.dtReclassific) },
+  {
+    rotulo: "Dt. Reclass.",
+    numerica: true,
+    ler: (l) => data(l.dtReclassific),
+    bruto: (l) => l.dtReclassific,
+  },
   {
     rotulo: "Cod. Func. Reclass.",
     numerica: true,
@@ -1062,6 +1192,10 @@ function colunasDeLancamento(participacao: number | null) {
     {
       rotulo: "No DRE",
       numerica: true,
+      // O comparador ordena por ESTE número, e não pelo que a célula desenha — ela
+      // devolve JSX, com o selo do exclusivo dentro. Sem o `bruto`, ordenar por esta
+      // coluna compararia "[object Object]" com "[object Object]".
+      bruto: (l: DetalheLancamento) => valorNoDre(l, participacao),
       ler: (l: DetalheLancamento) => (
         <>
           {formatarValor(valorNoDre(l, participacao))}
@@ -1150,6 +1284,50 @@ function agrupar(
   return centros;
 }
 
+/**
+ * <b>Quantas colunas a tabela tem de verdade:</b> as declaradas mais o `% part.`.
+ *
+ * Existe porque as linhas de grupo e de subtotal atravessam a tabela com `colSpan`, e elas
+ * contavam `COLUNAS.length`. Com a coluna nova fora daquele array, os `colSpan` ficariam
+ * uma célula curtos — e o sintoma não é erro nenhum: é a tabela desalinhando a partir do
+ * primeiro cabeçalho de centro de custo.
+ *
+ * O `% part.` fica fora de `COLUNAS` porque o `ler` de lá recebe só a linha, e a
+ * porcentagem precisa do total da tabela.
+ */
+const TOTAL_DE_COLUNAS = COLUNAS.length + 1;
+
+/**
+ * As mesmas colunas acima, na forma que o comparador entende.
+ *
+ * Derivada de `COLUNAS` em vez de escrita de novo: duas listas com os mesmos rótulos
+ * divergem no primeiro dia em que alguém acrescentar uma coluna a só uma delas, e o sintoma
+ * seria um cabeçalho que responde ao clique sem reordenar nada.
+ */
+/**
+ * As mesmas colunas, na forma que o comparador entende.
+ *
+ * <b>É função, e não constante, desde o merge do filtro por fornecedor</b>: a lista de
+ * colunas deixou de ser fixa — com fornecedor filtrado entra o `No DRE` —, e uma
+ * constante derivada de `COLUNAS` deixaria a coluna nova sem comparador. O sintoma seria
+ * um cabeçalho que responde ao clique e não reordena nada, que é exatamente o que o
+ * comentário original desta lista alertava.
+ */
+function ordenaveisDeLancamento(
+  participacao: number | null,
+): readonly ColunaOrdenavel<DetalheLancamento>[] {
+  return [
+    ...colunasDeLancamento(participacao).map((c) => ({
+      rotulo: c.rotulo,
+      tipo: c.numerica && !c.rotulo.startsWith("Dt") ? ("numero" as const) : ("texto" as const),
+      ler: c.bruto ?? ((l: DetalheLancamento) => String(c.ler(l) ?? "")),
+    })),
+    // Ordenar pelo percentual é ordenar pelo valor: um é o outro dividido por uma constante.
+    // Comparar o número já dividido só acrescentaria erro de arredondamento.
+    { rotulo: "% part.", tipo: "numero" as const, ler: (l: DetalheLancamento) => l.vPago },
+  ];
+}
+
 function TabelaLancamentos({
   linhas,
   coluna,
@@ -1162,6 +1340,11 @@ function TabelaLancamentos({
   /** A fatia do fornecedor, ou `null` quando a apuração não foi filtrada. */
   participacao: number | null;
 }) {
+  const [ordem, setOrdem] = useState<Ordem>(null);
+  const ordenar = useCallback((rotulo: string, tipo: TipoDaColuna) => {
+    setOrdem((atual) => proximaOrdem(atual, rotulo, tipo));
+  }, []);
+
   if (linhas.length === 0) return <Vazio />;
 
   /**
@@ -1172,38 +1355,83 @@ function TabelaLancamentos({
    * `lib/estornosQueSeAnulam.ts` para o motivo de não copiarmos o filtro da 9815.
    */
   const { visiveis, omitidos } = semEstornosQueSeAnulam(linhas);
-  const centros = agrupar(visiveis, participacao);
   const COLS = colunasDeLancamento(participacao);
+  const ORDENAVEIS = ordenaveisDeLancamento(participacao);
 
   // Com rateio, quem fecha com a célula clicada é a coluna nova — e é ela que o
   // cabeçalho tem de anunciar. Apontar o V. Pago mandaria a pessoa somar a coluna errada.
   const colunaQueFecha = participacao === null ? coluna : "No DRE";
 
+  /**
+   * A base do `% part.`: o total da tela, que é o valor da linha do DRE que foi clicada.
+   *
+   * <b>Soma as linhas VISÍVEIS</b>, e não as que a consulta trouxe — os pares de estorno que
+   * se anulam já saíram, e a soma deles é zero de qualquer forma. Usar a lista crua faria a
+   * coluna somar 100% sobre um total que a tela não mostra em lugar nenhum.
+   *
+   * Percentual de zero é indefinido, não zero: com o total em zero a coluna mostra traço.
+   * Uma conta que fecha em 0,00 com dezesseis lançamentos existe de verdade neste projeto —
+   * é o `DESCONTO FUNCIONÁRIOS`.
+   *
+   * <b>Continua somando o V. Pago mesmo com fornecedor filtrado</b>: o `% part.` responde
+   * "quanto este lançamento é da conta", e a conta na tela é a da filial inteira. Usar o
+   * valor rateado mudaria numerador e denominador pelo mesmo fator, e daria o mesmo
+   * percentual com duas contas a mais.
+   */
+  const totalDaTela = soma(visiveis, (l) => l.vPago);
+  const parte = (valor: number) =>
+    totalDaTela !== 0 ? (valor / totalDaTela) * 100 : null;
+
+  /**
+   * <b>A ordenação acontece DENTRO de cada conta, e a árvore não se desmancha.</b>
+   *
+   * Os cabeçalhos de centro de custo e de conta e os subtotais ficam onde estão; só as
+   * linhas de lançamento se reordenam, conta a conta. Decidido assim em 28/09/2026 porque
+   * <b>são os subtotais que fecham os 162/162 contra a 9815</b> — desmanchá-los ao ordenar
+   * tiraria da tela justamente o número que prova que ela está certa.
+   *
+   * Tem de ser depois do `agrupar`, e não antes: aquele algoritmo fecha um grupo assim que
+   * a chave muda (`centros.at(-1)`), então uma lista reordenada produziria o mesmo centro
+   * de custo várias vezes, cada aparição com o seu próprio subtotal parcial.
+   */
+  const centros = useMemo(() => {
+    const agrupados = agrupar(visiveis, participacao);
+    if (ordem === null) return agrupados;
+
+    return agrupados.map((centro) => ({
+      ...centro,
+      contas: centro.contas.map((conta) => ({
+        ...conta,
+        linhas: ordenarLinhas(conta.linhas, ORDENAVEIS, ordem),
+      })),
+    }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visiveis, ordem, participacao]);
+
   return (
     <>
       <table className="w-full border-collapse text-[length:var(--fs-base)]">
         <Cabecalho>
-          {COLS.map((c, i) =>
-            c.rotulo === colunaQueFecha ? (
-              <ThNum
-                key={c.rotulo}
-                rotulo={c.rotulo}
-                coluna={colunaQueFecha}
-                nome={nome}
-              />
-            ) : (
-              <th
-                key={c.rotulo}
-                className={cn(
-                  TH,
-                  c.numerica ? "text-right" : "text-left",
-                  i === 0 && "col-identidade",
-                )}
-              >
-                {c.rotulo}
-              </th>
-            ),
-          )}
+          {COLS.map((c, i) => (
+            <ThDetalhe
+              key={c.rotulo}
+              rotulo={c.rotulo}
+              tipo={c.bruto && c.rotulo === "V. Pago" ? "numero" : c.numerica ? "numero" : "texto"}
+              numerica={c.numerica}
+              coluna={colunaQueFecha}
+              nome={nome}
+              ordem={ordem}
+              onOrdenar={ordenar}
+              className={i === 0 ? "col-identidade" : undefined}
+            />
+          ))}
+          <ThDetalhe
+            rotulo="% part."
+            tipo="numero"
+            numerica
+            ordem={ordem}
+            onOrdenar={ordenar}
+          />
         </Cabecalho>
 
         <tbody>
@@ -1249,6 +1477,9 @@ function TabelaLancamentos({
                           </td>
                         );
                       })}
+                      <td className={NUM}>
+                        <ParteDoTotal valor={parte(l.vPago)} />
+                      </td>
                     </tr>
                   ))}
 
@@ -1291,9 +1522,11 @@ function TabelaLancamentos({
               {formatarValor(somaNoDre(visiveis, participacao))}
             </td>
           )}
+          {/* As colunas que sobram, mais a do `% part.` no fim. Com rateio a tabela tem
+            uma coluna a mais, e o vão do rodapé encolhe junto. */}
           <td
             className={TD}
-            colSpan={COLS.length - (participacao === null ? 3 : 4)}
+            colSpan={COLS.length + 1 - (participacao === null ? 3 : 4)}
           />
         </Total>
       </table>
@@ -1343,7 +1576,7 @@ function TabelaLancamentos({
 function LinhaDeGrupo({ nivel, rotulo }: { nivel: 1 | 2; rotulo: string }) {
   return (
     <tr className="linha-grupo">
-      <td colSpan={COLUNAS.length} className="p-0">
+      <td colSpan={TOTAL_DE_COLUNAS} className="p-0">
         <span
           className={cn(
             "grupo-fixo inline-block px-3 py-[var(--celula-y)] whitespace-nowrap",
@@ -1409,7 +1642,7 @@ function LinhaDeSubtotal({
           {formatarValor(valorNoDre)}
         </td>
       )}
-      <td colSpan={colunas - (valorNoDre === null ? 3 : 4)} />
+      <td colSpan={colunas + 1 - (valorNoDre === null ? 3 : 4)} />
     </tr>
   );
 }

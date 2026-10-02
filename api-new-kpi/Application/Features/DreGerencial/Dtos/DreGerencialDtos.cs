@@ -314,6 +314,22 @@ public record DetalheMotivoDto(
     decimal VlDevolucao,
     decimal PPart);
 
+/// <summary>
+/// Uma nota da tela "Notas do Motivo" — o segundo nível de `(-) DEVOLUCAO`.
+/// A soma de `VlDevolucao` fecha com o valor do motivo, e a contagem de linhas com a
+/// coluna NOTAS dele.
+/// </summary>
+public record DetalheNotaDto(
+    decimal NumNota,
+    string? Serie,
+    DateTime? DtEnt,
+    decimal NumTransEnt,
+    int? CodParceiro,
+    string? Parceiro,
+    int Itens,
+    decimal VlDevolucao,
+    decimal PPart);
+
 /// <summary>Um lançamento da tela de detalhamento das linhas de grupo.</summary>
 /// <param name="Exclusivo">
 /// <b>O lançamento é do fornecedor filtrado</b> e entra inteiro no DRE: verba do centro 90
@@ -386,6 +402,7 @@ public record DetalhamentoDto(
     IReadOnlyList<DetalheLancamentoDto>? Lancamentos,
     IReadOnlyList<DetalheImpostoDto>? Impostos,
     long DuracaoMs,
+    IReadOnlyList<DetalheNotaDto>? Notas = null,
     IReadOnlyList<decimal>? Fornecedores = null,
     decimal Participacao = 1m);
 

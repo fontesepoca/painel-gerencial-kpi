@@ -32,10 +32,19 @@ public sealed record AnaliseDre(
         EstruturaTemDoisBlocosDeFilial: false);
 
     /// <summary>
-    /// Agrupa pelos dois primeiros dígitos do centro de custo.
+    /// Agrupa pela CONTA PRINCIPAL do centro de custo: o prefixo antes do ponto e, quando
+    /// não há ponto, o próprio código.
     ///
-    /// <para><b>Diverge da 9815 de propósito</b> — a rotina descobre os centros de custo
-    /// olhando uma filial só, e com isso apaga linhas do relatório. Aqui a lista é completa.
+    /// <para><b>Diverge da 9815 de propósito, em dois pontos.</b></para>
+    ///
+    /// <para><b>1. O agrupamento.</b> A 9815 agrupa pelos dois primeiros dígitos — `2801`,
+    /// `2802` … `2831` viram uma linha só, rotulada pelo `min()` do grupo. Aqui cada
+    /// centro sem ponto é uma linha, e as subcontas `2201.133` aparecem no detalhamento.
+    /// Pedido das reuniões, decidido em 22/09/2026: o `TRANSPORTE T CD UBERLANDIA` tem que
+    /// ter linha própria. A grade passa de 34 para 60 linhas na filial 7 em agosto/2026.</para>
+    ///
+    /// <para><b>2. A lista de centros</b> — a rotina descobre os centros de custo olhando uma
+    /// filial só, e com isso apaga linhas do relatório. Aqui a lista é completa.
     /// Ver `docs/DIVERGENCIAS.md` nº 2.</para>
     /// </summary>
     public static readonly AnaliseDre CCustoPrincipal = new(

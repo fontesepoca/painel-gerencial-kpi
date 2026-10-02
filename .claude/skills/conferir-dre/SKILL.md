@@ -148,6 +148,7 @@ usado e a data. Divergência não resolvida vira pendência documentada — **nu
 | Uma linha a mais na planilha, que nenhuma consulta produz | A grade da 9815 não é limpa entre apurações — sobra linha da execução anterior | Feche e reabra a rotina antes de exportar a referência. **Não replicar**: é estado de tela, não regra |
 | Comparador awk reporta divergência de centavos em valores grandes, ou aprova valores diferentes | `CONVFMT` do awk é `%.6g`: usar `%s` num campo numérico trunca para 6 dígitos significativos. `41.401.481,82` vira `41401500` | Formate sempre com `sprintf("%.2f", v)`. O risco maior é o falso NEGATIVO: dois valores distintos que arredondem igual passam como iguais |
 | Divergência que aparece e some sem mudança de código | A base é produção viva; os valores mudam durante o dia | Exportação e chamada da API **em sequência, minutos de diferença**. Registre a hora das duas |
+| Mês JÁ FECHADO não bate, e o erro se concentra numa conta só | **Lançamento retroativo.** Agosto/2026 ganhou 83 lançamentos em 22/09 — três semanas depois de fechar —, com `DTPAGTO` em 31/08 e `DTLANC` do dia. São aplicações automáticas de verba, em lote | Escolha período com **alguns meses de folga**. Junho fechou 45/45 no mesmo dia em que agosto não fechava. Para confirmar, `SELECT DTLANC` dos lançamentos da conta que diverge — se for recente, é isto |
 | Diferença de ~3 milhões na Receita Líquida | Deduziu ST, PIS e COFINS | Eles não entram no cálculo |
 | %AV errado em ABAT./DESC., DEVOLUCAO, ST, PIS e COFINS | Usou RECEITAS LIQUIDAS como base | Essas cinco são percentuais da RECEITA BRUTA; o resto é da RECEITAS LIQUIDAS |
 | Cenário de Centro de Custo sem planilha para comparar | A análise por Centro de Custo **nunca funcionou** na 9815 — os arquivos `*_com_erro_sempre` são o trace do erro | Única dimensão que precisa de validação manual com o negócio |
@@ -159,6 +160,7 @@ usado e a data. Divergência não resolvida vira pendência documentada — **nu
 
 ## Checklist final
 
+- [ ] Período com folga de alguns meses — o mês recém-fechado ainda recebe lançamento retroativo
 - [ ] 9815 fechada e reaberta antes da exportação — a grade não se limpa sozinha
 - [ ] Exportação e chamada da API feitas em sequência, com minutos de diferença
 - [ ] Planilha de referência tem os PARAMETROS REGISTRADOS. Exportação sem período conhecido não valida nada — foi o que gerou uma falsa divergência no incremento 3

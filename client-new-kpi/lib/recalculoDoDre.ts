@@ -20,8 +20,8 @@ import type { LinhaDre, PapelDaLinha, Parcela, ValorMes } from "@/types/dre-gere
  *
  *   • `RECEITAS LIQUIDAS` não é `BRUTA − ABAT − DEVOL` no servidor: é um número próprio do
  *     faturamento, e a identidade erra **um centavo** por arredondamento das parcelas;
- *   • `Total das Despesas` da API inclui os créditos promovidos pela divergência 9, que a
- *     tela mostra lá em cima, ao lado do LUCRO BRUTO. Refazer a soma pela posição tira os
+ *   • o total das despesas inclui os créditos promovidos pela divergência 9, que a tela
+ *     mostra lá em cima, ao lado do LUCRO BRUTO. Refazer a soma pela posição tira os
  *     créditos de lá e muda um número já validado.
  *
  * Então o que se calcula aqui é **o quanto cada âncora se move**: quais contas entraram no
@@ -109,10 +109,18 @@ const PROPAGACAO: readonly (readonly [PapelDaLinha, readonly PapelDaLinha[]])[] 
   // Sem SUBTOTAL POSITIVO — as dimensões que não o têm — o resultado sai do LUCRO BRUTO.
   // `resolverPais` trata isso; ver a divergência 9.
   ["resultado-operacional", ["subtotal-positivo", "sub-total"]],
-  // `Total das Despesas` é TUDO que separa o LUCRO BRUTO do LUCRO LIQUIDO — inclusive os
-  // créditos que a divergência 9 promoveu para cima do SUBTOTAL POSITIVO. Ler como
-  // "Sub-Total mais o bloco pós-operacional" daria outro número: os créditos ficariam de
-  // fora, e a linha deixaria de bater com o LUCRO LIQUIDO.
+  // `total-despesas` NÃO É MAIS UMA LINHA DA TELA — ela saiu em 21/09/2026, a pedido do
+  // Gabriel. Continua aqui como PASSO DE CÁLCULO, porque é dele que o LUCRO LIQUIDO sai, e
+  // porque a API faz a mesma conta com o mesmo nome (`MontadorDre.MontarMes`).
+  //
+  // É TUDO que separa o LUCRO BRUTO do LUCRO LIQUIDO — inclusive os créditos que a
+  // divergência 9 promoveu para cima do SUBTOTAL POSITIVO. Ler como "Sub-Total mais o bloco
+  // pós-operacional" daria outro número: os créditos ficariam de fora.
+  //
+  // Sem a linha na tela, nenhuma conta arrastada cai no encaixe dela — `ancoraDoEncaixe`
+  // procura a próxima CALCULADA abaixo, e agora essa é o LUCRO LIQUIDO. O total não muda:
+  // o que antes chegava ao lucro líquido por dentro do total das despesas agora chega
+  // direto. A dc35 é quem garante isso, comparando com a API linha a linha.
   ["total-despesas", ["subtotal-positivo", "sub-total", "resultado-operacional"]],
   ["lucro-liquido", ["lucro-bruto", "total-despesas"]],
 ];

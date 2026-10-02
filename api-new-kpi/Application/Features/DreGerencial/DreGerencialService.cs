@@ -423,7 +423,7 @@ public sealed class DreGerencialService
                     linhas.Select(c => new DetalheClienteDto(
                         c.CodCli, c.Cliente, c.Cidade, c.QdeNf, c.ReceitaBruta,
                         c.Desconto, c.Devolucao, c.ReceitaLiquida, c.CustoLiq)).ToList(),
-                    null, null, null, cronometro.ElapsedMilliseconds, eco));
+                    null, null, null, cronometro.ElapsedMilliseconds, Fornecedores: eco));
             }
 
             case "devolucao-por-motivo":
@@ -438,7 +438,39 @@ public sealed class DreGerencialService
                     linhas.Select(m => new DetalheMotivoDto(
                         m.CodMotivo, m.Motivo, m.CulpaRca, m.QdeNf,
                         m.VlDevolucao, m.PPart)).ToList(),
-                    null, null, cronometro.ElapsedMilliseconds, eco));
+                    null, null, cronometro.ElapsedMilliseconds, Fornecedores: eco));
+            }
+
+            case "notas-por-motivo":
+            {
+                // A chave carrega o código do motivo. VAZIA É CASO LEGÍTIMO, e não erro: a
+                // tela de motivos tem uma linha "sem motivo cadastrado" -- a junção com
+                // PCTABDEV é externa e aquelas notas entram no total. Exigir chave aqui
+                // deixaria justamente essa linha sem detalhamento.
+                int? codMotivo = null;
+
+                if (!string.IsNullOrWhiteSpace(filtro.Chave))
+                {
+                    if (!int.TryParse(filtro.Chave, out var lido))
+                    {
+                        return Result<DetalhamentoDto>.Invalido(
+                            "O código do motivo precisa ser um número inteiro.");
+                    }
+
+                    codMotivo = lido;
+                }
+
+                var notas = await _repositorio.ObterDetalheNotasDaDevolucaoAsync(
+                    codMotivo, filtro.Filiais, filtro.DataInicio, filtro.DataFim,
+                    cancellationToken);
+
+                cronometro.Stop();
+                return Result<DetalhamentoDto>.Ok(new DetalhamentoDto(
+                    filtro.Tipo, filtro.DataInicio, filtro.DataFim,
+                    null, null, null, null, cronometro.ElapsedMilliseconds,
+                    notas.Select(n => new DetalheNotaDto(
+                        n.NumNota, n.Serie, n.DtEnt, n.NumTransEnt, n.CodParceiro,
+                        n.Parceiro, n.Itens, n.VlDevolucao, n.PPart)).ToList()));
             }
 
             case "lancamentos":
@@ -512,7 +544,7 @@ public sealed class DreGerencialService
                         l.NumSeqBordero, l.NumCheque2, l.NumCar, l.Localizacao,
                         l.NomeFunc, l.NomeFuncBaixa, l.DtReclassific,
                         l.CodFuncReclassific)).ToList(),
-                    null, cronometro.ElapsedMilliseconds, eco, participacao));
+                    null, cronometro.ElapsedMilliseconds, Fornecedores: eco, Participacao: participacao));
             }
 
             case "imposto-por-produto":
@@ -539,13 +571,14 @@ public sealed class DreGerencialService
                     linhas.Select(i => new DetalheImpostoDto(
                         i.CodProd, i.Produto, i.QdeNf, i.Vendas, i.Devolucoes, i.Liquido,
                         total == 0m ? 0m : Math.Round(i.Liquido / total * 100m, 2))).ToList(),
-                    cronometro.ElapsedMilliseconds, eco));
+                    cronometro.ElapsedMilliseconds, Fornecedores: eco));
             }
 
             default:
                 return Result<DetalhamentoDto>.Invalido(
                     $"Detalhamento '{filtro.Tipo}' não existe. Valores aceitos: " +
-                    "receita-por-cliente, devolucao-por-motivo, lancamentos.");
+                    "receita-por-cliente, devolucao-por-motivo, notas-por-motivo, " +
+                    "lancamentos, imposto-por-produto.");
         }
     }
 }

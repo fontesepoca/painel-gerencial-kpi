@@ -192,6 +192,7 @@ export interface LinhaDre {
 export type TipoDetalhe =
   | "receita-por-cliente"
   | "devolucao-por-motivo"
+  | "notas-por-motivo"
   | "imposto-por-produto"
   | "lancamentos";
 
@@ -250,6 +251,30 @@ export interface DetalheMotivo {
   motivo: string | null;
   culpaRca: string | null;
   qdeNf: number;
+  vlDevolucao: number;
+  pPart: number;
+}
+
+/**
+ * Uma nota da tela "Notas do Motivo" — o segundo nível de `(-) DEVOLUCAO`, que responde
+ * QUAIS notas compõem a coluna NOTAS de um motivo.
+ *
+ * A soma de `vlDevolucao` fecha com o valor do motivo, e a quantidade de linhas com o
+ * `qdeNf` dele. Espelha `DetalheNotaDto`.
+ */
+export interface DetalheNota {
+  numNota: number;
+  /** Texto porque o Winthor usa `1`, `U`, `C1`. */
+  serie: string | null;
+  /** ISO. É a data que filtra o período da tela. */
+  dtEnt: string | null;
+  /** A chave real da nota: o número sozinho se repete entre séries e filiais. */
+  numTransEnt: number;
+  codParceiro: number | null;
+  /** Quem devolveu. */
+  parceiro: string | null;
+  /** Quantos itens da nota entraram no valor — não é a quantidade devolvida. */
+  itens: number;
   vlDevolucao: number;
   pPart: number;
 }
@@ -329,6 +354,7 @@ export interface Detalhamento {
   lancamentos: DetalheLancamento[] | null;
   impostos: DetalheImposto[] | null;
   duracaoMs: number;
+  notas: DetalheNota[] | null;
   /** Os códigos filtrados, ecoados pela API. Vazio quando é o DRE inteiro. */
   fornecedores: number[];
   /**

@@ -26,7 +26,10 @@ a aprovação do Gabriel.
 | [8](#8-o-último-centavo-do-modo-anos--14092026) | Arredondamento ao fundir 12 meses | todas, só no modo `anos` | 1 centavo por linha | **corrigida** em 14/09/2026 |
 | [9](#9-o-resultado-operacional-sai-do-subtotal-positivo--14092026) | `RESULTADO OPERACIONAL` a partir do `SUBTOTAL POSITIVO` | C. Custo Principal | R$ 3,22 mi em 2 meses | **a pedido** em 14/09/2026 · dc32 25/25 · dc34 11/11 |
 | [10](#10-indenizacao-de-merc-venc-e-avaria-vira-informativa--14092026) | `INDENIZACAO DE MERC. VENC. E AVARIA` não soma | as três dimensões conferidas | R$ 177 mil em 2 meses | **a pedido** em 14/09/2026 · dc32 25/25 · dc34 11/11 |
-| [11](#11-o-detalhamento-respeita-o-filtro-por-fornecedor--02102026) | Detalhamento com fornecedor filtrado | todas as telas de duplo clique | a despesa inteira da filial, contra a fatia do fornecedor | **a pedido** em 02/10/2026 · dc78 12/12 |
+| [11](#11-três-mudanças-de-ordem-e-de-exibição--21092026) | Sai a linha `Total das Despesas`, a indenização desce, as `- RAT` sobem, e as `TRANSPORTE T` vêm logo depois | todas | **nenhum valor muda** | **a pedido** em 21 e 23/09/2026 · dc34, dc35, dc36 e **dc65** |
+| [12](#12-a-linha-é-a-conta-principal-e-não-os-dois-primeiros-dígitos--22092026) | O centro de custo deixa de ser agrupado por dois dígitos | C. Custo Principal | **nenhum valor muda** — 34 linhas viram 60 | **a pedido** em 22/09/2026 · dc61, dc62 e **dc64 45/45** |
+| [14](#14-manutencao-de-veiculos-e-pneus-e-camaras-entram-nos-cálculos--25092026) | `Manutencao De Veiculos` e `PNEUS E CAMARAS` saem do bloco informativo e somam nas despesas operacionais | todas | **+R$ 1.709.994,73** no lucro de julho/2026 na filial 7 | **a pedido** em 25/09/2026 · dc34, dc62 e dc71 |
+| [15](#15-o-detalhamento-respeita-o-filtro-por-fornecedor--02102026) | Detalhamento com fornecedor filtrado | todas as telas de duplo clique | a despesa inteira da filial, contra a fatia do fornecedor | **a pedido** em 02/10/2026 · dc78 12/12 |
 
 ---
 
@@ -241,7 +244,7 @@ referência, não dá para medir.
 
 ---
 
-## 11. O detalhamento respeita o filtro por fornecedor — 02/10/2026
+## 15. O detalhamento respeita o filtro por fornecedor — 02/10/2026
 
 Com fornecedor selecionado, o duplo clique da 9815 abre **a filial inteira**. Não é
 descuido de tela: é o que o fonte faz.
@@ -394,7 +397,7 @@ acessa de fora do escritório do que qualquer coisa que o BFF faça.
 
 ---
 
-## Quatro armadilhas ao medir divergência
+## Cinco armadilhas ao medir divergência
 
 Todas já produziram conclusão errada neste projeto. Detalhe das duas primeiras em
 [ROTINA_9815.md §11](ROTINA_9815.md).
@@ -412,6 +415,15 @@ Todas já produziram conclusão errada neste projeto. Detalhe das duas primeiras
 4. **Uma coluna zerada pode ser o mapeamento, não o dado.** O Dapper ignora maiúsculas, mas
    **não ignora underscore**: um alias `QDE_NF` não encontra a propriedade `QdeNf` e a
    coluna sai zerada, em silêncio — [o caso completo](#a-armadilha-4-em-detalhe-a-coluna-de-notas-veio-zerada-e-não-era-o-sql).
+5. **Mês recém-fechado ainda recebe lançamento retroativo.** Agosto/2026 ganhou **83
+   lançamentos em 22/09** — três semanas depois de fechar —, com `DTPAGTO` retroativo em
+   31/08 e `DTLANC` do próprio dia. São aplicações automáticas de verba, processadas em
+   lote. A comparação daquele mês acusou R$ 150.930,28 de diferença no `VERBAS MARGEM` e
+   rendeu uma investigação inteira atrás de um defeito que não existia
+   ([dc63](validacao/dc63_verbas_margem_150_mil.sql)). É a armadilha 2 num grau pior: ali
+   a janela era de horas, aqui o mês inteiro se move por semanas. **Para conferir contra a
+   9815, prefira um período com alguns meses de folga** — foi o que fez junho fechar 45/45
+   no mesmo dia em que agosto não fechava.
 
 ---
 
@@ -2037,3 +2049,309 @@ entrada do montador deixa de casar com qualquer linha e a dimensão volta ao que
 
 Para voltar ao casamento por **rótulo**, o commit anterior a este tem as duas listas na forma
 antiga; mas leia a seção acima antes — os dois defeitos que ela descreve continuam lá.
+
+---
+
+## 11. Três mudanças de ordem e de exibição — 21/09/2026
+
+Pedido do Gabriel. **Nenhuma delas muda um número** — e isso não é sorte, é o critério que
+decidiu como cada uma foi feita. As três juntas afastam a tela da 9815 só na aparência.
+
+| O quê | Efeito no valor |
+|---|---|
+| A linha `Total das Despesas` sai da tela | nenhum — o `LUCRO LIQUIDO` nunca leu essa linha |
+| `INDENIZACAO DE MERC. VENC. E AVARIA` desce para depois do `LUCRO LIQUIDO` | nenhum — ela já não somava desde a divergência 10 |
+| As contas terminadas em `- RAT` sobem para o começo do bloco delas | nenhum — nenhuma atravessa uma linha calculada |
+
+### A linha `Total das Despesas`
+
+Ela deixou de ser usada. O `LUCRO LIQUIDO` continua idêntico porque é calculado em
+`MontadorDre.MontarMes` a partir da variável `totalDespesas`, que soma as linhas de conta —
+ele nunca leu o valor da linha exibida.
+
+**O preço, aceito na mesma conversa:** a tela deixa de fechar lendo de cima para baixo. Antes
+dava para conferir `LUCRO BRUTO + Total das Despesas = LUCRO LIQUIDO` a olho; agora quem
+quiser conferir soma as linhas do bloco à mão.
+
+No front, `total-despesas` continua existindo como **passo de cálculo** dentro de
+`recalculoDoDre.ts` — é dele que o lucro líquido sai, lá como aqui. O que mudou é que nenhuma
+conta arrastada cai no encaixe dele: `ancoraDoEncaixe` procura a próxima calculada abaixo, e
+agora essa é o `LUCRO LIQUIDO`. O total se conserva — o que antes chegava ao lucro líquido por
+dentro do total das despesas agora chega direto. **A dc35 é quem garante**, comparando as duas
+aritméticas linha a linha nas três dimensões.
+
+### A indenização desce
+
+Ela deixou de somar em 14/09 (divergência 10) e continuava aparecendo no meio do bloco
+pós-operacional, onde tudo em volta soma. Agora está junto das outras que não somam.
+
+**Mover é seguro exatamente porque ela já é informativa** — está fora dos dois blocos de soma,
+então mudar de lugar não tira nem põe nada. Se um dia uma linha que SOMA for descida por essa
+mesma regra, o número muda, e aí a regra deixou de ser esta.
+
+O critério no código é a marca `Informativa`, não o nome da conta: quem marcar outra
+informativa amanhã não precisa lembrar de mexer na ordenação, e a tela continua coerente.
+
+### As contas de rateio sobem
+
+São as oito terminadas em `- RAT`: COMPRAS, CONTABILIDADE, FINANCEIRO, INFORMATICA, MARKETING,
+RECURSOS HUMANOS, DEPARTAMENTO PESSOAL e JURIDICO.
+
+**O bloco é o trecho entre duas linhas calculadas**, e não as flags `AntesRo`/`AntesLl`. A
+diferença importa: os créditos promovidos pela divergência 9 aparecem entre o `LUCRO BRUTO` e
+o `SUBTOTAL POSITIVO` carregando `AntesLl = 'S'`, que é a flag do bloco pós-operacional.
+Ordenar pelas flags os mandaria de volta para baixo e desfaria a promoção.
+
+**`COMPRAS - RAT` existe nos dois blocos**, e foi ela que definiu o escopo da mudança. O
+Gabriel escolheu reordenar *dentro de cada bloco* em vez de reordenar o DRE inteiro justamente
+por isso: subir a ocorrência pós-operacional a faria somar no `Sub-Total` e no
+`RESULTADO OPERACIONAL`, que hoje não a incluem.
+
+> **A armadilha do `RAT`, e ela quase passou.** `ADMINISTRATIVO` contém a sequência —
+> administ**RAT**ivo —, e `RATEIO DESP. CORPORATIVAS` começa com ela. Um `Contains("RAT")`
+> arrastaria as duas para o topo, e a tela pareceria certa para quem não conferisse conta por
+> conta. O teste é de **sufixo**: `RAT` como última palavra do nome.
+
+### As de transporte terceirizado vêm logo depois — 23/09/2026
+
+Pedido do Gabriel: as contas `TRANSPORTE T` sobem junto, **imediatamente após** as de rateio.
+A ordenação de cada bloco passa de duas faixas para três:
+
+| | |
+|---|---|
+| 1º | rateio — as oito que terminam em `- RAT` |
+| 2º | transporte terceirizado — as que começam em `TRANSPORTE T`, hoje os `28xx` |
+| 3º | todo o resto, na ordem do cadastro |
+
+`AgruparRateios` virou `AgruparFamilias`, e o `OrderBy` — que é estável no LINQ — passou a
+usar `Familia(linha)`. **Nenhuma conta atravessa uma linha calculada**, então nenhum valor
+muda: dc34, dc35 e dc64 seguem passando sem alteração.
+
+> **A armadilha, e desta vez ela foi evitada antes de acontecer.** O cadastro tem DUAS
+> famílias de transporte separadas por uma letra: os `22xx` — `TRANSPORTES MATRIZ`,
+> `TRANSPORTE MINAS RURAL`, `TRANSPORTE - CD RIO` — e os `28xx` — `TRANSPORTE T - (28)`,
+> `TRANSPORTE T CD UBERLANDIA`, `TRANSPORTE T - P&G`. Um `Contains("TRANSPORTE")` arrastaria
+> as duas, e a tela pareceria certa para quem não conferisse conta por conta — exatamente o
+> erro que o `ADMINISTRATIVO` quase causou na regra do `- RAT`.
+>
+> O teste é `StartsWith("TRANSPORTE T ")`, **com o espaço ao final**. O `S` de `TRANSPORTES`
+> cai antes do espaço, então o prefixo já separa os dois grupos sozinho; o espaço impede que
+> um `TRANSPORTE TERCEIRIZADO` cadastrado amanhã entre por engano. Ele não existe hoje, e é
+> justamente por isso que o teste precisou ser escrito agora.
+
+A [dc65](validacao/dc65_familias_na_ordem.mjs) confere a ordem em cada bloco, que a primeira
+`TRANSPORTE T` vem **imediatamente** depois da última `- RAT` — o pedido foi "logo após", e
+não "em algum lugar acima do resto" —, e que nenhum `22xx` foi classificado como
+terceirizado. Ela reescreve as três regras em vez de importar a implementação: um teste que
+importa o que testa não acusa quando a regra muda de um lado só.
+
+Medido em junho/2026, filial 7: **13 centros `22xx` ficaram no resto, 6 centros `28xx`
+subiram**, e a transição cai entre as posições 7 e 8 do bloco operacional.
+
+### Como foi conferido
+
+| | |
+|---|---|
+| [dc34](validacao/dc34_tres_dimensoes_concordam.mjs) | as três dimensões seguem fechando no mesmo `LUCRO LIQUIDO` |
+| [dc35](validacao/dc35_recalculo_reproduz_a_api.mjs) | o recálculo do front reproduz a API — 6.075 comparações nas três dimensões |
+| [dc36](validacao/dc36_encaixes_da_reordenacao.mjs) | 90 conferências da aritmética dos encaixes |
+| [dc65](validacao/dc65_familias_na_ordem.mjs) | as três famílias na ordem, em todo bloco — e a armadilha do `TRANSPORTES` |
+
+A dc34 conferia a linha `TOTAL DAS DESPESAS` e passou a calcular `LUCRO LIQUIDO − LUCRO BRUTO`
+no lugar dela: o conceito continua valendo, a linha é que não existe mais. A dc35 e a dc34
+também passaram a aceitar a porta da API pelo ambiente, como a dc41 e a dc51 já faziam.
+
+---
+
+## 12. A linha é a **conta principal**, e não os dois primeiros dígitos — 22/09/2026
+
+Pedido das reuniões, decidido com o Gabriel em 22/09/2026. **Nenhum valor muda** — o que muda
+é em quantas linhas o mesmo dinheiro aparece.
+
+| | |
+|---|---|
+| Antes | `SUBSTR(CodigoCentroCusto, 1, 2)` — `2801`, `2802` … `2831` viram **uma** linha, rotulada pelo `min()` do grupo |
+| Agora | o prefixo antes do ponto; sem ponto, o próprio código |
+
+```
+2201.133 · 2201.106  →  2201   TRANSPORTES MATRIZ
+2802                 →  2802   TRANSPORTE T CD UBERLANDIA   (linha nova)
+9001                 →  9001   VERBAS MARGEM                (linha, como sempre)
+```
+
+As subcontas saem da grade e aparecem no **detalhamento**, ao clicar no valor. Na filial 7 em
+agosto/2026 a grade passa de **34 para 60 linhas**, sobre 395 centros distintos.
+
+### A regra é uma só, e cobre todo centro
+
+A primeira leitura partia de `recebe_lancto = 'N'` como definição de conta principal, e
+esbarrava numa pergunta sem resposta: um centro **lançável sem ponto**, como o `2802`, não
+tem prefixo — a qual principal ele pertenceria? O Gabriel respondeu que é justamente isso que
+as reuniões pedem: ele deve ter **linha própria**.
+
+Com isso o `recebe_lancto` deixa de ser critério — ele descreve o cadastro, não o DRE — e
+**não existe lançamento sem linha**, por construção.
+
+Efeito colateral bem-vindo: o `9001` (`VERBAS MARGEM`) tem `recebe_lancto = 'S'` e cairia
+fora pela regra antiga. Pela regra do prefixo ele é linha, como sempre foi, e **não precisa de
+código especial nenhum**. Se um dia quiserem tirá-lo, o caminho é exclusão explícita por
+código no montador — nunca mexer na regra de agrupamento, que derrubaria outras linhas junto.
+
+### A expressão, em onze lugares
+
+```sql
+SUBSTR(x, 1, INSTR(x || '.', '.') - 1)
+```
+
+O `'.'` concatenado é o que a faz servir para os dois casos: com ponto devolve o prefixo, sem
+ponto o `INSTR` acha o ponto recém-colado no fim e a expressão devolve o código inteiro. **Sem
+ele**, um código sem ponto daria `INSTR = 0` e `SUBSTR(x,1,-1)` — string vazia, e a linha
+sumiria do DRE em silêncio.
+
+São dez ocorrências na apuração e uma no detalhamento. **Elas têm de andar juntas:** se as
+duas pontas discordarem, o duplo clique recorta por uma chave diferente da que somou a linha e
+o total deixa de fechar sem nada quebrar. A [dc61](validacao/dc61_conta_principal_no_fonte.mjs)
+confere lendo o fonte.
+
+### Como foi conferido
+
+| | |
+|---|---|
+| [dc61](validacao/dc61_conta_principal_no_fonte.mjs) | a regra é única nos onze lugares — e o montador fala a mesma chave |
+| [dc62](validacao/dc62_subcontas_no_detalhamento.mjs) | a granularidade mudou e o duplo clique acompanhou |
+| [dc64](validacao/dc64_conta_principal_contra_a_9815.mjs) | **45/45 contra a 9815**, junho/2026, filial 7 |
+| dc34 · dc35 | as três dimensões seguem no mesmo `LUCRO LIQUIDO`; o recálculo do front reproduz a API |
+
+A dc64 é a que importa para o negócio: para cada linha da 9815, ela junta as nossas do mesmo
+grupo de dois dígitos e compara a soma. Quatro linhas não batem direto, e as quatro fecham
+**ao centavo** pelo desmembramento:
+
+```
+CONTABILIDADE - RAT    -71.519,31  =  -45.152,31 (1201) + -26.367,00 (1202)
+TRANSPORTES MATRIZ  -3.448.746,10  =  soma de 8 linhas do grupo 22
+VENDAS              -1.079.239,25  =  soma de 16 linhas do grupo 23
+TRANSPORTE T - (28)   -661.935,77  =  soma de 6 linhas do grupo 28
+```
+
+As duas únicas diferenças de valor que sobram são as divergências **9** e **10**, já aprovadas:
+o `RESULTADO OPERACIONAL` difere em 1.669.235,01, que é exatamente `VERBAS MARGEM` mais
+`RATEIO DESP. CORPORATIVAS` — os créditos promovidos —, e o `LUCRO LIQUIDO` em −43.653,86,
+que é a indenização.
+
+**Conferido na tela** em 22/09: `TRANSPORTE T CD TRÊS CORAÇÕES` (centro `2803`), que antes
+não existia como linha, abre com 25 lançamentos somando (28.378,93) — o mesmo valor que a
+dc64 reconciliou.
+
+### O defeito que a dc34 pegou, e por que ele quase passou
+
+O montador identifica linhas especiais por `<chave>|<flags>`, e em C. Custo Principal a chave
+é o centro de custo. A chave mudou nas onze consultas, e **três lugares ficaram para trás**:
+
+```
+97 → 9701   INDENIZACAO                 deixou de ser informativa e VOLTOU A SOMAR
+96 → 9601   RATEIO DESP. CORPORATIVAS   os créditos parariam de subir
+90 → 9001   VERBAS MARGEM               idem
+```
+
+**Não houve sintoma.** As identidades simplesmente deixaram de casar — sem erro, sem exceção.
+O `LUCRO LIQUIDO` veio 177.168,06 a mais, um número perfeitamente plausível na tela. Quem
+percebeu foi a dc34, comparando as três dimensões entre si.
+
+A dc61 passou a ler o montador por causa disso: a primeira versão olhava só as consultas.
+
+### Duas coisas que o cadastro deixou estranhas
+
+O centro `2801` se chama **`TRANSPORTE T - (28)`**. O sufixo fazia sentido quando ele rotulava
+o grupo inteiro; agora ele é um dos seis, e o nome ficou enganoso. É cadastro do Winthor, não
+nosso — renomear é decisão de quem o mantém.
+
+O mesmo vale para o `1801` (`MOVIMENTAÇÃO E ARMAZENAGEM`) e outros que carregavam o nome do
+grupo por serem o `min()` dele.
+
+---
+
+## 14. `Manutencao De Veiculos` e `PNEUS E CAMARAS` entram nos cálculos — 25/09/2026
+
+**Pedido do Gabriel, direto na `main`.** As duas contas estavam no bloco informativo, depois
+do `LUCRO LIQUIDO`, e passam para as **despesas operacionais**: somam no
+`Sub-Total -> Despesas Operacionais` e, por ele, no `RESULTADO OPERACIONAL` e no
+`LUCRO LIQUIDO`.
+
+| | |
+|---|---|
+| `3000067` | Manutencao De Veiculos |
+| `3000080` | PNEUS E CAMARAS |
+
+### Medido em julho/2026, filial 7
+
+| | antes | depois | delta |
+|---|---|---|---|
+| `Sub-Total` | −12.694.555,65 | −10.984.560,92 | **+1.709.994,73** |
+| `RESULTADO OPERACIONAL` | −1.110.932,63 | 599.062,10 | **+1.709.994,73** |
+| `LUCRO LIQUIDO` | 1.304.518,90 | 3.014.513,63 | **+1.709.994,73** |
+| `LUCRO BRUTO` | 11.583.623,02 | 11.583.623,02 | — |
+
+O delta é exatamente a soma das duas contas — 483.723,91 + 1.226.270,82 —, conferida direto no
+`PCLANC` antes da mudança. As três dimensões mudam igual, e a dc34 continua passando.
+
+> **O lucro SOBE, não desce.** As duas contas aparecem na tela com **sinal positivo**,
+> enquanto as demais despesas operacionais aparecem negativas — é o que o `PCLANC` já
+> guardava, e não foi esta mudança que inverteu nada. Mas a consequência é que subi-las
+> **aumenta** o lucro em R$ 1,71 milhão, quando a intuição de "despesa que passa a somar"
+> diria o contrário. Vale conferir com o financeiro se é esse o efeito esperado.
+
+### Onde a mudança mora, e por que não no SQL
+
+No `MontadorDre`, como elo do pipeline (`SubirParaOperacional`). Três razões:
+
+1. a classificação nasce de `EPCPARDRE`, **tabela do Winthor compartilhada com a 9815** —
+   mexer nela mudaria a rotina antiga junto;
+2. abrir exceção no SQL custaria a mesma emenda em **32 pontos** — quatro dimensões × três
+   flags, mais estrutura e detalhamento;
+3. é o mesmo argumento que [PromoverCreditos](#9-o-resultado-operacional-sai-do-subtotal-positivo--14092026)
+   já usa: *a ordem sai daqui, e não do cadastro*.
+
+**A tupla de casamento é reescrita nos dois lados.** A estrutura e o índice das despesas são
+ligados por `(chave, AntesRo, AntesLl, AntesLf)`; reescrever só um faria a busca procurar
+`3000067|SSS` onde a despesa gravou `3000067|NNN`, e a linha apareceria **zerada** com a
+tela inteira parecendo correta.
+
+### A duplicata que a mudança teve de resolver antes
+
+`PNEUS E CAMARAS` **aparecia duas vezes** na Conta Gerencial, com o mesmo valor. A
+[dc71](validacao/dc71_pneus_e_camaras_duplicada.sql) mostrou por quê: a conta entra pelos
+**dois caminhos** da consulta de estrutura — pelo `EPCPARDRE`, onde ela é a única linha com
+`ID` nulo de todo o cadastro, e também pelo `UNION ALL` das órfãs, porque o `NOT IN` que
+deveria barrá-la compara a tupla *(conta, centro de custo)* e ela tem lançamentos em centros
+que o `PCCONTACENTROCUSTO` não cadastra.
+
+**Enquanto informativa isso era inofensivo** — duas linhas que somam zero vezes continuam
+somando zero. Ao subir, as duas passariam a somar, e o Sub-Total receberia **R$ 2.452.541,64
+no lugar de R$ 1.226.270,82**: o dobro, num número plausível o bastante para ninguém
+estranhar. Por isso a subida deduplica por conta.
+
+A `3000067` não está no `EPCPARDRE` de jeito nenhum — é órfã pura. E a dc71 achou de
+passagem que a `3000161` é repetida **dentro** do cadastro (IDs 1271 e 1344); fica anotado,
+não foi tocado.
+
+### O detalhamento não muda, e a primeira versão errou nisso
+
+O duplo clique continua abrindo os mesmos lançamentos, buscados **pela conta**, como sempre
+foram. O que mudou é de que soma a linha participa, não de onde vem o valor dela — o mesmo
+princípio que a divergência 10 já registrou.
+
+> **A primeira versão violou isso.** Com o bloco virando `operacional`, o recorte passava a
+> ser o **centro de custo** enquanto a chave da linha continuava sendo a **conta**: a tela
+> abria vazia, e os lançamentos ainda vazavam para o detalhe das outras linhas operacionais.
+> A dc62 acusou R$ 11.982,92 a mais em `TRANSPORTES MATRIZ`. A correção foi guardar o bloco
+> que a linha tinha **antes** de subir, em vez de deduzi-lo das flags novas.
+
+### Como reverter
+
+Esvaziar `MontadorDre.ContasSubidasParaOperacional`. Tudo volta ao estado anterior, inclusive
+a duplicata de PNEUS — ela é do cadastro, não nossa. O commit é único e isolado.
+
+### O que continua igual
+
+dc34, dc62, dc65 e dc9 passam. dc11 (2 de 10) e dc23 (8 de 24) falham **exatamente como antes**
+— mesmas linhas, mesmos valores, confirmado com `git stash`.

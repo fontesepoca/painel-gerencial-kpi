@@ -35,7 +35,8 @@
  */
 import { postar } from "./_postar.mjs";
 
-const API = "http://localhost:5207/api/dre-gerencial/apuracao";
+// A porta sai do ambiente, como nas dc35, dc41 e dc51.
+const API = `${process.env.API ?? "http://localhost:5207"}/api/dre-gerencial/apuracao`;
 
 const BASE = {
   filiais: ["7", "12", "25"],
@@ -75,20 +76,26 @@ for (const analise of DIMENSOES) {
   medidas.push({
     analise,
     lucroBruto: achar(L, "LUCRO BRUTO").total.valor,
-    totalDespesas: achar(L, "TOTAL DAS DESPESAS").total.valor,
     lucroLiquido: achar(L, "LUCRO LIQUIDO").total.valor,
     indenizacao: achar(L, "INDENIZACAO DE MERC. VENC. E AVARIA"),
     informativasComValor: informativa,
   });
 }
 
+// A LINHA `TOTAL DAS DESPESAS` NÃO EXISTE MAIS — saiu da tela em 21/09/2026, a pedido do
+// Gabriel. O que ela mostrava continua valendo como CONCEITO, e é isso que a coluna abaixo
+// calcula: tudo o que separa o LUCRO BRUTO do LUCRO LIQUIDO.
+//
+// Continua sendo conferência útil, e não enfeite: se as três dimensões chegam ao mesmo
+// LUCRO LIQUIDO partindo do mesmo LUCRO BRUTO, a diferença tem de ser a mesma nas três. Uma
+// delas fora de linha aponta para onde procurar.
 const larg = 20;
-console.log("  " + "dimensão".padEnd(20) + ["LUCRO BRUTO", "Total das Despesas", "LUCRO LIQUIDO"].map((c) => c.padStart(larg)).join(""));
+console.log("  " + "dimensão".padEnd(20) + ["LUCRO BRUTO", "LL - LB", "LUCRO LIQUIDO"].map((c) => c.padStart(larg)).join(""));
 for (const m of medidas) {
   console.log(
     "  " + m.analise.padEnd(20)
     + fmt(m.lucroBruto).padStart(larg)
-    + fmt(m.totalDespesas).padStart(larg)
+    + fmt(m.lucroLiquido - m.lucroBruto).padStart(larg)
     + fmt(m.lucroLiquido).padStart(larg),
   );
 }

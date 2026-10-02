@@ -643,6 +643,44 @@ public sealed class DreGerencialRepository : IDreGerencialRepository
         return linhas.ToList();
     }
 
+    public async Task<IReadOnlyList<DetalheNotaDre>> ObterDetalheNotasDaDevolucaoAsync(
+        int? codMotivo,
+        IReadOnlyList<string> filiais,
+        DateOnly dataInicio,
+        DateOnly dataFim,
+        CancellationToken cancellationToken = default)
+    {
+        if (filiais.Count == 0)
+        {
+            return [];
+        }
+
+        var placeholders = string.Join(", ", filiais.Select((_, i) => $":filial{i}"));
+        var sql = string.Format(DreDetalheQueries.NotasDaDevolucao, placeholders);
+
+        // A ordem segue a dos binds no SQL: as datas, as filiais, e o motivo por último.
+        var parametros = new DynamicParameters();
+        parametros.Add("dtIni", dataInicio.ToDateTime(TimeOnly.MinValue));
+        parametros.Add("dtFim", dataFim.ToDateTime(TimeOnly.MinValue));
+        for (var i = 0; i < filiais.Count; i++)
+        {
+            parametros.Add($"filial{i}", filiais[i]);
+        }
+
+        parametros.Add("codMotivo", codMotivo);
+
+        using var conexao = await _conexoes.CriarConexaoAsync(cancellationToken);
+
+        var linhas = await conexao.QueryAsync<DetalheNotaDre>(
+            new CommandDefinition(
+                sql,
+                parametros,
+                commandTimeout: 300,
+                cancellationToken: cancellationToken));
+
+        return linhas.ToList();
+    }
+
     public async Task<IReadOnlyList<DetalheMotivoDre>> ObterDetalheDevolucaoPorMotivoAsync(
         IReadOnlyList<string> filiais,
         DateOnly dataInicio,

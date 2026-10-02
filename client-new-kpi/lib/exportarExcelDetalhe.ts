@@ -14,7 +14,7 @@ import {
 import { colunaDoTotal, nomeDaLinha, rotuloDaColuna } from "@/lib/colunaDoTotal";
 import { temRateio, valorNoDre } from "@/lib/rateioDoDetalhe";
 import { semEstornosQueSeAnulam } from "@/lib/estornosQueSeAnulam";
-import type { Detalhamento } from "@/types/dre-gerencial";
+import type { DetalheCliente, Detalhamento } from "@/types/dre-gerencial";
 
 /**
  * O detalhamento em `.xlsx` — uma matriz por tela.
@@ -54,8 +54,32 @@ interface Corpo {
   linhas: Celula[][];
 }
 
-function corpoDoDetalhe(dados: Detalhamento): Corpo {
+/**
+ * O `% part.` de uma linha, dado o total da tela.
+ *
+ * Nulo quando o total é zero — percentual de zero é indefinido, e escrever 0 numa planilha
+ * que alguém vai somar é pior do que deixar a célula vazia.
+ */
+const parteDe = (valor: number, total: number) =>
+  total !== 0 ? (valor / total) * 100 : null;
+
+function corpoDoDetalhe(dados: Detalhamento, nomeDaLinhaDoDre: string | null): Corpo {
   if (dados.tipo === "receita-por-cliente") {
+    // A MESMA base da tela: a coluna que fecha o total da linha do DRE. Cinco colunas de
+    // dinheiro dariam cinco percentuais, e a planilha tem de responder à mesma pergunta
+    // que a tela respondeu — senão os dois números discordam sem que nada esteja errado.
+    const base = colunaDoTotal("receita-por-cliente", nomeDaLinhaDoDre);
+    const valorBase: Record<string, (c: DetalheCliente) => number> = {
+      "Receita bruta": (c) => c.receitaBruta,
+      Desconto: (c) => c.desconto,
+      Devolução: (c) => c.devolucao,
+      "Custo líq.": (c) => c.custoLiq,
+      "Receita líq.": (c) => c.receitaLiquida,
+    };
+    const ler = base ? valorBase[base] : undefined;
+    const clientes = dados.clientes ?? [];
+    const total = ler ? clientes.reduce((t, c) => t + ler(c), 0) : 0;
+
     return {
       rotulos: [
         "Código",
@@ -67,8 +91,9 @@ function corpoDoDetalhe(dados: Detalhamento): Corpo {
         "Devolução",
         "Custo líq.",
         "Receita líq.",
+        ...(ler ? ["% part."] : []),
       ],
-      larguras: [10, 42, 22, 8, 16, 16, 16, 16, 16],
+      larguras: [10, 42, 22, 8, 16, 16, 16, 16, 16, ...(ler ? [10] : [])],
       linhas: (dados.clientes ?? []).map((c) => [
         num(c.codCli, INTEIRO),
         txt(c.cliente),
@@ -79,6 +104,7 @@ function corpoDoDetalhe(dados: Detalhamento): Corpo {
         num(c.devolucao),
         num(c.custoLiq),
         num(c.receitaLiquida),
+        ...(ler ? [num(parteDe(ler(c), total), PERCENTUAL_2)] : []),
       ]),
     };
   }
@@ -95,6 +121,31 @@ function corpoDoDetalhe(dados: Detalhamento): Corpo {
         num(m.qdeNf, INTEIRO),
         num(m.vlDevolucao),
         num(m.pPart, PERCENTUAL_2),
+      ]),
+    };
+  }
+
+  if (dados.tipo === "notas-por-motivo") {
+    return {
+      rotulos: ["Nota", "Série", "Entrada", "Transação", "Cód. parceiro", "Parceiro", "Itens", "Devolução", "% part."],
+      larguras: [12, 8, 12, 14, 14, 42, 8, 16, 10],
+      linhas: (dados.notas ?? []).map((n) => [
+        num(n.numNota, INTEIRO),
+        txt(n.serie),
+        txt(n.dtEnt ? n.dtEnt.slice(0, 10).split("-").reverse().join("/") : null),
+        // A transação vira COLUNA na planilha, ao contrário da tela — quem exporta está
+        // levando o dado para cruzar com outro sistema, e ali a chave real importa mais
+        // do que a largura da coluna.
+        num(n.numTransEnt, INTEIRO),
+        // O código pode ser de CLIENTE (o do pedido) ou de FORNECEDOR (o da nota, quando
+        // não há pedido vinculado) — a mesma ordem de preferência do nome ao lado. Vai só
+        // na planilha, e não na tela, porque quem exporta está cruzando com outro sistema
+        // e ali a ambiguidade se resolve olhando o nome.
+        num(n.codParceiro, INTEIRO),
+        txt(n.parceiro ?? "Sem parceiro identificado"),
+        num(n.itens, INTEIRO),
+        num(n.vlDevolucao),
+        num(n.pPart, PERCENTUAL_2),
       ]),
     };
   }
@@ -197,7 +248,10 @@ function corpoDoDetalhe(dados: Detalhamento): Corpo {
 }
 
 export function planilhaDoDetalhe(detalhe: DetalheParaExportar): Planilha {
-  const { rotulos, larguras, linhas } = corpoDoDetalhe(detalhe.dados);
+  const { rotulos, larguras, linhas } = corpoDoDetalhe(
+    detalhe.dados,
+    nomeDaLinha(detalhe.linha),
+  );
   const nome = nomeDaLinha(detalhe.linha);
   const coluna = colunaDoTotal(detalhe.dados.tipo, nome);
 
