@@ -404,12 +404,18 @@ public sealed class DreGerencialService
 
         var cronometro = System.Diagnostics.Stopwatch.StartNew();
 
+        // Os códigos filtrados, ecoados em toda resposta: a tela do detalhe abre fora do
+        // contexto da apuração e precisa dizer de quem é o recorte que mostra.
+        var fornecedores = filtro.Fornecedores is { Count: > 0 } ? filtro.Fornecedores : null;
+        var eco = fornecedores ?? [];
+
         switch (filtro.Tipo)
         {
             case "receita-por-cliente":
             {
                 var linhas = await _repositorio.ObterDetalheReceitaPorClienteAsync(
-                    filtro.Filiais, filtro.DataInicio, filtro.DataFim, cancellationToken);
+                    filtro.Filiais, filtro.DataInicio, filtro.DataFim, fornecedores,
+                    cancellationToken);
 
                 cronometro.Stop();
                 return Result<DetalhamentoDto>.Ok(new DetalhamentoDto(
@@ -417,13 +423,14 @@ public sealed class DreGerencialService
                     linhas.Select(c => new DetalheClienteDto(
                         c.CodCli, c.Cliente, c.Cidade, c.QdeNf, c.ReceitaBruta,
                         c.Desconto, c.Devolucao, c.ReceitaLiquida, c.CustoLiq)).ToList(),
-                    null, null, null, cronometro.ElapsedMilliseconds));
+                    null, null, null, cronometro.ElapsedMilliseconds, eco));
             }
 
             case "devolucao-por-motivo":
             {
                 var linhas = await _repositorio.ObterDetalheDevolucaoPorMotivoAsync(
-                    filtro.Filiais, filtro.DataInicio, filtro.DataFim, cancellationToken);
+                    filtro.Filiais, filtro.DataInicio, filtro.DataFim, fornecedores,
+                    cancellationToken);
 
                 cronometro.Stop();
                 return Result<DetalhamentoDto>.Ok(new DetalhamentoDto(
@@ -431,7 +438,7 @@ public sealed class DreGerencialService
                     linhas.Select(m => new DetalheMotivoDto(
                         m.CodMotivo, m.Motivo, m.CulpaRca, m.QdeNf,
                         m.VlDevolucao, m.PPart)).ToList(),
-                    null, null, cronometro.ElapsedMilliseconds));
+                    null, null, cronometro.ElapsedMilliseconds, eco));
             }
 
             case "lancamentos":
@@ -465,12 +472,37 @@ public sealed class DreGerencialService
 
                 var linhas = await _repositorio.ObterDetalheLancamentosAsync(
                     filtro.Filiais, filtro.DataInicio, filtro.DataFim, regime, analise,
-                    filtro.Bloco, filtro.Chave, cancellationToken);
+                    filtro.Bloco, filtro.Chave, fornecedores, cancellationToken);
+
+                // ── A PARTICIPAÇÃO, QUE É O QUE FAZ A TELA FECHAR COM A CÉLULA ──────
+                //
+                // A célula de despesa com fornecedor filtrado não é a soma dos lançamentos:
+                // é `(total − exclusivo) × participação + exclusivo`. Sem este número a
+                // lista mostraria a despesa inteira da filial e não explicaria a linha que
+                // o usuário clicou — que é o que a 9815 faz, e o que decidimos não repetir.
+                //
+                // A conta sai da MESMA consulta da apuração, não de uma cópia: o
+                // faturamento já devolve a receita líquida filtrada e a da filial inteira,
+                // e a participação é o quociente das duas somadas no período. Custa uma
+                // consulta a mais, e só quando há filtro.
+                var participacao = 1m;
+                if (fornecedores is not null)
+                {
+                    var faturamento = await _repositorio.ObterFaturamentoPorMesAsync(
+                        filtro.Filiais, filtro.DataInicio, filtro.DataFim, fornecedores,
+                        cancellationToken);
+
+                    var total = faturamento.Sum(f => f.ReceitaLiquidaTotal);
+                    participacao = total == 0m
+                        ? 1m
+                        : faturamento.Sum(f => f.ReceitaLiquida) / total;
+                }
 
                 cronometro.Stop();
                 return Result<DetalhamentoDto>.Ok(new DetalhamentoDto(
                     filtro.Tipo, filtro.DataInicio, filtro.DataFim, null, null,
                     linhas.Select(l => new DetalheLancamentoDto(
+                        l.Exclusivo != 0m,
                         l.RecNum, l.CodFilial, l.CodCcPrinc, l.DescCcPrinc,
                         l.CodCentroCusto, l.DescCentroCusto, l.CodGrupo, l.Grupo,
                         l.CodConta, l.Conta, l.VPago, l.Historico, l.DtLanc,
@@ -480,7 +512,7 @@ public sealed class DreGerencialService
                         l.NumSeqBordero, l.NumCheque2, l.NumCar, l.Localizacao,
                         l.NomeFunc, l.NomeFuncBaixa, l.DtReclassific,
                         l.CodFuncReclassific)).ToList(),
-                    null, cronometro.ElapsedMilliseconds));
+                    null, cronometro.ElapsedMilliseconds, eco, participacao));
             }
 
             case "imposto-por-produto":
@@ -495,7 +527,7 @@ public sealed class DreGerencialService
 
                 var linhas = await _repositorio.ObterDetalheImpostoPorProdutoAsync(
                     filtro.Bloco, filtro.Filiais, filtro.DataInicio, filtro.DataFim,
-                    cancellationToken);
+                    fornecedores, cancellationToken);
 
                 // A participação é do LÍQUIDO sobre o total da tela, como na devolução por
                 // motivo. Total zero não vira divisão por zero: a coluna sai zerada.
@@ -507,7 +539,7 @@ public sealed class DreGerencialService
                     linhas.Select(i => new DetalheImpostoDto(
                         i.CodProd, i.Produto, i.QdeNf, i.Vendas, i.Devolucoes, i.Liquido,
                         total == 0m ? 0m : Math.Round(i.Liquido / total * 100m, 2))).ToList(),
-                    cronometro.ElapsedMilliseconds));
+                    cronometro.ElapsedMilliseconds, eco));
             }
 
             default:

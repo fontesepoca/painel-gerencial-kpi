@@ -330,6 +330,35 @@ que verba no 90 não implica centro próprio.
 
 ---
 
+## O detalhamento, resolvido em 02/10/2026
+
+Era a limitação conhecida desta funcionalidade: com o filtro ligado, o duplo clique abria os
+lançamentos de todos os fornecedores e a soma não fechava com a célula clicada. A página
+mandava `fornecedores: []` de propósito, com o comentário dizendo por quê.
+
+O fonte explica de onde vinha: a 9815 **também** não filtra ali — `TFLanc.Create` não recebe
+fornecedor, e o valor da célula que ela passa adiante (`VlConta`, ULanc.pas:148) é atribuído
+e nunca lido. Ser fiel aqui seria herdar uma tela que responde outra pergunta sem avisar.
+
+O desenho aprovado:
+
+| Tela | O que faz | Fecha com a célula? |
+|---|---|---|
+| Receita por cliente · Devolução por motivo · Imposto por produto | filtra na consulta, pelo mesmo `pr.codfornec` | sim, direto — não há rateio no caminho |
+| Lançamentos | mesmo recorte da apuração, cada lançamento marcado como exclusivo ou não, e uma coluna `No DRE` com o valor rateado | sim, pela coluna nova |
+
+Os dois fragmentos de SQL do filtro — `EhExclusivo` e `CentrosDeOutroFornecedor` — passaram a
+ser **compartilhados** entre a apuração e o detalhamento, no `DreGerencialRepository`. Eles
+eram locais do método de despesas; duplicá-los era o jeito mais fácil de as duas telas
+divergirem num caractere e ninguém notar.
+
+A participação vem da mesma consulta de faturamento que a apuração usa — não de uma cópia da
+conta —, e custa uma chamada a mais, só quando há filtro.
+
+Medido pela [dc78](validacao/dc78_detalhe_fecha_com_a_celula_filtrada.mjs): 12 de 12 linhas
+ao centavo, mais as asserções de que nada muda sem filtro. Ver a divergência nº 11 em
+[DIVERGENCIAS.md](DIVERGENCIAS.md).
+
 ## O que ainda falta medir
 
 **Lançamento sem centro de custo.** Na 9815, `codccprinc` nulo faz as duas condições virarem

@@ -273,6 +273,12 @@ export interface DetalheImposto {
 }
 
 export interface DetalheLancamento {
+  /**
+   * O lançamento é do fornecedor filtrado e **entra inteiro no DRE**, sem rateio: verba do
+   * centro 90 com o código dele, ou despesa de um centro dedicado a ele. Sempre `false` sem
+   * filtro — e aí nada é rateado, então a distinção não existe.
+   */
+  exclusivo: boolean;
   recNum: number;
   codFilial: string | null;
   codCcPrinc: string | null;
@@ -323,6 +329,16 @@ export interface Detalhamento {
   lancamentos: DetalheLancamento[] | null;
   impostos: DetalheImposto[] | null;
   duracaoMs: number;
+  /** Os códigos filtrados, ecoados pela API. Vazio quando é o DRE inteiro. */
+  fornecedores: number[];
+  /**
+   * A fatia do fornecedor na receita líquida da filial, de 0 a 1 — o mesmo número que o DRE
+   * mostra como `P.8,221%`.
+   *
+   * É o fator que a tela de lançamentos aplica sobre o que não é exclusivo, e é o que faz a
+   * soma fechar com a célula clicada. `1` sem filtro. Ver `lib/rateioDoDetalhe.ts`.
+   */
+  participacao: number;
 }
 
 export interface Apuracao {

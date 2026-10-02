@@ -4,6 +4,7 @@ import { Fragment, useEffect, useRef } from "react";
 import { formatarPercentual, formatarValor } from "@/lib/formato";
 import { paraBr } from "@/lib/periodos";
 import { cn } from "@/lib/cn";
+import { somaNoDre, temRateio, valorNoDre } from "@/lib/rateioDoDetalhe";
 import {
   colunaDoTotal,
   igual,
@@ -324,6 +325,9 @@ function Conteudo({
       linhas={dados.lancamentos ?? []}
       coluna={coluna}
       nome={nome}
+      // Com fornecedor filtrado a tela ganha a coluna do valor rateado, e é ELA que
+      // fecha com a célula. Ver `lib/rateioDoDetalhe.ts`.
+      participacao={temRateio(dados) ? dados.participacao : null}
     />
   );
 }
@@ -1039,10 +1043,48 @@ const COLUNAS: ReadonlyArray<{
   },
 ];
 
+/**
+ * As colunas da tela, com a do RATEIO quando há fornecedor filtrado.
+ *
+ * <b>Ela entra logo depois do V. Pago</b>, e não no fim: as duas são o mesmo dinheiro
+ * visto de dois jeitos — o que o lançamento é, e o que ele vale dentro deste DRE —, e lado
+ * a lado a conta se lê sem procurar. As 25 colunas da 9815 seguem na ordem dela.
+ *
+ * Sem filtro a lista é, item por item, a de sempre: uma coluna a mais mostrando o mesmo
+ * número duas vezes seria ruído puro.
+ */
+function colunasDeLancamento(participacao: number | null) {
+  if (participacao === null) return COLUNAS;
+
+  const i = COLUNAS.findIndex((c) => c.rotulo === "V. Pago");
+  return [
+    ...COLUNAS.slice(0, i + 1),
+    {
+      rotulo: "No DRE",
+      numerica: true,
+      ler: (l: DetalheLancamento) => (
+        <>
+          {formatarValor(valorNoDre(l, participacao))}
+          {/* O selo explica por que ESTA linha não encolheu: a despesa é do próprio
+              fornecedor, e ratear cobraria dele uma fração do que é todo dele. */}
+          {l.exclusivo && (
+            <span className="ml-2 rounded-[var(--radius-sm)] border border-[var(--border-strong)] px-1.5 py-0.5 text-[length:var(--fs-apoio)] font-medium text-[var(--text-muted)]">
+              exclusivo
+            </span>
+          )}
+        </>
+      ),
+    },
+    ...COLUNAS.slice(i + 1),
+  ];
+}
+
 interface ContaAgrupada {
   chave: string;
   rotulo: string;
   total: number;
+  /** O mesmo grupo, rateado — igual ao `total` quando não há filtro. */
+  totalNoDre: number;
   linhas: DetalheLancamento[];
 }
 
@@ -1050,6 +1092,7 @@ interface CentroAgrupado {
   chave: string;
   rotulo: string;
   total: number;
+  totalNoDre: number;
   contas: ContaAgrupada[];
 }
 
@@ -1062,7 +1105,10 @@ interface CentroAgrupado {
  * segunda fonte de verdade sobre a ordem, e as duas sairiam de sincronia na primeira vez
  * que o SQL mudasse.
  */
-function agrupar(linhas: readonly DetalheLancamento[]): CentroAgrupado[] {
+function agrupar(
+  linhas: readonly DetalheLancamento[],
+  participacao: number | null,
+): CentroAgrupado[] {
   const centros: CentroAgrupado[] = [];
 
   for (const l of linhas) {
@@ -1073,6 +1119,7 @@ function agrupar(linhas: readonly DetalheLancamento[]): CentroAgrupado[] {
         chave: chaveCentro,
         rotulo: l.descCcPrinc ?? "—",
         total: 0,
+        totalNoDre: 0,
         contas: [],
       };
       centros.push(centro);
@@ -1085,14 +1132,19 @@ function agrupar(linhas: readonly DetalheLancamento[]): CentroAgrupado[] {
         chave: chaveConta,
         rotulo: l.conta ?? "—",
         total: 0,
+        totalNoDre: 0,
         linhas: [],
       };
       centro.contas.push(conta);
     }
 
+    const noDre = participacao === null ? l.vPago : valorNoDre(l, participacao);
+
     conta.linhas.push(l);
     conta.total += l.vPago;
+    conta.totalNoDre += noDre;
     centro.total += l.vPago;
+    centro.totalNoDre += noDre;
   }
 
   return centros;
@@ -1102,10 +1154,13 @@ function TabelaLancamentos({
   linhas,
   coluna,
   nome,
+  participacao,
 }: {
   linhas: readonly DetalheLancamento[];
   coluna: string | null;
   nome: string | null;
+  /** A fatia do fornecedor, ou `null` quando a apuração não foi filtrada. */
+  participacao: number | null;
 }) {
   if (linhas.length === 0) return <Vazio />;
 
@@ -1117,18 +1172,23 @@ function TabelaLancamentos({
    * `lib/estornosQueSeAnulam.ts` para o motivo de não copiarmos o filtro da 9815.
    */
   const { visiveis, omitidos } = semEstornosQueSeAnulam(linhas);
-  const centros = agrupar(visiveis);
+  const centros = agrupar(visiveis, participacao);
+  const COLS = colunasDeLancamento(participacao);
+
+  // Com rateio, quem fecha com a célula clicada é a coluna nova — e é ela que o
+  // cabeçalho tem de anunciar. Apontar o V. Pago mandaria a pessoa somar a coluna errada.
+  const colunaQueFecha = participacao === null ? coluna : "No DRE";
 
   return (
     <>
       <table className="w-full border-collapse text-[length:var(--fs-base)]">
         <Cabecalho>
-          {COLUNAS.map((c, i) =>
-            c.rotulo === coluna ? (
+          {COLS.map((c, i) =>
+            c.rotulo === colunaQueFecha ? (
               <ThNum
                 key={c.rotulo}
                 rotulo={c.rotulo}
-                coluna={coluna}
+                coluna={colunaQueFecha}
                 nome={nome}
               />
             ) : (
@@ -1165,7 +1225,7 @@ function TabelaLancamentos({
                       key={l.recNum + "-" + (l.codCentroCusto ?? "") + "-" + i}
                       className="border-b border-[var(--border)] odd:bg-[var(--zebra)] hover:bg-[var(--surface-2)]"
                     >
-                      {COLUNAS.map((c, j) => {
+                      {COLS.map((c, j) => {
                         const conteudo = c.ler(l);
                         return (
                           <td
@@ -1192,14 +1252,24 @@ function TabelaLancamentos({
                     </tr>
                   ))}
 
-                  <LinhaDeSubtotal nivel={2} valor={conta.total} />
+                  <LinhaDeSubtotal
+                    nivel={2}
+                    valor={conta.total}
+                    valorNoDre={participacao === null ? null : conta.totalNoDre}
+                    colunas={COLS.length}
+                  />
                 </Fragment>
               ))}
 
               {/* O total do centro de custo só aparece quando há mais de um. Com um só ele
                 repetiria o rodapé duas linhas abaixo. */}
               {centros.length > 1 && (
-                <LinhaDeSubtotal nivel={1} valor={centro.total} />
+                <LinhaDeSubtotal
+                  nivel={1}
+                  valor={centro.total}
+                  valorNoDre={participacao === null ? null : centro.totalNoDre}
+                  colunas={COLS.length}
+                />
               )}
             </Fragment>
           ))}
@@ -1213,12 +1283,35 @@ function TabelaLancamentos({
           {/* Soma o que está na tela. Dá o mesmo número de antes — par de estorno oposto no
             mesmo grupo soma zero —, e é o que mantém este rodapé fechando com a linha do
             DRE. Se um dia divergir, o filtro escondeu algo que não se anulava. */}
-          <td className={totalDe(coluna, "V. Pago")}>
+          <td className={totalDe(colunaQueFecha, "V. Pago")}>
             {formatarValor(soma(visiveis, (l) => l.vPago))}
           </td>
-          <td className={TD} colSpan={COLUNAS.length - 3} />
+          {participacao !== null && (
+            <td className={totalDe(colunaQueFecha, "No DRE")}>
+              {formatarValor(somaNoDre(visiveis, participacao))}
+            </td>
+          )}
+          <td
+            className={TD}
+            colSpan={COLS.length - (participacao === null ? 3 : 4)}
+          />
         </Total>
       </table>
+
+      {/* DE ONDE VEM A COLUNA "No DRE".
+
+          Sem esta frase a tela mostra dois totais diferentes para a mesma lista e deixa a
+          pessoa descobrir sozinha qual é o da linha que ela clicou. O número da
+          participação aparece com três casas, como no DRE. */}
+      {participacao !== null && (
+        <p className="px-3 py-2 text-[length:var(--fs-apoio)] leading-relaxed text-[var(--text-muted)]">
+          A despesa acima é da filial inteira. No DRE deste fornecedor entra a fatia dele
+          — <strong>{(participacao * 100).toFixed(3).replace(".", ",")}%</strong> da
+          receita líquida da filial —, e é a coluna <strong>No DRE</strong> que soma o
+          valor da célula. Lançamento marcado como <strong>exclusivo</strong> é despesa do
+          próprio fornecedor e entra inteiro, sem rateio.
+        </p>
+      )}
 
       {/* Dizer o que foi escondido não é formalidade: quem confere esta tela contra a 9815
           compara a contagem de linhas, e uma lista mais curta sem explicação parece dado
@@ -1270,7 +1363,18 @@ function LinhaDeGrupo({ nivel, rotulo }: { nivel: 1 | 2; rotulo: string }) {
 }
 
 /** Subtotal de conta ou de centro de custo, alinhado com a coluna V. Pago. */
-function LinhaDeSubtotal({ nivel, valor }: { nivel: 1 | 2; valor: number }) {
+function LinhaDeSubtotal({
+  nivel,
+  valor,
+  valorNoDre,
+  colunas,
+}: {
+  nivel: 1 | 2;
+  valor: number;
+  /** O subtotal rateado, quando há filtro. `null` deixa a coluna fora da linha. */
+  valorNoDre: number | null;
+  colunas: number;
+}) {
   return (
     <tr className="linha-subtotal border-b border-[var(--border)]">
       <td className={cn(TD, "col-identidade")} />
@@ -1292,7 +1396,20 @@ function LinhaDeSubtotal({ nivel, valor }: { nivel: 1 | 2; valor: number }) {
       >
         {formatarValor(valor)}
       </td>
-      <td colSpan={COLUNAS.length - 3} />
+      {valorNoDre !== null && (
+        <td
+          className={cn(
+            NUM,
+            "font-semibold",
+            valorNoDre < 0
+              ? "text-[var(--negative)]"
+              : "text-[var(--text-primary)]",
+          )}
+        >
+          {formatarValor(valorNoDre)}
+        </td>
+      )}
+      <td colSpan={colunas - (valorNoDre === null ? 3 : 4)} />
     </tr>
   );
 }

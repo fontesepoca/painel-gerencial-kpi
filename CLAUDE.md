@@ -27,7 +27,7 @@ literal** da tela antiga.
 
 | | |
 |---|---|
-| **Filtro por fornecedor** | mecânica **lida no fonte Delphi**, nada implementado. A tabela de vínculo tem desenho e carga prontos; falta o financeiro decidir as linhas que são divergência — ver [docs/FILTRO_FORNECEDOR.md](docs/FILTRO_FORNECEDOR.md) |
+| **Filtro por fornecedor** | **implementado** — apuração, rateio, tela e detalhamento (dc74, dc77, dc78). Falta o financeiro decidir as linhas marcadas como divergência na carga da tabela de vínculo, e segue aberta a divergência da `MANUTENCAO DE VEICULOS` — ver [docs/FILTRO_FORNECEDOR.md](docs/FILTRO_FORNECEDOR.md) |
 | O duplo clique **pela tela** | a API fecha 162/162, mas as telas novas nunca foram percorridas pela interface com dado real |
 | Tempo das consultas de imposto | nunca medido isoladamente — a dc6 só dá o total da execução |
 | Período de 3 meses e todas as filiais juntas | **custo medido em 17/09** — 173 s e 122,7 KB (dc41); os valores nunca foram conferidos contra a 9815 |

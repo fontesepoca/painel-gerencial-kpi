@@ -289,13 +289,22 @@ export default function DreGerencialPage() {
                 dataFim: dados.dataFim,
                 regime: dados.regime,
                 analise: dados.analise,
-                // VAZIO DE PROPÓSITO, E É UMA LIMITAÇÃO CONHECIDA: o detalhamento ainda não
-                // sabe filtrar por fornecedor. Com o filtro ligado, o duplo clique abre os
-                // lançamentos de TODOS os fornecedores, e a soma deles não fecha com a célula
-                // clicada — justamente a promessa que o detalhamento existe para cumprir.
-                // Mandar os códigos aqui não resolveria: a consulta de detalhe os ignora.
-                // Ver docs/FILTRO_FORNECEDOR.md.
-                fornecedores: [],
+                // OS FORNECEDORES DA APURAÇÃO, desde 02/10/2026 — antes isto ia vazio, e o
+                // duplo clique abria os lançamentos de todo mundo numa tela cujo propósito é
+                // explicar a célula clicada.
+                //
+                // Os códigos saem de `dados`, que é a apuração que está na tela; o OBJETO
+                // vem do formulário quando ainda está lá, só para a tela ter o nome à mão. O
+                // que viaja para a API é o código, e só ele — ver `paraApi`.
+                fornecedores: dados.fornecedores.map(
+                  (cod) =>
+                    filtro.fornecedores.find((f) => f.codFornec === cod) ?? {
+                      codFornec: cod,
+                      fornecedor: "",
+                      cgc: null,
+                      codFornecPrinc: null,
+                    },
+                ),
                 // O detalhamento é sempre de UMA coluna, e a coluna já traz o próprio
                 // recorte em datas. Mandar o modo junto faria o servidor reabrir a
                 // consulta em várias colunas de novo, dentro de um detalhe.

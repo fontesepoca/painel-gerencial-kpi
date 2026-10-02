@@ -125,7 +125,16 @@ function paraApi(filtro: FiltroApuracao) {
  */
 export function useDetalhe() {
   return useMutation({
-    mutationFn: (filtro: FiltroDetalhe) =>
-      apiClient.post<Detalhamento>("/api/dre-gerencial/detalhe", filtro),
+    // Pelo `paraApi` como a apuração, e não pelo filtro cru: a tela guarda os fornecedores
+    // como OBJETOS, e o servidor só quer os códigos. Mandar o objeto inteiro faria a
+    // desserialização falhar no primeiro campo que ele não conhece — e o detalhe voltaria
+    // sem filtro nenhum, mostrando a filial toda com cara de certo.
+    mutationFn: ({ tipo, bloco, chave, ...filtro }: FiltroDetalhe) =>
+      apiClient.post<Detalhamento>("/api/dre-gerencial/detalhe", {
+        ...paraApi(filtro),
+        tipo,
+        bloco,
+        chave,
+      }),
   });
 }

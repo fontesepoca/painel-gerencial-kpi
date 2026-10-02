@@ -198,13 +198,6 @@ public sealed class DreGerencialRepository : IDreGerencialRepository
         string Lista(int n) =>
             string.Join(", ", fornecedores!.Select((_, i) => $":fd{n}_{i}"));
 
-        // O centro dedicado, lido da tabela de parâmetro. Na 9815 isto é o literal 29 escrito
-        // à mão (UBase.pas:27217); aqui é cadastro. O `DTINATIVACAO IS NULL` respeita o
-        // desligamento sem apagar o histórico — ver docs/FILTRO_FORNECEDOR.md.
-        const string DedicadoAberto =
-            "EXISTS (SELECT 1 FROM TAB_WEB_CENTROC_FORNEC D " +
-            "WHERE cc.CodigoCentroCusto LIKE D.CODCENTRO || '%' AND D.DTINATIVACAO IS NULL";
-
         var exclusivo = "0 as VPAGO_EXCLUSIVO_FORNEC,";
         var condicoes = string.Empty;
 
@@ -213,8 +206,7 @@ public sealed class DreGerencialRepository : IDreGerencialRepository
             // {4} — o valor que NÃO pode ser rateado. A expressão do THEN é a mesma do VPAGO
             // algumas linhas acima: o valor do lançamento, ou o do rateio quando existe.
             exclusivo =
-                "case when (CCPrinc.codccprinc IN (90) AND FIN.CODFORNEC IN (" + Lista(0) + ")) " +
-                "or " + DedicadoAberto + " AND D.CODFORNEC IN (" + Lista(1) + ")) " +
+                "case when " + EhExclusivo(Lista(0), Lista(1)) + " " +
                 "then DECODE(RC.valor,NULL,NVL(FIN.VPAGO,0)*(-1),NVL(RC.valor,FIN.VPAGO)*(-1)) " +
                 "else 0 end as VPAGO_EXCLUSIVO_FORNEC,";
 
@@ -225,11 +217,7 @@ public sealed class DreGerencialRepository : IDreGerencialRepository
             // `DedicadoAberto`). Esquecê-lo no primeiro faria um vínculo desligado continuar
             // marcando o centro como "dedicado a alguém", e o centro sumiria do DRE de todo
             // mundo — o oposto de desligar a regra.
-            condicoes =
-                "AND (  (CCPrinc.codccprinc IN (90) AND FIN.CODFORNEC IN (" + Lista(2) + ")) " +
-                "OR (CCPrinc.codccprinc NOT IN (90)) )\n" +
-                "             AND ( NOT " + DedicadoAberto + ")\n" +
-                "                   OR " + DedicadoAberto + " AND D.CODFORNEC IN (" + Lista(3) + ")) )";
+            condicoes = CentrosDeOutroFornecedor(Lista(2), Lista(3));
         }
 
         var sql = string.Format(
@@ -461,10 +449,86 @@ public sealed class DreGerencialRepository : IDreGerencialRepository
         return faturamento.ToList();
     }
 
+    /// <summary>
+    /// O centro dedicado a um fornecedor, lido da tabela de parâmetro. Na 9815 isto é o
+    /// literal <c>29</c> escrito à mão (UBase.pas:27217); aqui é cadastro.
+    ///
+    /// <para>O <c>DTINATIVACAO IS NULL</c> respeita o desligamento sem apagar o histórico —
+    /// ver <c>docs/FILTRO_FORNECEDOR.md</c>. Ele mora DENTRO deste fragmento de propósito:
+    /// escrito separado, um dos dois ramos acaba sem ele, e um vínculo desligado continua
+    /// marcando o centro como dedicado — o centro sumiria do DRE de todo mundo, que é o
+    /// oposto de desligar a regra.</para>
+    /// </summary>
+    private const string DedicadoAberto =
+        "EXISTS (SELECT 1 FROM TAB_WEB_CENTROC_FORNEC D " +
+        "WHERE cc.CodigoCentroCusto LIKE D.CODCENTRO || '%' AND D.DTINATIVACAO IS NULL";
+
+    /// <summary>
+    /// <b>O lançamento é do fornecedor filtrado</b> — a verba do centro 90 que tem o
+    /// <c>CODFORNEC</c> dele, ou a despesa de um centro dedicado a ele.
+    ///
+    /// <para>É o que separa o que entra INTEIRO no DRE do que é rateado pela participação.
+    /// A apuração usa esta condição para somar <c>VPAGO_EXCLUSIVO_FORNEC</c>; o detalhamento,
+    /// para marcar a linha na tela. <b>As duas têm de usar a mesma</b>: divergindo num
+    /// caractere, a lista deixa de explicar a célula, e em silêncio.</para>
+    /// </summary>
+    private static string EhExclusivo(string listaCentro90, string listaDedicado) =>
+        "((CCPrinc.codccprinc IN (90) AND FIN.CODFORNEC IN (" + listaCentro90 + ")) " +
+        "or " + DedicadoAberto + " AND D.CODFORNEC IN (" + listaDedicado + ")))";
+
+    /// <summary>
+    /// <b>Quem SAI do recorte</b>: o centro 90 só aparece para o dono da verba, e o centro
+    /// dedicado só para o fornecedor a quem pertence.
+    ///
+    /// <para>Vai no <c>WHERE</c>, e é compartilhado pela apuração e pelo detalhamento pelo
+    /// mesmo motivo de <see cref="EhExclusivo"/> — a tela não pode listar despesa que a
+    /// célula não contou.</para>
+    /// </summary>
+    private static string CentrosDeOutroFornecedor(string listaCentro90, string listaDedicado) =>
+        "AND (  (CCPrinc.codccprinc IN (90) AND FIN.CODFORNEC IN (" + listaCentro90 + ")) " +
+        "OR (CCPrinc.codccprinc NOT IN (90)) )\n" +
+        "             AND ( NOT " + DedicadoAberto + ")\n" +
+        "                   OR " + DedicadoAberto + " AND D.CODFORNEC IN (" + listaDedicado + ")) )";
+
+    /// <summary>
+    /// O filtro por fornecedor nas telas que saem do PRODUTO — receita por cliente,
+    /// devolução por motivo e imposto por produto.
+    ///
+    /// <para>É o mesmo <c>pr.codfornec</c> da apuração, sobre a mesma <c>PCPRODUT</c> que as
+    /// três consultas já juntam. Aqui não há rateio: o detalhe fecha com a célula.</para>
+    ///
+    /// <para>Vazio sem filtro — e aí o SQL é, caractere por caractere, o que sempre foi.</para>
+    /// </summary>
+    private static string FiltroDoProduto(IReadOnlyList<decimal>? fornecedores, int lista) =>
+        fornecedores is { Count: > 0 }
+            ? "AND pr.codfornec in ("
+              + string.Join(", ", fornecedores.Select((_, i) => $":fp{lista}_{i}"))
+              + ")"
+            : string.Empty;
+
+    /// <summary>
+    /// Liga os binds de <see cref="FiltroDoProduto"/>. <b>Chamar na ordem em que o SQL os
+    /// pede</b> — o ODP.NET liga por posição, não por nome.
+    /// </summary>
+    private static void LigarFiltroDoProduto(
+        DynamicParameters parametros, IReadOnlyList<decimal>? fornecedores, int lista)
+    {
+        if (fornecedores is not { Count: > 0 })
+        {
+            return;
+        }
+
+        for (var i = 0; i < fornecedores.Count; i++)
+        {
+            parametros.Add($"fp{lista}_{i}", fornecedores[i]);
+        }
+    }
+
     public async Task<IReadOnlyList<DetalheClienteDre>> ObterDetalheReceitaPorClienteAsync(
         IReadOnlyList<string> filiais,
         DateOnly dataInicio,
         DateOnly dataFim,
+        IReadOnlyList<decimal>? fornecedores = null,
         CancellationToken cancellationToken = default)
     {
         if (filiais.Count == 0)
@@ -475,13 +539,19 @@ public sealed class DreGerencialRepository : IDreGerencialRepository
         var placeholdersA = string.Join(", ", filiais.Select((_, i) => $":filialA{i}"));
         var placeholdersB = string.Join(", ", filiais.Select((_, i) => $":filialB{i}"));
 
-        var sql = string.Format(DreDetalheQueries.ReceitaPorCliente, placeholdersA, placeholdersB);
+        var sql = string.Format(
+            DreDetalheQueries.ReceitaPorCliente,
+            placeholdersA,
+            placeholdersB,
+            FiltroDoProduto(fornecedores, 0),
+            FiltroDoProduto(fornecedores, 1));
 
         var inicio = dataInicio.ToDateTime(TimeOnly.MinValue);
         var fim = dataFim.ToDateTime(TimeOnly.MinValue);
 
-        // Ordem obrigatória: datas das vendas, filiais das vendas, datas das devoluções,
-        // filiais das devoluções. É a ordem em que os binds aparecem no SQL.
+        // Ordem obrigatória: datas das vendas, filiais das vendas, FORNECEDORES das vendas,
+        // datas das devoluções, filiais das devoluções, fornecedores das devoluções. É a
+        // ordem em que os binds aparecem no SQL.
         var parametros = new DynamicParameters();
         parametros.Add("dtIni1", inicio);
         parametros.Add("dtFim1", fim);
@@ -489,12 +559,14 @@ public sealed class DreGerencialRepository : IDreGerencialRepository
         {
             parametros.Add($"filialA{i}", filiais[i]);
         }
+        LigarFiltroDoProduto(parametros, fornecedores, 0);
         parametros.Add("dtIni2", inicio);
         parametros.Add("dtFim2", fim);
         for (var i = 0; i < filiais.Count; i++)
         {
             parametros.Add($"filialB{i}", filiais[i]);
         }
+        LigarFiltroDoProduto(parametros, fornecedores, 1);
 
         using var conexao = await _conexoes.CriarConexaoAsync(cancellationToken);
 
@@ -515,6 +587,7 @@ public sealed class DreGerencialRepository : IDreGerencialRepository
         IReadOnlyList<string> filiais,
         DateOnly dataInicio,
         DateOnly dataFim,
+        IReadOnlyList<decimal>? fornecedores = null,
         CancellationToken cancellationToken = default)
     {
         if (filiais.Count == 0)
@@ -532,13 +605,16 @@ public sealed class DreGerencialRepository : IDreGerencialRepository
             DreDetalheQueries.ExpressaoDoImposto(imposto, devolucao: false),
             placeholdersA,
             DreDetalheQueries.ExpressaoDoImposto(imposto, devolucao: true),
-            placeholdersB);
+            placeholdersB,
+            FiltroDoProduto(fornecedores, 0),
+            FiltroDoProduto(fornecedores, 1));
 
         var inicio = dataInicio.ToDateTime(TimeOnly.MinValue);
         var fim = dataFim.ToDateTime(TimeOnly.MinValue);
 
         // Ordem obrigatória, igual à da receita por cliente: datas das vendas, filiais das
-        // vendas, datas das devoluções, filiais das devoluções.
+        // vendas, fornecedores das vendas, datas das devoluções, filiais das devoluções,
+        // fornecedores das devoluções.
         var parametros = new DynamicParameters();
         parametros.Add("dtIni1", inicio);
         parametros.Add("dtFim1", fim);
@@ -546,12 +622,14 @@ public sealed class DreGerencialRepository : IDreGerencialRepository
         {
             parametros.Add($"filialA{i}", filiais[i]);
         }
+        LigarFiltroDoProduto(parametros, fornecedores, 0);
         parametros.Add("dtIni2", inicio);
         parametros.Add("dtFim2", fim);
         for (var i = 0; i < filiais.Count; i++)
         {
             parametros.Add($"filialB{i}", filiais[i]);
         }
+        LigarFiltroDoProduto(parametros, fornecedores, 1);
 
         using var conexao = await _conexoes.CriarConexaoAsync(cancellationToken);
 
@@ -569,6 +647,7 @@ public sealed class DreGerencialRepository : IDreGerencialRepository
         IReadOnlyList<string> filiais,
         DateOnly dataInicio,
         DateOnly dataFim,
+        IReadOnlyList<decimal>? fornecedores = null,
         CancellationToken cancellationToken = default)
     {
         if (filiais.Count == 0)
@@ -577,7 +656,10 @@ public sealed class DreGerencialRepository : IDreGerencialRepository
         }
 
         var placeholders = string.Join(", ", filiais.Select((_, i) => $":filial{i}"));
-        var sql = string.Format(DreDetalheQueries.DevolucaoPorMotivo, placeholders);
+        var sql = string.Format(
+            DreDetalheQueries.DevolucaoPorMotivo,
+            placeholders,
+            FiltroDoProduto(fornecedores, 0));
 
         var parametros = new DynamicParameters();
         parametros.Add("dtIni", dataInicio.ToDateTime(TimeOnly.MinValue));
@@ -586,6 +668,7 @@ public sealed class DreGerencialRepository : IDreGerencialRepository
         {
             parametros.Add($"filial{i}", filiais[i]);
         }
+        LigarFiltroDoProduto(parametros, fornecedores, 0);
 
         using var conexao = await _conexoes.CriarConexaoAsync(cancellationToken);
 
@@ -607,6 +690,7 @@ public sealed class DreGerencialRepository : IDreGerencialRepository
         AnaliseDre analise,
         string bloco,
         string chave,
+        IReadOnlyList<decimal>? fornecedores = null,
         CancellationToken cancellationToken = default)
     {
         if (filiais.Count == 0)
@@ -627,25 +711,66 @@ public sealed class DreGerencialRepository : IDreGerencialRepository
         var placeholdersA = string.Join(", ", filiais.Select((_, i) => $":filialA{i}"));
         var placeholdersB = string.Join(", ", filiais.Select((_, i) => $":filialB{i}"));
 
+        // ── O FILTRO POR FORNECEDOR, no detalhamento ─────────────────────────────────
+        //
+        // Os mesmos dois fragmentos da apuração, com uma diferença: aqui a marca é um
+        // SINALIZADOR, não um valor. A tela mostra o lançamento como ele é — quem rateia é
+        // quem soma, e é o serviço que aplica a participação sobre o que não está marcado.
+        var temFornecedor = fornecedores is { Count: > 0 };
+
+        string Lista(int n) =>
+            string.Join(", ", fornecedores!.Select((_, i) => $":fd{n}_{i}"));
+
+        var exclusivo = "0 AS EXCLUSIVO,";
+        var condicoes = string.Empty;
+
+        if (temFornecedor)
+        {
+            exclusivo = "case when " + EhExclusivo(Lista(0), Lista(1)) + " then 1 else 0 end AS EXCLUSIVO,";
+            condicoes = CentrosDeOutroFornecedor(Lista(2), Lista(3));
+        }
+
         var sql = string.Format(
             DreDetalheQueries.Lancamentos,
             DreDetalheQueries.PredicadoDoBloco(antesRo, antesLl),
             placeholdersA,
             placeholdersB,
             DreDetalheQueries.ColunaDoRecorte(analise.Codigo, orfa),
-            regime.ExpressaoFiltro);
+            regime.ExpressaoFiltro,
+            exclusivo,
+            condicoes);
 
         var inicio = dataInicio.ToDateTime(TimeOnly.MinValue);
         var fim = dataFim.ToDateTime(TimeOnly.MinValue);
 
-        // Ordem obrigatória: filiais do financeiro, datas do financeiro, datas da venda de
-        // ativo, filiais da venda de ativo, e a chave do recorte por último — é a ordem em
-        // que os binds ficam no SQL depois do string.Format.
+        // Ordem obrigatória: FORNECEDORES da coluna EXCLUSIVO — que é projeção, e por isso
+        // vem antes de tudo —, filiais do financeiro, fornecedores do WHERE, datas do
+        // financeiro, datas da venda de ativo, filiais da venda de ativo, e a chave do
+        // recorte por último. É a ordem em que os binds ficam no SQL depois do string.Format.
         var parametros = new DynamicParameters();
+
+        void LigarFornecedores(params int[] listas)
+        {
+            if (!temFornecedor)
+            {
+                return;
+            }
+
+            foreach (var n in listas)
+            {
+                for (var i = 0; i < fornecedores!.Count; i++)
+                {
+                    parametros.Add($"fd{n}_{i}", fornecedores[i]);
+                }
+            }
+        }
+
+        LigarFornecedores(0, 1);   // a coluna EXCLUSIVO
         for (var i = 0; i < filiais.Count; i++)
         {
             parametros.Add($"filialA{i}", filiais[i]);
         }
+        LigarFornecedores(2, 3);   // as mesmas duas, agora no WHERE
         parametros.Add("dtIni1", inicio);
         parametros.Add("dtFim1", fim);
         parametros.Add("dtIni2", inicio);

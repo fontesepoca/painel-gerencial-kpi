@@ -290,7 +290,8 @@ public record DetalheFiltroDto(
     string Analise,
     string Tipo,
     string? Bloco,
-    string? Chave);
+    string? Chave,
+    IReadOnlyList<decimal>? Fornecedores = null);
 
 /// <summary>Uma linha da tela "Receita por Cliente".</summary>
 public record DetalheClienteDto(
@@ -314,7 +315,13 @@ public record DetalheMotivoDto(
     decimal PPart);
 
 /// <summary>Um lançamento da tela de detalhamento das linhas de grupo.</summary>
+/// <param name="Exclusivo">
+/// <b>O lançamento é do fornecedor filtrado</b> e entra inteiro no DRE: verba do centro 90
+/// com o <c>CODFORNEC</c> dele, ou despesa de um centro dedicado a ele. Os demais entram
+/// rateados pela <c>Participacao</c> do detalhamento. Sempre <c>false</c> sem filtro.
+/// </param>
 public record DetalheLancamentoDto(
+    bool Exclusivo,
     decimal RecNum,
     string? CodFilial,
     string? CodCcPrinc,
@@ -355,6 +362,21 @@ public record DetalheLancamentoDto(
 /// <paramref name="Tipo"/> — as três telas têm formatos de linha diferentes e não há como
 /// unificá-las sem perder coluna.
 /// </summary>
+/// <param name="Fornecedores">
+/// Os códigos filtrados, ecoados como na apuração — a tela precisa deles para dizer de quem
+/// é o recorte que está mostrando. Vazio quando não há filtro.
+/// </param>
+/// <param name="Participacao">
+/// <b>A fatia do fornecedor na receita líquida da filial</b>, de 0 a 1, no período deste
+/// detalhamento — o mesmo número que o DRE mostra como <c>P.8,221%</c>.
+///
+/// <para>É o fator que o detalhe de LANÇAMENTOS aplica sobre o que não é exclusivo, e é o
+/// que faz a soma da tela fechar com a célula clicada. <c>1</c> sem filtro, e aí nada é
+/// rateado.</para>
+///
+/// <para>Nas telas que saem do produto — receita, devolução e impostos — ela não é usada:
+/// lá o filtro já está na consulta.</para>
+/// </param>
 public record DetalhamentoDto(
     string Tipo,
     DateOnly DataInicio,
@@ -363,7 +385,9 @@ public record DetalhamentoDto(
     IReadOnlyList<DetalheMotivoDto>? Motivos,
     IReadOnlyList<DetalheLancamentoDto>? Lancamentos,
     IReadOnlyList<DetalheImpostoDto>? Impostos,
-    long DuracaoMs);
+    long DuracaoMs,
+    IReadOnlyList<decimal>? Fornecedores = null,
+    decimal Participacao = 1m);
 
 /// <summary>
 /// Uma linha da tela de ST, PIS e COFINS: o imposto de um produto no período.

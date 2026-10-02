@@ -81,18 +81,27 @@ public interface IDreGerencialRepository
     /// mesma tela na 9815, com a mesma consulta.
     ///
     /// <para>Não recebe regime: como o faturamento, caixa e competência dão o mesmo.</para>
+    ///
+    /// <para><paramref name="fornecedores"/> filtra pelo mesmo <c>pr.codfornec</c> da
+    /// apuração, e aqui o detalhe <b>fecha com a célula</b>: a receita sai do produto, item a
+    /// item, sem rateio pelo caminho.</para>
     /// </summary>
     Task<IReadOnlyList<DetalheClienteDre>> ObterDetalheReceitaPorClienteAsync(
         IReadOnlyList<string> filiais,
         DateOnly dataInicio,
         DateOnly dataFim,
+        IReadOnlyList<decimal>? fornecedores = null,
         CancellationToken cancellationToken = default);
 
-    /// <summary>Detalhamento de `(-) DEVOLUCAO`, agregado por motivo.</summary>
+    /// <summary>
+    /// Detalhamento de `(-) DEVOLUCAO`, agregado por motivo. <paramref name="fornecedores"/>
+    /// filtra como na receita, e fecha com a célula pelo mesmo motivo.
+    /// </summary>
     Task<IReadOnlyList<DetalheMotivoDre>> ObterDetalheDevolucaoPorMotivoAsync(
         IReadOnlyList<string> filiais,
         DateOnly dataInicio,
         DateOnly dataFim,
+        IReadOnlyList<decimal>? fornecedores = null,
         CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -105,6 +114,7 @@ public interface IDreGerencialRepository
         IReadOnlyList<string> filiais,
         DateOnly dataInicio,
         DateOnly dataFim,
+        IReadOnlyList<decimal>? fornecedores = null,
         CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -118,6 +128,12 @@ public interface IDreGerencialRepository
     /// <param name="chave">
     /// O `GRUPOCONTA` da linha clicada, o mesmo que a apuração usou para somá-la.
     /// </param>
+    /// <param name="fornecedores">
+    /// Com fornecedor filtrado, o recorte é o MESMO da apuração — os centros de outro
+    /// fornecedor saem — e cada lançamento volta marcado em <c>Exclusivo</c>. O que não é
+    /// exclusivo entra no DRE rateado pela participação, e quem aplica isso é o serviço: a
+    /// consulta devolve o lançamento como ele é.
+    /// </param>
     Task<IReadOnlyList<DetalheLancamentoDre>> ObterDetalheLancamentosAsync(
         IReadOnlyList<string> filiais,
         DateOnly dataInicio,
@@ -126,5 +142,6 @@ public interface IDreGerencialRepository
         AnaliseDre analise,
         string bloco,
         string chave,
+        IReadOnlyList<decimal>? fornecedores = null,
         CancellationToken cancellationToken = default);
 }

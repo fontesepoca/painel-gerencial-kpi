@@ -26,6 +26,7 @@ a aprovação do Gabriel.
 | [8](#8-o-último-centavo-do-modo-anos--14092026) | Arredondamento ao fundir 12 meses | todas, só no modo `anos` | 1 centavo por linha | **corrigida** em 14/09/2026 |
 | [9](#9-o-resultado-operacional-sai-do-subtotal-positivo--14092026) | `RESULTADO OPERACIONAL` a partir do `SUBTOTAL POSITIVO` | C. Custo Principal | R$ 3,22 mi em 2 meses | **a pedido** em 14/09/2026 · dc32 25/25 · dc34 11/11 |
 | [10](#10-indenizacao-de-merc-venc-e-avaria-vira-informativa--14092026) | `INDENIZACAO DE MERC. VENC. E AVARIA` não soma | as três dimensões conferidas | R$ 177 mil em 2 meses | **a pedido** em 14/09/2026 · dc32 25/25 · dc34 11/11 |
+| [11](#11-o-detalhamento-respeita-o-filtro-por-fornecedor--02102026) | Detalhamento com fornecedor filtrado | todas as telas de duplo clique | a despesa inteira da filial, contra a fatia do fornecedor | **a pedido** em 02/10/2026 · dc78 12/12 |
 
 ---
 
@@ -237,6 +238,76 @@ granularidade é o centro de custo inteiro, não os dois primeiros dígitos. Com
 referência, não dá para medir.
 
 ---
+
+---
+
+## 11. O detalhamento respeita o filtro por fornecedor — 02/10/2026
+
+Com fornecedor selecionado, o duplo clique da 9815 abre **a filial inteira**. Não é
+descuido de tela: é o que o fonte faz.
+
+```pascal
+// UBase.pas:24684 — o que a rotina passa para a tela de lançamentos
+FLanc := TFLanc.Create(Self, DtIni, DtFim, sCodConta, ...,
+                       sFiltroCC, Matricula, ReceitaLiq, val, iTipoAnalise, ...);
+```
+
+Não há parâmetro de fornecedor na lista. E `val` — o valor da célula, já rateado — chega ao
+form, é guardado em `VlConta` (ULanc.pas:148) e **nunca mais é lido**. A tela antiga mostra
+uma despesa que não é a da linha clicada, e não diz isso em lugar nenhum.
+
+### O que a web faz
+
+O Gabriel aprovou a divergência em 02/10/2026, com a mecânica dividida em duas:
+
+**As telas que saem do PRODUTO filtram na consulta** — receita por cliente, devolução por
+motivo e imposto por produto. O mesmo `pr.codfornec` da apuração, sobre a `PCPRODUT` que as
+três já juntavam. Aqui não existe rateio nenhum pelo caminho, e o detalhe fecha com a célula
+sem mais conversa.
+
+**A tela de LANÇAMENTOS rateia**, porque a célula de despesa filtrada não é a soma de
+lançamento nenhum:
+
+```
+célula = (total − exclusivo) × participação + exclusivo
+```
+
+Então a consulta devolve o lançamento **como ele é** — e com uma marca, `EXCLUSIVO`, montada
+pelo mesmo fragmento de SQL que a apuração usa para somar `VPAGO_EXCLUSIVO_FORNEC`
+(`DreGerencialRepository.EhExclusivo`). A tela ganha uma coluna, `No DRE`, ao lado do
+`V. Pago`: o que o lançamento é, e o que ele vale dentro daquele DRE. O rodapé soma as duas,
+e é a segunda que fecha com a célula.
+
+O recorte também acompanha a apuração: os centros que pertencem a outro fornecedor saem do
+detalhe pelo mesmo `CentrosDeOutroFornecedor` — a tela não pode listar despesa que a célula
+não contou.
+
+### Por que não ficamos fiéis
+
+O detalhamento existe para responder *de onde veio este número*. Mostrar a despesa da filial
+inteira debaixo de uma célula que vale 8% dela responde outra pergunta, e sem avisar qual.
+A tela nova diz a participação com todas as letras e marca o que entrou inteiro.
+
+### A prova
+
+[dc78](validacao/dc78_detalhe_fecha_com_a_celula_filtrada.mjs) apura com o fornecedor 29,
+abre o detalhe de cada linha de despesa e cobra igualdade ao centavo. Em 02/10/2026,
+EPC-MAT, agosto/2026, competência, C. Custo Principal:
+
+```
+participação no DRE: 8,2206%
+  VERBAS MARGEM               célula    199.500,00 · detalhe    199.500,00 ·   1 lanç. (1 excl.)
+  DIRETORIA                   célula    -18.761,16 · detalhe    -18.761,16 · 114 lanç. (0 excl.)
+  MOVIMENTAÇÃO E ARMAZENAGEM  célula    -87.141,04 · detalhe    -87.141,04 · 463 lanç. (0 excl.)
+  … 12 de 12 ao centavo
+```
+
+A `VERBAS MARGEM` é o caso que mostra a regra inteira: um lançamento só, do centro 90 com o
+`CODFORNEC` 29, marcado exclusivo — e por isso entra **inteiro**, sem encolher para 8%.
+
+O script também cobra o que não pode mudar: sem filtro, participação exatamente `1`, eco de
+fornecedores vazio, nenhum lançamento marcado, e a soma crua fechando com a célula como
+sempre fechou.
 
 ## O que NÃO é divergência
 
