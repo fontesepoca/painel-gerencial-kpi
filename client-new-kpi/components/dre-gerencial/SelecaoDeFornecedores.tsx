@@ -27,6 +27,21 @@ function cnpj(valor: string | null): string | null {
 }
 
 /**
+ * Vale consultar? <b>Duas letras do nome, ou um dígito que seja.</b>
+ *
+ * O piso de dois caracteres é do NOME: `LIKE '%a%'` sobre treze mil cadastros devolve
+ * vinte linhas quaisquer. Mas ele tornava o <b>fornecedor 1 inalcançável</b> — não há como
+ * digitar um código de um dígito a mais do que ele tem.
+ *
+ * Com um dígito a consulta desliga a busca por nome e procura só o código, então o
+ * resultado é um fornecedor ou nenhum. O mesmo piso, aplicado à pergunta certa.
+ */
+const buscavel = (termo: string) => {
+  const t = termo.trim();
+  return t.length >= 2 || /^\d$/.test(t);
+};
+
+/**
  * Seleção de fornecedores para o filtro do DRE — busca por nome ou por código.
  *
  * <b>Busca, e não lista.</b> São mais de treze mil fornecedores no cadastro; uma lista
@@ -164,9 +179,9 @@ export function SelecaoDeFornecedores({
           )}
 
           <div className="max-h-72 overflow-y-auto">
-            {termo.trim().length < 2 ? (
+            {!buscavel(termo) ? (
               <p className="px-2 py-3 text-[length:var(--fs-apoio)] leading-relaxed text-[var(--text-muted)]">
-                Digite ao menos duas letras do nome, ou o código do fornecedor.
+                Digite o código do fornecedor, ou ao menos duas letras do nome.
                 <br />
                 Sem nenhum selecionado, o DRE sai com todos — como sempre foi.
               </p>

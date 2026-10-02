@@ -115,6 +115,18 @@ public static class DreGerencialQueries
     /// três vezes: <c>:busca1</c> (o <c>LIKE</c> do nome), <c>:busca2</c> (o código exato),
     /// <c>:busca3</c> (o desempate do <c>ORDER BY</c>) e <c>:limite</c>.</para>
     /// </summary>
+/// <summary>
+/// <b>Com UM caractere, só o código vale.</b> O `LENGTH(TRIM(:busca1)) >= 2` desliga a
+/// busca por nome, e sobra a igualdade com o <c>CODFORNEC</c>.
+///
+/// <para>Sem isso o fornecedor <b>1</b> era inalcançável na prática: o piso de dois
+/// caracteres existia justamente porque <c>LIKE '%1%'</c> sobre treze mil nomes devolve
+/// lixo. Desligar o nome resolve os dois lados — quem digita um dígito quer um código, e
+/// quem digita uma letra só não quer nada que caiba em vinte linhas.</para>
+///
+/// <para>A condição é SQL, e não um <c>if</c> em C# montando texto: a consulta roda contra
+/// produção e nada vindo do cliente entra nela por concatenação.</para>
+/// </summary>
     public const string Fornecedores = """
         SELECT * FROM (
           SELECT F.CODFORNEC                                  AS CODFORNEC,
@@ -122,10 +134,11 @@ public static class DreGerencialQueries
                  F.CGC                                        AS CGC,
                  F.CODFORNECPRINC                             AS CODFORNECPRINC
             FROM PCFORNEC F
-           WHERE UPPER(CONVERT(TRIM(F.FORNECEDOR), 'US7ASCII'))
-                   LIKE '%' || UPPER(CONVERT(TRIM(:busca1), 'US7ASCII')) || '%'
-              OR TO_CHAR(F.CODFORNEC) = TRIM(:busca2)
-           ORDER BY CASE WHEN TO_CHAR(F.CODFORNEC) = TRIM(:busca3) THEN 0 ELSE 1 END,
+           WHERE ( LENGTH(TRIM(:busca1)) >= 2
+                   AND UPPER(CONVERT(TRIM(F.FORNECEDOR), 'US7ASCII'))
+                         LIKE '%' || UPPER(CONVERT(TRIM(:busca2), 'US7ASCII')) || '%' )
+              OR TO_CHAR(F.CODFORNEC) = TRIM(:busca3)
+           ORDER BY CASE WHEN TO_CHAR(F.CODFORNEC) = TRIM(:busca4) THEN 0 ELSE 1 END,
                     TRIM(F.FORNECEDOR)
         )
         WHERE ROWNUM <= :limite

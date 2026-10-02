@@ -292,13 +292,19 @@ public sealed class DreGerencialRepository : IDreGerencialRepository
     {
         using var conexao = await _conexoes.CriarConexaoAsync(cancellationToken);
 
-        // Os três :busca são a MESMA palavra em três lugares do SQL, e cada ocorrência consome
-        // um parâmetro porque o ODP.NET liga por posição. Repetir o valor é o preço de não
-        // concatenar texto vindo do cliente numa consulta que roda contra produção.
+        // Os QUATRO :busca são a MESMA palavra em quatro lugares do SQL, e cada ocorrência
+        // consome um parâmetro porque o ODP.NET liga por posição. Repetir o valor é o preço
+        // de não concatenar texto vindo do cliente numa consulta que roda contra produção.
+        //
+        // Eram três até 02/10/2026, quando entrou o LENGTH que desliga a busca por nome com
+        // um caractere só — ver a consulta. Acrescentar uma ocorrência e esquecer este Add
+        // não dá erro de compilação: dá ORA-01008, parâmetro não vinculado, em tempo de
+        // execução.
         var parametros = new DynamicParameters();
         parametros.Add("busca1", busca);
         parametros.Add("busca2", busca);
         parametros.Add("busca3", busca);
+        parametros.Add("busca4", busca);
         parametros.Add("limite", limite);
 
         var fornecedores = await conexao.QueryAsync<FornecedorDre>(

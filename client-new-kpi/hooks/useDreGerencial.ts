@@ -30,8 +30,10 @@ import type {
 /**
  * Busca fornecedores para o filtro, pelo que a pessoa digitou.
  *
- * <b>Só consulta a partir do segundo caractere.</b> Com um só, a busca devolveria centenas de
- * linhas que ninguém ia ler, a cada tecla — e o cadastro tem mais de treze mil fornecedores.
+ * <b>Só consulta a partir do segundo caractere — exceto um dígito sozinho.</b> Com uma letra
+ * só a busca devolveria centenas de linhas que ninguém ia ler, a cada tecla; mas com um
+ * dígito a consulta procura pelo CÓDIGO e devolve um fornecedor, no máximo. Era o que
+ * tornava o fornecedor <b>1</b> inalcançável pela tela.
  *
  * <b>O `staleTime` é generoso de propósito.</b> Cadastro de fornecedor não muda durante uma
  * sessão de DRE, e quem está procurando digita, apaga e redigita o mesmo prefixo várias vezes:
@@ -48,7 +50,8 @@ export function useBuscarFornecedores(busca: string) {
       apiClient.get<Fornecedor[]>(
         `/api/dre-gerencial/fornecedores?busca=${encodeURIComponent(termo)}&limite=20`,
       ),
-    enabled: termo.length >= 2,
+    // Um dígito sozinho passa: a consulta desliga a busca por nome e procura o código.
+    enabled: termo.length >= 2 || /^\d$/.test(termo),
     staleTime: 30 * 60 * 1000,
   });
 }
