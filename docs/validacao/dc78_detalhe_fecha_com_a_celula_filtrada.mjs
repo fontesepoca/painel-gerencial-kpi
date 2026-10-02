@@ -161,6 +161,80 @@ console.log(
   `  ok   ${umaDespesa.descricao.trim()} — soma crua ${dinheiro(cru)} = célula, participação 1`,
 );
 
+// ── 3. A VERBA DO CENTRO 90 ENTRA INTEIRA ─────────────────────────────────────
+//
+// É a asserção que FALTAVA, e a falta custou caro: em 02/10/2026 o merge da main trouxe a
+// mudança de 22/09 — `codccprinc` deixou de ser os dois dígitos e passou a ser a conta
+// principal (`9001`) —, a condição `IN (90)` do filtro parou de casar, e a verba do
+// fornecedor virou despesa rateada. `VERBAS MARGEM` caiu de 199.500,00 para 72.453,50.
+//
+// E ESTE SCRIPT PASSOU. Ele compara o detalhe com a célula, e os dois usam a MESMA
+// condição: erraram juntos, consistentes e errados. Comparação interna não enxerga defeito
+// que atinge os dois lados — por isso esta seção confere contra uma terceira fonte: os
+// lançamentos do centro 90 que têm o CODFORNEC do fornecedor, lidos sem filtro nenhum.
+{
+  console.log("\nA VERBA DO CENTRO 90 — o que é do fornecedor não se rateia");
+
+  const linha90 = comFiltro.linhas.find(
+    // s E NAO UM ESPACO LITERAL: o rotulo vem do cadastro com um ESPACO NAO SEPARAVEL
+    // (U+00A0, codigo 160) entre as duas palavras. Procurar por "VERBAS MARGEM" digitado
+    // aqui nao casa com nada, e o teste passa a dizer que o cenario mudou quando a linha
+    // esta ali. Ja mordeu este projeto antes -- ver DIVERGENCIAS, armadilha do rotulo.
+    (l) => l.detalhe?.tipo === "lancamentos" && /VERBAS\s+MARGEM/i.test(l.descricao),
+  );
+
+  if (!linha90) {
+    conferir(false, "a linha VERBAS MARGEM não veio na apuração — o cenário mudou?");
+  } else {
+    // Sem filtro: a verba da filial inteira, de todos os fornecedores.
+    const cru = await postar("/api/dre-gerencial/detalhe", {
+      ...FILTRO,
+      tipo: "lancamentos",
+      bloco: linha90.detalhe.bloco,
+      chave: linha90.detalhe.chave,
+    });
+
+    // O que naquela lista pertence ao fornecedor — a terceira fonte.
+    const doFornecedor = (cru.lancamentos ?? [])
+      .filter((l) => l.codFornec === FORNEC)
+      .reduce((s, l) => s + l.vPago, 0);
+
+    const comFiltro90 = await postar("/api/dre-gerencial/detalhe", {
+      ...FILTRO,
+      fornecedores: [FORNEC],
+      tipo: "lancamentos",
+      bloco: linha90.detalhe.bloco,
+      chave: linha90.detalhe.chave,
+    });
+
+    const marcados = (comFiltro90.lancamentos ?? []).filter((l) => l.exclusivo);
+    const somaMarcados = marcados.reduce((s, l) => s + l.vPago, 0);
+
+    console.log(
+      `  verba do ${FORNEC} no centro 90: ${dinheiro(doFornecedor)} · ` +
+        `marcada como exclusiva: ${dinheiro(somaMarcados)} (${marcados.length} lanç.)`,
+    );
+
+    conferir(
+      Math.abs(somaMarcados - doFornecedor) <= 0.005,
+      `a verba do centro 90 do fornecedor tem de vir MARCADA como exclusiva: ` +
+        `${dinheiro(doFornecedor)} no cadastro, ${dinheiro(somaMarcados)} marcados`,
+    );
+
+    // E a consequência na célula: ela não pode ser o total da filial vezes a participação.
+    // Se for, o exclusivo não está sendo somado de volta — foi o sintoma de 02/10.
+    const totalDaFilial = (cru.lancamentos ?? []).reduce((s, l) => s + l.vPago, 0);
+    const seFosseTudoRateado = totalDaFilial * comFiltro90.participacao;
+
+    conferir(
+      doFornecedor === 0 ||
+        Math.abs(linha90.valores[0].valor - seFosseTudoRateado) > 0.005,
+      `a célula do VERBAS MARGEM (${dinheiro(linha90.valores[0].valor)}) é o total da ` +
+        `filial vezes a participação (${dinheiro(seFosseTudoRateado)}) — o exclusivo sumiu`,
+    );
+  }
+}
+
 // ── 3. A RECEITA, que filtra na própria consulta ──────────────────────────────
 //
 // Aqui não há rateio: o filtro está no `pr.codfornec`, item a item. A tela de receita é

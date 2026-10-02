@@ -459,6 +459,23 @@ public sealed class DreGerencialRepository : IDreGerencialRepository
     /// marcando o centro como dedicado — o centro sumiria do DRE de todo mundo, que é o
     /// oposto de desligar a regra.</para>
     /// </summary>
+    /// <summary>
+    /// <b>O lançamento está no centro de custo 90</b>, o das verbas.
+    ///
+    /// <para>Compara os DOIS PRIMEIROS DÍGITOS, e não o <c>codccprinc</c> inteiro. Até
+    /// 22/09/2026 a coluna trazia só os dois dígitos e <c>IN (90)</c> bastava; naquele dia
+    /// ela passou a trazer a conta principal — <c>9001</c>, <c>9002</c> — e a comparação
+    /// silenciosamente deixou de casar.</para>
+    ///
+    /// <para><b>O sintoma não é erro, é número plausível</b>: o exclusivo vira zero, a verba
+    /// do fornecedor passa a ser rateada como despesa comum, e o DRE sai inteiro, só
+    /// menor. Medido em 02/10/2026 no merge que trouxe a mudança de chave para a branch do
+    /// filtro: <c>VERBAS MARGEM</c> saiu de 199.500,00 para 72.453,50 — exatamente o total
+    /// da filial vezes a participação.</para>
+    /// </summary>
+    private const string NoCentroDeVerbas =
+        "SUBSTR(CCPrinc.codccprinc, 1, 2) = '90'";
+
     private const string DedicadoAberto =
         "EXISTS (SELECT 1 FROM TAB_WEB_CENTROC_FORNEC D " +
         "WHERE cc.CodigoCentroCusto LIKE D.CODCENTRO || '%' AND D.DTINATIVACAO IS NULL";
@@ -473,7 +490,7 @@ public sealed class DreGerencialRepository : IDreGerencialRepository
     /// caractere, a lista deixa de explicar a célula, e em silêncio.</para>
     /// </summary>
     private static string EhExclusivo(string listaCentro90, string listaDedicado) =>
-        "((CCPrinc.codccprinc IN (90) AND FIN.CODFORNEC IN (" + listaCentro90 + ")) " +
+        "((" + NoCentroDeVerbas + " AND FIN.CODFORNEC IN (" + listaCentro90 + ")) " +
         "or " + DedicadoAberto + " AND D.CODFORNEC IN (" + listaDedicado + ")))";
 
     /// <summary>
@@ -485,8 +502,8 @@ public sealed class DreGerencialRepository : IDreGerencialRepository
     /// célula não contou.</para>
     /// </summary>
     private static string CentrosDeOutroFornecedor(string listaCentro90, string listaDedicado) =>
-        "AND (  (CCPrinc.codccprinc IN (90) AND FIN.CODFORNEC IN (" + listaCentro90 + ")) " +
-        "OR (CCPrinc.codccprinc NOT IN (90)) )\n" +
+        "AND (  (" + NoCentroDeVerbas + " AND FIN.CODFORNEC IN (" + listaCentro90 + ")) " +
+        "OR (SUBSTR(CCPrinc.codccprinc, 1, 2) <> '90') )\n" +
         "             AND ( NOT " + DedicadoAberto + ")\n" +
         "                   OR " + DedicadoAberto + " AND D.CODFORNEC IN (" + listaDedicado + ")) )";
 
