@@ -404,7 +404,28 @@ public record DetalhamentoDto(
     long DuracaoMs,
     IReadOnlyList<DetalheNotaDto>? Notas = null,
     IReadOnlyList<decimal>? Fornecedores = null,
-    decimal Participacao = 1m);
+    decimal Participacao = 1m)
+{
+    /// <summary>
+    /// <b>Quando esta apuração foi feita</b> — a hora do SERVIDOR, não a do navegador.
+    ///
+    /// <para>Sai no cabeçalho da impressão, ao lado do período e das filiais: uma folha do
+    /// detalhamento circula sem contexto nenhum, e numa base viva dois papéis do mesmo
+    /// recorte tirados com horas de diferença trazem números diferentes — sem a hora, não
+    /// há como saber qual é o mais novo.</para>
+    ///
+    /// <para><b>Propriedade com inicializador, e não parâmetro posicional.</b> O
+    /// <c>DetalhamentoDto</c> é construído em cinco lugares do serviço, um por tipo de
+    /// tela, e todos devem carimbar a mesma coisa: o instante em que a resposta ficou
+    /// pronta. Como parâmetro, seriam cinco chamadas para esquecer uma. Assim o carimbo é
+    /// do próprio tipo, e uma tela nova nasce com ele.</para>
+    ///
+    /// <para><c>Now</c> e não <c>UtcNow</c>, igual ao <c>ApuradoEm</c> da apuração: o
+    /// <c>DateTimeOffset</c> leva o fuso junto, e quem lê a folha lê o horário de
+    /// Brasília.</para>
+    /// </summary>
+    public DateTimeOffset ApuradoEm { get; init; } = DateTimeOffset.Now;
+}
 
 /// <summary>
 /// Uma linha da tela de ST, PIS e COFINS: o imposto de um produto no período.

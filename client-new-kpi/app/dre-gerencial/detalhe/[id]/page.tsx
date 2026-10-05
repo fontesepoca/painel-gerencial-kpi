@@ -11,7 +11,7 @@ import { useExportarDetalhe } from "@/hooks/useExportarDetalhe";
 import { recuperar, type DetalheAberto } from "@/lib/detalheAberto";
 import { folhaDoDetalhe } from "@/lib/folhaDoDetalhe";
 import { useEscalaDeImpressao } from "@/hooks/useEscalaDeImpressao";
-import { paraBr } from "@/lib/periodos";
+import { dataHoraBr, paraBr } from "@/lib/periodos";
 
 /**
  * O detalhamento numa página inteira, em vez do diálogo.
@@ -88,6 +88,10 @@ export default function DetalhePage({ params }: { params: Promise<{ id: string }
   if (detalhe === undefined) return <Procurando />;
   if (detalhe === null) return <NaoEstaMaisAqui />;
 
+  // Depois dos dois retornos acima porque só aqui `detalhe` existe — e sem hook nenhum
+  // envolvido, calcular depois deles não muda a ordem de nada.
+  const apuradoEm = dataHoraBr(detalhe.dados.apuradoEm);
+
   return (
     <AppShell trilha={["Época Analytics", "DRE Gerencial", detalhe.titulo]}>
       <FolhaDaImpressao folha={folha} />
@@ -113,6 +117,14 @@ export default function DetalhePage({ params }: { params: Promise<{ id: string }
                   ela a folha não diz de que período é. */}
               <p className="so-no-papel mt-1 text-[length:var(--fs-apoio)] text-[var(--text-secondary)]">
                 {paraBr(detalhe.periodo.dataInicio)} a {paraBr(detalhe.periodo.dataFim)}
+                {/* A hora da apuração acompanha o período, como no DRE: a base é viva, e
+                    sem ela duas folhas do mesmo recorte com números diferentes não têm
+                    como ser postas em ordem.
+
+                    Fora quando falta — um detalhamento guardado no navegador antes de
+                    01/10/2026 não tem o campo, e esta página abre a partir do que foi
+                    guardado. Mesmo cuidado que `detalhe.filiais` já tomava. */}
+                {apuradoEm !== null && <> · apurado em {apuradoEm}</>}
               </p>
 
               {/* As filiais aparecem NAS DUAS, tela e papel — ao contrário do DRE, onde a

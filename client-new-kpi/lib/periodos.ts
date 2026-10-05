@@ -25,6 +25,30 @@ export function paraBr(iso: string): string {
   return `${d}/${m}/${a}`;
 }
 
+/**
+ * O instante em que a API apurou, em `dd/mm/aaaa às hh:mm` — para o cabeçalho da impressão.
+ *
+ * <b>Lê os números da própria string, sem passar por `new Date`.</b> O que chega é um
+ * `DateTimeOffset` do servidor (`2026-10-01T14:32:11.482-03:00`), e construir um `Date`
+ * com ele reexibiria tudo no fuso do NAVEGADOR: a mesma apuração sairia com horas diferentes
+ * dependendo de onde a folha foi impressa, e uma máquina com o relógio ou o fuso errados
+ * carimbaria um horário que nunca existiu. A folha tem de dizer a hora do servidor, que é a
+ * hora em que o banco foi lido.
+ *
+ * Segundos ficam de fora de propósito: para saber qual de dois papéis é o mais novo, o
+ * minuto basta, e a precisão a mais só ocuparia a linha.
+ *
+ * Devolve `null` para o que não tem a forma esperada — inclusive `undefined`, que é o caso
+ * real de um detalhamento guardado no navegador ANTES deste campo existir. Quem chama
+ * simplesmente não desenha a linha; um "às " solto no papel seria pior que nada.
+ */
+export function dataHoraBr(iso: string | null | undefined): string | null {
+  const m = /^([0-9]{4})-([0-9]{2})-([0-9]{2})T([0-9]{2}):([0-9]{2})/.exec(iso ?? "");
+  if (m === null) return null;
+  const [, ano, mes, dia, hora, minuto] = m;
+  return `${dia}/${mes}/${ano} às ${hora}:${minuto}`;
+}
+
 export interface AtalhoPeriodo {
   id: string;
   rotulo: string;
