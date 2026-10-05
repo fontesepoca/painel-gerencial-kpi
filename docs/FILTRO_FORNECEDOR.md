@@ -1,11 +1,85 @@
 # O filtro por fornecedor da 9815
 
-**Estado: investigação concluída, nada implementado.** A decisão que segurava esta branch —
-repetir o hardcode ou cadastrar o vínculo — **tem desenho fechado e carga pronta** desde
-01/10/2026; falta a conversa com o financeiro sobre as linhas que são divergência.
+**Estado: implementado** — apuração, rateio, tela e detalhamento, medidos pela dc74, dc77 e
+dc78. Falta a conversa com o financeiro sobre as linhas marcadas como divergência na carga
+da tabela de vínculo.
 
 O filtro por fornecedor da 9815 não é um filtro. São **três mecanismos diferentes** disparados
 pelo mesmo campo da tela, e só o primeiro filtra de verdade.
+
+---
+
+# Como o DRE calcula com um fornecedor selecionado
+
+Esta seção é o resumo para quem **lê** o relatório. O resto do documento é para quem mantém
+o código.
+
+## O que o filtro seleciona
+
+O filtro é por **código de fornecedor**, o mesmo do cadastro do produto. Cada cadastro é um
+recorte próprio: pedir o 29 traz o DRE do 29, pedir o 2453 traz o do 2453, e um não inclui o
+outro — mesmo quando são a mesma empresa com CNPJs diferentes.
+
+## Receita: filtra de verdade
+
+Receita bruta, abatimentos, devoluções, CMV e os impostos saem **item a item das notas**.
+Entram só os itens cujo produto pertence ao fornecedor selecionado. Não há estimativa aqui:
+são os valores reais daquele fornecedor.
+
+## A participação
+
+Da receita filtrada nasce o número que governa o resto:
+
+```
+participação = receita líquida do fornecedor ÷ receita líquida da filial
+```
+
+Em agosto/2026, na EPC-MAT, o fornecedor 29 fez **R$ 2.713.994,63** de uma filial que fez R$ 33
+milhões — uma participação de **8,2206%**. Esse percentual aparece na tela, na coluna `% AV`
+da linha `(=) RECEITAS LIQUIDAS`, escrito como `P.8,221%`.
+
+## Despesa: a parte que precisa ser rateada
+
+Uma conta de luz não sabe de quem é a mercadoria. Por isso a despesa é separada em duas:
+
+**Exclusiva** — a despesa que é comprovadamente daquele fornecedor: a verba do centro de custo
+90 lançada com o código dele, e a despesa de um centro dedicado a ele (hoje o centro 25, da
+equipe P&G, ligado ao fornecedor 29). **Entra inteira**, sem rateio: ratear cobraria dele uma
+fração do que é todo dele.
+
+**Comum** — todo o resto. Entra pela participação.
+
+E a despesa de um centro dedicado a **outro** fornecedor sai do recorte: ela não é dele nem um
+pouco.
+
+```
+valor da linha = (despesa total − exclusiva) × participação + exclusiva
+```
+
+## Dois exemplos reais, medidos
+
+| Linha | Na filial | Exclusiva | Conta | No DRE do 29 |
+|---|---:|---:|---|---:|
+| `DIRETORIA` | −228.221,75 | — | × 8,2206% | **−18.761,16** |
+| `VERBAS MARGEM` | 881.366,97 | 199.500,00 | entra inteira | **199.500,00** |
+
+A `DIRETORIA` é despesa comum: o fornecedor paga a fatia dele. A `VERBAS MARGEM` é verba
+dele, e entra pelo valor cheio — mesmo representando 8% da receita, ele leva 100% da própria
+verba.
+
+## Os totalizadores
+
+`Sub-Total`, `RESULTADO OPERACIONAL` e `LUCRO LIQUIDO` somam as linhas **já rateadas**. O
+rateio acontece uma vez, na linha; o total apenas soma.
+
+## Conferindo pela tela
+
+O duplo clique numa linha de despesa abre os lançamentos com duas colunas de dinheiro:
+**`V. Pago`**, o lançamento como ele é na filial, e **`No DRE`**, quanto dele entra neste
+recorte. É a segunda que fecha com o valor da célula. Lançamento marcado como `exclusivo`
+aparece igual nas duas.
+
+---
 
 ## De onde vem o que está escrito aqui
 
