@@ -109,9 +109,13 @@ export default function DreGerencialPage() {
 
       // Sem nenhuma linha reconhecida no DOM, exporta a apuração como veio — melhor um
       // arquivo na ordem do cadastro que nenhum arquivo.
+      // O ARQUIVO SAI COMO A TELA ESTA, inclusive nas colunas de analise: quem desligou o
+      // %AH para ler os valores nao quer reencontra-lo no Excel. As linhas ja vinham assim
+      // -- na ordem e na selecao do DOM --, e as colunas passam a vir tambem.
       await exportarApuracao(
         apuracao,
         naTela.length > 0 ? naTela : apuracao.linhas,
+        { av: mostrarAv, ah: mostrarAh },
       );
     } catch (e) {
       setErroExportar(
@@ -122,7 +126,11 @@ export default function DreGerencialPage() {
     } finally {
       setExportando(false);
     }
-  }, []);
+    // AS DEPENDENCIAS IMPORTAM AQUI. Com a lista vazia, o callback guardaria os valores da
+    // primeira renderizacao -- os dois marcados -- e o Excel sairia sempre completo, por
+    // mais que a tela mostrasse outra coisa. Um defeito que nao da erro: o arquivo abre, e
+    // so quem conferir coluna por coluna percebe.
+  }, [mostrarAv, mostrarAh]);
 
   // O mês corrente, em colunas mensais: o recorte que a tela sempre abriu, e que os modos
   // de ano não deslocaram. `anos` começa vazio de propósito — um ano pré-escolhido seria

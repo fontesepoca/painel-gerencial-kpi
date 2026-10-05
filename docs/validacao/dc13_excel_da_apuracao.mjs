@@ -18,7 +18,11 @@ import path from "node:path";
 // Caminho explícito: a resolução de pacote parte do diretório DESTE arquivo, e o `xlsx`
 // está instalado no front. Importar por nome procuraria um `node_modules` em `docs/`.
 import * as XLSX from "../../client-new-kpi/node_modules/xlsx/xlsx.mjs";
-import { matrizDaApuracao, nomeDoArquivo } from "../../client-new-kpi/lib/exportarExcel.ts";
+import {
+  matrizDaApuracao,
+  nomeDoArquivo,
+  planilhaDaApuracao,
+} from "../../client-new-kpi/lib/exportarExcel.ts";
 
 // O build ESM do `xlsx` não enxerga o `fs` sozinho — no navegador ele nem existe, e é lá
 // que a aplicação roda. Aqui a injeção é o que permite escrever e reabrir o arquivo.
@@ -180,5 +184,82 @@ eq(
 // A matriz mensal continua com o bloco de total, inclusive quando `modo` não vem.
 eq(matrizDaApuracao(dados, dados.linhas)[1].length, 10, "o modo mensal mantém as 10 colunas");
 eq(matrizDaApuracao({ ...dados, modo: undefined }, dados.linhas)[1].length, 10, "e sem modo também");
+
+// ── AS COLUNAS DE ANÁLISE DESLIGÁVEIS ────────────────────────────────────────
+//
+// A tela deixa esconder o %AV e o %AH, e desde 05/10/2026 o arquivo sai como a tela está.
+// O risco não é a coluna faltar — isso se vê abrindo a planilha. É o CABEÇALHO DE MÊS
+// continuar mesclando três colunas quando o mês passou a ter duas: a faixa de setembro
+// cobriria o começo de outubro, e cada valor passaria a ser lido sob o mês errado.
+//
+// Por isso as asserções olham a largura da linha E a dos merges, juntas.
+
+const colunasDe = (m) => m[1].length;
+
+eq(colunasDe(matrizDaApuracao(dados, dados.linhas, { av: true, ah: true })), 10,
+   "com as duas ligadas, as 10 colunas de sempre");
+
+// Dois meses: cada um perde o %AV, e o bloco de total também.
+eq(colunasDe(matrizDaApuracao(dados, dados.linhas, { av: false, ah: true })), 7,
+   "sem %AV sobram 7: descrição + 2x(valor, AH) + (valor, média)");
+
+eq(colunasDe(matrizDaApuracao(dados, dados.linhas, { av: true, ah: false })), 8,
+   "sem %AH sobram 8: descrição + 2x(valor, AV) + (valor, AV, média)");
+
+eq(colunasDe(matrizDaApuracao(dados, dados.linhas, { av: false, ah: false })), 5,
+   "sem as duas sobram 5: descrição + 2 valores + (valor, média)");
+
+// O rótulo de cada coluna, sem as duas — a ordem é o que o leitor usa para saber o que é
+// cada número, e uma célula a mais ou a menos aqui desloca tudo.
+eq(
+  matrizDaApuracao(dados, dados.linhas, { av: false, ah: false })[1].map((c) => c.v),
+  ["Descrição", "Valor", "Valor", "Valor", "Média"],
+  "os rótulos ficam na ordem, e a Média continua — ela não é análise",
+);
+
+// E a FAIXA DE MÊS acompanha: uma célula com o rótulo e as demais vazias, tantas quantas
+// forem as colunas daquele mês. É o que o merge junta depois.
+eq(
+  matrizDaApuracao(dados, dados.linhas, { av: false, ah: false })[0].map((c) => c.v),
+  // A célula vazia sai como `null` — é o que o helper de texto produz para a string vazia,
+  // e é assim que a planilha a grava.
+  [null, dados.periodos[0].rotulo, dados.periodos[1].rotulo, "Total", null],
+  "a faixa de mês tem uma célula por coluna do mês — nem uma a mais",
+);
+
+// Os merges, que é onde o desalinhamento apareceria de verdade.
+{
+  const semNada = planilhaDaApuracao(dados, dados.linhas, { av: false, ah: false });
+  eq(
+    semNada.merges.map((m) => m.e.c - m.s.c + 1),
+    [1, 1, 2],
+    "cada mês mescla 1 coluna e o total mescla 2 — acompanhando a matriz",
+  );
+
+  const comTudo = planilhaDaApuracao(dados, dados.linhas, { av: true, ah: true });
+  eq(
+    comTudo.merges.map((m) => m.e.c - m.s.c + 1),
+    [3, 3, 3],
+    "e com as duas ligadas volta a 3, 3, 3",
+  );
+
+  // O último merge tem de terminar na última coluna da matriz. Se sobrar ou faltar, a
+  // planilha abre com a faixa pendurada sobre uma coluna que não existe.
+  eq(
+    semNada.merges.at(-1).e.c,
+    colunasDe(matrizDaApuracao(dados, dados.linhas, { av: false, ah: false })) - 1,
+    "o último merge termina exatamente na última coluna",
+  );
+}
+
+// Um mês só: o %AH nunca existiu ali, e desligá-lo não pode mudar nada.
+{
+  const umMes = { ...dados, periodos: [dados.periodos[0]] };
+  eq(
+    colunasDe(matrizDaApuracao(umMes, umMes.linhas, { av: true, ah: true })),
+    colunasDe(matrizDaApuracao(umMes, umMes.linhas, { av: true, ah: false })),
+    "com um mês só, desligar o %AH não muda a planilha — ele já não estava lá",
+  );
+}
 
 console.log(`dc13: ${n}/${n} asserções passaram. Arquivo gerado, reaberto e conferido.`);

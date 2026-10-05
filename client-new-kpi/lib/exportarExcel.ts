@@ -31,22 +31,59 @@ import type { Apuracao, LinhaDre } from "@/types/dre-gerencial";
  * faria a planilha somar 2025 com 2026 num campo chamado Total, que é justamente o número
  * que a tela deixou de mostrar por não significar nada.
  */
-function blocoFinal(dados: Apuracao) {
-  return mostraVariacao(dados.modo, dados.periodos)
-    ? { variacao: true as const, largura: 2, rotulo: rotuloDaVariacao(dados.modo, dados.periodos) }
-    : { variacao: false as const, largura: 3, rotulo: "Total" };
+/**
+ * As colunas de análise que a tela deixou ligadas.
+ *
+ * <b>O arquivo sai como a tela está</b>, decidido em 05/10/2026: quem desligou o `%AH` para
+ * ler os valores não quer reencontrá-lo no Excel, e quem exporta costuma estar levando
+ * para outra pessoa a MESMA leitura que montou na tela.
+ *
+ * <b>Com default dos dois ligados</b>, que é o estado inicial da tela e o comportamento
+ * de antes — as asserções da dc13 chamam sem o parâmetro e continuam valendo.
+ */
+export interface ColunasDeAnalise {
+  av: boolean;
+  ah: boolean;
 }
 
-export function matrizDaApuracao(dados: Apuracao, linhas: readonly LinhaDre[]): Celula[][] {
+const TUDO: ColunasDeAnalise = { av: true, ah: true };
+
+/**
+ * Quantas colunas o bloco final ocupa, já descontada a análise desligada.
+ *
+ * A `Média` fica em qualquer caso: ela está ao lado do `%AV` mas não é análise — é o valor
+ * médio das colunas, e sai do bloco só quando o bloco inteiro vira variação.
+ */
+function blocoFinal(dados: Apuracao, colunas: ColunasDeAnalise = TUDO) {
+  return mostraVariacao(dados.modo, dados.periodos)
+    ? { variacao: true as const, largura: 2, rotulo: rotuloDaVariacao(dados.modo, dados.periodos) }
+    : { variacao: false as const, largura: 2 + (colunas.av ? 1 : 0), rotulo: "Total" };
+}
+
+export function matrizDaApuracao(
+  dados: Apuracao,
+  linhas: readonly LinhaDre[],
+  colunas: ColunasDeAnalise = TUDO,
+): Celula[][] {
   const multiMes = dados.periodos.length > 1;
-  const fim = blocoFinal(dados);
+  const fim = blocoFinal(dados, colunas);
+
+  // O `%AH` só existe com duas colunas ou mais — ele compara com a anterior. É a mesma
+  // regra da tela, e por isso a planilha de um mês nunca teve a coluna.
+  const comAh = multiMes && colunas.ah;
+  const porMes = 1 + (colunas.av ? 1 : 0) + (comAh ? 1 : 0);
 
   const faixaMeses: Celula[] = [txt("")];
   const rotulos: Celula[] = [txt("Descrição")];
 
   for (const p of dados.periodos) {
-    faixaMeses.push(txt(p.rotulo), txt(""), txt(""));
-    rotulos.push(txt("Valor"), txt("AV %"), txt(multiMes ? "AH %" : ""));
+    // A faixa do mês é o rótulo numa célula e vazias nas demais: são elas que o `merge`
+    // junta depois. Uma a menos aqui com uma a mais no merge desalinharia a planilha
+    // inteira a partir do segundo mês.
+    faixaMeses.push(txt(p.rotulo), ...Array.from({ length: porMes - 1 }, () => txt("")));
+    rotulos.push(txt("Valor"));
+    if (colunas.av) rotulos.push(txt("AV %"));
+    if (comAh) rotulos.push(txt("AH %"));
   }
 
   if (multiMes) {
@@ -54,7 +91,7 @@ export function matrizDaApuracao(dados: Apuracao, linhas: readonly LinhaDre[]): 
     rotulos.push(
       ...(fim.variacao
         ? [txt("Δ Valor"), txt("Δ %")]
-        : [txt("Valor"), txt("AV %"), txt("Média")]),
+        : [txt("Valor"), ...(colunas.av ? [txt("AV %")] : []), txt("Média")]),
     );
   }
 
@@ -63,22 +100,18 @@ export function matrizDaApuracao(dados: Apuracao, linhas: readonly LinhaDre[]): 
 
     for (const p of dados.periodos) {
       const v = linha.valores.find((x) => x.mesAno === p.mesAno);
-      celulas.push(
-        num(v?.valor ?? null, MOEDA),
-        num(v?.percentualAv ?? null, PERCENTUAL_3),
-        multiMes ? num(v?.percentualAh ?? null, PERCENTUAL_3) : txt(""),
-      );
+      celulas.push(num(v?.valor ?? null, MOEDA));
+      if (colunas.av) celulas.push(num(v?.percentualAv ?? null, PERCENTUAL_3));
+      if (comAh) celulas.push(num(v?.percentualAh ?? null, PERCENTUAL_3));
     }
 
     if (multiMes && fim.variacao) {
       const v = variacao(linha.valores, dados.periodos, dados.modo);
       celulas.push(num(v?.absoluta ?? null, MOEDA), num(v?.percentual ?? null, PERCENTUAL_3));
     } else if (multiMes) {
-      celulas.push(
-        num(linha.total.valor, MOEDA),
-        num(linha.total.percentualAv, PERCENTUAL_3),
-        num(linha.total.media, MOEDA),
-      );
+      celulas.push(num(linha.total.valor, MOEDA));
+      if (colunas.av) celulas.push(num(linha.total.percentualAv, PERCENTUAL_3));
+      celulas.push(num(linha.total.media, MOEDA));
     }
 
     return celulas;
@@ -116,14 +149,18 @@ export function nomeDoArquivo(dados: Apuracao): string {
 export function planilhaDaApuracao(
   dados: Apuracao,
   linhas: readonly LinhaDre[],
+  analise: ColunasDeAnalise = TUDO,
 ): Planilha {
-  const matriz = matrizDaApuracao(dados, linhas);
+  const matriz = matrizDaApuracao(dados, linhas, analise);
   const colunas = matriz[1]?.length ?? 1;
 
   // Junta as colunas de cada bloco sob o rótulo dele, como na tela. O último bloco pode
   // ter duas colunas em vez de três — daí a largura vir da lista, e não de um passo fixo.
-  const fim = blocoFinal(dados);
-  const larguras = dados.periodos.map(() => 3);
+  const fim = blocoFinal(dados, analise);
+  const comAh = dados.periodos.length > 1 && analise.ah;
+  const larguras = dados.periodos.map(
+    () => 1 + (analise.av ? 1 : 0) + (comAh ? 1 : 0),
+  );
   if (dados.periodos.length > 1) larguras.push(fim.largura);
 
   const merges = [];
@@ -149,11 +186,15 @@ export function planilhaDaApuracao(
 export async function exportarApuracao(
   dados: Apuracao,
   linhas: readonly LinhaDre[],
+  analise: ColunasDeAnalise = TUDO,
 ): Promise<void> {
-  const blob = await gerarPlanilha([planilhaDaApuracao(dados, linhas)]);
+  const blob = await gerarPlanilha([planilhaDaApuracao(dados, linhas, analise)]);
   baixar(blob, `${nomeDoArquivo(dados)}.xlsx`);
 }
 
 /** Só a geração, para conferir sem baixar. */
-export const gerarApuracao = (dados: Apuracao, linhas: readonly LinhaDre[]) =>
-  gerarPlanilha([planilhaDaApuracao(dados, linhas)]);
+export const gerarApuracao = (
+  dados: Apuracao,
+  linhas: readonly LinhaDre[],
+  analise: ColunasDeAnalise = TUDO,
+) => gerarPlanilha([planilhaDaApuracao(dados, linhas, analise)]);
