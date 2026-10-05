@@ -37,7 +37,7 @@ public sealed partial class HealthController : ControllerBase
             Ambiente: _ambiente.EnvironmentName,
             OracleConfigurado: _conexoes.EstaConfigurada,
             Modulos: _modulos.Select(m => m.Nome).ToArray(),
-            VerificadoEm: DateTimeOffset.Now);
+            VerificadoEm: HoraDeBrasilia.Agora);
 
         return Ok(ApiResponse<HealthResponse>.Ok(resposta));
     }
@@ -77,7 +77,7 @@ public sealed partial class HealthController : ControllerBase
                 Status: "ok",
                 Usuario: usuario,
                 TempoMs: cronometro.ElapsedMilliseconds,
-                VerificadoEm: DateTimeOffset.Now)));
+                VerificadoEm: HoraDeBrasilia.Agora)));
         }
         catch (Exception excecao)
         {

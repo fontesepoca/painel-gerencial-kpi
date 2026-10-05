@@ -1,3 +1,4 @@
+using Epoca.Kpi.Api.Application.Common;
 using Epoca.Kpi.Api.Application.Features.DreGerencial.Dtos;
 using Epoca.Kpi.Api.Domain.Entities;
 
@@ -338,7 +339,8 @@ public static class MontadorDre
             Linhas: resultado,
             Avisos: avisos,
             Fornecedores: filtro.Fornecedores ?? [],
-            ApuradoEm: DateTimeOffset.Now,
+            // Em Brasília sempre — o servidor roda em UTC, e `Now` daria três horas a mais.
+            ApuradoEm: HoraDeBrasilia.Agora,
             DuracaoMs: duracaoMs);
     }
 

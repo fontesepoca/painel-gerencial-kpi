@@ -1,3 +1,5 @@
+using Epoca.Kpi.Api.Application.Common;
+
 namespace Epoca.Kpi.Api.Application.Features.DreGerencial.Dtos;
 
 /// <summary>
@@ -420,11 +422,12 @@ public record DetalhamentoDto(
     /// pronta. Como parâmetro, seriam cinco chamadas para esquecer uma. Assim o carimbo é
     /// do próprio tipo, e uma tela nova nasce com ele.</para>
     ///
-    /// <para><c>Now</c> e não <c>UtcNow</c>, igual ao <c>ApuradoEm</c> da apuração: o
-    /// <c>DateTimeOffset</c> leva o fuso junto, e quem lê a folha lê o horário de
-    /// Brasília.</para>
+    /// <para><b>De <see cref="HoraDeBrasilia"/>, e não de <c>DateTimeOffset.Now</c>.</b> O
+    /// <c>Now</c> devolve a hora da MÁQUINA: no servidor, que roda em UTC, uma apuração das
+    /// 12:40 saía carimbada como 15:40. Quem lê a folha lê o horário de Brasília, venha ela
+    /// de onde vier.</para>
     /// </summary>
-    public DateTimeOffset ApuradoEm { get; init; } = DateTimeOffset.Now;
+    public DateTimeOffset ApuradoEm { get; init; } = HoraDeBrasilia.Agora;
 }
 
 /// <summary>
