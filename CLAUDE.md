@@ -28,6 +28,7 @@ literal** da tela antiga.
 
 | | |
 |---|---|
+| **Filtro por fornecedor** | **implementado** — apuração, rateio, tela e detalhamento (dc74, dc77, dc78). Falta o financeiro decidir as linhas marcadas como divergência na carga da tabela de vínculo, e segue aberta a divergência da `MANUTENCAO DE VEICULOS` — ver [docs/FILTRO_FORNECEDOR.md](docs/FILTRO_FORNECEDOR.md) |
 | O duplo clique **pela tela** | a API fecha 162/162, mas as telas novas nunca foram percorridas pela interface com dado real |
 | Tempo das consultas de imposto | nunca medido isoladamente — a dc6 só dá o total da execução |
 | Período de 3 meses e todas as filiais juntas | **custo medido em 17/09** — 173 s e 122,7 KB (dc41); os valores nunca foram conferidos contra a 9815 |
@@ -131,6 +132,19 @@ que mais confundem quem lê o SQL pela primeira vez:
 
 O detalhamento está em [docs/ROTINA_9815.md](docs/ROTINA_9815.md) e no levantamento.
 
+### As mudanças aprovadas se acumulam — e nenhuma branch as desfaz
+
+Além dos quatro casos acima, o Gabriel pediu mudanças que **alteram** o comportamento da
+9815 de propósito. Todas estão numeradas em [DIVERGENCIAS.md](docs/DIVERGENCIAS.md), com
+data e com o script que as mede, e a lista cresce. Uma branch nova herda todas.
+
+**Antes de abrir trabalho e antes de entregar, traga a `main`** — `git log --oneline HEAD..main`
+tem de vir vazio. Branch atrasada e regra revertida produzem a MESMA tela, e só o histórico
+distingue uma da outra: em 02/10/2026 a subida de `Manutencao De Veiculos` e
+`PNEUS E CAMARAS` pareceu desfeita pelo filtro por fornecedor, e na verdade a branch nunca
+a tivera. A conferência está em DIVERGENCIAS, na seção *As regras que nenhuma branch pode
+desfazer*.
+
 ## Rodar
 
 ```bash
@@ -159,3 +173,4 @@ no `.gitignore`.
 | [docs/CONVENCOES_ORACLE.md](docs/CONVENCOES_ORACLE.md) | ODP.NET, Dapper, armadilhas reais |
 | [docs/HOMOLOGACAO.md](docs/HOMOLOGACAO.md) | matriz de cenários a conferir contra a 9815 |
 | [docs/DIVERGENCIAS.md](docs/DIVERGENCIAS.md) | **toda** diferença numérica entre a web e a 9815 |
+| [docs/FILTRO_FORNECEDOR.md](docs/FILTRO_FORNECEDOR.md) | o filtro por fornecedor — a mecânica lida no `UBase.pas` e **a tabela de vínculo** |

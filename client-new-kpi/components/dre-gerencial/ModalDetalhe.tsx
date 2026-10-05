@@ -4,6 +4,7 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import { formatarPercentual, formatarValor } from "@/lib/formato";
 import { paraBr } from "@/lib/periodos";
 import { cn } from "@/lib/cn";
+import { somaNoDre, temRateio, valorNoDre } from "@/lib/rateioDoDetalhe";
 import {
   colunaDoTotal,
   igual,
@@ -437,6 +438,9 @@ function Conteudo({
       linhas={dados.lancamentos ?? []}
       coluna={coluna}
       nome={nome}
+      // Com fornecedor filtrado a tela ganha a coluna do valor rateado, e é ELA que
+      // fecha com a célula. Ver `lib/rateioDoDetalhe.ts`.
+      participacao={temRateio(dados) ? dados.participacao : null}
     />
   );
 }
@@ -1169,10 +1173,52 @@ const COLUNAS: ReadonlyArray<{
   },
 ];
 
+/**
+ * As colunas da tela, com a do RATEIO quando há fornecedor filtrado.
+ *
+ * <b>Ela entra logo depois do V. Pago</b>, e não no fim: as duas são o mesmo dinheiro
+ * visto de dois jeitos — o que o lançamento é, e o que ele vale dentro deste DRE —, e lado
+ * a lado a conta se lê sem procurar. As 25 colunas da 9815 seguem na ordem dela.
+ *
+ * Sem filtro a lista é, item por item, a de sempre: uma coluna a mais mostrando o mesmo
+ * número duas vezes seria ruído puro.
+ */
+function colunasDeLancamento(participacao: number | null) {
+  if (participacao === null) return COLUNAS;
+
+  const i = COLUNAS.findIndex((c) => c.rotulo === "V. Pago");
+  return [
+    ...COLUNAS.slice(0, i + 1),
+    {
+      rotulo: "No DRE",
+      numerica: true,
+      // O comparador ordena por ESTE número, e não pelo que a célula desenha — ela
+      // devolve JSX, com o selo do exclusivo dentro. Sem o `bruto`, ordenar por esta
+      // coluna compararia "[object Object]" com "[object Object]".
+      bruto: (l: DetalheLancamento) => valorNoDre(l, participacao),
+      ler: (l: DetalheLancamento) => (
+        <>
+          {formatarValor(valorNoDre(l, participacao))}
+          {/* O selo explica por que ESTA linha não encolheu: a despesa é do próprio
+              fornecedor, e ratear cobraria dele uma fração do que é todo dele. */}
+          {l.exclusivo && (
+            <span className="ml-2 rounded-[var(--radius-sm)] border border-[var(--border-strong)] px-1.5 py-0.5 text-[length:var(--fs-apoio)] font-medium text-[var(--text-muted)]">
+              exclusivo
+            </span>
+          )}
+        </>
+      ),
+    },
+    ...COLUNAS.slice(i + 1),
+  ];
+}
+
 interface ContaAgrupada {
   chave: string;
   rotulo: string;
   total: number;
+  /** O mesmo grupo, rateado — igual ao `total` quando não há filtro. */
+  totalNoDre: number;
   linhas: DetalheLancamento[];
 }
 
@@ -1180,6 +1226,7 @@ interface CentroAgrupado {
   chave: string;
   rotulo: string;
   total: number;
+  totalNoDre: number;
   contas: ContaAgrupada[];
 }
 
@@ -1192,7 +1239,10 @@ interface CentroAgrupado {
  * segunda fonte de verdade sobre a ordem, e as duas sairiam de sincronia na primeira vez
  * que o SQL mudasse.
  */
-function agrupar(linhas: readonly DetalheLancamento[]): CentroAgrupado[] {
+function agrupar(
+  linhas: readonly DetalheLancamento[],
+  participacao: number | null,
+): CentroAgrupado[] {
   const centros: CentroAgrupado[] = [];
 
   for (const l of linhas) {
@@ -1203,6 +1253,7 @@ function agrupar(linhas: readonly DetalheLancamento[]): CentroAgrupado[] {
         chave: chaveCentro,
         rotulo: l.descCcPrinc ?? "—",
         total: 0,
+        totalNoDre: 0,
         contas: [],
       };
       centros.push(centro);
@@ -1215,14 +1266,19 @@ function agrupar(linhas: readonly DetalheLancamento[]): CentroAgrupado[] {
         chave: chaveConta,
         rotulo: l.conta ?? "—",
         total: 0,
+        totalNoDre: 0,
         linhas: [],
       };
       centro.contas.push(conta);
     }
 
+    const noDre = participacao === null ? l.vPago : valorNoDre(l, participacao);
+
     conta.linhas.push(l);
     conta.total += l.vPago;
+    conta.totalNoDre += noDre;
     centro.total += l.vPago;
+    centro.totalNoDre += noDre;
   }
 
   return centros;
@@ -1248,25 +1304,41 @@ const TOTAL_DE_COLUNAS = COLUNAS.length + 1;
  * divergem no primeiro dia em que alguém acrescentar uma coluna a só uma delas, e o sintoma
  * seria um cabeçalho que responde ao clique sem reordenar nada.
  */
-const COLUNAS_ORDENAVEIS: readonly ColunaOrdenavel<DetalheLancamento>[] = [
-  ...COLUNAS.map((c) => ({
-    rotulo: c.rotulo,
-    tipo: c.numerica && !c.rotulo.startsWith("Dt") ? ("numero" as const) : ("texto" as const),
-    ler: c.bruto ?? ((l: DetalheLancamento) => String(c.ler(l) ?? "")),
-  })),
-  // Ordenar pelo percentual é ordenar pelo valor: um é o outro dividido por uma constante.
-  // Comparar o número já dividido só acrescentaria erro de arredondamento.
-  { rotulo: "% part.", tipo: "numero", ler: (l) => l.vPago },
-];
+/**
+ * As mesmas colunas, na forma que o comparador entende.
+ *
+ * <b>É função, e não constante, desde o merge do filtro por fornecedor</b>: a lista de
+ * colunas deixou de ser fixa — com fornecedor filtrado entra o `No DRE` —, e uma
+ * constante derivada de `COLUNAS` deixaria a coluna nova sem comparador. O sintoma seria
+ * um cabeçalho que responde ao clique e não reordena nada, que é exatamente o que o
+ * comentário original desta lista alertava.
+ */
+function ordenaveisDeLancamento(
+  participacao: number | null,
+): readonly ColunaOrdenavel<DetalheLancamento>[] {
+  return [
+    ...colunasDeLancamento(participacao).map((c) => ({
+      rotulo: c.rotulo,
+      tipo: c.numerica && !c.rotulo.startsWith("Dt") ? ("numero" as const) : ("texto" as const),
+      ler: c.bruto ?? ((l: DetalheLancamento) => String(c.ler(l) ?? "")),
+    })),
+    // Ordenar pelo percentual é ordenar pelo valor: um é o outro dividido por uma constante.
+    // Comparar o número já dividido só acrescentaria erro de arredondamento.
+    { rotulo: "% part.", tipo: "numero" as const, ler: (l: DetalheLancamento) => l.vPago },
+  ];
+}
 
 function TabelaLancamentos({
   linhas,
   coluna,
   nome,
+  participacao,
 }: {
   linhas: readonly DetalheLancamento[];
   coluna: string | null;
   nome: string | null;
+  /** A fatia do fornecedor, ou `null` quando a apuração não foi filtrada. */
+  participacao: number | null;
 }) {
   const [ordem, setOrdem] = useState<Ordem>(null);
   const ordenar = useCallback((rotulo: string, tipo: TipoDaColuna) => {
@@ -1283,6 +1355,12 @@ function TabelaLancamentos({
    * `lib/estornosQueSeAnulam.ts` para o motivo de não copiarmos o filtro da 9815.
    */
   const { visiveis, omitidos } = semEstornosQueSeAnulam(linhas);
+  const COLS = colunasDeLancamento(participacao);
+  const ORDENAVEIS = ordenaveisDeLancamento(participacao);
+
+  // Com rateio, quem fecha com a célula clicada é a coluna nova — e é ela que o
+  // cabeçalho tem de anunciar. Apontar o V. Pago mandaria a pessoa somar a coluna errada.
+  const colunaQueFecha = participacao === null ? coluna : "No DRE";
 
   /**
    * A base do `% part.`: o total da tela, que é o valor da linha do DRE que foi clicada.
@@ -1294,6 +1372,11 @@ function TabelaLancamentos({
    * Percentual de zero é indefinido, não zero: com o total em zero a coluna mostra traço.
    * Uma conta que fecha em 0,00 com dezesseis lançamentos existe de verdade neste projeto —
    * é o `DESCONTO FUNCIONÁRIOS`.
+   *
+   * <b>Continua somando o V. Pago mesmo com fornecedor filtrado</b>: o `% part.` responde
+   * "quanto este lançamento é da conta", e a conta na tela é a da filial inteira. Usar o
+   * valor rateado mudaria numerador e denominador pelo mesmo fator, e daria o mesmo
+   * percentual com duas contas a mais.
    */
   const totalDaTela = soma(visiveis, (l) => l.vPago);
   const parte = (valor: number) =>
@@ -1312,29 +1395,30 @@ function TabelaLancamentos({
    * de custo várias vezes, cada aparição com o seu próprio subtotal parcial.
    */
   const centros = useMemo(() => {
-    const agrupados = agrupar(visiveis);
+    const agrupados = agrupar(visiveis, participacao);
     if (ordem === null) return agrupados;
 
     return agrupados.map((centro) => ({
       ...centro,
       contas: centro.contas.map((conta) => ({
         ...conta,
-        linhas: ordenarLinhas(conta.linhas, COLUNAS_ORDENAVEIS, ordem),
+        linhas: ordenarLinhas(conta.linhas, ORDENAVEIS, ordem),
       })),
     }));
-  }, [visiveis, ordem]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visiveis, ordem, participacao]);
 
   return (
     <>
       <table className="w-full border-collapse text-[length:var(--fs-base)]">
         <Cabecalho>
-          {COLUNAS.map((c, i) => (
+          {COLS.map((c, i) => (
             <ThDetalhe
               key={c.rotulo}
               rotulo={c.rotulo}
               tipo={c.bruto && c.rotulo === "V. Pago" ? "numero" : c.numerica ? "numero" : "texto"}
               numerica={c.numerica}
-              coluna={coluna}
+              coluna={colunaQueFecha}
               nome={nome}
               ordem={ordem}
               onOrdenar={ordenar}
@@ -1369,7 +1453,7 @@ function TabelaLancamentos({
                       key={l.recNum + "-" + (l.codCentroCusto ?? "") + "-" + i}
                       className="border-b border-[var(--border)] odd:bg-[var(--zebra)] hover:bg-[var(--surface-2)]"
                     >
-                      {COLUNAS.map((c, j) => {
+                      {COLS.map((c, j) => {
                         const conteudo = c.ler(l);
                         return (
                           <td
@@ -1399,14 +1483,24 @@ function TabelaLancamentos({
                     </tr>
                   ))}
 
-                  <LinhaDeSubtotal nivel={2} valor={conta.total} />
+                  <LinhaDeSubtotal
+                    nivel={2}
+                    valor={conta.total}
+                    valorNoDre={participacao === null ? null : conta.totalNoDre}
+                    colunas={COLS.length}
+                  />
                 </Fragment>
               ))}
 
               {/* O total do centro de custo só aparece quando há mais de um. Com um só ele
                 repetiria o rodapé duas linhas abaixo. */}
               {centros.length > 1 && (
-                <LinhaDeSubtotal nivel={1} valor={centro.total} />
+                <LinhaDeSubtotal
+                  nivel={1}
+                  valor={centro.total}
+                  valorNoDre={participacao === null ? null : centro.totalNoDre}
+                  colunas={COLS.length}
+                />
               )}
             </Fragment>
           ))}
@@ -1420,12 +1514,37 @@ function TabelaLancamentos({
           {/* Soma o que está na tela. Dá o mesmo número de antes — par de estorno oposto no
             mesmo grupo soma zero —, e é o que mantém este rodapé fechando com a linha do
             DRE. Se um dia divergir, o filtro escondeu algo que não se anulava. */}
-          <td className={totalDe(coluna, "V. Pago")}>
+          <td className={totalDe(colunaQueFecha, "V. Pago")}>
             {formatarValor(soma(visiveis, (l) => l.vPago))}
           </td>
-          <td className={TD} colSpan={TOTAL_DE_COLUNAS - 3} />
+          {participacao !== null && (
+            <td className={totalDe(colunaQueFecha, "No DRE")}>
+              {formatarValor(somaNoDre(visiveis, participacao))}
+            </td>
+          )}
+          {/* As colunas que sobram, mais a do `% part.` no fim. Com rateio a tabela tem
+            uma coluna a mais, e o vão do rodapé encolhe junto. */}
+          <td
+            className={TD}
+            colSpan={COLS.length + 1 - (participacao === null ? 3 : 4)}
+          />
         </Total>
       </table>
+
+      {/* DE ONDE VEM A COLUNA "No DRE".
+
+          Sem esta frase a tela mostra dois totais diferentes para a mesma lista e deixa a
+          pessoa descobrir sozinha qual é o da linha que ela clicou. O número da
+          participação aparece com três casas, como no DRE. */}
+      {participacao !== null && (
+        <p className="px-3 py-2 text-[length:var(--fs-apoio)] leading-relaxed text-[var(--text-muted)]">
+          A despesa acima é da filial inteira. No DRE deste fornecedor entra a fatia dele
+          — <strong>{(participacao * 100).toFixed(3).replace(".", ",")}%</strong> da
+          receita líquida da filial —, e é a coluna <strong>No DRE</strong> que soma o
+          valor da célula. Lançamento marcado como <strong>exclusivo</strong> é despesa do
+          próprio fornecedor e entra inteiro, sem rateio.
+        </p>
+      )}
 
       {/* Dizer o que foi escondido não é formalidade: quem confere esta tela contra a 9815
           compara a contagem de linhas, e uma lista mais curta sem explicação parece dado
@@ -1477,7 +1596,18 @@ function LinhaDeGrupo({ nivel, rotulo }: { nivel: 1 | 2; rotulo: string }) {
 }
 
 /** Subtotal de conta ou de centro de custo, alinhado com a coluna V. Pago. */
-function LinhaDeSubtotal({ nivel, valor }: { nivel: 1 | 2; valor: number }) {
+function LinhaDeSubtotal({
+  nivel,
+  valor,
+  valorNoDre,
+  colunas,
+}: {
+  nivel: 1 | 2;
+  valor: number;
+  /** O subtotal rateado, quando há filtro. `null` deixa a coluna fora da linha. */
+  valorNoDre: number | null;
+  colunas: number;
+}) {
   return (
     <tr className="linha-subtotal border-b border-[var(--border)]">
       <td className={cn(TD, "col-identidade")} />
@@ -1499,7 +1629,20 @@ function LinhaDeSubtotal({ nivel, valor }: { nivel: 1 | 2; valor: number }) {
       >
         {formatarValor(valor)}
       </td>
-      <td colSpan={TOTAL_DE_COLUNAS - 3} />
+      {valorNoDre !== null && (
+        <td
+          className={cn(
+            NUM,
+            "font-semibold",
+            valorNoDre < 0
+              ? "text-[var(--negative)]"
+              : "text-[var(--text-primary)]",
+          )}
+        >
+          {formatarValor(valorNoDre)}
+        </td>
+      )}
+      <td colSpan={colunas + 1 - (valorNoDre === null ? 3 : 4)} />
     </tr>
   );
 }

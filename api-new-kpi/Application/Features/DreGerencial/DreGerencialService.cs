@@ -14,6 +14,38 @@ public sealed class DreGerencialService
     public DreGerencialService(IDreGerencialRepository repositorio) => _repositorio = repositorio;
 
     /// <summary>
+    /// Busca fornecedores para o filtro do DRE, por nome ou por código exato.
+    ///
+    /// <para><b>Busca vazia devolve lista vazia</b>, e não o cadastro inteiro. São treze mil
+    /// fornecedores: devolver tudo seria caro para a API, pesado para a tela e inútil para
+    /// quem está procurando um. A tela só consulta depois do segundo caractere.</para>
+    ///
+    /// <para>O <paramref name="limite"/> é preso entre 1 e 50. Quem pede mil está enganado
+    /// sobre o que a busca faz, e deixar passar transformaria o campo num exportador do
+    /// cadastro de fornecedores.</para>
+    /// </summary>
+    public async Task<Result<IReadOnlyList<FornecedorDto>>> BuscarFornecedoresAsync(
+        string? busca,
+        int limite = 20,
+        CancellationToken cancellationToken = default)
+    {
+        var termo = (busca ?? string.Empty).Trim();
+        if (termo.Length == 0)
+        {
+            return Result<IReadOnlyList<FornecedorDto>>.Ok([]);
+        }
+
+        var fornecedores = await _repositorio.BuscarFornecedoresAsync(
+            termo, Math.Clamp(limite, 1, 50), cancellationToken);
+
+        var dtos = fornecedores
+            .Select(f => new FornecedorDto(f.CodFornec, f.Fornecedor, f.Cgc, f.CodFornecPrinc))
+            .ToList();
+
+        return Result<IReadOnlyList<FornecedorDto>>.Ok(dtos);
+    }
+
+    /// <summary>
     /// Filiais do filtro. Lista vazia é resultado válido, não erro — cadastro sem filial
     /// é problema de configuração do banco, e o front trata mostrando o filtro vazio.
     /// </summary>
@@ -134,7 +166,8 @@ public sealed class DreGerencialService
         }
 
         var despesas = await _repositorio.ObterDespesasAsync(
-            filtro.Filiais, filtro.DataInicio, filtro.DataFim, regime, analise, cancellationToken);
+            filtro.Filiais, filtro.DataInicio, filtro.DataFim, regime, analise,
+            filtro.Fornecedores, cancellationToken);
 
         var dtos = despesas
             .Select(d => new DespesaDto(
@@ -164,7 +197,8 @@ public sealed class DreGerencialService
         }
 
         var meses = await _repositorio.ObterFaturamentoPorMesAsync(
-            filtro.Filiais, filtro.DataInicio, filtro.DataFim, cancellationToken);
+            filtro.Filiais, filtro.DataInicio, filtro.DataFim, filtro.Fornecedores,
+            cancellationToken);
 
         var dtos = meses
             .Select(f => new FaturamentoDto(
@@ -326,10 +360,11 @@ public sealed class DreGerencialService
         {
             var despesas = await _repositorio.ObterDespesasAsync(
                 filtro.Filiais, recorte.DataInicio, recorte.DataFim, regime, analise,
-                cancellationToken);
+                filtro.Fornecedores, cancellationToken);
 
             var faturamento = await _repositorio.ObterFaturamentoPorMesAsync(
-                filtro.Filiais, recorte.DataInicio, recorte.DataFim, cancellationToken);
+                filtro.Filiais, recorte.DataInicio, recorte.DataFim, filtro.Fornecedores,
+                cancellationToken);
 
             return recorte.EmColunas(despesas, faturamento);
         }));
@@ -369,12 +404,18 @@ public sealed class DreGerencialService
 
         var cronometro = System.Diagnostics.Stopwatch.StartNew();
 
+        // Os códigos filtrados, ecoados em toda resposta: a tela do detalhe abre fora do
+        // contexto da apuração e precisa dizer de quem é o recorte que mostra.
+        var fornecedores = filtro.Fornecedores is { Count: > 0 } ? filtro.Fornecedores : null;
+        var eco = fornecedores ?? [];
+
         switch (filtro.Tipo)
         {
             case "receita-por-cliente":
             {
                 var linhas = await _repositorio.ObterDetalheReceitaPorClienteAsync(
-                    filtro.Filiais, filtro.DataInicio, filtro.DataFim, cancellationToken);
+                    filtro.Filiais, filtro.DataInicio, filtro.DataFim, fornecedores,
+                    cancellationToken);
 
                 cronometro.Stop();
                 return Result<DetalhamentoDto>.Ok(new DetalhamentoDto(
@@ -382,13 +423,14 @@ public sealed class DreGerencialService
                     linhas.Select(c => new DetalheClienteDto(
                         c.CodCli, c.Cliente, c.Cidade, c.QdeNf, c.ReceitaBruta,
                         c.Desconto, c.Devolucao, c.ReceitaLiquida, c.CustoLiq)).ToList(),
-                    null, null, null, cronometro.ElapsedMilliseconds));
+                    null, null, null, cronometro.ElapsedMilliseconds, Fornecedores: eco));
             }
 
             case "devolucao-por-motivo":
             {
                 var linhas = await _repositorio.ObterDetalheDevolucaoPorMotivoAsync(
-                    filtro.Filiais, filtro.DataInicio, filtro.DataFim, cancellationToken);
+                    filtro.Filiais, filtro.DataInicio, filtro.DataFim, fornecedores,
+                    cancellationToken);
 
                 cronometro.Stop();
                 return Result<DetalhamentoDto>.Ok(new DetalhamentoDto(
@@ -396,7 +438,7 @@ public sealed class DreGerencialService
                     linhas.Select(m => new DetalheMotivoDto(
                         m.CodMotivo, m.Motivo, m.CulpaRca, m.QdeNf,
                         m.VlDevolucao, m.PPart)).ToList(),
-                    null, null, cronometro.ElapsedMilliseconds));
+                    null, null, cronometro.ElapsedMilliseconds, Fornecedores: eco));
             }
 
             case "notas-por-motivo":
@@ -462,12 +504,37 @@ public sealed class DreGerencialService
 
                 var linhas = await _repositorio.ObterDetalheLancamentosAsync(
                     filtro.Filiais, filtro.DataInicio, filtro.DataFim, regime, analise,
-                    filtro.Bloco, filtro.Chave, cancellationToken);
+                    filtro.Bloco, filtro.Chave, fornecedores, cancellationToken);
+
+                // ── A PARTICIPAÇÃO, QUE É O QUE FAZ A TELA FECHAR COM A CÉLULA ──────
+                //
+                // A célula de despesa com fornecedor filtrado não é a soma dos lançamentos:
+                // é `(total − exclusivo) × participação + exclusivo`. Sem este número a
+                // lista mostraria a despesa inteira da filial e não explicaria a linha que
+                // o usuário clicou — que é o que a 9815 faz, e o que decidimos não repetir.
+                //
+                // A conta sai da MESMA consulta da apuração, não de uma cópia: o
+                // faturamento já devolve a receita líquida filtrada e a da filial inteira,
+                // e a participação é o quociente das duas somadas no período. Custa uma
+                // consulta a mais, e só quando há filtro.
+                var participacao = 1m;
+                if (fornecedores is not null)
+                {
+                    var faturamento = await _repositorio.ObterFaturamentoPorMesAsync(
+                        filtro.Filiais, filtro.DataInicio, filtro.DataFim, fornecedores,
+                        cancellationToken);
+
+                    var total = faturamento.Sum(f => f.ReceitaLiquidaTotal);
+                    participacao = total == 0m
+                        ? 1m
+                        : faturamento.Sum(f => f.ReceitaLiquida) / total;
+                }
 
                 cronometro.Stop();
                 return Result<DetalhamentoDto>.Ok(new DetalhamentoDto(
                     filtro.Tipo, filtro.DataInicio, filtro.DataFim, null, null,
                     linhas.Select(l => new DetalheLancamentoDto(
+                        l.Exclusivo != 0m,
                         l.RecNum, l.CodFilial, l.CodCcPrinc, l.DescCcPrinc,
                         l.CodCentroCusto, l.DescCentroCusto, l.CodGrupo, l.Grupo,
                         l.CodConta, l.Conta, l.VPago, l.Historico, l.DtLanc,
@@ -477,7 +544,7 @@ public sealed class DreGerencialService
                         l.NumSeqBordero, l.NumCheque2, l.NumCar, l.Localizacao,
                         l.NomeFunc, l.NomeFuncBaixa, l.DtReclassific,
                         l.CodFuncReclassific)).ToList(),
-                    null, cronometro.ElapsedMilliseconds));
+                    null, cronometro.ElapsedMilliseconds, Fornecedores: eco, Participacao: participacao));
             }
 
             case "imposto-por-produto":
@@ -492,7 +559,7 @@ public sealed class DreGerencialService
 
                 var linhas = await _repositorio.ObterDetalheImpostoPorProdutoAsync(
                     filtro.Bloco, filtro.Filiais, filtro.DataInicio, filtro.DataFim,
-                    cancellationToken);
+                    fornecedores, cancellationToken);
 
                 // A participação é do LÍQUIDO sobre o total da tela, como na devolução por
                 // motivo. Total zero não vira divisão por zero: a coluna sai zerada.
@@ -504,7 +571,7 @@ public sealed class DreGerencialService
                     linhas.Select(i => new DetalheImpostoDto(
                         i.CodProd, i.Produto, i.QdeNf, i.Vendas, i.Devolucoes, i.Liquido,
                         total == 0m ? 0m : Math.Round(i.Liquido / total * 100m, 2))).ToList(),
-                    cronometro.ElapsedMilliseconds));
+                    cronometro.ElapsedMilliseconds, Fornecedores: eco));
             }
 
             default:

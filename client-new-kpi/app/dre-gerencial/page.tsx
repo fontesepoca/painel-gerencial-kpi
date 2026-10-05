@@ -14,6 +14,7 @@ import { useApuracao, useFiliais } from "@/hooks/useDreGerencial";
 import { cn } from "@/lib/cn";
 import { formatarDataIso, formatarDuracao } from "@/lib/formato";
 import { descreverFiliais } from "@/lib/filiaisApuradas";
+import { descreverFornecedores } from "@/lib/fornecedoresApurados";
 import { estimativaDeTempo, impedimento } from "@/lib/modosDePeriodo";
 import { dataHoraBr, periodoPadrao } from "@/lib/periodos";
 import type { Apuracao, FiltroApuracao } from "@/types/dre-gerencial";
@@ -108,6 +109,8 @@ export default function DreGerencialPage() {
   const [filtro, setFiltro] = useState<FiltroApuracao>(() => ({
     filiais: [],
     ...periodoPadrao(),
+    // Vazio é o DRE inteiro — o comportamento de sempre, para quem nunca tocar no campo.
+    fornecedores: [],
     regime: "competencia",
     analise: "ccusto-principal",
     modo: "meses",
@@ -120,6 +123,13 @@ export default function DreGerencialPage() {
   // pode reescrever o cabeçalho do que já está na tela — é o mesmo cuidado que o
   // detalhamento toma ao usar `dados` em vez de `filtro`.
   const filiaisApuradas = descreverFiliais(dados?.filiais ?? [], filiais.data ?? []);
+
+  // Os códigos saem da apuração; os nomes, do que está selecionado agora. Ver
+  // `descreverFornecedores` — e é `null` quando o DRE é o inteiro, que é o caso comum.
+  const fornecedoresApurados = descreverFornecedores(
+    dados?.fornecedores ?? [],
+    filtro.fornecedores,
+  );
 
   // Pela mesma razão: a hora é a da apuração que está na tela, não a de agora. Ela congela
   // junto com os números e não anda enquanto a folha espera para ser impressa.
@@ -233,6 +243,21 @@ export default function DreGerencialPage() {
                 <p className="filiais-descritas mt-0.5 text-[length:var(--fs-apoio)] text-[var(--text-muted)]">
                   {filiaisApuradas.detalhe}
                 </p>
+
+                {/* DE QUEM É ESTE DRE.
+
+                    Em linha própria e sempre visível — na tela e no papel —, porque é a
+                    informação que mais muda o sentido de todos os números acima dela. Uma
+                    folha impressa de um DRE filtrado circula sem contexto nenhum, e sem
+                    esta linha ela se parece com o DRE da empresa inteira.
+
+                    Só aparece quando há filtro: sem ele não há nada a dizer, e a altura
+                    fica com a tabela. */}
+                {fornecedoresApurados !== null && (
+                  <p className="mt-0.5 text-[length:var(--fs-apoio)] font-medium text-[var(--primary)]">
+                    {fornecedoresApurados}
+                  </p>
+                )}
               </div>
 
               {/* `flex-wrap` e `whitespace-nowrap` juntos: em tela de celular o rótulo
@@ -290,6 +315,9 @@ export default function DreGerencialPage() {
             )}
 
             <TabelaDre
+              // De `dados`, e não de `filtro`: a leitura da tela acompanha o que foi
+              // apurado, não o que o formulário mostra agora.
+              comFornecedor={dados.fornecedores.length > 0}
               periodos={dados.periodos}
               linhas={dados.linhas}
               mostrarZeradas={mostrarZeradas}
@@ -305,6 +333,22 @@ export default function DreGerencialPage() {
                 dataFim: dados.dataFim,
                 regime: dados.regime,
                 analise: dados.analise,
+                // OS FORNECEDORES DA APURAÇÃO, desde 02/10/2026 — antes isto ia vazio, e o
+                // duplo clique abria os lançamentos de todo mundo numa tela cujo propósito é
+                // explicar a célula clicada.
+                //
+                // Os códigos saem de `dados`, que é a apuração que está na tela; o OBJETO
+                // vem do formulário quando ainda está lá, só para a tela ter o nome à mão. O
+                // que viaja para a API é o código, e só ele — ver `paraApi`.
+                fornecedores: dados.fornecedores.map(
+                  (cod) =>
+                    filtro.fornecedores.find((f) => f.codFornec === cod) ?? {
+                      codFornec: cod,
+                      fornecedor: "",
+                      cgc: null,
+                      codFornecPrinc: null,
+                    },
+                ),
                 // O detalhamento é sempre de UMA coluna, e a coluna já traz o próprio
                 // recorte em datas. Mandar o modo junto faria o servidor reabrir a
                 // consulta em várias colunas de novo, dentro de um detalhe.

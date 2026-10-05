@@ -44,8 +44,17 @@ public static class DreDetalheQueries
     /// geração de código do Delphi, não critério — o conjunto de linhas é idêntico ao de
     /// um `IN`, e o `IN` não cresce com a seleção.</para>
     ///
-    /// <para>Binds: {0} filiais das vendas, :dtIni1/:dtFim1; {1} filiais das devoluções,
-    /// :dtIni2/:dtFim2. <b>Ordem posicional</b> — ODP.NET com `BindByName=false`.</para>
+    /// <para><b>{2} e {3} são o filtro por fornecedor</b>, um em cada bloco: o mesmo
+    /// `PR.CODFORNEC` que a apuração usa, sobre a mesma tabela `PCPRODUT` que já estava na
+    /// consulta. Sem filtro os dois são vazios e o texto é o de sempre.</para>
+    ///
+    /// <para><b>Aqui o detalhe FECHA com a célula</b>, ao contrário da tela de despesas:
+    /// a receita filtrada sai do produto, item a item, e não há rateio nenhum pelo caminho.
+    /// A 9815 não filtra esta tela — ver `docs/DIVERGENCIAS.md`.</para>
+    ///
+    /// <para>Binds: {0} filiais das vendas, {2} fornecedores, :dtIni1/:dtFim1; {1} filiais
+    /// das devoluções, {3} fornecedores, :dtIni2/:dtFim2. <b>Ordem posicional</b> — ODP.NET
+    /// com `BindByName=false`.</para>
     /// </summary>
     public const string ReceitaPorCliente = """
         SELECT CODCLI, CLIENTE, CIDADE, QDENF,
@@ -91,6 +100,7 @@ public static class DreDetalheQueries
                            AND ( (NF.CONDVENDA IN (1,3,5,6,8)) OR (NF.ESPECIE = 'CO') )
                            AND NF.DTSAIDA BETWEEN :dtIni1 AND :dtFim1
                            AND NF.CODFILIAL IN ({0})
+                           {2}
                            AND ( (nvl(esp.mostra_dre,'S') = 'S') OR (NF.CONDVENDA IN (5)) )
                            AND nvl(PR.codsec,0) <> 1601
                         UNION ALL
@@ -112,6 +122,7 @@ public static class DreDetalheQueries
                            AND nvl(PED.CONDVENDA,1) IN ('1','3','5','6','8')
                            AND NFE.DTENT BETWEEN :dtIni2 AND :dtFim2
                            AND NFE.CODFILIAL IN ({1})
+                           {3}
                            AND NFE.TIPODESCARGA IN ('6','7')
                            AND MV.DTCANCEL IS NULL
                            AND (NVL(NFE.OBS,'X') <> 'NF CANCELADA')
@@ -138,7 +149,10 @@ public static class DreDetalheQueries
     /// Ele fecha em 100 com folga de centésimos — são ~27 motivos arredondados a duas
     /// casas, e a exportação da 9815 fecha em 100,02 pelo mesmo motivo.</para>
     ///
-    /// <para>Binds: :dtIni, :dtFim, {0} filiais.</para>
+    /// <para><b>{1} é o filtro por fornecedor</b>, pelo `PR.CODFORNEC` da `PCPRODUT` que a
+    /// consulta já junta. Como na tela de receita, o detalhe fecha com a célula.</para>
+    ///
+    /// <para>Binds: :dtIni, :dtFim, {0} filiais, {1} fornecedores.</para>
     /// </summary>
     public const string DevolucaoPorMotivo = """
         SELECT CODMOTIVO, MOTIVO, CULPARCA, QDENF, VLDEVOLUCAO,
@@ -161,6 +175,7 @@ public static class DreDetalheQueries
                    AND nvl(PED.CONDVENDA,1) IN ('1','3','5','6','8')
                    AND NFE.DTENT BETWEEN :dtIni AND :dtFim
                    AND NFE.CODFILIAL IN ({0})
+                   {1}
                    AND NFE.TIPODESCARGA IN ('6','7')
                    AND MV.DTCANCEL IS NULL
                    AND (NVL(NFE.OBS,'X') <> 'NF CANCELADA')
@@ -295,12 +310,23 @@ public static class DreDetalheQueries
     /// <see cref="Application.Features.DreGerencial.RegimeDre.ExpressaoFiltro"/>, a mesma
     /// que as consultas de despesas usam.</para>
     ///
-    /// <para>Binds: {0} predicado dos dois blocos, {1} filiais do financeiro,
+    /// <para><b>{5} e {6} são o filtro por fornecedor</b>, e são os MESMOS fragmentos da
+    /// apuração — a diferença é o que cada um carrega. Lá, `{4}` soma o valor exclusivo;
+    /// aqui, `{5}` marca o lançamento com `1 AS EXCLUSIVO` e deixa o valor intacto, porque
+    /// esta tela mostra o lançamento como ele é. O rateio é aplicado depois, sobre o que
+    /// não está marcado.</para>
+    ///
+    /// <para>`{6}` é idêntico ao `{5}` da apuração: tira do detalhe os centros que
+    /// pertencem a outro fornecedor, para a tela não listar despesa que a célula não
+    /// contou.</para>
+    ///
+    /// <para>Binds: {5} fornecedores (duas listas, na coluna), {0} predicado dos dois
+    /// blocos, {1} filiais do financeiro, {6} fornecedores (duas listas, no WHERE),
     /// {4} expressão de data com :dtIni1/:dtFim1, {2} filiais da venda de ativo,
     /// :dtIni2/:dtFim2, {3} coluna do recorte, e o bind :chave com o valor.</para>
     /// </summary>
     public const string Lancamentos = """
-        SELECT RECNUM, CODFILIAL, CODCCPRINC, DESCCCPRINC,
+        SELECT RECNUM, EXCLUSIVO, CODFILIAL, CODCCPRINC, DESCCCPRINC,
                CODCENTROCUSTO, DESCCENTROCUSTO, CODGRUPO, GRUPO, CODCONTA, CONTA,
                NUMTRANS, NUMNOTA, DUPLIC, INDICE, CODPROJETO, CODFORNEC, FORNECEDOR,
                DTLANC, DTCOMPETENCIA, DTCOMPENSACAO, DTPAGTO, HISTORICO, VPAGO,
@@ -308,7 +334,7 @@ public static class DreDetalheQueries
                LOCALIZACAO, NOMEFUNC, NOMEFUNCBAIXA, NUMCAR,
                DTRECLASSIFIC, CODFUNCRECLASSIFIC
           FROM (
-                SELECT FIN.RECNUM, FIN.INDICE, FIN.CODFILIAL,
+                SELECT FIN.RECNUM, {5} FIN.INDICE, FIN.CODFILIAL,
                        CCPrinc.codccprinc AS CODCCPRINC,
                        CCPrinc.codccprinc || ' - ' || CCPrinc.DescCCPrinc AS DESCCCPRINC,
                        DECODE(RC.valor,NULL, DECODE(CT.usarateiocentrocusto,'S',NVL(CC.codigocentrocusto,9998),9999) ,NVL(CC.codigocentrocusto,9998)) AS CODCENTROCUSTO,
@@ -375,9 +401,10 @@ public static class DreDetalheQueries
                    -- ele o detalhamento mostrava contas que o DRE esconde de propósito.
                    AND FIN.CODCONTA NOT IN (SELECT codconta FROM EPCPARDRE_NAOEXIBIR)
                    {0}
+                   {6}
                    AND {4} BETWEEN :dtIni1 AND :dtFim1
                 UNION ALL
-                SELECT 0, 'A', fin.codfilial, '85', '85 - RECEITA VENDA ATIVO',
+                SELECT 0, 0, 'A', fin.codfilial, '85', '85 - RECEITA VENDA ATIVO',
                        '8501', 'RECEITA VENDA ATIVO',
                        GR.codgrupo, GR.codgrupo || ' - ' || GR.GRUPO,
                        CT.CODCONTA, CT.CONTA, NULL,
@@ -482,6 +509,10 @@ public static class DreDetalheQueries
     /// :dtIni1/:dtFim1; {2} a expressão nas devoluções, {3} filiais das devoluções,
     /// :dtIni2/:dtFim2. As expressões vêm de <see cref="ExpressaoDoImposto"/>, que só
     /// devolve constante — nada aqui é montado a partir do que chega na requisição.</para>
+    ///
+    /// <para><b>{4} e {5} são o filtro por fornecedor</b>, depois das filiais de cada bloco.
+    /// As três linhas de imposto saem do item vendido, como a receita, e por isso filtram
+    /// pelo mesmo `PR.CODFORNEC` e fecham com a célula.</para>
     /// </summary>
     public const string ImpostoPorProduto = """
         -- Os nomes da subconsulta terminam em ITEM, e os de fora nao. Nao e enfeite:
@@ -517,6 +548,7 @@ public static class DreDetalheQueries
                    AND ( (NF.CONDVENDA IN (1,3,5,6,8)) OR (NF.ESPECIE = 'CO') )
                    AND NF.DTSAIDA BETWEEN :dtIni1 AND :dtFim1
                    AND NF.CODFILIAL IN ({1})
+                   {4}
                    AND ( (nvl(esp.mostra_dre,'S') = 'S') OR (NF.CONDVENDA IN (5)) )
                    AND nvl(PR.codsec,0) <> 1601
                  GROUP BY PR.CODPROD, PR.DESCRICAO
@@ -543,6 +575,7 @@ public static class DreDetalheQueries
                    -- o repositório de uma para a outra.
                    AND NFE.DTENT BETWEEN :dtIni2 AND :dtFim2
                    AND NFE.CODFILIAL IN ({3})
+                   {5}
                    AND NFE.TIPODESCARGA IN ('6','7')
                    AND MV.DTCANCEL IS NULL
                    AND (NVL(NFE.OBS,'X') <> 'NF CANCELADA')

@@ -17,6 +17,16 @@ Leia [CLAUDE.md](CLAUDE.md) para o contexto. Aqui estão as regras. São imperat
 - **"Corrigir" número da 9815.** A web tem que bater com o Delphi, defeito incluído. Achou
   algo errado? Documente e pergunte — não conserte por conta.
 - **Avançar de fase sem aprovação explícita.** Terminou, mostre o resultado e pare.
+- **Desfazer regra já aprovada.** Toda mudança de comportamento do DRE que o Gabriel pediu
+  está em [docs/DIVERGENCIAS.md](docs/DIVERGENCIAS.md), numerada, com data e com o script
+  que a mede. **Uma branch nova não pode revertê-las, nem por descuido de merge.** Antes de
+  abrir trabalho novo, traga a `main` para a sua branch; antes de entregar, traga de novo e
+  confira a lista do §"As regras que nenhuma branch pode desfazer".
+
+  Aconteceu em 02/10/2026: a branch `feat/filtro-fornecedor` saiu de um ponto anterior a 17
+  commits da `main` e, na tela, as duas contas subidas em 25/09 pareciam ter voltado a ser
+  informativas. **O filtro não desfez nada — ele nunca teve a regra.** O efeito para quem
+  olha é idêntico, e é por isso que a conferência tem de ser por lista, não por impressão.
 
 ## Obrigatório
 

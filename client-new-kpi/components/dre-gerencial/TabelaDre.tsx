@@ -88,10 +88,20 @@ export function TabelaDre({
   filtro,
   modo,
   filiaisApuradas,
+  comFornecedor,
 }: {
   periodos: PeriodoDre[];
   linhas: LinhaDre[];
   mostrarZeradas: boolean;
+  /**
+   * A apuração foi filtrada por fornecedor.
+   *
+   * Vem de quem apurou, e não do formulário: mexer no filtro depois de apurar não pode
+   * mudar a leitura do que já está na tela. Muda UMA célula — a do %AV das RECEITAS
+   * LIQUIDAS, que deixa de marcar 100,000 e passa a contar a participação do fornecedor
+   * na receita da filial. Ver `BarraAv`.
+   */
+  comFornecedor: boolean;
   /**
    * Texto do filtro de linhas. Vazio é o estado normal, e **não** um filtro que casa com
    * nada — ver `filtrarLinhas`.
@@ -858,6 +868,7 @@ export function TabelaDre({
               const indice = indiceCompleto(linha.chaveOrdem);
               return (
                 <Linha
+                  comFornecedor={comFornecedor}
                   key={linha.chaveOrdem}
                   linha={linha}
                   indice={indice}
@@ -1087,6 +1098,7 @@ function Th({ className, children }: { className?: string; children?: React.Reac
 }
 
 function Linha({
+  comFornecedor,
   linha,
   indice,
   foraDoBloco,
@@ -1110,6 +1122,7 @@ function Linha({
   /** A conta soma num total diferente do que o cadastro lhe deu. */
   foraDoBloco: boolean;
   maiorAv: number;
+  comFornecedor: boolean;
   multiMes: boolean;
   /** O bloco final desta linha é variação em vez de total. */
   variacaoNoFim: boolean;
@@ -1255,6 +1268,9 @@ function Linha({
           key={v.mesAno}
           valor={v.valor}
           av={v.percentualAv}
+          // A célula do %AV vira participação na linha das RECEITAS LIQUIDAS, quando há
+          // fornecedor filtrado — o P.23,852% da 9815. Ver `BarraAv`.
+          participacao={comFornecedor && linha.papel === "receitas-liquidas"}
           ah={v.percentualAh}
           mostrarAh={multiMes}
           totalDaLinha={linha.total.valor}
@@ -1277,6 +1293,7 @@ function Linha({
           <BlocoMes
             valor={linha.total.valor}
             av={linha.total.percentualAv}
+            participacao={comFornecedor && linha.papel === "receitas-liquidas"}
             media={linha.total.media}
             maiorAv={maiorAv}
             totalDaLinha={linha.total.valor}
@@ -1300,9 +1317,12 @@ function BlocoMes({
   total,
   totalDaLinha,
   onDetalhe,
+  participacao,
 }: {
   valor: number;
   av: number | null;
+  /** Ver `BarraAv`: a célula do %AV vira `P.xx,xxx%` na linha das RECEITAS LIQUIDAS. */
+  participacao?: boolean;
   ah?: number | null;
   media?: number;
   mostrarAh?: boolean;
@@ -1357,7 +1377,7 @@ function BlocoMes({
       </td>
 
       <td className={cn(CELULA, total && "bg-[var(--surface-2)]")}>
-        <BarraAv percentual={av} maior={maiorAv} />
+        <BarraAv percentual={av} maior={maiorAv} participacao={participacao} />
       </td>
 
       {total ? (
@@ -1382,9 +1402,42 @@ function BlocoMes({
  * justamente o que deveria mostrar. A barra devolve a leitura de relevância que a grade
  * do Winthor não dava, sem tirar o número de quem confere.
  */
-function BarraAv({ percentual, maior }: { percentual: number | null; maior: number }) {
+function BarraAv({
+  percentual,
+  maior,
+  participacao,
+}: {
+  percentual: number | null;
+  maior: number;
+  /**
+   * <b>Esta célula deixou de ser análise vertical e virou PARTICIPAÇÃO.</b>
+   *
+   * Só acontece na linha `RECEITAS LIQUIDAS` com fornecedor filtrado. Aquela célula marca
+   * 100,000 em todo DRE — é a base de si mesma —, e é por ser previsível que a 9815 a
+   * aproveita para contar outra coisa: quanto o fornecedor representa na receita da filial.
+   * Ela escreve `P.23,852%`, e nós escrevemos igual.
+   *
+   * <b>Sem a barra.</b> A barra compara a linha com a maior da coluna, e participação não é
+   * isso — desenhá-la aqui convidaria a uma leitura que o número não sustenta.
+   */
+  participacao?: boolean;
+}) {
   if (percentual === null) {
     return <div className="text-right text-[var(--text-muted)]">—</div>;
+  }
+
+  if (participacao) {
+    return (
+      <div
+        className="flex flex-col items-end gap-0.5"
+        title="Participação do fornecedor na receita líquida da filial"
+      >
+        <span className="tabular text-[length:var(--fs-apoio)] font-semibold text-[var(--primary)]">
+          <span className="so-na-tela">P.{formatarPercentual(percentual)}</span>
+          <span className="so-no-papel">P.{formatarPercentual(percentual, 1)}</span>
+        </span>
+      </div>
+    );
   }
 
   const magnitude = Math.abs(percentual);

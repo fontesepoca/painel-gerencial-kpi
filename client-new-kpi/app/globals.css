@@ -324,11 +324,116 @@ body {
 
    Abaixo disso continuam duas colunas: entre espremer cinco e usar duas, duas leem
    melhor — foi o que a medição de 1280 mostrou. */
-@media (min-width: 1360px) {
+/* ── A SEXTA COLUNA, 02/10/2026 ──────────────────────────────────────────────────
+   O Fornecedor entrou e a grade tinha CINCO colunas para seis campos: o Apurar caía para
+   a segunda linha e, pior, cada campo herdava a largura do vizinho — o Fornecedor ficava
+   com os 208px do Regime, o Tipo de Análise com os 432px do Período, e o Período se
+   espremia nos 215px que eram do botão. A tela ficava torta sem nada parecer quebrado.
+
+   MEDIDO NA TELA, leitura ampliada, janela de 1425 (a grade recebe 1295):
+
+     Filial 165 · Fornecedor 236 · Regime 198 · Análise 197 · Período 495 · Apurar 105
+     soma 1396 + 80 de gaps = 1476, contra 1295 disponíveis — faltavam 181px.
+
+   De onde saíram os 181, a pedido do Gabriel: o Fornecedor desce para 7rem, porque o que
+   ele mostra é um resumo curto, e o Período deixa de pedir os 495 do conteúdo folgado e
+   volta ao mínimo medido em 11/09. Os outros quatro ficam no tamanho do próprio conteúdo:
+   "C. Custo Principal" pede 197 e truncar o nome da dimensão seria pior que apertar.
+
+   NENHUM campo cresce, menos o Período: ele é o único cujo conteúdo é grande e variável —
+   duas datas, o botão de modo, o relógio e, no comparativo, mais duas datas. Todo pixel
+   que sobra vai para ele, e é por isso que é o único com fração.
+
+   AS DATAS NÃO PODEM SER CORTADAS, 02/10/2026. Na leitura ampliada cada input de data pede
+   186px e recebia 143: a data saía como "01/10/2" com o calendário cortando o resto. O
+   Período inteiro pede 495px, e tinha 430.
+
+   Os 65 que faltavam vieram de três lugares, nenhum deles do próprio Período:
+
+     · a FILIAL, que pedia 126 e recebia 168 — o resumo dela é curto ("Todas as 8"), e
+       os 42 de sobra não estavam fazendo nada;
+     · o GAP entre colunas, de 16 para 12, que devolve 20 nas cinco emendas;
+     · o PADDING dos inputs de data, de 12 para 8 de cada lado, mais 16 nos dois.
+
+   O piso: 128+112+200+200+480+105 = 1225, mais 60 de gaps e ~130 das margens, dá 1415 —
+   daí o corte em 1420. Abaixo disso são duas colunas, e aí a data volta a caber porque
+   cada campo recebe meia tela. Abaixo disso continuam duas colunas, que é o que a
+   medição de 1280 mostrou ser mais legível do que espremer seis. */
+/* ── A SOBRA NÃO É DAS DATAS, 02/10/2026 ────────────────────────────────────────
+   O Período levava `1fr` e, numa janela de 1536, engolia sozinho os ~240px que sobravam:
+   os dois inputs de data ficavam com 290px cada para mostrar dez caracteres. Largura
+   gasta sem nada ganhar — a data não cresce junto, só o vazio ao redor dela.
+
+   Agora o Período tem TETO em 31rem — 496px, que é o pior caso medido: leitura ampliada,
+   comparativo, quatro datas numa coluna. Ele chega até ali e para. A SOBRA VAI PARA A
+   COLUNA DO BOTÃO, a única com fração, e o `justify-self` abaixo mantém o Apurar colado
+   à direita como sempre esteve. O espaço vazio passa a ficar ENTRE os campos e o botão,
+   em vez de dentro dos campos.
+
+   TETO em rem, e não `max-content`: medido na tela, os dois inputs de data têm intrínsecas
+   DIFERENTES — 156 e 178px para o mesmo `01/10/2026` —, e o `max-content` entregava um par
+   de campos visivelmente desiguais. Com teto fixo e os inputs em `w-full`, os dois repartem
+   a coluna por igual e caem nos 179px que cada um pede.
+
+   O `min-content` como piso é o que evita transbordo em 1420 na leitura ampliada: ali as
+   colunas de tamanho fixo não cedem, e quem aperta — 6px, medidos — tem de ser o Período. */
+/* ── NADA DE BURACO: A LINHA INTEIRA É DOS CAMPOS, 02/10/2026 ───────────────────
+   O teto fixo no Período resolveu as datas gigantes e criou outro defeito: a sobra da
+   janela virava um VAZIO entre o Período e o Apurar. O pedido do Gabriel é que os
+   campos se enquadrem e preencham a largura inteira do header.
+
+   Aqui a grade vira FLEX, e é de propósito. Com `grid` a sobra tem de ser atribuída a
+   alguma coluna — foi assim que ela caiu toda no Período —, e frações menores que 1 não
+   distribuem o resto: medido, `0.18fr … 0.24fr` deixava 25px sem dono. O flex reparte o
+   que sobra entre TODOS, na proporção que cada campo merece, e não precisa que a soma
+   feche em 1.
+
+   AS BASES SÃO AS LARGURAS MEDIDAS, e somam exatamente a linha cheia no piso:
+
+     128 + 110 + 198 + 198 + 496 (Período) + 105 (Apurar) + 60 de gaps = 1295
+
+   que é o que a grade recebe numa janela de 1425. No piso nada cresce nem encolhe; daí
+   para cima cada campo ganha a sua parte do que sobrar.
+
+   OS PESOS DIZEM QUEM APROVEITA A LARGURA EXTRA. O Período leva o maior porque o
+   conteúdo dele é variável — duas datas, o botão de modo, o relógio e, no comparativo,
+   mais duas datas. O Fornecedor leva o menor: ele mostra um resumo de uma palavra, e
+   largura ali é desperdício. O Apurar não cresce: botão não melhora esticado. */
+@media (min-width: 1420px) {
   .grade-filtros {
-    grid-template-columns:
-      minmax(11rem, 0fr) minmax(13rem, 0.9fr) minmax(12.5rem, 0.6fr)
-      minmax(27rem, 1.4fr) auto;
+    display: flex;
+    align-items: stretch;
+    /* 12px entre os campos, não 16. Na vertical o espaçamento continua 1rem — ali ele
+       separa LINHAS de campos, que é outra leitura. */
+    column-gap: 0.75rem;
+  }
+
+  /* `min-width: 0` em todos: sem ele um campo se recusa a encolher abaixo do próprio
+     conteúdo e empurra a linha para fora da tela. */
+  .grade-filtros > * {
+    min-width: 0;
+  }
+
+  .grade-filtros > :nth-child(1) {
+    flex: 0.6 1 8rem;
+  }
+  .grade-filtros > :nth-child(2) {
+    flex: 0.5 1 6.9rem;
+  }
+  .grade-filtros > :nth-child(3) {
+    flex: 0.7 1 12.4rem;
+  }
+  .grade-filtros > :nth-child(4) {
+    flex: 0.7 1 12.4rem;
+  }
+  .grade-filtros > :nth-child(5) {
+    flex: 1 1 31rem;
+  }
+
+  /* O Apurar: largura do próprio conteúdo, e é o último — fica colado à direita sem
+     precisar de alinhamento nenhum, porque não sobra nada à frente dele. */
+  .grade-filtros > :last-child {
+    flex: 0 0 auto;
   }
 }
 

@@ -29,6 +29,7 @@ a aprovação do Gabriel.
 | [11](#11-três-mudanças-de-ordem-e-de-exibição--21092026) | Sai a linha `Total das Despesas`, a indenização desce, as `- RAT` sobem, e as `TRANSPORTE T` vêm logo depois | todas | **nenhum valor muda** | **a pedido** em 21 e 23/09/2026 · dc34, dc35, dc36 e **dc65** |
 | [12](#12-a-linha-é-a-conta-principal-e-não-os-dois-primeiros-dígitos--22092026) | O centro de custo deixa de ser agrupado por dois dígitos | C. Custo Principal | **nenhum valor muda** — 34 linhas viram 60 | **a pedido** em 22/09/2026 · dc61, dc62 e **dc64 45/45** |
 | [14](#14-manutencao-de-veiculos-e-pneus-e-camaras-entram-nos-cálculos--25092026) | `Manutencao De Veiculos` e `PNEUS E CAMARAS` saem do bloco informativo e somam nas despesas operacionais | todas | **+R$ 1.709.994,73** no lucro de julho/2026 na filial 7 | **a pedido** em 25/09/2026 · dc34, dc62 e dc71 |
+| [15](#15-o-detalhamento-respeita-o-filtro-por-fornecedor--02102026) | Detalhamento com fornecedor filtrado | todas as telas de duplo clique | a despesa inteira da filial, contra a fatia do fornecedor | **a pedido** em 02/10/2026 · dc78 12/12 |
 
 ---
 
@@ -240,6 +241,122 @@ granularidade é o centro de custo inteiro, não os dois primeiros dígitos. Com
 referência, não dá para medir.
 
 ---
+
+---
+
+## 15. O detalhamento respeita o filtro por fornecedor — 02/10/2026
+
+Com fornecedor selecionado, o duplo clique da 9815 abre **a filial inteira**. Não é
+descuido de tela: é o que o fonte faz.
+
+```pascal
+// UBase.pas:24684 — o que a rotina passa para a tela de lançamentos
+FLanc := TFLanc.Create(Self, DtIni, DtFim, sCodConta, ...,
+                       sFiltroCC, Matricula, ReceitaLiq, val, iTipoAnalise, ...);
+```
+
+Não há parâmetro de fornecedor na lista. E `val` — o valor da célula, já rateado — chega ao
+form, é guardado em `VlConta` (ULanc.pas:148) e **nunca mais é lido**. A tela antiga mostra
+uma despesa que não é a da linha clicada, e não diz isso em lugar nenhum.
+
+### O que a web faz
+
+O Gabriel aprovou a divergência em 02/10/2026, com a mecânica dividida em duas:
+
+**As telas que saem do PRODUTO filtram na consulta** — receita por cliente, devolução por
+motivo e imposto por produto. O mesmo `pr.codfornec` da apuração, sobre a `PCPRODUT` que as
+três já juntavam. Aqui não existe rateio nenhum pelo caminho, e o detalhe fecha com a célula
+sem mais conversa.
+
+**A tela de LANÇAMENTOS rateia**, porque a célula de despesa filtrada não é a soma de
+lançamento nenhum:
+
+```
+célula = (total − exclusivo) × participação + exclusivo
+```
+
+Então a consulta devolve o lançamento **como ele é** — e com uma marca, `EXCLUSIVO`, montada
+pelo mesmo fragmento de SQL que a apuração usa para somar `VPAGO_EXCLUSIVO_FORNEC`
+(`DreGerencialRepository.EhExclusivo`). A tela ganha uma coluna, `No DRE`, ao lado do
+`V. Pago`: o que o lançamento é, e o que ele vale dentro daquele DRE. O rodapé soma as duas,
+e é a segunda que fecha com a célula.
+
+O recorte também acompanha a apuração: os centros que pertencem a outro fornecedor saem do
+detalhe pelo mesmo `CentrosDeOutroFornecedor` — a tela não pode listar despesa que a célula
+não contou.
+
+### Por que não ficamos fiéis
+
+O detalhamento existe para responder *de onde veio este número*. Mostrar a despesa da filial
+inteira debaixo de uma célula que vale 8% dela responde outra pergunta, e sem avisar qual.
+A tela nova diz a participação com todas as letras e marca o que entrou inteiro.
+
+### A prova
+
+[dc78](validacao/dc78_detalhe_fecha_com_a_celula_filtrada.mjs) apura com o fornecedor 29,
+abre o detalhe de cada linha de despesa e cobra igualdade ao centavo. Em 02/10/2026,
+EPC-MAT, agosto/2026, competência, C. Custo Principal:
+
+```
+participação no DRE: 8,2206%
+  VERBAS MARGEM               célula    199.500,00 · detalhe    199.500,00 ·   1 lanç. (1 excl.)
+  DIRETORIA                   célula    -18.761,16 · detalhe    -18.761,16 · 114 lanç. (0 excl.)
+  MOVIMENTAÇÃO E ARMAZENAGEM  célula    -87.141,04 · detalhe    -87.141,04 · 463 lanç. (0 excl.)
+  … 12 de 12 ao centavo
+```
+
+A `VERBAS MARGEM` é o caso que mostra a regra inteira: um lançamento só, do centro 90 com o
+`CODFORNEC` 29, marcado exclusivo — e por isso entra **inteiro**, sem encolher para 8%.
+
+O script também cobra o que não pode mudar: sem filtro, participação exatamente `1`, eco de
+fornecedores vazio, nenhum lançamento marcado, e a soma crua fechando com a célula como
+sempre fechou.
+
+---
+
+## As regras que nenhuma branch pode desfazer
+
+Tudo nesta página que está marcado **a pedido** é decisão do Gabriel, não defeito. Elas se
+acumulam, e cada branch nova herda todas. Esta seção existe porque o contrário já aconteceu.
+
+Em 02/10/2026 a tela voltou a mostrar `Manutencao De Veiculos` e `PNEUS E CAMARAS` como
+informativas, abaixo do `RESULTADO OPERACIONAL`. A leitura imediata — *"o filtro por
+fornecedor desfez a regra"* — estava errada: a branch `feat/filtro-fornecedor` saiu de
+`0ede10c`, **antes** dos 17 commits que a `main` recebeu entre 21 e 28/09, e portanto nunca
+teve a subida. **Branch atrasada e regra revertida produzem exatamente a mesma tela**, e só o
+histórico distingue uma da outra.
+
+### Como conferir, em um minuto
+
+```bash
+# o que a main tem e a sua branch não — se listar algo, a sua branch está atrasada
+git log --oneline HEAD..main
+```
+
+E, depois do merge, que os valores das constantes são os de hoje — não os de antes da
+mudança de 22/09, quando a chave da dimensão deixou de ser o centro de dois dígitos:
+
+| Onde | Tem de ser | Era antes |
+|---|---|---|
+| `MontadorDre.ContasSubidasParaOperacional` | `["3000067", "3000080"]` | não existia |
+| `MontadorDre.CreditosPromovidos` | `["9601\|NSS", "9001\|NSS"]` | `["96\|NSS", "90\|NSS"]` |
+| `MontadorDre.InformativasPorPedido["ccusto-principal"]` | `["9701\|NSS"]` | `["97\|NSS"]` |
+
+A armadilha dessas três: **errar a chave não quebra nada**. As identidades simplesmente
+deixam de casar, a regra para de valer e o relatório sai com outra cara, sem erro nenhum.
+Foi assim com a indenização, e quem percebeu foi a dc34.
+
+### Onde o merge costuma doer
+
+Duas regras podem tocar a **mesma linha** sem serem a mesma coisa, e aí o git pede ajuda:
+
+- **a chave do índice de despesas** leva a subida (`FlagsDepoisDaSubida`, qual LINHA recebe o
+  valor) e o par `(Valor, Exclusivo)` do filtro (QUANTO é rateado). As duas convivem;
+- **`DetalhamentoDto`** cresce pelo meio. Chamada posicional cai no parâmetro errado em
+  silêncio — use argumentos **nomeados**;
+- **as colunas do detalhamento** deixaram de ser lista fixa quando o filtro acrescentou a
+  `No DRE`. O que era constante derivada virou função, senão a coluna nova ganha cabeçalho
+  clicável que não ordena nada.
 
 ## O que NÃO é divergência
 

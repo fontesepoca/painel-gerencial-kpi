@@ -26,6 +26,18 @@ public record LinhaEstruturaDto(
     bool AntesLucroLiquido,
     bool AntesLucroFinal);
 
+/// <summary>
+/// Um fornecedor na busca do filtro.
+///
+/// <para><c>CodFornecPrinc</c> vem junto para a tela poder AVISAR que o cadastro escolhido tem
+/// irmãos — o filtro continua sendo por código, e um não puxa o outro.</para>
+/// </summary>
+public record FornecedorDto(
+    decimal CodFornec,
+    string Fornecedor,
+    string? Cgc,
+    decimal? CodFornecPrinc);
+
 /// <summary>Filtro da consulta de despesas. `Filiais` são códigos em texto.</summary>
 public record DespesasFiltroDto(
     IReadOnlyList<string> Filiais,
@@ -63,7 +75,21 @@ public record DespesasFiltroDto(
     /// mensal, porque comparação com um lado só não é comparação.</para>
     /// </summary>
     DateOnly? ComparacaoInicio = null,
-    DateOnly? ComparacaoFim = null);
+    DateOnly? ComparacaoFim = null,
+    /// <summary>
+    /// Os <b>códigos de fornecedor</b> a apurar. Vazio ou nulo é o DRE inteiro, como sempre.
+    ///
+    /// <para><b>É código de fornecedor, não de empresa.</b> Cada cadastro é um recorte: pedir
+    /// <c>29</c> traz o DRE do 29, pedir <c>2453</c> traz o do 2453, e um não puxa o outro
+    /// mesmo quando o <c>CODFORNECPRINC</c> diz que são a mesma empresa. Decisão registrada em
+    /// <c>docs/FILTRO_FORNECEDOR.md</c>, "A regra é por CÓDIGO DE FORNECEDOR".</para>
+    ///
+    /// <para><b>O filtro não é um filtro só.</b> No faturamento ele filtra de verdade, por
+    /// <c>pr.codfornec</c> — o fornecedor do PRODUTO. Nas despesas, o que ele faz é ratear
+    /// tudo pela participação do fornecedor na receita, menos o que for exclusivo dele. A
+    /// mecânica inteira está no documento acima.</para>
+    /// </summary>
+    IReadOnlyList<decimal>? Fornecedores = null);
 
 /// <summary>
 /// Linha de despesa agregada. A identidade é a tupla completa, não `Chave` sozinha —
@@ -264,7 +290,8 @@ public record DetalheFiltroDto(
     string Analise,
     string Tipo,
     string? Bloco,
-    string? Chave);
+    string? Chave,
+    IReadOnlyList<decimal>? Fornecedores = null);
 
 /// <summary>Uma linha da tela "Receita por Cliente".</summary>
 public record DetalheClienteDto(
@@ -304,7 +331,13 @@ public record DetalheNotaDto(
     decimal PPart);
 
 /// <summary>Um lançamento da tela de detalhamento das linhas de grupo.</summary>
+/// <param name="Exclusivo">
+/// <b>O lançamento é do fornecedor filtrado</b> e entra inteiro no DRE: verba do centro 90
+/// com o <c>CODFORNEC</c> dele, ou despesa de um centro dedicado a ele. Os demais entram
+/// rateados pela <c>Participacao</c> do detalhamento. Sempre <c>false</c> sem filtro.
+/// </param>
 public record DetalheLancamentoDto(
+    bool Exclusivo,
     decimal RecNum,
     string? CodFilial,
     string? CodCcPrinc,
@@ -345,6 +378,21 @@ public record DetalheLancamentoDto(
 /// <paramref name="Tipo"/> — as três telas têm formatos de linha diferentes e não há como
 /// unificá-las sem perder coluna.
 /// </summary>
+/// <param name="Fornecedores">
+/// Os códigos filtrados, ecoados como na apuração — a tela precisa deles para dizer de quem
+/// é o recorte que está mostrando. Vazio quando não há filtro.
+/// </param>
+/// <param name="Participacao">
+/// <b>A fatia do fornecedor na receita líquida da filial</b>, de 0 a 1, no período deste
+/// detalhamento — o mesmo número que o DRE mostra como <c>P.8,221%</c>.
+///
+/// <para>É o fator que o detalhe de LANÇAMENTOS aplica sobre o que não é exclusivo, e é o
+/// que faz a soma da tela fechar com a célula clicada. <c>1</c> sem filtro, e aí nada é
+/// rateado.</para>
+///
+/// <para>Nas telas que saem do produto — receita, devolução e impostos — ela não é usada:
+/// lá o filtro já está na consulta.</para>
+/// </param>
 public record DetalhamentoDto(
     string Tipo,
     DateOnly DataInicio,
@@ -354,7 +402,9 @@ public record DetalhamentoDto(
     IReadOnlyList<DetalheLancamentoDto>? Lancamentos,
     IReadOnlyList<DetalheImpostoDto>? Impostos,
     long DuracaoMs,
-    IReadOnlyList<DetalheNotaDto>? Notas = null)
+    IReadOnlyList<DetalheNotaDto>? Notas = null,
+    IReadOnlyList<decimal>? Fornecedores = null,
+    decimal Participacao = 1m)
 {
     /// <summary>
     /// <b>Quando esta apuração foi feita</b> — a hora do SERVIDOR, não a do navegador.
@@ -410,4 +460,13 @@ public record ApuracaoDto(
     IReadOnlyList<LinhaDreDto> Linhas,
     IReadOnlyList<string> Avisos,
     DateTimeOffset ApuradoEm,
-    long DuracaoMs);
+    long DuracaoMs,
+    /// <summary>
+    /// Os fornecedores que esta apuração usou. Vazio quando o DRE é o inteiro.
+    ///
+    /// <para><b>Volta junto pelo mesmo motivo das filiais:</b> a tela precisa dizer de quem
+    /// são os números que está mostrando, e tem de dizê-lo a partir do que foi APURADO, não
+    /// do formulário. Mexer no filtro depois de apurar não pode reescrever o cabeçalho do que
+    /// já está na tela.</para>
+    /// </summary>
+    IReadOnlyList<decimal> Fornecedores);

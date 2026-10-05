@@ -12,6 +12,7 @@ import {
   type Planilha,
 } from "@/lib/excel";
 import { colunaDoTotal, nomeDaLinha, rotuloDaColuna } from "@/lib/colunaDoTotal";
+import { temRateio, valorNoDre } from "@/lib/rateioDoDetalhe";
 import { semEstornosQueSeAnulam } from "@/lib/estornosQueSeAnulam";
 import type { DetalheCliente, Detalhamento } from "@/types/dre-gerencial";
 
@@ -165,6 +166,8 @@ function corpoDoDetalhe(dados: Detalhamento, nomeDaLinhaDoDre: string | null): C
     };
   }
 
+  const rateando = temRateio(dados);
+
   return {
     // As 25 da 9815, na ordem dela, mais as duas do agrupamento que a tela desenha como
     // linhas de grupo.
@@ -174,6 +177,10 @@ function corpoDoDetalhe(dados: Detalhamento, nomeDaLinhaDoDre: string | null): C
       "Rec.Num.",
       "Histórico",
       "V. Pago",
+      // A coluna do rateio só existe quando a apuração foi filtrada — o arquivo conta a
+      // mesma história da tela, inclusive em quantas colunas tem. Ver
+      // `lib/rateioDoDetalhe.ts`.
+      ...(rateando ? ["No DRE", "Exclusivo"] : []),
       "Dt.Lançamento",
       "Dt. Pagto.",
       "Dt.Competência",
@@ -198,7 +205,9 @@ function corpoDoDetalhe(dados: Detalhamento, nomeDaLinhaDoDre: string | null): C
       "Cod. Func. Reclass.",
     ],
     larguras: [
-      28, 32, 10, 44, 16, 14, 14, 14, 14, 8, 12, 8, 12, 36, 20, 20, 10, 10, 14, 12, 12, 12,
+      28, 32, 10, 44, 16,
+      ...(rateando ? [16, 11] : []),
+      14, 14, 14, 14, 8, 12, 8, 12, 36, 20, 20, 10, 10, 14, 12, 12, 12,
       14, 16, 16, 14, 18,
     ],
     // Os mesmos pares de estorno que a tela esconde — o arquivo e a tela têm de contar a
@@ -209,6 +218,9 @@ function corpoDoDetalhe(dados: Detalhamento, nomeDaLinhaDoDre: string | null): C
       num(l.recNum, INTEIRO),
       txt(l.historico),
       num(l.vPago),
+      ...(rateando
+        ? [num(valorNoDre(l, dados.participacao)), txt(l.exclusivo ? "sim" : "")]
+        : []),
       data(l.dtLanc),
       data(l.dtPagto),
       data(l.dtCompetencia),

@@ -181,15 +181,33 @@ public static class MontadorDre
         // Índice pela TUPLA COMPLETA, com a COLUNA: o mesmo grupo aparece mais de uma vez no
         // DRE com flags diferentes, e cada ocorrência tem um valor por coluna. Antes a chave
         // levava o mês; leva a coluna, que no modo mensal é o próprio mês.
+        // O VALOR E O QUE DELE É EXCLUSIVO DO FORNECEDOR, lado a lado.
+        //
+        // Sem filtro o exclusivo é sempre zero, e o rateio logo abaixo vira identidade. Com
+        // filtro, é a parte que NÃO pode ser multiplicada pela participação: a verba do
+        // centro 90 e os centros dedicados ao fornecedor são dele por inteiro.
         var valorDespesa = colunas
             .SelectMany(c => c.Despesas.Select(d => (Coluna: c.Chave, Despesa: d)))
+            // AS DUAS REGRAS CONVIVEM AQUI, e é de propósito.
+            //
+            // `FlagsDepoisDaSubida` é da main: ela reclassifica `Manutencao De Veiculos` e
+            // `PNEUS E CAMARAS` para dentro das despesas operacionais, e tem de valer com
+            // filtro ou sem. O par `(Valor, Exclusivo)` é do filtro por fornecedor, e é o que
+            // permite ratear só o que não é exclusivo.
+            //
+            // Juntar as duas é o ponto do merge: a subida decide EM QUE LINHA o valor cai, o
+            // exclusivo decide QUANTO dele é rateado. São perguntas diferentes sobre o mesmo
+            // lançamento, e nenhuma das duas substitui a outra.
             .GroupBy(x =>
             {
                 var (ro, ll, lf) = FlagsDepoisDaSubida(
                     x.Despesa.GrupoConta, x.Despesa.AntesRo, x.Despesa.AntesLl, x.Despesa.AntesLf);
                 return (x.Despesa.GrupoConta, ro, ll, lf, x.Coluna);
             })
-            .ToDictionary(g => g.Key, g => g.Sum(x => x.Despesa.VlRealizado));
+            .ToDictionary(
+                g => g.Key,
+                g => (Valor: g.Sum(x => x.Despesa.VlRealizado),
+                      Exclusivo: g.Sum(x => x.Despesa.VpagoExclusivoFornec)));
 
         // Quantos lancamentos cada linha tem em TODAS as colunas. E o que decide se a linha
         // aparece com "Mostrar Contas Zeradas" desmarcada — a 9815 esconde por AUSENCIA DE
@@ -319,6 +337,7 @@ public static class MontadorDre
                 .ToList(),
             Linhas: resultado,
             Avisos: avisos,
+            Fornecedores: filtro.Fornecedores ?? [],
             ApuradoEm: DateTimeOffset.Now,
             DuracaoMs: duracaoMs);
     }
@@ -861,23 +880,61 @@ public static class MontadorDre
     }
 
     /// <summary>Valores de todas as linhas em um mês, na ordem da estrutura.</summary>
+    /// <summary>
+    /// <b>O RATEIO POR FORNECEDOR</b> — tira o exclusivo, rateia o resto, soma de volta.
+    ///
+    /// <para>Lido no <c>UBase.pas</c>, linhas 5797-5812, e medido na
+    /// <c>dc74</c>:</para>
+    ///
+    /// <code>
+    /// rValor := (VLREALIZADO - VPAGO_EXCLUSIVO_FORNEC) * VlPartFornec;
+    /// rValor := rValor + VPAGO_EXCLUSIVO_FORNEC;
+    /// </code>
+    ///
+    /// <para><b>A parte exclusiva nunca é rateada, em conta nenhuma</b> — e não só nos centros
+    /// 90 e 25. É isso que faz Grupo de Contas fechar igual a C.Custo Principal com o filtro
+    /// ligado: lá o valor exclusivo está diluído dentro de contas misturadas, e esta subtração
+    /// o preserva.</para>
+    ///
+    /// <para><b>Sem filtro a participação é 1 e o exclusivo é 0</b>, e a conta inteira vira
+    /// <c>valor</c>. Não é "praticamente igual": é o mesmo <c>decimal</c>, porque multiplicar
+    /// por <c>1m</c> e somar <c>0m</c> não muda bit nenhum.</para>
+    ///
+    /// <para><b>Sem arredondar.</b> O Delphi soma o valor cheio em <c>SomaDesp</c> e arredonda
+    /// só na hora de escrever na grade; arredondar aqui faria os totalizadores divergirem da
+    /// 9815 nos centavos, que é exatamente o erro que a divergência 8 documenta — mas na
+    /// direção oposta.</para>
+    /// </summary>
+    private static decimal Ratear(decimal valor, decimal exclusivo, decimal participacao) =>
+        (valor - exclusivo) * participacao + exclusivo;
+
     private static decimal[] MontarMes(
         List<LinhaEmMontagem> linhas,
-        Dictionary<(string, string, string, string, string), decimal> valorDespesa,
+        Dictionary<(string, string, string, string, string), (decimal Valor, decimal Exclusivo)>
+            valorDespesa,
         FaturamentoDre? f,
         string mesAno,
         List<string> avisos)
     {
         var valores = new decimal[linhas.Count];
 
+        // 1 sem filtro — ver `FaturamentoDre.Participacao`.
+        var participacao = f?.Participacao ?? 1m;
+
         for (var i = 0; i < linhas.Count; i++)
         {
             var l = linhas[i];
-            valores[i] = l.Calculada
-                ? 0m
-                : valorDespesa.GetValueOrDefault(
-                    (l.Estrutura.CodGruConta, l.Estrutura.AntesRo, l.Estrutura.AntesLl,
-                     l.Estrutura.AntesLf, mesAno));
+            if (l.Calculada)
+            {
+                valores[i] = 0m;
+                continue;
+            }
+
+            var (valor, exclusivo) = valorDespesa.GetValueOrDefault(
+                (l.Estrutura.CodGruConta, l.Estrutura.AntesRo, l.Estrutura.AntesLl,
+                 l.Estrutura.AntesLf, mesAno));
+
+            valores[i] = Ratear(valor, exclusivo, participacao);
         }
 
         var somaOperacional = 0m;
@@ -1014,6 +1071,22 @@ public static class MontadorDre
         var ehDeducao = BaseReceitaBruta.Contains(l.Rotulo);
         if (f is null) return ehDeducao ? 0m : null;
 
+        // A PARTICIPAÇÃO NO LUGAR DO 100,000.
+        //
+        // A linha RECEITAS LIQUIDAS é a base do próprio %AV, então sem filtro ela marca
+        // 100,000 — e é justamente por ser previsível que a 9815 aproveita aquela célula para
+        // contar outra coisa: com fornecedor selecionado ela escreve `P.23,852%`, a fatia que
+        // o fornecedor representa na receita da filial (UBase.pas:6189).
+        //
+        // Aqui devolvemos o NÚMERO; o `P.` é decisão da tela, que é quem sabe desenhar.
+        //
+        // Sem filtro a participação é exatamente 1 e isto devolve 100 — o mesmo que a divisão
+        // abaixo daria. Nenhuma tela muda por causa desta linha enquanto ninguém filtrar.
+        if (l.Rotulo == ReceitaLiquida)
+        {
+            return f.Participacao * 100m;
+        }
+
         var baseCalculo = ehDeducao ? f.ReceitaBruta : f.ReceitaLiquida;
         if (baseCalculo != 0m) return valor / baseCalculo * 100m;
 
@@ -1042,6 +1115,15 @@ public static class MontadorDre
         }
 
         var baseCalculo = comMovimento.Sum(m => m!.ReceitaLiquida);
+
+        // No TOTAL a participação é a do período inteiro, e não a média das mensais: a 9815
+        // divide soma por soma, e um mês fraco pesaria igual a um mês forte se fosse média.
+        if (l.Rotulo == ReceitaLiquida)
+        {
+            var baseTotal = comMovimento.Sum(m => m!.ReceitaLiquidaTotal);
+            return baseTotal == 0m ? null : baseCalculo / baseTotal * 100m;
+        }
+
         return baseCalculo == 0m ? null : valor / baseCalculo * 100m;
     }
 

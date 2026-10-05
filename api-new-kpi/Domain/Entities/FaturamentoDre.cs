@@ -26,6 +26,28 @@ public class FaturamentoDre
     /// <summary>`(=) RECEITAS LIQUIDAS` — base 100% do %AV.</summary>
     public decimal ReceitaLiquida { get; init; }
 
+    /// <summary>
+    /// A mesma receita líquida, da filial <b>inteira</b> — sem o filtro de fornecedor.
+    ///
+    /// <para>É o denominador da <b>participação</b>, que rateia todas as despesas quando há
+    /// fornecedor selecionado, e que a 9815 mostra no lugar do %AV como <c>P.23,852%</c>.</para>
+    ///
+    /// <para><b>Sem filtro ela é igual a <see cref="ReceitaLiquida"/></b>, porque as colunas
+    /// filtradas e as totais saem da mesma expressão no SQL. A participação é 1, e nada muda —
+    /// é o que permite esta coluna existir sem alterar número nenhum do DRE de hoje.</para>
+    /// </summary>
+    public decimal ReceitaLiquidaTotal { get; init; }
+
+    /// <summary>
+    /// Quanto o fornecedor selecionado representa na receita líquida da filial, de 0 a 1.
+    ///
+    /// <para><b>1 quando não há filtro</b>, e também quando o total vem zero — mês sem
+    /// movimento não tem participação definida, e 1 é o valor que faz o rateio virar
+    /// identidade em vez de zerar a coluna inteira.</para>
+    /// </summary>
+    public decimal Participacao =>
+        ReceitaLiquidaTotal == 0 ? 1m : ReceitaLiquida / ReceitaLiquidaTotal;
+
     /// <summary>`(=) CMV LIQ.` — custo financeiro líquido das devoluções.</summary>
     public decimal CmvLiq { get; init; }
 

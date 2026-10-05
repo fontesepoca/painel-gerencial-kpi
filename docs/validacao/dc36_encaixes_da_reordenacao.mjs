@@ -61,7 +61,14 @@ const DRE = [
   ancora("abat-desc", "(-) ABAT./DESC.", -100),
   ancora("devolucao", "(-) DEVOLUCAO", -50),
   ancora("st", "(-) ST", -30),
-  ancora("receitas-liquidas", "(=) RECEITAS LIQUIDAS", 850, [{ chaveOrdem: "receita-bruta", rotulo: "x", sinal: 1 }]),
+  // O %AV desta linha VEM PRONTO do servidor, e por isso o fixture o traz preenchido: sem
+  // filtro ele é 100, e com fornecedor selecionado é a participação (`P.8,221%`), que o
+  // front não tem como calcular — o divisor é a receita da filial inteira.
+  {
+    ...ancora("receitas-liquidas", "(=) RECEITAS LIQUIDAS", 850, [{ chaveOrdem: "receita-bruta", rotulo: "x", sinal: 1 }]),
+    valores: [{ mesAno: "06/2026", valor: 850, percentualAv: 100, percentualAh: null }],
+    total: { valor: 850, media: 850, percentualAv: 100 },
+  },
   ancora("cmv", "(=) CMV LIQ.", -400),
   ancora("lucro-bruto", "LUCRO BRUTO", 450, [{ chaveOrdem: "receitas-liquidas", rotulo: "x", sinal: 1 }]),
   linha("credito", "CREDITO PROMOVIDO", 60),
@@ -207,6 +214,33 @@ function mover(linhas, chave, destino) {
   eq(av("receita-bruta"), null, "RECEITA BRUTA não tem %AV — é a própria base das deduções");
   eq(Math.round(av("abat-desc") * 1000) / 1000, -10, "a dedução é percentual da RECEITA BRUTA: −100/1000");
   eq(Math.round(av("lucro-bruto") * 1000) / 1000, 60, "e o LUCRO BRUTO, da LÍQUIDA: 510/850");
+}
+
+// ── a PARTICIPAÇÃO sobrevive ao recálculo ────────────────────────────────────
+//
+// Com fornecedor filtrado, a célula do %AV das RECEITAS LIQUIDAS não é 100: é a fatia que
+// o fornecedor representa na receita da filial inteira, e quem a calcula é o servidor —
+// `MontadorDre.CalcularAv`, por `FaturamentoDre.ReceitaLiquidaTotal`.
+//
+// Esta asserção existe porque o recálculo por posição a apagou uma vez: refazia a linha pela
+// base dela mesma, devolvia 100, e a tela mostrava `P.100,000` onde a 9815 mostra `P.8,221%`.
+{
+  const comFiltro = DRE.map((l) =>
+    l.papel === "receitas-liquidas"
+      ? {
+          ...l,
+          valores: [{ ...l.valores[0], percentualAv: 8.2206 }],
+          total: { ...l.total, percentualAv: 8.2206 },
+        }
+      : l,
+  );
+
+  const r = recalcular(mover(comFiltro, "credito", "receitas-liquidas"), comFiltro);
+  const rl = r.find((l) => l.papel === "receitas-liquidas");
+
+  eq(rl.valores[0].percentualAv, 8.2206, "a participação da coluna não é recalculada");
+  eq(rl.total.percentualAv, 8.2206, "nem a do total");
+  eq(valorDe(r, "lucro-bruto"), 510, "e o crédito movido segue caindo no LUCRO BRUTO: 450 + 60");
 }
 
 // ── a composição é refeita pela posição ──────────────────────────────────────

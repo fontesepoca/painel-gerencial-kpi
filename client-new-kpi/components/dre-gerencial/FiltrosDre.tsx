@@ -15,6 +15,7 @@ import {
   usaDatas,
   usaSegundoIntervalo,
 } from "@/lib/modosDePeriodo";
+import { SelecaoDeFornecedores } from "@/components/dre-gerencial/SelecaoDeFornecedores";
 import {
   ANALISES,
   REGIMES,
@@ -28,9 +29,41 @@ import {
 const ROTULO =
   "text-[length:var(--fs-rotulo)] font-medium uppercase tracking-[0.14em] text-[var(--text-muted)]";
 
+/**
+ * Quantas filiais cabem como NÚMERO no resumo antes de virar contador.
+ *
+ * <b>Três, medido em 02/10/2026.</b> O botão tem 128px e sobram 82 para o texto; `7, 12, 25`
+ * pede 60 e cabe, e a quarta já encosta no limite.
+ *
+ * <b>O teto existe porque número truncado MENTE.</b> Com oito filiais o resumo pedia 169px
+ * e saía `7, 27, 12, 22, 25, 34, 1…` — e aquele `1` final é o começo de `10` ou `13`.
+ * Quem lê vê a filial 1, que não está no recorte. Texto cortado é informação incompleta e
+ * se percebe; número cortado é informação ERRADA e não se percebe — por isso, passando do
+ * teto, a contagem volta, e os códigos ficam no `title`, inteiros.
+ */
+const MAX_NUMEROS_NO_RESUMO = 3;
+
 const CAMPO =
   "h-[var(--altura-controle)] w-full min-w-0 rounded-[var(--radius-md)] border border-[var(--border-strong)] " +
   "bg-[var(--surface-2)] px-3 text-[length:var(--fs-base)] text-[var(--text-primary)] " +
+  "focus:border-[var(--primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary-ring)]";
+
+/**
+ * O MESMO CAMPO, com 8px de recuo em vez de 12 — só para os inputs de data.
+ *
+ * <b>Constante separada, e não `cn(CAMPO, "px-2")`.</b> No Tailwind as duas classes têm a
+ * mesma especificidade, e quem vence é a ordem no CSS gerado, não a ordem na string: o
+ * `px-2` escrito depois continuava perdendo para o `px-3`. Foi medido na tela — o recuo
+ * seguia 12px com o `px-2` aplicado.
+ *
+ * <b>Os 8px importam porque a data não trunca com reticências: ela corta.</b> Em leitura
+ * ampliada, `01/10/2026` pede 186px e o campo dava 173 — o que aparecia era `01/10/2` com
+ * o calendário comendo o resto. Oito pixels de cada lado são a diferença entre ler a data e
+ * adivinhá-la.
+ */
+const CAMPO_DATA =
+  "h-[var(--altura-controle)] w-full min-w-0 rounded-[var(--radius-md)] border border-[var(--border-strong)] " +
+  "bg-[var(--surface-2)] px-2 text-[length:var(--fs-base)] text-[var(--text-primary)] " +
   "focus:border-[var(--primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary-ring)]";
 
 /**
@@ -97,6 +130,16 @@ export function FiltrosDre({
             carregando={carregandoFiliais}
             selecionadas={filtro.filiais}
             onMudar={(f) => onMudar({ ...filtro, filiais: f })}
+          />
+        </Campo>
+
+        {/* Depois da filial e antes do regime: os três dizem QUAL recorte apurar, e o
+            fornecedor é o mais novo dos três — quem não usa passa direto por ele, porque o
+            campo diz "Todos os fornecedores" e não pede nada. */}
+        <Campo rotulo="Fornecedor">
+          <SelecaoDeFornecedores
+            selecionados={filtro.fornecedores}
+            onMudar={(f) => onMudar({ ...filtro, fornecedores: f })}
           />
         </Campo>
 
@@ -233,7 +276,7 @@ function CampoPeriodo({
       </span>
 
       <div className="flex flex-col gap-2">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           {/* À esquerda das datas: o botão qualifica o período que vem depois dele, e é
               onde o Gabriel pediu. O menu abre alinhado por aqui, e não pela direita. */}
           <MenuDePeriodo modo={filtro.modo} onModo={trocarModo} />
@@ -252,7 +295,7 @@ function CampoPeriodo({
                 onChange={(e) =>
                   onMudar({ ...filtro, dataInicio: e.target.value })
                 }
-                className={cn(CAMPO, "tabular")}
+                className={cn(CAMPO_DATA, "tabular")}
               />
               <span aria-hidden className="text-[var(--text-muted)]">
                 →
@@ -269,7 +312,7 @@ function CampoPeriodo({
                 onChange={(e) =>
                   onMudar({ ...filtro, dataFim: e.target.value })
                 }
-                className={cn(CAMPO, "tabular")}
+                className={cn(CAMPO_DATA, "tabular")}
               />
               {/* Os atalhos ficam onde sempre estiveram, à direita da data final — e no
                   comparativo cada intervalo tem o seu, porque os dois são independentes.
@@ -299,7 +342,7 @@ function CampoPeriodo({
             INDEPENDENTES: mexer num não mexe no outro, que era o defeito da versão
             anterior — lá, trocar o ano de um lado arrastava o outro junto. */}
         {usaSegundoIntervalo(filtro.modo) && (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             <span
               className="grid h-[var(--altura-controle)] w-[var(--altura-controle)] shrink-0 place-items-center text-[length:var(--fs-rotulo)] font-semibold tracking-[0.08em] text-[var(--text-muted)] uppercase"
               aria-hidden
@@ -314,7 +357,7 @@ function CampoPeriodo({
               onChange={(e) =>
                 onMudar({ ...filtro, comparacaoInicio: e.target.value })
               }
-              className={cn(CAMPO, "tabular")}
+              className={cn(CAMPO_DATA, "tabular")}
             />
             <span aria-hidden className="text-[var(--text-muted)]">
               →
@@ -327,7 +370,7 @@ function CampoPeriodo({
               onChange={(e) =>
                 onMudar({ ...filtro, comparacaoFim: e.target.value })
               }
-              className={cn(CAMPO, "tabular")}
+              className={cn(CAMPO_DATA, "tabular")}
             />
             <AtalhosDePeriodo
               rotulo="Atalhos de período — segundo intervalo"
@@ -566,15 +609,35 @@ function SeletorFiliais({
         : [...selecionadas, codigo],
     );
 
+  /**
+   * O resumo encurtou em 02/10/2026, quando o Fornecedor entrou na grade.
+   *
+   * <b>A palavra "filial" saiu daqui porque o rótulo do campo já a diz.</b> "Nenhuma filial"
+   * pedia 119px e a coluna passou a dar 82 — o campo mostrava "Nenhum…", que é pior do que
+   * dizer menos. Com a coluna no osso, o espaço foi todo para as datas do Período, que
+   * cortavam o ano.
+   *
+   * <b>E passou a mostrar os NÚMEROS, não os nomes</b>, a pedido do Gabriel no mesmo dia —
+   * como o campo de Fornecedor ao lado. O número é o que identifica a filial para quem
+   * trabalha com elas, cabe inteiro onde o nome truncava, e duas filiais passam a caber
+   * onde antes só se dizia "2 filiais": `7, 12` informa o recorte, `2 filiais` não.
+   *
+   * Os nomes continuam na lista aberta e no `title` do botão, que leva a frase inteira.
+   */
   const resumo = carregando
     ? "Carregando…"
     : selecionadas.length === 0
-      ? "Nenhuma filial"
+      ? "Nenhuma"
       : selecionadas.length === filiais.length
-        ? `Todas as ${filiais.length}`
-        : selecionadas.length === 1
-          ? (filiais.find((f) => f.codFilial === selecionadas[0])?.label ??
-            "1 filial")
+        ? `Todas (${filiais.length})`
+        : selecionadas.length <= MAX_NUMEROS_NO_RESUMO
+          ? // A ORDEM É A DO CADASTRO, não a dos cliques. `selecionadas` acumula na ordem em
+            // que a pessoa marcou, e o mesmo par de filiais apareceria como `12, 7` ou
+            // `7, 12` conforme o caminho — duas telas iguais com resumos diferentes.
+            filiais
+              .filter((f) => selecionadas.includes(f.codFilial))
+              .map((f) => f.codFilial)
+              .join(", ")
           : `${selecionadas.length} filiais`;
 
   return (
@@ -584,6 +647,17 @@ function SeletorFiliais({
         onClick={() => setAberto((a) => !a)}
         disabled={carregando}
         aria-expanded={aberto}
+        // O BOTÃO MOSTRA NÚMEROS; O TITLE DIZ DE QUEM SÃO. Sem isto o resumo vira um
+        // código sem tradução para quem não decorou o cadastro — e decorar cadastro não
+        // pode ser requisito para ler o próprio filtro.
+        title={
+          selecionadas.length === 0
+            ? "Nenhuma filial selecionada"
+            : filiais
+                .filter((f) => selecionadas.includes(f.codFilial))
+                .map((f) => `${f.codFilial} — ${f.label}`)
+                .join("\n")
+        }
         className={cn(CAMPO, "flex items-center justify-between text-left")}
       >
         <span

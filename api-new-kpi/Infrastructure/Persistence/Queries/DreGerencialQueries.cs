@@ -96,6 +96,55 @@ public static class DreGerencialQueries
         """;
 
     /// <summary>
+    /// Os fornecedores que o filtro do DRE oferece, para a busca da tela.
+    ///
+    /// <para><b>Busca, não listagem.</b> O cadastro tem mais de treze mil fornecedores, e
+    /// mandar todos para o navegador a cada abertura de tela seria caro para resolver um
+    /// problema que ninguém tem: quem filtra sabe de quem está falando. A tela manda o que a
+    /// pessoa digitou e recebe no máximo <c>:limite</c> linhas.</para>
+    ///
+    /// <para><b>O código vem primeiro, e por isso o <c>ORDER BY</c> começa por ele.</b> Quem
+    /// digita <c>29</c> quer o fornecedor 29, não os 180 cujo nome contém "29". A ordenação
+    /// põe a igualdade exata no topo e o resto em ordem alfabética.</para>
+    ///
+    /// <para><b>Acento não atrapalha</b>: os dois lados passam por
+    /// <c>CONVERT(..., 'US7ASCII')</c>, então <i>GUARANY</i> acha <i>GUARANÝ</i> e vice-versa.
+    /// É o mesmo tratamento que o ESTOQUE REVENDA usa para comparar histórico.</para>
+    ///
+    /// <para><b>Binds, nesta ordem</b> — o ODP.NET liga por posição, e <c>:busca</c> aparece
+    /// três vezes: <c>:busca1</c> (o <c>LIKE</c> do nome), <c>:busca2</c> (o código exato),
+    /// <c>:busca3</c> (o desempate do <c>ORDER BY</c>) e <c>:limite</c>.</para>
+    /// </summary>
+/// <summary>
+/// <b>Com UM caractere, só o código vale.</b> O `LENGTH(TRIM(:busca1)) >= 2` desliga a
+/// busca por nome, e sobra a igualdade com o <c>CODFORNEC</c>.
+///
+/// <para>Sem isso o fornecedor <b>1</b> era inalcançável na prática: o piso de dois
+/// caracteres existia justamente porque <c>LIKE '%1%'</c> sobre treze mil nomes devolve
+/// lixo. Desligar o nome resolve os dois lados — quem digita um dígito quer um código, e
+/// quem digita uma letra só não quer nada que caiba em vinte linhas.</para>
+///
+/// <para>A condição é SQL, e não um <c>if</c> em C# montando texto: a consulta roda contra
+/// produção e nada vindo do cliente entra nela por concatenação.</para>
+/// </summary>
+    public const string Fornecedores = """
+        SELECT * FROM (
+          SELECT F.CODFORNEC                                  AS CODFORNEC,
+                 TRIM(F.FORNECEDOR)                           AS FORNECEDOR,
+                 F.CGC                                        AS CGC,
+                 F.CODFORNECPRINC                             AS CODFORNECPRINC
+            FROM PCFORNEC F
+           WHERE ( LENGTH(TRIM(:busca1)) >= 2
+                   AND UPPER(CONVERT(TRIM(F.FORNECEDOR), 'US7ASCII'))
+                         LIKE '%' || UPPER(CONVERT(TRIM(:busca2), 'US7ASCII')) || '%' )
+              OR TO_CHAR(F.CODFORNEC) = TRIM(:busca3)
+           ORDER BY CASE WHEN TO_CHAR(F.CODFORNEC) = TRIM(:busca4) THEN 0 ELSE 1 END,
+                    TRIM(F.FORNECEDOR)
+        )
+        WHERE ROWNUM <= :limite
+        """;
+
+    /// <summary>
     /// Estrutura de linhas do DRE para a análise **Grupo de Contas**, já com o bloco de
     /// **contas órfãs** — as que têm movimento no período e não estão parametrizadas em
     /// `EPCPARDRE`. São elas que dão rótulo ao bloco final do relatório
@@ -213,6 +262,25 @@ public static class DreGerencialQueries
     /// <see cref="Application.Features.DreGerencial.RegimeDre"/> — não são valores,
     /// são trechos de SQL.</para>
     /// </summary>
+    /// <summary>
+    /// <para><b>{4} e {5} são o FILTRO POR FORNECEDOR</b>, e as quatro consultas de despesa os
+    /// recebem iguais — é assim na 9815 também, onde <c>GetValorGrupo</c> monta uma consulta
+    /// só para as quatro dimensões e o tipo de análise escolhe apenas o <c>GRUPOCONTA</c> do
+    /// <c>SELECT</c>. Tudo o mais, inclusive estas duas peças, é compartilhado.</para>
+    ///
+    /// <para><b>{4}</b> é a coluna <c>VPAGO_EXCLUSIVO_FORNEC</c>: o valor que pertence ao
+    /// fornecedor e por isso <b>não</b> pode ser rateado. Sem filtro é o <c>0</c> de sempre,
+    /// e a consulta sai caractere por caractere igual à de antes.</para>
+    ///
+    /// <para><b>{5}</b> são as duas condições do <c>WHERE</c>, e sem filtro é <b>vazio</b>.
+    /// A primeira é a do centro 90 (<c>VERBAS MARGEM</c>), que casa com o
+    /// <c>FIN.CODFORNEC</c> do próprio lançamento — não precisa de cadastro nenhum. A segunda
+    /// é a do centro dedicado, que na 9815 é o literal <c>29</c> escrito à mão e aqui lê
+    /// <c>TAB_WEB_CENTROC_FORNEC</c>.</para>
+    ///
+    /// <para>Ver <c>docs/FILTRO_FORNECEDOR.md</c> para a mecânica inteira, e
+    /// <c>docs/validacao/dc73...</c> para a tabela.</para>
+    /// </summary>
     public const string DespesasGrupoDeContas = """
          SELECT  GRUPOCONTA AS GRUPOCONTA, AntesRO AS ANTESRO, AntesLL AS ANTESLL, AntesLF AS ANTESLF, MES_ANO AS MESANO, MES AS MES, ANO AS ANO, sum(VLREALIZADO) AS VLREALIZADO, sum(VPAGO_EXCLUSIVO_FORNEC) AS VPAGOEXCLUSIVOFORNEC, sum(QdeReg) AS QDEREG 
          FROM ( 
@@ -242,7 +310,7 @@ public static class DreGerencialQueries
                   extract(YEAR FROM {1}) as ANO, 
                   SUBSTR(CONCAT(CONCAT(TRIM(FIN.HISTORICO), '. '), TRIM(FIN.HISTORICO2)),0,200) HISTORICO, 
                   DECODE(RC.valor,NULL,NVL(FIN.VPAGO,0)*(-1),NVL(RC.valor,FIN.VPAGO)*(-1)) as VPAGO,  
-                  0 as VPAGO_EXCLUSIVO_FORNEC, 
+                  {4} 
                   FIN.DTPAGTO, FIN.NUMBANCO,FIN.NumCheque,FIN.numbordero,FIN.numseqbordero, FIN.NUMCHEQUE2, 
                   FIN.LOCALIZACAO, FIN.NOMEFUNC, 
                   DECODE(FIN.TIPOPARCEIRO, 
@@ -275,6 +343,7 @@ public static class DreGerencialQueries
              AND  SUBSTR(cc.CodigoCentroCusto, 1, INSTR(cc.CodigoCentroCusto || '.', '.') - 1) = CCPrinc.codccprinc (+) 
              AND  FIN.historico not like 'REF.CANCEL.BORDERO JA BAIXADO' 
              AND not exists (select recnumadiantamento from pclancadiantfornec where recnumpagto is not null and dtestorno is null and recnumadiantamento = fin.recnum) 
+        {5}
             AND {2} BETWEEN :dtIni1 AND :dtFim1
          AND FIN.CODCONTA NOT IN ( SELECT codconta FROM EPCPARDRE_NAOEXIBIR) 
                          ) GROUP BY  to_char(case when AntesLF = 'N' or CODCONTA = 3000165 then CODCONTA else codgrupo end), AntesRO, AntesLL, AntesLF, MES_ANO, MES, ANO
@@ -405,7 +474,7 @@ public static class DreGerencialQueries
                   extract(YEAR FROM {1}) as ANO,
                   SUBSTR(CONCAT(CONCAT(TRIM(FIN.HISTORICO), '. '), TRIM(FIN.HISTORICO2)),0,200) HISTORICO,
                   DECODE(RC.valor,NULL,NVL(FIN.VPAGO,0)*(-1),NVL(RC.valor,FIN.VPAGO)*(-1)) as VPAGO,
-                  0 as VPAGO_EXCLUSIVO_FORNEC,
+                  {4}
                   FIN.DTPAGTO, FIN.NUMBANCO,FIN.NumCheque,FIN.numbordero,FIN.numseqbordero, FIN.NUMCHEQUE2,
                   FIN.LOCALIZACAO, FIN.NOMEFUNC,
                   DECODE(FIN.TIPOPARCEIRO,
@@ -438,6 +507,7 @@ public static class DreGerencialQueries
              AND  SUBSTR(cc.CodigoCentroCusto, 1, INSTR(cc.CodigoCentroCusto || '.', '.') - 1) = CCPrinc.codccprinc (+)
              AND  FIN.historico not like 'REF.CANCEL.BORDERO JA BAIXADO'
              AND not exists (select recnumadiantamento from pclancadiantfornec where recnumpagto is not null and dtestorno is null and recnumadiantamento = fin.recnum)
+        {5}
             AND {2} BETWEEN :dtIni1 AND :dtFim1
          AND FIN.CODCONTA NOT IN ( SELECT codconta FROM EPCPARDRE_NAOEXIBIR)
                          ) GROUP BY codconta, AntesRO, AntesLL, AntesLF, MES_ANO, MES, ANO
@@ -641,7 +711,7 @@ public static class DreGerencialQueries
                   extract(YEAR FROM {1}) as ANO,
                   SUBSTR(CONCAT(CONCAT(TRIM(FIN.HISTORICO), '. '), TRIM(FIN.HISTORICO2)),0,200) HISTORICO,
                   DECODE(RC.valor,NULL,NVL(FIN.VPAGO,0)*(-1),NVL(RC.valor,FIN.VPAGO)*(-1)) as VPAGO,
-                  0 as VPAGO_EXCLUSIVO_FORNEC,
+                  {4}
                   FIN.DTPAGTO, FIN.NUMBANCO,FIN.NumCheque,FIN.numbordero,FIN.numseqbordero, FIN.NUMCHEQUE2,
                   FIN.LOCALIZACAO, FIN.NOMEFUNC,
                   DECODE(FIN.TIPOPARCEIRO,
@@ -674,6 +744,7 @@ public static class DreGerencialQueries
              AND  SUBSTR(cc.CodigoCentroCusto, 1, INSTR(cc.CodigoCentroCusto || '.', '.') - 1) = CCPrinc.codccprinc (+)
              AND  FIN.historico not like 'REF.CANCEL.BORDERO JA BAIXADO'
              AND not exists (select recnumadiantamento from pclancadiantfornec where recnumpagto is not null and dtestorno is null and recnumadiantamento = fin.recnum)
+        {5}
             AND {2} BETWEEN :dtIni1 AND :dtFim1
          AND FIN.CODCONTA NOT IN ( SELECT codconta FROM EPCPARDRE_NAOEXIBIR)
                          ) GROUP BY  decode(AntesLF,'N',to_char(CODCONTA),  NVL(codccprinc,'99')), AntesRO, AntesLL, AntesLF, MES_ANO, MES, ANO
@@ -843,7 +914,7 @@ public static class DreGerencialQueries
                   extract(YEAR FROM {1}) as ANO,
                   SUBSTR(CONCAT(CONCAT(TRIM(FIN.HISTORICO), '. '), TRIM(FIN.HISTORICO2)),0,200) HISTORICO,
                   DECODE(RC.valor,NULL,NVL(FIN.VPAGO,0)*(-1),NVL(RC.valor,FIN.VPAGO)*(-1)) as VPAGO,
-                  0 as VPAGO_EXCLUSIVO_FORNEC,
+                  {4}
                   FIN.DTPAGTO, FIN.NUMBANCO,FIN.NumCheque,FIN.numbordero,FIN.numseqbordero, FIN.NUMCHEQUE2,
                   FIN.LOCALIZACAO, FIN.NOMEFUNC,
                   DECODE(FIN.TIPOPARCEIRO,
@@ -876,6 +947,7 @@ public static class DreGerencialQueries
              AND  SUBSTR(cc.CodigoCentroCusto, 1, INSTR(cc.CodigoCentroCusto || '.', '.') - 1) = CCPrinc.codccprinc (+)
              AND  FIN.historico not like 'REF.CANCEL.BORDERO JA BAIXADO'
              AND not exists (select recnumadiantamento from pclancadiantfornec where recnumpagto is not null and dtestorno is null and recnumadiantamento = fin.recnum)
+        {5}
             AND {2} BETWEEN :dtIni1 AND :dtFim1
          AND FIN.CODCONTA NOT IN ( SELECT codconta FROM EPCPARDRE_NAOEXIBIR)
                          ) GROUP BY  decode(AntesLF,'N',to_char(CODCONTA),  CODCENTROCUSTO), AntesRO, AntesLL, AntesLF, MES_ANO, MES, ANO
@@ -972,15 +1044,23 @@ public static class DreGerencialQueries
                Sum(NVL(VLCUSTOFIN,0)) - Sum(NVL(VLCMVDEVOL,0))     AS CMVLIQ,
                sum(nvl(VLST,0))     - sum(nvl(VLST_DEV,0))         AS STLIQ,
                sum(nvl(VLPIS,0))    - sum(nvl(VLPIS_DEV,0))        AS PISLIQ,
-               sum(nvl(VLCOFINS,0)) - sum(nvl(VLCOFINS_DEV,0))     AS COFINSLIQ
+               sum(nvl(VLCOFINS,0)) - sum(nvl(VLCOFINS_DEV,0))     AS COFINSLIQ,
+               /* O DENOMINADOR DA PARTICIPAÇÃO: a receita líquida da filial INTEIRA, sem o
+                  filtro de fornecedor. É o que a 9815 chama de VlVendaLiq_Total, e dividir
+                  RECEITALIQUIDA por ele dá o `P.23,852%` que ela mostra no lugar do %AV.
+
+                  Sem fornecedor selecionado as colunas filtradas e as _Total são a MESMA
+                  expressão, e esta sai igual a RECEITALIQUIDA — a participação é 1, e o
+                  rateio não muda número nenhum. */
+               Sum(NVL(VLVENDA_Total,0)) - Sum(NVL(VLDEVOLUCAO_total,0)) AS RECEITALIQUIDATOTAL
           FROM (
-          SELECT {3} TO_CHAR(NF.DTSAIDA,'mm/yyyy') AS MESANO, SUM(  decode(MV.custofin,0,MV.custofinest-nvl(MV.st,0)-nvl(MVC.vlfecp,0), (MV.custofin-nvl(MV.st,0)-nvl(MVC.vlfecp,0)) ) * MV.qt) as VLCUSTOFIN, 
-                 SUM(  MV.punit * MV.qt) as VLVENDA,  
+          SELECT {3} TO_CHAR(NF.DTSAIDA,'mm/yyyy') AS MESANO, SUM(  case when {4} then decode(MV.custofin,0,MV.custofinest-nvl(MV.st,0)-nvl(MVC.vlfecp,0), (MV.custofin-nvl(MV.st,0)-nvl(MVC.vlfecp,0)) ) * MV.qt else 0 end) as VLCUSTOFIN, 
+                 SUM(  case when {4} then MV.punit * MV.qt else 0 end) as VLVENDA,  
                  SUM(  MV.punit * MV.qt) VLVENDA_Total,   
-                 SUM(  MV.ptabela * MV.qt) as VLTABELA, 0 as VLDEVOLUCAO,  0 as VLDEVOLUCAO_total, 0 as VLCMVDEVOL, 
-                 SUM(  (nvl(MV.st,0)+nvl(MVC.vlfecp,0)) * MV.qt) VLST, 0 as VLST_DEV, 
-                 SUM(  ( mv.VLPIS - (mv.custocont * mv.PERPIS/100) ) * MV.qt  ) as VLPIS, 0 AS VLPIS_dev, 
-                 SUM(  ( mv.vlcofins - (mv.custocont * mv.PERCOFINS/100) ) * MV.qt ) as vlcofins, 0 AS vlcofins_dev 
+                 SUM(  case when {4} then MV.ptabela * MV.qt else 0 end) as VLTABELA, 0 as VLDEVOLUCAO,  0 as VLDEVOLUCAO_total, 0 as VLCMVDEVOL, 
+                 SUM(  case when {4} then (nvl(MV.st,0)+nvl(MVC.vlfecp,0)) * MV.qt else 0 end) VLST, 0 as VLST_DEV, 
+                 SUM(  case when {4} then ( mv.VLPIS - (mv.custocont * mv.PERPIS/100) ) * MV.qt else 0 end  ) as VLPIS, 0 AS VLPIS_dev, 
+                 SUM(  case when {4} then ( mv.vlcofins - (mv.custocont * mv.PERCOFINS/100) ) * MV.qt else 0 end ) as vlcofins, 0 AS vlcofins_dev 
            FROM PCNFSAID NF, PCMOV MV, PCMOVCOMPLE MVC, PCPRODUT PR,  
                 (select clie.codcli, ce.codfil, ce.mostra_dre from cliente_especial ce, pcclient clie where clie.codcliprinc = ce.codcli) esp 
           WHERE NF.numtransvenda = MV.numtransvenda 
@@ -1000,12 +1080,12 @@ public static class DreGerencialQueries
           GROUP BY TO_CHAR(NF.DTSAIDA,'mm/yyyy') 
          UNION ALL 
          SELECT TO_CHAR(NFE.DTENT,'mm/yyyy') AS MESANO, 0 as VLCUSTOCONT, 0 as VLVENDA, 0 as VLVENDA_Total, 0 as VLTABELA, 
-                SUM( round( NVL(nvl(MV.QT,mv.QTCONT),0)*NVL(nvl(MV.punit,mv.punitcont),0) ,2)) as VLDEVOLUCAO, 
+                SUM( case when {4} then round( NVL(nvl(MV.QT,mv.QTCONT),0)*NVL(nvl(MV.punit,mv.punitcont),0) ,2) else 0 end) as VLDEVOLUCAO, 
                 SUM( round( NVL(nvl(MV.QT,mv.QTCONT),0)*NVL(nvl(MV.punit,mv.punitcont),0) ,2)) as VLDEVOLUCAO_total, 
-                SUM( NVL(MV.QT,0) * (NVL(decode(MV.custofin,0,MV.custofinest,MV.custofin),0)-nvl(MV.st,0)-nvl(MVC.vlfecp,0))  ) VLCMVDEVOL, 
-                0 as VLST,     SUM( (nvl(MV.st,0)+nvl(MVC.vlfecp,0)) * MV.qt) as VLST_DEV, 
-                0 AS VLPIS,    SUM( ( mv.VLPIS - (mv.custocont * mv.PERPIS/100) ) * MV.qt ) AS VLPIS_dev, 
-                0 AS vlcofins, SUM( ( mv.vlcofins - (mv.custocont * mv.PERCOFINS/100) ) * MV.qt ) AS vlcofins_dev 
+                SUM( case when {4} then NVL(MV.QT,0) * (NVL(decode(MV.custofin,0,MV.custofinest,MV.custofin),0)-nvl(MV.st,0)-nvl(MVC.vlfecp,0)) else 0 end  ) VLCMVDEVOL, 
+                0 as VLST,     SUM( case when {4} then (nvl(MV.st,0)+nvl(MVC.vlfecp,0)) * MV.qt else 0 end) as VLST_DEV, 
+                0 AS VLPIS,    SUM( case when {4} then ( mv.VLPIS - (mv.custocont * mv.PERPIS/100) ) * MV.qt else 0 end ) AS VLPIS_dev, 
+                0 AS vlcofins, SUM( case when {4} then ( mv.vlcofins - (mv.custocont * mv.PERCOFINS/100) ) * MV.qt else 0 end ) AS vlcofins_dev 
            FROM PCNFENT NFE, PCMOV MV, PCMOVCOMPLE MVC, PCPEDC PED, PCPRODUT PR, 
                 (select clie.codcli, ce.codfil, ce.mostra_dre from cliente_especial ce, pcclient clie where clie.codcliprinc = ce.codcli) esp 
           WHERE NFE.numnota       = MV.numnota      (+) 
@@ -1043,11 +1123,19 @@ public static class DreGerencialQueries
             `NOT EXISTS` é o que garante que os dois blocos não se sobreponham: nota com
             item soma lá, nota sem item soma aqui, e nenhuma soma duas vezes. Os filtros
             são os DA 9815, porque para este caso é ela a referência. */
+         /* ESTE BLOCO NÃO TEM COMO SER FILTRADO POR FORNECEDOR, e isso é do dado, não do
+            código: são as notas SEM item em PCMOV, e sem item não há PCPRODUT de onde ler o
+            `codfornec`. O CT-e da transportadora é o caso típico.
+
+            Com filtro ligado o predicado abaixo é falso e elas entram só no DENOMINADOR:
+            contam para a receita da filial, não para a do fornecedor. É o tratamento honesto —
+            atribuí-las a quem quer que esteja selecionado seria inventar origem para uma nota
+            que não declara nenhuma. Sem filtro ele é verdadeiro e tudo volta a ser como era. */
          SELECT TO_CHAR(NF.DTSAIDA,'mm/yyyy') AS MESANO,
-                SUM(NVL(NF.VLCUSTOFIN,0)) as VLCUSTOFIN,
-                SUM(DECODE(NF.CONDVENDA, 8, NF.VLTOTAL, NF.VLTOTGER)) as VLVENDA,
+                SUM(case when {5} then NVL(NF.VLCUSTOFIN,0) else 0 end) as VLCUSTOFIN,
+                SUM(case when {5} then DECODE(NF.CONDVENDA, 8, NF.VLTOTAL, NF.VLTOTGER) else 0 end) as VLVENDA,
                 SUM(DECODE(NF.CONDVENDA, 8, NF.VLTOTAL, NF.VLTOTGER)) VLVENDA_Total,
-                SUM(NVL(NF.VLTABELA, NF.VLTOTGER)) as VLTABELA,
+                SUM(case when {5} then NVL(NF.VLTABELA, NF.VLTOTGER) else 0 end) as VLTABELA,
                 0 as VLDEVOLUCAO, 0 as VLDEVOLUCAO_total, 0 as VLCMVDEVOL,
                 0 as VLST, 0 as VLST_DEV,
                 0 as VLPIS, 0 AS VLPIS_dev,

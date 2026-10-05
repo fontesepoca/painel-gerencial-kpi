@@ -38,6 +38,28 @@ public sealed class DreGerencialController : ControllerBase
     }
 
     /// <summary>
+    /// Busca fornecedores para o filtro, por nome ou por código exato.
+    ///
+    /// <para><c>GET</c> porque é consulta pura, idempotente e cacheável pelo navegador — e
+    /// porque a tela chama isto a cada tecla digitada.</para>
+    /// </summary>
+    [HttpGet("fornecedores")]
+    public async Task<IActionResult> BuscarFornecedores(
+        [FromQuery] string? busca,
+        [FromQuery] int limite = 20,
+        CancellationToken cancellationToken = default)
+    {
+        var resultado = await _servico.BuscarFornecedoresAsync(busca, limite, cancellationToken);
+
+        if (resultado.Falha)
+        {
+            return BadRequest(ApiResponse<object>.Falha(resultado.Erro!));
+        }
+
+        return Ok(ApiResponse<IReadOnlyList<FornecedorDto>>.Ok(resultado.Valor!));
+    }
+
+    /// <summary>
     /// Estrutura de linhas do DRE — o que a tabela exibe, em que ordem e com que cor,
     /// já incluindo as contas órfãs do período. Ainda sem os valores.
     /// Virou POST porque agora depende de filiais, período e regime.

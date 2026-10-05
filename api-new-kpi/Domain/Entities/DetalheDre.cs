@@ -62,6 +62,15 @@ public class DetalheMotivoDre
 public class DetalheLancamentoDre
 {
     public decimal RecNum { get; init; }
+
+    /// <summary>
+    /// <b>1 quando o lançamento pertence ao fornecedor filtrado</b> e por isso entra inteiro
+    /// no DRE, sem rateio: a verba do centro 90 com o <c>CODFORNEC</c> dele, e a despesa de
+    /// um centro dedicado a ele em <c>TAB_WEB_CENTROC_FORNEC</c>.
+    ///
+    /// <para>Sempre 0 sem filtro — e aí nada é rateado, então a distinção não existe.</para>
+    /// </summary>
+    public decimal Exclusivo { get; init; }
     public string? CodFilial { get; init; }
 
     public string? CodCcPrinc { get; init; }
