@@ -83,6 +83,8 @@ export function TabelaDre({
   periodos,
   linhas,
   mostrarZeradas,
+  mostrarAv,
+  mostrarAh: mostrarAhPedido,
   filtroDeLinhas,
   onLimparFiltro,
   filtro,
@@ -93,6 +95,13 @@ export function TabelaDre({
   periodos: PeriodoDre[];
   linhas: LinhaDre[];
   mostrarZeradas: boolean;
+  /** A coluna `AV %` aparece. Decidido na barra de controles, ligado por padrão. */
+  mostrarAv: boolean;
+  /**
+   * A coluna `AH %` aparece — <b>quando existe</b>. Com uma coluna só não há anterior
+   * para comparar, e a tabela ignora este pedido: quem o desabilita na barra é a página.
+   */
+  mostrarAh: boolean;
   /**
    * A apuração foi filtrada por fornecedor.
    *
@@ -219,7 +228,7 @@ export function TabelaDre({
 
   /**
    * O filtro de texto vem DEPOIS do de zeradas, e a ordem tem consequência: filtrar por
-   * `pneus` com `Mostrar contas zeradas` desmarcado não traz a conta de pneus que não teve
+   * `pneus` com `Mostrar zeradas` desmarcado não traz a conta de pneus que não teve
    * movimento no período. É o comportamento certo — os dois controles respondem à mesma
    * pergunta, "o que aparece", e o segundo não deveria desfazer o primeiro.
    */
@@ -653,7 +662,7 @@ export function TabelaDre({
         <p className="mt-2 text-[length:var(--fs-apoio)] text-[var(--text-muted)]">
           O filtro procura na descrição e no código da conta.
           {!mostrarZeradas &&
-            " Contas sem movimento no período estão ocultas — marque Mostrar contas zeradas para incluí-las."}
+            " Contas sem movimento no período estão ocultas — marque Mostrar zeradas para incluí-las."}
         </p>
         <button
           type="button"
@@ -678,7 +687,25 @@ export function TabelaDre({
   // ou janeiro de 2025 com junho de 2026, dá um número que ninguém usa. Ver
   // `mostraVariacao`.
   const variacaoNoFim = mostraVariacao(modo, periodos);
-  const colunasDoFim = variacaoNoFim ? 2 : 3;
+  /**
+   * <b>O `%AH` pedido e o `%AH` possível são coisas diferentes.</b> Ele compara uma coluna
+   * com a anterior; com uma coluna só, não há anterior — e aí a coluna não existe, esteja
+   * o controle marcado ou não.
+   */
+  const mostrarAh = multiMes && mostrarAhPedido;
+
+  /**
+   * Quantas colunas cada mês ocupa, para o `colSpan` do cabeçalho de período.
+   *
+   * <b>Calculado, e não a constante 3 de antes.</b> Com as colunas de análise desligáveis,
+   * um número fixo faria a faixa colorida do mês cobrir células de outro mês — e o
+   * cabeçalho passaria a mentir sobre a que período pertence cada valor.
+   */
+  const colunasPorMes = 1 + (mostrarAv ? 1 : 0) + (mostrarAh ? 1 : 0);
+
+  // O bloco final: variação são duas colunas; o total é valor, %AV e média — e a média
+  // fica, porque não é análise, é o valor médio das colunas.
+  const colunasDoFim = variacaoNoFim ? 2 : 2 + (mostrarAv ? 1 : 0);
 
   // Dois lados do comparativo podem cair no mesmo mês — 28/08–03/09 contra 05/09–11/09 põe
   // `Setembro/2026` duas vezes no cabeçalho. Aí, e só aí, o rótulo passa a levar os dias.
@@ -819,7 +846,7 @@ export function TabelaDre({
                 {periodos.map((p, i) => (
                   <th
                     key={p.mesAno}
-                    colSpan={3}
+                    colSpan={colunasPorMes}
                     className={cn(
                       "px-[var(--celula-x)] pt-3 pb-1 text-center text-[length:var(--fs-rotulo)] font-semibold tracking-[0.14em] text-[var(--text-secondary)] uppercase",
                       // Uma cor por mês, para o olho não perder de vista a que coluna
@@ -857,10 +884,18 @@ export function TabelaDre({
                   rola na horizontal, então a folga aqui não custa nada. */}
               <Th className="celula-descricao min-w-[32rem] text-left">Descrição</Th>
               {periodos.map((p) => (
-                <ColunasCabecalho key={p.mesAno} mostrarAh={multiMes} />
+                <ColunasCabecalho
+                  key={p.mesAno}
+                  mostrarAv={mostrarAv}
+                  mostrarAh={mostrarAh}
+                />
               ))}
               {multiMes &&
-                (variacaoNoFim ? <ColunasCabecalhoVariacao /> : <ColunasCabecalho total />)}
+                (variacaoNoFim ? (
+                  <ColunasCabecalhoVariacao />
+                ) : (
+                  <ColunasCabecalho mostrarAv={mostrarAv} total />
+                ))}
             </tr>
           </thead>
           <tbody>
@@ -869,6 +904,8 @@ export function TabelaDre({
               return (
                 <Linha
                   comFornecedor={comFornecedor}
+                  mostrarAv={mostrarAv}
+                  mostrarAh={mostrarAh}
                   key={linha.chaveOrdem}
                   linha={linha}
                   indice={indice}
@@ -966,20 +1003,25 @@ export function TabelaDre({
   );
 }
 
-function ColunasCabecalho({ mostrarAh, total }: { mostrarAh?: boolean; total?: boolean }) {
+function ColunasCabecalho({
+  mostrarAv,
+  mostrarAh,
+  total,
+}: {
+  mostrarAv: boolean;
+  mostrarAh?: boolean;
+  total?: boolean;
+}) {
   return (
     <>
       <Th className={cn("text-right", total && "border-l border-[var(--border-strong)]")}>
         Valor
       </Th>
-      <Th className="w-[9rem] text-right">AV %</Th>
-      {total ? (
-        <Th className="text-right">Média</Th>
-      ) : mostrarAh ? (
-        <Th className="text-right">AH %</Th>
-      ) : (
-        <th />
-      )}
+      {mostrarAv && <Th className="w-[9rem] text-right">AV %</Th>}
+      {/* A coluna some de verdade quando desligada — não fica uma `th` vazia ocupando
+          largura. Era assim que o mês único desenhava a casa do `%AH`, e a casa vazia
+          custava espaço numa tabela que já rola na horizontal. */}
+      {total ? <Th className="text-right">Média</Th> : mostrarAh ? <Th className="text-right">AH %</Th> : null}
     </>
   );
 }
@@ -1104,6 +1146,8 @@ function Linha({
   foraDoBloco,
   maiorAv,
   multiMes,
+  mostrarAv,
+  mostrarAh,
   variacaoNoFim,
   periodos,
   modo,
@@ -1124,6 +1168,9 @@ function Linha({
   maiorAv: number;
   comFornecedor: boolean;
   multiMes: boolean;
+  /** As colunas de analise que a barra de controles deixou ligadas. */
+  mostrarAv: boolean;
+  mostrarAh: boolean;
   /** O bloco final desta linha é variação em vez de total. */
   variacaoNoFim: boolean;
   /** As colunas e o modo, para a variação saber separar os dois lados da comparação. */
@@ -1272,7 +1319,8 @@ function Linha({
           // fornecedor filtrado — o P.23,852% da 9815. Ver `BarraAv`.
           participacao={comFornecedor && linha.papel === "receitas-liquidas"}
           ah={v.percentualAh}
-          mostrarAh={multiMes}
+          mostrarAv={mostrarAv}
+          mostrarAh={mostrarAh}
           totalDaLinha={linha.total.valor}
           maiorAv={maiorAv}
           destaque={linha.totalizadora}
@@ -1294,6 +1342,7 @@ function Linha({
             valor={linha.total.valor}
             av={linha.total.percentualAv}
             participacao={comFornecedor && linha.papel === "receitas-liquidas"}
+            mostrarAv={mostrarAv}
             media={linha.total.media}
             maiorAv={maiorAv}
             totalDaLinha={linha.total.valor}
@@ -1311,6 +1360,7 @@ function BlocoMes({
   av,
   ah,
   media,
+  mostrarAv,
   mostrarAh,
   maiorAv,
   destaque,
@@ -1325,6 +1375,8 @@ function BlocoMes({
   participacao?: boolean;
   ah?: number | null;
   media?: number;
+  /** A coluna `AV %` aparece — a barra com o percentual. */
+  mostrarAv: boolean;
   mostrarAh?: boolean;
   maiorAv: number;
   destaque: boolean;
@@ -1376,9 +1428,11 @@ function BlocoMes({
         )}
       </td>
 
-      <td className={cn(CELULA, total && "bg-[var(--surface-2)]")}>
-        <BarraAv percentual={av} maior={maiorAv} participacao={participacao} />
-      </td>
+      {mostrarAv && (
+        <td className={cn(CELULA, total && "bg-[var(--surface-2)]")}>
+          <BarraAv percentual={av} maior={maiorAv} participacao={participacao} />
+        </td>
+      )}
 
       {total ? (
         <td className={cn(celula, "bg-[var(--surface-2)] text-right", corValor(media ?? 0))}>
@@ -1388,9 +1442,7 @@ function BlocoMes({
         <td className={cn(celula, "text-right")}>
           <Variacao percentual={ah ?? null} valorDaLinha={totalDaLinha} />
         </td>
-      ) : (
-        <td />
-      )}
+      ) : null}
     </>
   );
 }

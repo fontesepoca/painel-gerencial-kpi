@@ -5,7 +5,7 @@ import { useId } from "react";
 /**
  * O campo que filtra as linhas da tabela do DRE, por descrição ou por código da conta.
  *
- * Fica entre o resumo da apuração e o `Mostrar contas zeradas` — ao lado do outro controle
+ * Fica entre o resumo da apuração e o `Mostrar zeradas` — ao lado do outro controle
  * que também decide **quais linhas aparecem**, e não junto de exportar e imprimir, que
  * decidem o que fazer com elas.
  *

@@ -23,6 +23,19 @@ export default function DreGerencialPage() {
   const filiais = useFiliais();
   const apuracao = useApuracao();
   const [mostrarZeradas, setMostrarZeradas] = useState(false);
+
+  /**
+   * As colunas de análise, ligadas por padrão.
+   *
+   * <b>Quem lê o DRE nem sempre lê as três colunas.</b> Numa conversa sobre valores, o
+   * `%AV` e o `%AH` são ruído entre os números que importam; numa análise de composição,
+   * o `%AV` é o assunto. Separados, cada um decide o que está olhando.
+   *
+   * <b>Marcados ao abrir</b>, a pedido do Gabriel em 05/10/2026: a tela continua sendo o
+   * que sempre foi, e esconder coluna é escolha de quem está lendo, não o estado inicial.
+   */
+  const [mostrarAv, setMostrarAv] = useState(true);
+  const [mostrarAh, setMostrarAh] = useState(true);
   const [expandida, setExpandida] = useState(false);
 
   /**
@@ -72,7 +85,9 @@ export default function DreGerencialPage() {
     setExportando(true);
     setErroExportar(null);
     try {
-      const chaves = [...document.querySelectorAll<HTMLElement>("tr[data-chave]")]
+      const chaves = [
+        ...document.querySelectorAll<HTMLElement>("tr[data-chave]"),
+      ]
         .map((tr) => tr.dataset.chave)
         .filter((c): c is string => !!c);
 
@@ -83,7 +98,10 @@ export default function DreGerencialPage() {
       // O recálculo precisa da lista COMPLETA, e o DOM só tem as visíveis: `aplicarOrdem`
       // recoloca as escondidas na vizinhança canônica delas, e uma conta zerada escondida
       // continua somando no bloco onde está.
-      const completa = recalcular(aplicarOrdem(apuracao.linhas, chaves), apuracao.linhas);
+      const completa = recalcular(
+        aplicarOrdem(apuracao.linhas, chaves),
+        apuracao.linhas,
+      );
       const porChave = new Map(completa.map((l) => [l.chaveOrdem, l]));
       const naTela = chaves
         .map((c) => porChave.get(c))
@@ -91,7 +109,10 @@ export default function DreGerencialPage() {
 
       // Sem nenhuma linha reconhecida no DOM, exporta a apuração como veio — melhor um
       // arquivo na ordem do cadastro que nenhum arquivo.
-      await exportarApuracao(apuracao, naTela.length > 0 ? naTela : apuracao.linhas);
+      await exportarApuracao(
+        apuracao,
+        naTela.length > 0 ? naTela : apuracao.linhas,
+      );
     } catch (e) {
       setErroExportar(
         e instanceof Error
@@ -122,7 +143,10 @@ export default function DreGerencialPage() {
   // As filiais da APURAÇÃO, não as do formulário: mexer no filtro depois de apurar não
   // pode reescrever o cabeçalho do que já está na tela — é o mesmo cuidado que o
   // detalhamento toma ao usar `dados` em vez de `filtro`.
-  const filiaisApuradas = descreverFiliais(dados?.filiais ?? [], filiais.data ?? []);
+  const filiaisApuradas = descreverFiliais(
+    dados?.filiais ?? [],
+    filiais.data ?? [],
+  );
 
   // Os códigos saem da apuração; os nomes, do que está selecionado agora. Ver
   // `descreverFornecedores` — e é `null` quando o DRE é o inteiro, que é o caso comum.
@@ -130,6 +154,10 @@ export default function DreGerencialPage() {
     dados?.fornecedores ?? [],
     filtro.fornecedores,
   );
+
+  // O `%AH` só existe com duas colunas ou mais: ele é a variação sobre a coluna anterior.
+  // Sai de `dados`, e não do formulário, porque quem manda na tabela é o que foi apurado.
+  const temAh = (dados?.periodos.length ?? 0) > 1;
 
   // Pela mesma razão: a hora é a da apuração que está na tela, não a de agora. Ela congela
   // junto com os números e não anda enquanto a folha espera para ser impressa.
@@ -158,7 +186,8 @@ export default function DreGerencialPage() {
 
           {filiais.isError && (
             <p className="mt-3 text-[length:var(--fs-base)] text-[var(--negative)]">
-              Não foi possível carregar as filiais. Verifique se a API está no ar.
+              Não foi possível carregar as filiais. Verifique se a API está no
+              ar.
             </p>
           )}
         </div>
@@ -177,39 +206,40 @@ export default function DreGerencialPage() {
           // A altura da tabela deixa de ser chutada: esta secao pega o que sobra da
           // coluna, e a rolagem interna dela se ajusta sozinha a qualquer janela.
           <>
-          <FolhaDaImpressao
-            folha={dados.periodos.length === 1 ? "a4-em-pe" : "a3-deitada"}
-          />
+            <FolhaDaImpressao
+              folha={dados.periodos.length === 1 ? "a4-em-pe" : "a3-deitada"}
+            />
 
-          <section
-            className={cn(
-              "flex min-h-0 flex-1 flex-col rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface-1)] shadow-[var(--shadow-card)]",
-              expandida && "tabela-expandida",
-              // A folha cresce com o número de colunas: um mês em A4 em pé, dois em A3
-              // deitada, três ou mais em A2 deitada. Ver o bloco IMPRESSÃO em
-              // globals.css — só o componente sabe quantos meses foram apurados.
-              dados.periodos.length === 2 && "folha-media",
-              dados.periodos.length === 3 && "folha-larga",
-              dados.periodos.length >= 4 && "folha-cheia",
-            )}
-          >
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border)] px-4 py-2.5">
-              <div>
-                <h2 className="text-[length:var(--fs-rotulo)] font-semibold tracking-[0.14em] text-[var(--text-secondary)] uppercase">
-                  Visão gerencial
-                </h2>
-                <p className="mt-1 text-[length:var(--fs-apoio)] text-[var(--text-muted)]">
-                  {/* O intervalo do filtro só descreve o que foi apurado no modo mensal. Por
+            <section
+              className={cn(
+                "flex min-h-0 flex-1 flex-col rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface-1)] shadow-[var(--shadow-card)]",
+                expandida && "tabela-expandida",
+                // A folha cresce com o número de colunas: um mês em A4 em pé, dois em A3
+                // deitada, três ou mais em A2 deitada. Ver o bloco IMPRESSÃO em
+                // globals.css — só o componente sabe quantos meses foram apurados.
+                dados.periodos.length === 2 && "folha-media",
+                dados.periodos.length === 3 && "folha-larga",
+                dados.periodos.length >= 4 && "folha-cheia",
+              )}
+            >
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border)] px-4 py-2.5">
+                <div>
+                  <h2 className="text-[length:var(--fs-rotulo)] font-semibold tracking-[0.14em] text-[var(--text-secondary)] uppercase">
+                    Visão gerencial
+                  </h2>
+                  <p className="mt-1 text-[length:var(--fs-apoio)] text-[var(--text-muted)]">
+                    {/* O intervalo do filtro só descreve o que foi apurado no modo mensal. Por
                       ano inteiro quem manda são as colunas; no comparativo são DOIS
                       intervalos, e citar só o primeiro esconderia metade da apuração. */}
-                  {descreverPeriodo(dados)}{" "}
-                  ·{" "}
-                  {dados.regime === "caixa" ? "Caixa" : "Competência"} ·{" "}
-                  {/* O separador vai DENTRO do span: escondido, ele leva o ` · ` junto e a
+                    {descreverPeriodo(dados)} ·{" "}
+                    {dados.regime === "caixa" ? "Caixa" : "Competência"} ·{" "}
+                    {/* O separador vai DENTRO do span: escondido, ele leva o ` · ` junto e a
                       linha não fica com dois pontos seguidos. */}
-                  <span className="filiais-resumo">{filiaisApuradas.resumo} · </span>
-                  {descreverColunas(dados)} ·{" "}
-                  {/* NA TELA O TEMPO QUE A CONSULTA LEVOU, NO PAPEL A HORA EM QUE ELA FOI
+                    <span className="filiais-resumo">
+                      {filiaisApuradas.resumo} ·{" "}
+                    </span>
+                    {descreverColunas(dados)} ·{" "}
+                    {/* NA TELA O TEMPO QUE A CONSULTA LEVOU, NO PAPEL A HORA EM QUE ELA FOI
                       FEITA — duas grafias do mesmo trecho, como o `%AH` em `Variacao`, e
                       quem escolhe é o CSS: `Ctrl+P` não espera re-render.
 
@@ -222,15 +252,17 @@ export default function DreGerencialPage() {
 
                       A hora é a do SERVIDOR, que apurou, e não a do navegador que imprimiu.
                       Ver `dataHoraBr`. */}
-                  <span className="so-na-tela">
-                    apurado em {formatarDuracao(dados.duracaoMs)}
-                  </span>
-                  {apuradoEm !== null && (
-                    <span className="so-no-papel">apurado em {apuradoEm}</span>
-                  )}
-                </p>
+                    <span className="so-na-tela">
+                      apurado em {formatarDuracao(dados.duracaoMs)}
+                    </span>
+                    {apuradoEm !== null && (
+                      <span className="so-no-papel">
+                        apurado em {apuradoEm}
+                      </span>
+                    )}
+                  </p>
 
-                {/* Os nomes das filiais em linha própria, na tela cheia e no papel — ver o
+                  {/* Os nomes das filiais em linha própria, na tela cheia e no papel — ver o
                     bloco FILIAIS APURADAS em globals.css.
 
                     **Linha própria, e não mais um item da sequência acima.** Com dez
@@ -240,11 +272,11 @@ export default function DreGerencialPage() {
 
                     Fica no DOM sempre, escondida por CSS, porque `Ctrl+P` não espera
                     re-render — a mesma razão do par de `%AH` em `Variacao`. */}
-                <p className="filiais-descritas mt-0.5 text-[length:var(--fs-apoio)] text-[var(--text-muted)]">
-                  {filiaisApuradas.detalhe}
-                </p>
+                  <p className="filiais-descritas mt-0.5 text-[length:var(--fs-apoio)] text-[var(--text-muted)]">
+                    {filiaisApuradas.detalhe}
+                  </p>
 
-                {/* DE QUEM É ESTE DRE.
+                  {/* DE QUEM É ESTE DRE.
 
                     Em linha própria e sempre visível — na tela e no papel —, porque é a
                     informação que mais muda o sentido de todos os números acima dela. Uma
@@ -253,117 +285,168 @@ export default function DreGerencialPage() {
 
                     Só aparece quando há filtro: sem ele não há nada a dizer, e a altura
                     fica com a tabela. */}
-                {fornecedoresApurados !== null && (
-                  <p className="mt-0.5 text-[length:var(--fs-apoio)] font-medium text-[var(--primary)]">
-                    {fornecedoresApurados}
-                  </p>
-                )}
-              </div>
+                  {fornecedoresApurados !== null && (
+                    <p className="mt-0.5 text-[length:var(--fs-apoio)] font-medium text-[var(--primary)]">
+                      {fornecedoresApurados}
+                    </p>
+                  )}
+                </div>
 
-              {/* `flex-wrap` e `whitespace-nowrap` juntos: em tela de celular o rótulo
+                {/* `flex-wrap` e `whitespace-nowrap` juntos: em tela de celular o rótulo
                   quebrava em três linhas para caber ao lado dos botões, com 85px de largura
                   e 68px de altura. Inteiro, ele desce para a própria linha quando não cabe,
                   que é a quebra que o olho espera. */}
-              <div className="nao-imprime flex flex-wrap items-center gap-x-4 gap-y-2">
-                {/* Ao lado do `Mostrar contas zeradas`, e não junto de exportar e imprimir:
+                <div className="nao-imprime flex flex-wrap items-center gap-x-4 gap-y-2">
+                  {/* Ao lado do `Mostrar zeradas`, e não junto de exportar e imprimir:
                     os dois primeiros decidem QUAIS LINHAS aparecem, os outros decidem o que
                     fazer com elas. */}
-                <FiltroDeLinhas valor={filtroDeLinhas} onMudar={setFiltroDeLinhas} />
-
-                <label className="flex cursor-pointer items-center gap-2.5 text-[length:var(--fs-apoio)] whitespace-nowrap text-[var(--text-secondary)]">
-                  <input
-                    type="checkbox"
-                    checked={mostrarZeradas}
-                    onChange={(e) => setMostrarZeradas(e.target.checked)}
-                    className="size-4 accent-[var(--primary)]"
+                  <FiltroDeLinhas
+                    valor={filtroDeLinhas}
+                    onMudar={setFiltroDeLinhas}
                   />
-                  Mostrar contas zeradas
-                </label>
 
-                <BotaoExpandir
-                  expandida={expandida}
-                  onAlternar={() => setExpandida((e) => !e)}
-                />
+                  <label className="flex cursor-pointer items-center gap-2.5 text-[length:var(--fs-apoio)] whitespace-nowrap text-[var(--text-secondary)]">
+                    <input
+                      type="checkbox"
+                      checked={mostrarZeradas}
+                      onChange={(e) => setMostrarZeradas(e.target.checked)}
+                      className="size-4 accent-[var(--primary)]"
+                    />
+                    Mostrar zeradas
+                  </label>
 
-                <MenuExportar
-                  onImprimir={() => window.print()}
-                  onExcel={() => exportar(dados)}
-                  excelOcupado={exportando}
-                />
+                  {/* AS DUAS COLUNAS DE ANÁLISE.
+
+                    Ao lado do `Mostrar zeradas` pelo mesmo critério que pôs o
+                    filtro de linhas ali: estes controles decidem O QUE A TELA MOSTRA, e
+                    os da direita decidem o que fazer com o que ela mostra.
+
+                    O `%AH` fica DESABILITADO quando a apuração tem uma coluna só — ele
+                    compara um mês com o anterior, e sem anterior não há o que comparar.
+                    Desabilitado e não escondido: um controle que some da barra conforme
+                    o período faz procurar o que não sumiu, e o `title` diz o motivo. */}
+                  <label className="flex cursor-pointer items-center gap-2.5 text-[length:var(--fs-apoio)] whitespace-nowrap text-[var(--text-secondary)]">
+                    <input
+                      type="checkbox"
+                      checked={mostrarAv}
+                      onChange={(e) => setMostrarAv(e.target.checked)}
+                      className="size-4 accent-[var(--primary)]"
+                    />
+                    AV %
+                  </label>
+
+                  <label
+                    title={
+                      temAh
+                        ? undefined
+                        : "A análise horizontal compara uma coluna com a anterior — ela aparece a partir de dois meses."
+                    }
+                    className={cn(
+                      "flex items-center gap-2.5 text-[length:var(--fs-apoio)] whitespace-nowrap",
+                      temAh
+                        ? "cursor-pointer text-[var(--text-secondary)]"
+                        : "cursor-not-allowed text-[var(--text-muted)]",
+                    )}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={mostrarAh && temAh}
+                      disabled={!temAh}
+                      onChange={(e) => setMostrarAh(e.target.checked)}
+                      className="size-4 accent-[var(--primary)] disabled:opacity-50"
+                    />
+                    AH %
+                  </label>
+
+                  <BotaoExpandir
+                    expandida={expandida}
+                    onAlternar={() => setExpandida((e) => !e)}
+                  />
+
+                  <MenuExportar
+                    onImprimir={() => window.print()}
+                    onExcel={() => exportar(dados)}
+                    excelOcupado={exportando}
+                  />
+                </div>
               </div>
-            </div>
 
-            {/* Largura cheia, abaixo dos controles: uma falha silenciosa faria a pessoa
+              {/* Largura cheia, abaixo dos controles: uma falha silenciosa faria a pessoa
                 clicar em exportar de novo achando que o clique não pegou. */}
-            {erroExportar && (
-              <p
-                role="status"
-                className="nao-imprime border-b border-[var(--border)] px-4 py-2 text-[length:var(--fs-apoio)] text-[var(--negative)]"
-              >
-                {erroExportar}
-              </p>
-            )}
+              {erroExportar && (
+                <p
+                  role="status"
+                  className="nao-imprime border-b border-[var(--border)] px-4 py-2 text-[length:var(--fs-apoio)] text-[var(--negative)]"
+                >
+                  {erroExportar}
+                </p>
+              )}
 
-            {dados.avisos.length > 0 && (
-              <div className="border-b border-[var(--border)] px-5 py-3">
-                {dados.avisos.map((aviso) => (
-                  <Aviso key={aviso} tom="atencao">
-                    {aviso}
-                  </Aviso>
-                ))}
-              </div>
-            )}
+              {dados.avisos.length > 0 && (
+                <div className="border-b border-[var(--border)] px-5 py-3">
+                  {dados.avisos.map((aviso) => (
+                    <Aviso key={aviso} tom="atencao">
+                      {aviso}
+                    </Aviso>
+                  ))}
+                </div>
+              )}
 
-            <TabelaDre
-              // De `dados`, e não de `filtro`: a leitura da tela acompanha o que foi
-              // apurado, não o que o formulário mostra agora.
-              comFornecedor={dados.fornecedores.length > 0}
-              periodos={dados.periodos}
-              linhas={dados.linhas}
-              mostrarZeradas={mostrarZeradas}
-              filtroDeLinhas={filtroDeLinhas}
-              onLimparFiltro={() => setFiltroDeLinhas("")}
-              // Deliberadamente `dados`, e não `filtro`: o detalhamento tem que usar os
-              // parâmetros que produziram os números na tela. Mexer no formulário depois
-              // de apurar e só então clicar duplo devolveria outro recorte, e o total não
-              // fecharia com a célula clicada.
-              filtro={{
-                filiais: dados.filiais,
-                dataInicio: dados.dataInicio,
-                dataFim: dados.dataFim,
-                regime: dados.regime,
-                analise: dados.analise,
-                // OS FORNECEDORES DA APURAÇÃO, desde 02/10/2026 — antes isto ia vazio, e o
-                // duplo clique abria os lançamentos de todo mundo numa tela cujo propósito é
-                // explicar a célula clicada.
-                //
-                // Os códigos saem de `dados`, que é a apuração que está na tela; o OBJETO
-                // vem do formulário quando ainda está lá, só para a tela ter o nome à mão. O
-                // que viaja para a API é o código, e só ele — ver `paraApi`.
-                fornecedores: dados.fornecedores.map(
-                  (cod) =>
-                    filtro.fornecedores.find((f) => f.codFornec === cod) ?? {
-                      codFornec: cod,
-                      fornecedor: "",
-                      cgc: null,
-                      codFornecPrinc: null,
-                    },
-                ),
-                // O detalhamento é sempre de UMA coluna, e a coluna já traz o próprio
-                // recorte em datas. Mandar o modo junto faria o servidor reabrir a
-                // consulta em várias colunas de novo, dentro de um detalhe.
-                modo: "meses",
-                anos: [],
-              }}
-              modo={dados.modo}
-              filiaisApuradas={filiaisApuradas.detalhe}
-            />
-          </section>
+              <TabelaDre
+                // De `dados`, e não de `filtro`: a leitura da tela acompanha o que foi
+                // apurado, não o que o formulário mostra agora.
+                comFornecedor={dados.fornecedores.length > 0}
+                periodos={dados.periodos}
+                linhas={dados.linhas}
+                mostrarZeradas={mostrarZeradas}
+                mostrarAv={mostrarAv}
+                mostrarAh={mostrarAh}
+                filtroDeLinhas={filtroDeLinhas}
+                onLimparFiltro={() => setFiltroDeLinhas("")}
+                // Deliberadamente `dados`, e não `filtro`: o detalhamento tem que usar os
+                // parâmetros que produziram os números na tela. Mexer no formulário depois
+                // de apurar e só então clicar duplo devolveria outro recorte, e o total não
+                // fecharia com a célula clicada.
+                filtro={{
+                  filiais: dados.filiais,
+                  dataInicio: dados.dataInicio,
+                  dataFim: dados.dataFim,
+                  regime: dados.regime,
+                  analise: dados.analise,
+                  // OS FORNECEDORES DA APURAÇÃO, desde 02/10/2026 — antes isto ia vazio, e o
+                  // duplo clique abria os lançamentos de todo mundo numa tela cujo propósito é
+                  // explicar a célula clicada.
+                  //
+                  // Os códigos saem de `dados`, que é a apuração que está na tela; o OBJETO
+                  // vem do formulário quando ainda está lá, só para a tela ter o nome à mão. O
+                  // que viaja para a API é o código, e só ele — ver `paraApi`.
+                  fornecedores: dados.fornecedores.map(
+                    (cod) =>
+                      filtro.fornecedores.find((f) => f.codFornec === cod) ?? {
+                        codFornec: cod,
+                        fornecedor: "",
+                        cgc: null,
+                        codFornecPrinc: null,
+                      },
+                  ),
+                  // O detalhamento é sempre de UMA coluna, e a coluna já traz o próprio
+                  // recorte em datas. Mandar o modo junto faria o servidor reabrir a
+                  // consulta em várias colunas de novo, dentro de um detalhe.
+                  modo: "meses",
+                  anos: [],
+                }}
+                modo={dados.modo}
+                filiaisApuradas={filiaisApuradas.detalhe}
+              />
+            </section>
           </>
         )}
 
         {!dados && !apuracao.isPending && !apuracao.isError && (
-          <Inicial motivo={impedimento(filtro)} estimativa={estimativaDeTempo(filtro)} />
+          <Inicial
+            motivo={impedimento(filtro)}
+            estimativa={estimativaDeTempo(filtro)}
+          />
         )}
       </div>
     </AppShell>
@@ -393,7 +476,11 @@ function BotaoExpandir({
       type="button"
       onClick={onAlternar}
       aria-pressed={expandida}
-      title={expandida ? "Voltar ao normal (Esc)" : "Expandir a tabela para a tela inteira"}
+      title={
+        expandida
+          ? "Voltar ao normal (Esc)"
+          : "Expandir a tabela para a tela inteira"
+      }
       className="flex shrink-0 cursor-pointer items-center gap-2 rounded-[var(--radius-sm)] border border-[var(--border)] px-2.5 py-1.5 text-[length:var(--fs-apoio)] font-medium text-[var(--text-secondary)] hover:border-[var(--border-strong)] hover:text-[var(--text-primary)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)]"
     >
       <svg
@@ -436,11 +523,13 @@ function BotaoExpandir({
  */
 function descreverColunas(dados: Apuracao): string {
   const n = dados.periodos.length;
-  if (dados.modo === "anos") return `${n} ${n === 1 ? "coluna" : "colunas"} por ano`;
+  if (dados.modo === "anos")
+    return `${n} ${n === 1 ? "coluna" : "colunas"} por ano`;
 
   // No comparativo "3 meses" engana: são três COLUNAS mensais repartidas entre dois
   // intervalos, e o leitor entenderia um período contínuo de três meses.
-  if (dados.modo === "comparar-anos") return `${n} ${n === 1 ? "coluna" : "colunas"} em 2 intervalos`;
+  if (dados.modo === "comparar-anos")
+    return `${n} ${n === 1 ? "coluna" : "colunas"} em 2 intervalos`;
 
   return `${n} ${n === 1 ? "mês" : "meses"}`;
 }
@@ -462,7 +551,9 @@ function descreverPeriodo(dados: Apuracao): string {
     const colunas = dados.periodos.filter((p) => p.bloco === bloco);
     const inicio = colunas[0]?.dataInicio;
     const fim = colunas.at(-1)?.dataFim;
-    return inicio && fim ? `${formatarDataIso(inicio)} a ${formatarDataIso(fim)}` : null;
+    return inicio && fim
+      ? `${formatarDataIso(inicio)} a ${formatarDataIso(fim)}`
+      : null;
   };
 
   if (dados.modo === "comparar-anos") {
@@ -548,7 +639,9 @@ function Apurando() {
         ))}
       </div>
 
-      <p className="text-[length:var(--fs-base)] text-[var(--text-primary)]">Apurando o DRE…</p>
+      <p className="text-[length:var(--fs-base)] text-[var(--text-primary)]">
+        Apurando o DRE…
+      </p>
 
       <p className="tabular mt-3 text-[length:var(--fs-titulo)] font-semibold text-[var(--text-primary)]">
         {mm}:{ss}
@@ -559,15 +652,21 @@ function Apurando() {
       </div>
 
       <p className="mx-auto mt-5 max-w-md text-[length:var(--fs-apoio)] leading-relaxed text-[var(--text-muted)]">
-        A consulta percorre o período inteiro no banco e não reporta progresso — por isso
-        o relógio, e não uma porcentagem. Não recarregue a página: isso dispararia uma
-        segunda apuração.
+        A consulta percorre o período inteiro no banco e não reporta progresso —
+        por isso o relógio, e não uma porcentagem. Não recarregue a página: isso
+        dispararia uma segunda apuração.
       </p>
     </div>
   );
 }
 
-function Aviso({ tom, children }: { tom: "erro" | "atencao"; children: React.ReactNode }) {
+function Aviso({
+  tom,
+  children,
+}: {
+  tom: "erro" | "atencao";
+  children: React.ReactNode;
+}) {
   return (
     <p
       className={cn(
