@@ -9,7 +9,7 @@ namespace Epoca.Kpi.Api.Application.Features.Autenticacao;
 /// O login: confere as credenciais no cadastro do Winthor e emite a sessão.
 ///
 /// <para>A regra inteira, medida contra o banco nas dc29 a dc31 — ver
-/// <c>docs/AUTENTICACAO.md</c>:</para>
+/// <c>docs/plataforma/AUTENTICACAO.md</c>:</para>
 ///
 /// <code>
 /// PCCONTRO  (9815, ACESSO = 'S')             pode abrir a rotina

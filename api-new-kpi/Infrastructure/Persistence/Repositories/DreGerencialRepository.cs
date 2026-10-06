@@ -371,7 +371,7 @@ public sealed class DreGerencialRepository : IDreGerencialRepository
 
         // {3} é o hint de paralelismo, e vem vazio quando ele está desligado — a consulta
         // volta a ser exatamente a de antes. Não é bind: hint é lido pelo otimizador antes
-        // de qualquer valor ser ligado, então precisa estar no texto. Ver docs/PARALELISMO.md.
+        // de qualquer valor ser ligado, então precisa estar no texto. Ver docs/plataforma/PARALELISMO.md.
         var hint = _paralelismo.HintPara(MesesDoRecorte(dataInicio, dataFim));
 
         var sql = string.Format(
@@ -461,7 +461,7 @@ public sealed class DreGerencialRepository : IDreGerencialRepository
     /// literal <c>29</c> escrito à mão (UBase.pas:27217); aqui é cadastro.
     ///
     /// <para>O <c>DTINATIVACAO IS NULL</c> respeita o desligamento sem apagar o histórico —
-    /// ver <c>docs/FILTRO_FORNECEDOR.md</c>. Ele mora DENTRO deste fragmento de propósito:
+    /// ver <c>docs/rotinas/9815-dre-gerencial/FILTRO_FORNECEDOR.md</c>. Ele mora DENTRO deste fragmento de propósito:
     /// escrito separado, um dos dois ramos acaba sem ele, e um vínculo desligado continua
     /// marcando o centro como dedicado — o centro sumiria do DRE de todo mundo, que é o
     /// oposto de desligar a regra.</para>
@@ -595,7 +595,7 @@ public sealed class DreGerencialRepository : IDreGerencialRepository
         using var conexao = await _conexoes.CriarConexaoAsync(cancellationToken);
 
         // Cara pelo mesmo motivo que a apuração: varre as mesmas notas. Medida em 116,9 s
-        // para um mês e três filiais — ver docs/DIVERGENCIAS.md §4.
+        // para um mês e três filiais — ver docs/rotinas/9815-dre-gerencial/DIVERGENCIAS.md §4.
         var linhas = await conexao.QueryAsync<DetalheClienteDre>(
             new CommandDefinition(
                 sql,

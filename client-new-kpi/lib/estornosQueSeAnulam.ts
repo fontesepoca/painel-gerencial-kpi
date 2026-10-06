@@ -15,7 +15,7 @@
  * estornados. Copiar isso reintroduz um defeito já medido: em `VENDAS` esconde 25
  * lançamentos que a linha conta, e em `RATEIO DESP. CORPORATIVAS` o par de ±36.726,00 cai
  * em blocos diferentes — cada linha perde um lado e **cada uma passa a errar**, com o total
- * geral fechando por acidente. Ver `DreDetalheQueries.cs` e `DIVERGENCIAS.md` §4.
+ * geral fechando por acidente. Ver `DreDetalheQueries.cs` e `../../docs/rotinas/9815-dre-gerencial/DIVERGENCIAS.md` §4.
  *
  * ## A regra daqui, e por que ela é segura
  *

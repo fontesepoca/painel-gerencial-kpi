@@ -14,7 +14,7 @@ namespace Epoca.Kpi.Api.Infrastructure.Persistence.Queries;
 ///
 /// <para><b>As duas primeiras saem de propósito do que a 9815 faz.</b> As telas dela não
 /// somam o valor da linha clicada, e nem concordam entre si. Decisão do Gabriel em
-/// 01/09/2026, medida e revertível — ver `docs/DIVERGENCIAS.md` §4.</para>
+/// 01/09/2026, medida e revertível — ver `docs/rotinas/9815-dre-gerencial/DIVERGENCIAS.md` §4.</para>
 /// </summary>
 /// <remarks>
 /// <b>Alias de coluna aqui não leva sublinhado.</b> O Dapper casa coluna com propriedade
@@ -50,7 +50,7 @@ public static class DreDetalheQueries
     ///
     /// <para><b>Aqui o detalhe FECHA com a célula</b>, ao contrário da tela de despesas:
     /// a receita filtrada sai do produto, item a item, e não há rateio nenhum pelo caminho.
-    /// A 9815 não filtra esta tela — ver `docs/DIVERGENCIAS.md`.</para>
+    /// A 9815 não filtra esta tela — ver `docs/rotinas/9815-dre-gerencial/DIVERGENCIAS.md`.</para>
     ///
     /// <para>Binds: {0} filiais das vendas, {2} fornecedores, :dtIni1/:dtFim1; {1} filiais
     /// das devoluções, {3} fornecedores, :dtIni2/:dtFim2. <b>Ordem posicional</b> — ODP.NET
@@ -389,7 +389,7 @@ public static class DreDetalheQueries
                                       AND recnumadiantamento = fin.recnum)
                    -- Os dois filtros abaixo são os da APURAÇÃO, não os do trace do
                    -- detalhamento da 9815 — as duas telas dela discordam aqui, pela
-                   -- terceira vez neste levantamento. Ver DIVERGENCIAS.md §4.
+                   -- terceira vez neste levantamento. Ver ../../../../docs/rotinas/9815-dre-gerencial/DIVERGENCIAS.md §4.
                    --
                    -- A 9815 tem `DTESTORNOBAIXA IS NULL` só no detalhamento, e isso
                    -- escondia lançamentos que a linha do DRE conta: 25 em VENDAS, e um
@@ -445,7 +445,7 @@ public static class DreDetalheQueries
     ///
     /// <para>Comparação em texto dos dois lados: `GRUPOCONTA` é texto na apuração, e
     /// converter código de cadastro para número é o erro que derrubou o Centro de Custo na
-    /// 9815 (`docs/CONVENCOES_ORACLE.md`).</para>
+    /// 9815 (`docs/plataforma/CONVENCOES_ORACLE.md`).</para>
     /// </summary>
     public static string ColunaDoRecorte(string analise, bool orfa)
     {
@@ -503,7 +503,7 @@ public static class DreDetalheQueries
     /// aqui daria uma tela que não fecha com a linha que ela detalha.</para>
     ///
     /// <para><b>Aliases sem underscore</b>: o Dapper não os ignora, e a coluna sairia
-    /// zerada em silêncio. Ver `docs/DIVERGENCIAS.md`, armadilha 4.</para>
+    /// zerada em silêncio. Ver `docs/rotinas/9815-dre-gerencial/DIVERGENCIAS.md`, armadilha 4.</para>
     ///
     /// <para>Binds: {0} a expressão do imposto nas vendas, {1} filiais das vendas,
     /// :dtIni1/:dtFim1; {2} a expressão nas devoluções, {3} filiais das devoluções,

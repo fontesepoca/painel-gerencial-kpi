@@ -9,7 +9,7 @@ namespace Epoca.Kpi.Api.Application.Features.DreGerencial;
 ///
 /// O host encontra esta classe por reflexão no boot, e é por isso que acrescentar uma
 /// rotina nova não exige editar Program.cs — basta criar a pasta com a sua classe de
-/// módulo. Ver docs/ARQUITETURA.md.
+/// módulo. Ver docs/plataforma/ARQUITETURA.md.
 /// </summary>
 public sealed class DreGerencialModule : IModuleInstaller
 {

@@ -35,7 +35,7 @@ namespace Epoca.Kpi.Api.Application.Features.DreGerencial;
 /// recortes de um mês cada, o que unificaria mais o código — e multiplicaria por doze o
 /// custo da consulta mais cara da rotina, que hoje resolve o intervalo inteiro num
 /// <c>GROUP BY</c> de mês. A economia é o motivo de o modo mensal existir como caso próprio:
-/// ver `DreGerencialQueries.FaturamentoPorMes` e a §12 de `docs/ROTINA_9815.md`.</para>
+/// ver `DreGerencialQueries.FaturamentoPorMes` e a §12 de `docs/rotinas/9815-dre-gerencial/ESPECIFICACAO.md`.</para>
 /// </summary>
 /// <param name="DataInicio">Primeiro dia do recorte.</param>
 /// <param name="DataFim">Último dia.</param>

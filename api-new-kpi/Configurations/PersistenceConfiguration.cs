@@ -18,7 +18,7 @@ public static class PersistenceConfiguration
 
         // Paralelismo da consulta de faturamento. Singleton porque é configuração lida uma
         // vez no boot — mudar o grau exige reiniciar, e isso está escrito em
-        // docs/PARALELISMO.md, que abre com como reverter.
+        // docs/plataforma/PARALELISMO.md, que abre com como reverter.
         var paralelismo = configuration.GetSection(OpcoesDeParalelismo.Secao)
                                        .Get<OpcoesDeParalelismo>()
                           ?? new OpcoesDeParalelismo();

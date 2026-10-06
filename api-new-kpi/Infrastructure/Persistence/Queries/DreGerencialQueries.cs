@@ -9,9 +9,9 @@ public static class DreGerencialQueries
     /// <summary>
     /// Filiais disponíveis para o filtro.
     ///
-    /// Adaptada do trace da 9815 (`docs/Resultado das consultas na rotina oficial/`).
+    /// Adaptada do trace da 9815 (`docs/rotinas/9815-dre-gerencial/referencia-oficial/`).
     /// Duas diferenças deliberadas em relação ao original, ambas documentadas em
-    /// `docs/ROTINA_9815.md`:
+    /// `docs/rotinas/9815-dre-gerencial/ESPECIFICACAO.md`:
     ///
     /// 1. **Sem o `AND f.codfil IN (...)`.** No Winthor essa lista vem da tela de
     ///    pré-seleção exibida antes de abrir a rotina. Na web não existe essa tela:
@@ -39,10 +39,10 @@ public static class DreGerencialQueries
     ///
     /// <para>São cinco: <c>13 MR::BH</c>, <c>16 SUP-NP</c>, <c>17 SUP-PL</c>,
     /// <c>18 SUP-SM</c> e <c>19 FUT-2013-</c>. A 9815 também não as oferece — ela consulta
-    /// só a base local. Medido em `docs/validacao/fase5d_filiais_que_a_9815_oferece.sql`.</para>
+    /// só a base local. Medido em `docs/rotinas/9815-dre-gerencial/validacao/fase5d_filiais_que_a_9815_oferece.sql`.</para>
     ///
     /// <para><b>Como reverter:</b> apagar a linha `AND F.DBLEPCTI IS NULL`. É só isso — o
-    /// filtro volta às 18, e as cinco voltam a aparecer zeradas. Ver `docs/DIVERGENCIAS.md`,
+    /// filtro volta às 18, e as cinco voltam a aparecer zeradas. Ver `docs/rotinas/9815-dre-gerencial/DIVERGENCIAS.md`,
     /// seção do filtro de filiais, para o histórico da decisão: a instrução original, de
     /// 27/08/2026, era mostrar as 18, e foi tomada antes de sabermos que cinco delas apontam
     /// para outro banco.</para>
@@ -171,7 +171,7 @@ public static class DreGerencialQueries
     /// (`Acerto De Estoque`, `CONTRATO DE MUTUO`, …).
     ///
     /// <para><b>Validada contra o original</b> em 28/08/2026 por
-    /// `docs/validacao/inc5a_comparacao_estrutura.sql`. Única mudança: os três blocos de
+    /// `docs/rotinas/9815-dre-gerencial/validacao/inc5a_comparacao_estrutura.sql`. Única mudança: os três blocos de
     /// órfãs (um por filial) viraram um, com `CODFILIAL IN (...)`.</para>
     ///
     /// <para><b>Duas particularidades do bloco de órfãs, replicadas como estão:</b></para>
@@ -255,7 +255,7 @@ public static class DreGerencialQueries
     /// **Grupo de Contas**.
     ///
     /// <para><b>Este SQL foi validado contra o original</b> em 28/08/2026:
-    /// `docs/validacao/inc3_comparacao_despesas.sql` comparou as duas versões no mesmo
+    /// `docs/rotinas/9815-dre-gerencial/validacao/inc3_comparacao_despesas.sql` comparou as duas versões no mesmo
     /// período e devolveu zero divergências. Três mudanças em relação ao trace, todas
     /// provadas equivalentes:</para>
     /// <list type="number">
@@ -265,7 +265,7 @@ public static class DreGerencialQueries
     ///         de Custo por construção;</item>
     ///   <item>o round-trip `TO_CHAR(To_Date(&lt;data&gt;,'dd/mm/yyyy'),'mm/yyyy')` virou
     ///         `TO_CHAR(&lt;data&gt;,'mm/yyyy')`, que não depende do `NLS_DATE_FORMAT` da
-    ///         sessão. Ver `docs/CONVENCOES_ORACLE.md` §11.</item>
+    ///         sessão. Ver `docs/plataforma/CONVENCOES_ORACLE.md` §11.</item>
     /// </list>
     ///
     /// <para><b>Ordem dos binds — o ODP.NET é posicional.</b> Nesta ordem exata:</para>
@@ -298,8 +298,8 @@ public static class DreGerencialQueries
     /// é a do centro dedicado, que na 9815 é o literal <c>29</c> escrito à mão e aqui lê
     /// <c>TAB_WEB_CENTROC_FORNEC</c>.</para>
     ///
-    /// <para>Ver <c>docs/FILTRO_FORNECEDOR.md</c> para a mecânica inteira, e
-    /// <c>docs/validacao/dc73...</c> para a tabela.</para>
+    /// <para>Ver <c>docs/rotinas/9815-dre-gerencial/FILTRO_FORNECEDOR.md</c> para a mecânica inteira, e
+    /// <c>docs/rotinas/9815-dre-gerencial/validacao/dc73...</c> para a tabela.</para>
     /// </summary>
     public const string DespesasGrupoDeContas = """
          SELECT  GRUPOCONTA AS GRUPOCONTA, AntesRO AS ANTESRO, AntesLL AS ANTESLL, AntesLF AS ANTESLF, MES_ANO AS MESANO, MES AS MES, ANO AS ANO, sum(VLREALIZADO) AS VLREALIZADO, sum(VPAGO_EXCLUSIVO_FORNEC) AS VPAGOEXCLUSIVOFORNEC, sum(QdeReg) AS QDEREG 
@@ -570,13 +570,13 @@ public static class DreGerencialQueries
     /// isso apaga linhas inteiras do relatório: no cenário de 01/06 a 31/07/2026 com filiais
     /// 7/12/25, nove centros de custo principais somem do bloco operacional, carregando
     /// R$ 2.564.063,37. Medido, provado com duas execuções da própria rotina, e aprovado em
-    /// 31/08/2026. Ver `docs/DIVERGENCIAS.md` nº 2 — é a única divergência desta consulta.</para>
+    /// 31/08/2026. Ver `docs/rotinas/9815-dre-gerencial/DIVERGENCIAS.md` nº 2 — é a única divergência desta consulta.</para>
     ///
     /// <para><b>Com uma filial só não há divergência possível</b>, e a web tem que bater ao
     /// centavo com a 9815. É assim que esta consulta se confere.</para>
     ///
     /// <para>Quatro adaptações além dessa, todas conferidas por
-    /// `docs/validacao/inc9g_comparacao_estrutura_ccusto.sql`:</para>
+    /// `docs/rotinas/9815-dre-gerencial/validacao/inc9g_comparacao_estrutura_ccusto.sql`:</para>
     /// <list type="number">
     ///   <item>os três blocos de órfãs, um por filial, viraram um com `CODFILIAL IN (...)`;</item>
     ///   <item>o `NVL(codccprinc,99)` virou `NVL(codccprinc,'99')`. O `99` numérico era
@@ -797,9 +797,9 @@ public static class DreGerencialQueries
     ///
     /// <para><b>Sem referência para comparar.</b> É a única dimensão sem exportação da 9815 —
     /// a rotina falha sempre, e por isso ninguém nunca viu estes números.
-    /// Ver `docs/DIVERGENCIAS.md` nº 3.</para>
+    /// Ver `docs/rotinas/9815-dre-gerencial/DIVERGENCIAS.md` nº 3.</para>
     ///
-    /// <para>A divergência da filial única (`docs/DIVERGENCIAS.md` nº 2) atinge esta dimensão
+    /// <para>A divergência da filial única (`docs/rotinas/9815-dre-gerencial/DIVERGENCIAS.md` nº 2) atinge esta dimensão
     /// <b>com muito mais força</b>: aqui a granularidade é o centro de custo inteiro, e a
     /// `inc9` achou centenas de pares perdidos, contra os 9 principais de C. Custo Principal.
     /// Sem referência, o tamanho não é mensurável. Usamos a lista completa de filiais, pela
@@ -1001,7 +1001,7 @@ public static class DreGerencialQueries
     /// <para>A segunda só é válida porque as colunas de data <b>não carregam hora</b>: os
     /// meses da 9815 vão de `00:00` a `00:00`, e uma venda em 30/06 às 14h não cairia em
     /// nenhum dos dois. Verificado — 70.435 linhas de `DTSAIDA`, 13.245 de `DTENT` e 30.922
-    /// de `DTPAGTO`, nenhuma com hora. Ver `docs/ROTINA_9815.md` §12: se isso mudar, a
+    /// de `DTPAGTO`, nenhuma com hora. Ver `docs/rotinas/9815-dre-gerencial/ESPECIFICACAO.md` §12: se isso mudar, a
     /// equivalência cai.</para>
     ///
     /// <para>Cada bloco agrupa pela <b>sua própria</b> data — vendas por `DTSAIDA`,
@@ -1018,7 +1018,7 @@ public static class DreGerencialQueries
     /// <para>Foi o defeito da filial <c>28 EPC-TRANSP</c>: `RECEITA BRUTA` zero na web e
     /// 1.152.705,09 na rotina. Ela é transportadora — emite CT-e, que tem `ESPECIE = 'CO'`,
     /// `CONDVENDA` <b>nula</b> e <b>nenhum item em `PCMOV`</b>. Medido em
-    /// `docs/validacao/dc15_receita_da_transportadora.sql`: <b>607 de 607 notas sem
+    /// `docs/rotinas/9815-dre-gerencial/validacao/dc15_receita_da_transportadora.sql`: <b>607 de 607 notas sem
     /// item</b>, todas com `VLTABELA` nulo, o valor inteiro em `VLTOTGER`.</para>
     ///
     /// <para>O bloco novo é <b>aditivo</b>: o `NOT EXISTS` garante que nota com item soma no
@@ -1044,7 +1044,7 @@ public static class DreGerencialQueries
     ///
     /// <para>O conteúdo de {3} sai de <c>OpcoesDeParalelismo.HintPara</c>, e é <b>string
     /// vazia</b> quando o paralelismo está desligado — a consulta volta a ser, caractere por
-    /// caractere, a de antes. Ver <c>docs/PARALELISMO.md</c>.</para>
+    /// caractere, a de antes. Ver <c>docs/plataforma/PARALELISMO.md</c>.</para>
     ///
     /// <para><b>Binds, na ordem em que aparecem</b> — o ODP.NET liga por posição:
     /// :dtIni1, :dtFim1 (vendas), {0} filiais de `PCNFSAID`, {1} filiais de `PCNFENT`,
@@ -1127,7 +1127,7 @@ public static class DreGerencialQueries
                devolução. Resultado em 2025/filial 7: somávamos 958,95 de devolução que a
                9815 não soma, e com ela 633,39 de CMV de devolução, que deixava o
                `CMV LIQ.` menos negativo na mesma medida. Medido em
-               `docs/validacao/dc27_devolucao_mostra_dre.sql`.
+               `docs/rotinas/9815-dre-gerencial/validacao/dc27_devolucao_mostra_dre.sql`.
 
                Aqui a exceção é `PED.CONDVENDA`, não `NF.CONDVENDA`: a devolução não tem
                nota de saída, e é o pedido que carrega a condição de venda. É a forma da

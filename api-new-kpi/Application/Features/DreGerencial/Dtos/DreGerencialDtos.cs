@@ -84,7 +84,7 @@ public record DespesasFiltroDto(
     /// <para><b>É código de fornecedor, não de empresa.</b> Cada cadastro é um recorte: pedir
     /// <c>29</c> traz o DRE do 29, pedir <c>2453</c> traz o do 2453, e um não puxa o outro
     /// mesmo quando o <c>CODFORNECPRINC</c> diz que são a mesma empresa. Decisão registrada em
-    /// <c>docs/FILTRO_FORNECEDOR.md</c>, "A regra é por CÓDIGO DE FORNECEDOR".</para>
+    /// <c>docs/rotinas/9815-dre-gerencial/FILTRO_FORNECEDOR.md</c>, "A regra é por CÓDIGO DE FORNECEDOR".</para>
     ///
     /// <para><b>O filtro não é um filtro só.</b> No faturamento ele filtra de verdade, por
     /// <c>pr.codfornec</c> — o fornecedor do PRODUTO. Nas despesas, o que ele faz é ratear
@@ -95,7 +95,7 @@ public record DespesasFiltroDto(
 
 /// <summary>
 /// Linha de despesa agregada. A identidade é a tupla completa, não `Chave` sozinha —
-/// ver `docs/ROTINA_9815.md` §9.
+/// ver `docs/rotinas/9815-dre-gerencial/ESPECIFICACAO.md` §9.
 /// </summary>
 public record DespesaDto(
     string Chave,
@@ -108,7 +108,7 @@ public record DespesaDto(
 
 /// <summary>
 /// Cabeçalho do DRE. `StLiq`, `PisLiq` e `CofinsLiq` são informativas — não entram no
-/// cálculo das Receitas Líquidas (ver `docs/ROTINA_9815.md` §5).
+/// cálculo das Receitas Líquidas (ver `docs/rotinas/9815-dre-gerencial/ESPECIFICACAO.md` §5).
 /// </summary>
 public record FaturamentoDto(
     string MesAno,

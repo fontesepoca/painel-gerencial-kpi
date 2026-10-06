@@ -2,7 +2,7 @@ namespace Epoca.Kpi.Api.Infrastructure.Persistence.Queries;
 
 /// <summary>
 /// As consultas do login. Levantadas contra o banco nas dc29 a dc31 — ver
-/// <c>docs/AUTENTICACAO.md</c>, que explica cada decisão e o número que a sustenta.
+/// <c>docs/plataforma/AUTENTICACAO.md</c>, que explica cada decisão e o número que a sustenta.
 /// </summary>
 public static class AutenticacaoQueries
 {
@@ -19,7 +19,7 @@ public static class AutenticacaoQueries
     ///
     /// <para>O banco não guarda a descrição: em <c>PCCONTROI</c> este número é só um 3. O nome
     /// veio da tela da rotina 530 em 16/09/2026, e está registrado aqui e em
-    /// <c>docs/AUTENTICACAO.md</c> porque não existe outro lugar onde ele viva.</para>
+    /// <c>docs/plataforma/AUTENTICACAO.md</c> porque não existe outro lugar onde ele viva.</para>
     /// </summary>
     public const int ControleGuiaDre = 3;
 

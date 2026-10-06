@@ -38,7 +38,7 @@ public class LinhaEstruturaDre
     /// <summary>
     /// Em Grupo de Contas e Conta Gerencial é igual a <see cref="AntesLl"/>. Nas dimensões
     /// de centro de custo a 9815 compara com o rótulo `LUCRO FINAL` — ver
-    /// `docs/ROTINA_9815_LEVANTAMENTO.md` §4.4.
+    /// `docs/rotinas/9815-dre-gerencial/LEVANTAMENTO.md` §4.4.
     /// </summary>
     public string AntesLf { get; init; } = "N";
 }

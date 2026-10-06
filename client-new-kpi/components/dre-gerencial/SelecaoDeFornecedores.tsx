@@ -57,7 +57,7 @@ const buscavel = (termo: string) => {
  * diferentes da mesma empresa são recortes diferentes: pedir o 29 traz o DRE do 29, pedir o
  * 2453 traz o do 2453, e um não puxa o outro. A tela mostra código e CNPJ junto do nome
  * porque é a única forma de a pessoa saber qual dos cadastros ela está escolhendo — e avisa
- * quando o escolhido tem irmãos. Ver `docs/FILTRO_FORNECEDOR.md`.
+ * quando o escolhido tem irmãos. Ver `docs/rotinas/9815-dre-gerencial/FILTRO_FORNECEDOR.md`.
  */
 export function SelecaoDeFornecedores({
   selecionados,

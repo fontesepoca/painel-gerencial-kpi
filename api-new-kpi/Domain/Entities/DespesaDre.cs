@@ -8,7 +8,7 @@ namespace Epoca.Kpi.Api.Domain.Entities;
 /// `GrupoConta` sozinha. O mesmo grupo aparece mais de uma vez no DRE com flags diferentes:
 /// `300` (Despesas Adm e Vendas) surge antes e depois do RESULTADO OPERACIONAL, com valores
 /// distintos. Indexar só pela chave faria as duas linhas receberem o mesmo número, e o total
-/// sairia errado sem erro aparente. Ver `docs/ROTINA_9815.md` §9.
+/// sairia errado sem erro aparente. Ver `docs/rotinas/9815-dre-gerencial/ESPECIFICACAO.md` §9.
 /// </para>
 /// </summary>
 public class DespesaDre

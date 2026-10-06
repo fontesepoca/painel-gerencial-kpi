@@ -8,7 +8,7 @@ Acrescenta uma consulta a uma rotina existente. Vale para tabela legada do Winth
 para tabela customizada da Época.
 Referência: `api-new-kpi/Infrastructure/Persistence/Context/OracleConnectionFactory.cs`.
 
-Referência de convenções: [docs/CONVENCOES_ORACLE.md](../../../docs/CONVENCOES_ORACLE.md).
+Referência de convenções: [docs/plataforma/CONVENCOES_ORACLE.md](../../../docs/plataforma/CONVENCOES_ORACLE.md).
 Esta skill é o **procedimento**; aquele documento é a **referência**.
 
 Placeholders: `{Rotina}` = `ExtratoCliente`, `{Consulta}` = `Linhas`.

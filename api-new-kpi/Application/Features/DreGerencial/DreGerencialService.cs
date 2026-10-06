@@ -247,7 +247,7 @@ public sealed class DreGerencialService
         // O três de 10/09 foi calibrado contra um custo que não existe mais: um ano de uma
         // filial custava 316 s medidos, e cada coluna do modo `anos` é uma varredura de doze
         // meses. Com o PARALLEL(4) na consulta de faturamento, a mesma varredura ficou
-        // cerca de três vezes mais rápida — ver docs/PARALELISMO.md. Cinco anos hoje custam
+        // cerca de três vezes mais rápida — ver docs/plataforma/PARALELISMO.md. Cinco anos hoje custam
         // menos que os três de então.
         //
         // O teto continua existindo porque o custo continua linear no número de anos: cada

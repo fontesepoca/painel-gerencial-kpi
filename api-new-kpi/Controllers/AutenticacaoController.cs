@@ -12,7 +12,7 @@ namespace Epoca.Kpi.Api.Controllers;
 ///
 /// <para><b>Quem chama estas rotas é o servidor Next, não o navegador.</b> O token volta daqui
 /// para o BFF, que o guarda e devolve ao navegador só um identificador opaco em cookie
-/// <c>HttpOnly</c>. Ver <c>docs/AUTENTICACAO.md</c>.</para>
+/// <c>HttpOnly</c>. Ver <c>docs/plataforma/AUTENTICACAO.md</c>.</para>
 /// </summary>
 [ApiController]
 [Route("api/auth")]

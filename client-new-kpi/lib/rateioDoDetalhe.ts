@@ -11,7 +11,7 @@ import type { DetalheLancamento, Detalhamento } from "@/types/dre-gerencial";
  * <b>A 9815 não faz isso</b> — lá o duplo clique abre a filial inteira, porque
  * `TFLanc.Create` nem recebe o fornecedor e o valor da célula que ela passa adiante
  * (`VlConta`) é atribuído e nunca usado. É divergência deliberada, aprovada em 02/10/2026 e
- * registrada em `docs/DIVERGENCIAS.md`.
+ * registrada em `docs/rotinas/9815-dre-gerencial/DIVERGENCIAS.md`.
  */
 
 /** Há rateio a mostrar? Só quando a apuração foi filtrada e a tela é a de lançamentos. */

@@ -29,7 +29,7 @@ public sealed class AutenticacaoRepository : IAutenticacaoRepository
 
         // A ORDEM É A DO SQL, não a da assinatura deste método: `:senha` aparece no SELECT e
         // `:login` no WHERE. Com BindByName = false quem casa é a posição. Trocar as duas
-        // linhas abaixo compila, roda e recusa todo mundo — ver docs/CONVENCOES_ORACLE.md.
+        // linhas abaixo compila, roda e recusa todo mundo — ver docs/plataforma/CONVENCOES_ORACLE.md.
         var parametros = new DynamicParameters();
         parametros.Add("senha", senha);
         parametros.Add("login", nomeGuerra);

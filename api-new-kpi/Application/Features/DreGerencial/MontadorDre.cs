@@ -9,7 +9,7 @@ namespace Epoca.Kpi.Api.Application.Features.DreGerencial;
 /// Não toca no banco — é lógica pura, e é aqui que mora a aritmética da rotina.
 ///
 /// <para>Todas as regras foram verificadas contra exportações de parâmetros conhecidos
-/// (`docs/ROTINA_9815.md` §5, §9, §10 e §12).</para>
+/// (`docs/rotinas/9815-dre-gerencial/ESPECIFICACAO.md` §5, §9, §10 e §12).</para>
 /// </summary>
 public static class MontadorDre
 {
@@ -98,7 +98,7 @@ public static class MontadorDre
     /// <para><b>Pedido do Gabriel em 25/09/2026.</b> As duas estavam depois do
     /// <c>LUCRO LIQUIDO</c> com <c>AntesLl = 'N'</c>, que é a marca de quem não entra em
     /// totalizador nenhum. <b>Isto muda o lucro</b>, e por isso é divergência com a 9815 —
-    /// ver <c>docs/DIVERGENCIAS.md §14</c>.</para>
+    /// ver <c>docs/rotinas/9815-dre-gerencial/DIVERGENCIAS.md §14</c>.</para>
     ///
     /// <para><b>A chave é a conta, e é a mesma nas quatro dimensões.</b> O SQL escolhe a
     /// chave com <c>decode(AntesLF,'N', CODCONTA, codgrupo/codccprinc)</c>, e como as duas
@@ -632,7 +632,7 @@ public static class MontadorDre
     /// <para><b>Muda um número, e um só: o `RESULTADO OPERACIONAL`.</b> Ele era
     /// `LUCRO BRUTO + Sub-Total` e passa a ser `SUBTOTAL POSITIVO + Sub-Total`, para a tela
     /// voltar a fechar lendo de cima para baixo — decisão do Gabriel na mesma conversa,
-    /// sabendo que isso o afasta da 9815. Registrado em `docs/DIVERGENCIAS.md`.</para>
+    /// sabendo que isso o afasta da 9815. Registrado em `docs/rotinas/9815-dre-gerencial/DIVERGENCIAS.md`.</para>
     ///
     /// <para><b>O `LUCRO LIQUIDO` não muda, e não há contagem dupla</b>: ele é
     /// `LUCRO BRUTO + Total das Despesas`, e as duas promovidas continuam com
@@ -676,7 +676,7 @@ public static class MontadorDre
             new LinhaEstruturaDre
             {
                 // `-5` é o primeiro código calculado livre: o cadastro usa de `-1` a `-4`.
-                // Ver `docs/SCHEMA_BANCO.md`.
+                // Ver `docs/plataforma/SCHEMA_BANCO.md`.
                 Id = modelo.Id,
                 CodGruConta = "-5",
                 Grupo = "SUBTOTAL POSITIVO",
@@ -1064,7 +1064,7 @@ public static class MontadorDre
     ///
     /// <para><b>Só sabemos o comportamento quando o valor também é zero.</b> Um mês com
     /// RECEITA BRUTA zerada mas com abatimento lançado seria outro caso, e não foi observado.
-    /// Ver `docs/DIVERGENCIAS.md`.</para>
+    /// Ver `docs/rotinas/9815-dre-gerencial/DIVERGENCIAS.md`.</para>
     /// </summary>
     private static decimal? CalcularAv(LinhaEmMontagem l, decimal valor, FaturamentoDre? f)
     {

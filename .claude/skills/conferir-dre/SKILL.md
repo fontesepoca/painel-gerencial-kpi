@@ -6,13 +6,13 @@ description: Conferir os números de uma consulta da DRE contra as planilhas exp
 
 O critério de aceite da rotina 9815 na web é **bater ao centavo** com a rotina Delphi. Esta
 skill é o ciclo de verificação, repetido a cada incremento da Fase 4.
-Referência: `docs/Resultado das consultas na rotina oficial/` e
-[docs/ROTINA_9815.md](../../../docs/ROTINA_9815.md) §7.
+Referência: `docs/rotinas/9815-dre-gerencial/referencia-oficial/` e
+[docs/rotinas/9815-dre-gerencial/ESPECIFICACAO.md](../../../docs/rotinas/9815-dre-gerencial/ESPECIFICACAO.md) §7.
 
 **Nunca conecte no Oracle.** Você escreve a query, o Gabriel executa, você trabalha com o
 resultado que ele colar de volta. Ver [AGENTS.md](../../../AGENTS.md).
 
-## 1. Escolher o cenário — `docs/Resultado das consultas na rotina oficial/`
+## 1. Escolher o cenário — `docs/rotinas/9815-dre-gerencial/referencia-oficial/`
 
 Seis cenários exportados, em duas pastas:
 
@@ -30,7 +30,7 @@ Comece sempre pelo mais simples: **1 mês, competência, grupo de contas**.
 > PDF e a exportação da 9815 em `.xlsx` —, os passos 2 e 4 estão prontos num comando:
 >
 > ```
-> node docs/validacao/dc28_impressao_contra_planilha.mjs "<impressão.pdf>" "<9815.xlsx>"
+> node docs/rotinas/9815-dre-gerencial/validacao/dc28_impressao_contra_planilha.mjs "<impressão.pdf>" "<9815.xlsx>"
 > ```
 >
 > Ele alinha por ordem, compara com meia tolerância de centavo, separa as linhas zeradas que
@@ -43,7 +43,7 @@ Não há Python nesta máquina, e `Expand-Archive` recusa a extensão `.xlsx`. O
 funciona é copiar para `.zip` e descompactar:
 
 ```powershell
-$src = "docs\Resultado das consultas na rotina oficial\periodo_de_um_mes_sem_AH\resultados"
+$src = "docs\rotinas\9815-dre-gerencial\referencia-oficial\periodo_de_um_mes_sem_AH\resultados"
 $dst = "$env:TEMP\dre"
 New-Item -ItemType Directory -Force $dst | Out-Null
 Get-ChildItem $src -Filter *.xlsx | ForEach-Object {
@@ -132,7 +132,7 @@ Linhas com `AntesLL = 'N'` não entram em totalizador nenhum — são o bloco `N
 
 ## 6. Registrar
 
-Incremento conferido vira uma linha na tabela do §7 de `docs/ROTINA_9815.md`, com o cenário
+Incremento conferido vira uma linha na tabela do §7 de `docs/rotinas/9815-dre-gerencial/ESPECIFICACAO.md`, com o cenário
 usado e a data. Divergência não resolvida vira pendência documentada — **nunca** um número
 "quase certo" seguindo adiante.
 
@@ -170,5 +170,5 @@ usado e a data. Divergência não resolvida vira pendência documentada — **nu
 - [ ] Comparação feita por script, com tolerância de meio centavo
 - [ ] Linhas a mais e a menos verificadas, não só as divergentes
 - [ ] Identidades do cabeçalho conferidas
-- [ ] Resultado registrado em `docs/ROTINA_9815.md` §7
+- [ ] Resultado registrado em `docs/rotinas/9815-dre-gerencial/ESPECIFICACAO.md` §7
 - [ ] Nenhuma divergência pendente sem explicação documentada

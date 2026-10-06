@@ -10,7 +10,7 @@ namespace Epoca.Kpi.Api.Application.Features.Autenticacao;
 /// <para><b>Existe para o front não escrever a string solta.</b> A tela inicial decide o que
 /// mostrar comparando com estes valores, e uma constante de um lado só não impede ninguém de
 /// digitar <c>"9815 "</c> com um espaço no outro. É o mesmo cuidado que levou o
-/// <c>LinhaDreDto.Papel</c> a existir — ver <c>docs/ROTINA_9815.md</c>.</para>
+/// <c>LinhaDreDto.Papel</c> a existir — ver <c>docs/rotinas/9815-dre-gerencial/ESPECIFICACAO.md</c>.</para>
 /// </summary>
 public static class RotinasDoWinthor
 {

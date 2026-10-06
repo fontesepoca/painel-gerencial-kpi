@@ -8,8 +8,8 @@ Cria a estrutura ponta a ponta de uma rotina migrada do Winthor, seguindo o monÃ
 ReferÃªncia: `api-new-kpi/Application/Features/DreGerencial/DreGerencialModule.cs` e
 `client-new-kpi/app/dre-gerencial/page.tsx`.
 
-Leia [docs/ARQUITETURA.md](../../../docs/ARQUITETURA.md) antes, e
-[docs/CONVENCOES_ORACLE.md](../../../docs/CONVENCOES_ORACLE.md) antes da primeira query.
+Leia [docs/plataforma/ARQUITETURA.md](../../../docs/plataforma/ARQUITETURA.md) antes, e
+[docs/plataforma/CONVENCOES_ORACLE.md](../../../docs/plataforma/CONVENCOES_ORACLE.md) antes da primeira query.
 
 **Placeholders desta skill**, usados de forma consistente:
 

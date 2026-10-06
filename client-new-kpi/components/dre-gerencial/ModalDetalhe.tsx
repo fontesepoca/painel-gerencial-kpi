@@ -58,7 +58,7 @@ export interface Composicao {
  *
  * <b>O total desta tela soma o valor da linha clicada.</b> Não é assim na 9815: duas das
  * três telas dela usam critérios diferentes dos da apuração e fecham em outro número.
- * Corrigido de propósito, medido e revertível — `docs/DIVERGENCIAS.md` §4.
+ * Corrigido de propósito, medido e revertível — `docs/rotinas/9815-dre-gerencial/DIVERGENCIAS.md` §4.
  *
  * <b>Quatro telas, não três.</b> As de cliente, motivo e lançamento vêm do banco; a de
  * composição é montada aqui, das linhas que já estão na tabela — ver `TabelaComposicao`.

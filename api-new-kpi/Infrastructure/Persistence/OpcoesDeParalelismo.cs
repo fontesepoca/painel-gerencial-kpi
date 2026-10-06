@@ -5,7 +5,7 @@ namespace Epoca.Kpi.Api.Infrastructure.Persistence;
 ///
 /// <para>A consulta de faturamento é 92,5% de uma apuração, e dentro dela o bloco de vendas
 /// por item é 93,6% — 233 s de 249 s. Com <c>PARALLEL(4)</c> a consulta inteira caiu de
-/// 70,3 s para 6,0 s. O caminho até aqui está em <c>docs/PARALELISMO.md</c>, e as medições
+/// 70,3 s para 6,0 s. O caminho até aqui está em <c>docs/plataforma/PARALELISMO.md</c>, e as medições
 /// nas dc43 a dc50.</para>
 ///
 /// <para><b>Por que isto é configuração e não uma linha fixa no SQL.</b> O hint pede processos

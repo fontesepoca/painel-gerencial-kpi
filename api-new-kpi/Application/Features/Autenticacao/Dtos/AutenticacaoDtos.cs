@@ -6,7 +6,7 @@ namespace Epoca.Kpi.Api.Application.Features.Autenticacao.Dtos;
 /// <para><b>Só nome de guerra.</b> Matrícula e código de barras não são aceitos, ao contrário
 /// do painel antigo: 44 textos casam duas pessoas diferentes quando os três são aceitos no
 /// mesmo <c>OR</c> — <c>774</c> é o nome de guerra de uma e a matrícula de outra. Ver
-/// <c>docs/AUTENTICACAO.md</c>.</para>
+/// <c>docs/plataforma/AUTENTICACAO.md</c>.</para>
 /// </summary>
 /// <param name="Login">O nome de guerra, como no Winthor. A caixa não importa.</param>
 /// <param name="Senha">A mesma senha do Winthor.</param>

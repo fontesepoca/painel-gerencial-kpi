@@ -22,7 +22,7 @@ import type {
  * <b>Isto é filtro de tela, não de acesso.</b> A rota de apuração ainda aceita qualquer filial
  * que o corpo da requisição pedir — quem montar a chamada à mão continua alcançando tudo. O
  * fechamento de verdade é o `[Authorize]` na API com as filiais lidas do token, e está na fase
- * seguinte; ver `docs/AUTENTICACAO.md`. Até lá, o que existe aqui evita o erro honesto, não o
+ * seguinte; ver `docs/plataforma/AUTENTICACAO.md`. Até lá, o que existe aqui evita o erro honesto, não o
  * mal-intencionado.
  *
  * Cadastro muda raramente, então segura por meia hora.

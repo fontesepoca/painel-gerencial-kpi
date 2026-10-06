@@ -18,7 +18,7 @@ Leia [CLAUDE.md](CLAUDE.md) para o contexto. Aqui estão as regras. São imperat
   algo errado? Documente e pergunte — não conserte por conta.
 - **Avançar de fase sem aprovação explícita.** Terminou, mostre o resultado e pare.
 - **Desfazer regra já aprovada.** Toda mudança de comportamento do DRE que o Gabriel pediu
-  está em [docs/DIVERGENCIAS.md](docs/DIVERGENCIAS.md), numerada, com data e com o script
+  está em [docs/rotinas/9815-dre-gerencial/DIVERGENCIAS.md](docs/rotinas/9815-dre-gerencial/DIVERGENCIAS.md), numerada, com data e com o script
   que a mede. **Uma branch nova não pode revertê-las, nem por descuido de merge.** Antes de
   abrir trabalho novo, traga a `main` para a sua branch; antes de entregar, traga de novo e
   confira a lista do §"As regras que nenhuma branch pode desfazer".
@@ -31,21 +31,25 @@ Leia [CLAUDE.md](CLAUDE.md) para o contexto. Aqui estão as regras. São imperat
 ## Obrigatório
 
 - **Português** em código, comentário, documentação e conversa. Com acentuação correta.
-- **Evidência antes de afirmação.** Este projeto não tem o fonte Delphi: o que se sabe da 9815
-  veio do trace SQL em `docs/Resultado das consultas na rotina oficial/`. Não presuma
-  comportamento — verifique no trace, ou marque como lacuna em aberto.
+- **Evidência antes de afirmação.** O que se sabe de uma rotina do Winthor vem do fonte Delphi
+  (`UBase.pas`) e do trace SQL que ela mandou ao Oracle — para a 9815, em
+  `docs/rotinas/9815-dre-gerencial/referencia-oficial/`. Não presuma comportamento: leia o
+  fonte, confira no trace, ou marque como lacuna em aberto.
+- **Documentação na camada certa.** O que a próxima rotina vai precisar é **plataforma**
+  (`docs/plataforma/`); o que some junto com a rotina é da pasta dela
+  (`docs/rotinas/<rotina>/`). Ver [docs/README.md](docs/README.md).
 - **`Result<T>`** para fluxo de negócio previsível. Exception só para falha de infraestrutura.
 - **`ApiResponse<T>`** como envelope de toda resposta HTTP.
 - **Dapper** para tabelas legadas e stored procedures. EF Core só para tabelas novas.
 - **Uma rotina = um módulo.** Pasta em `Application/Features/`, classe implementando
   `IModuleInstaller`. Nunca registre serviço de rotina no `Program.cs`.
-- **Alias UPPERCASE** em toda query, para o Dapper mapear. Ver `docs/CONVENCOES_ORACLE.md`.
+- **Alias UPPERCASE** em toda query, para o Dapper mapear. Ver `docs/plataforma/CONVENCOES_ORACLE.md`.
 
 ## Armadilhas do framework
 
 | Armadilha | O que acontece | Como evitar |
 |---|---|---|
-| **ODP.NET usa bind posicional** | `BindByName = false` é o padrão: a ordem dos parâmetros tem que bater com a ordem dos `:placeholders`. Nome repetido precisa de alias único | `docs/CONVENCOES_ORACLE.md` |
+| **ODP.NET usa bind posicional** | `BindByName = false` é o padrão: a ordem dos parâmetros tem que bater com a ordem dos `:placeholders`. Nome repetido precisa de alias único | `docs/plataforma/CONVENCOES_ORACLE.md` |
 | **O banco é 19c, não 11g** | Recursos descartados por engano — o paralelismo ficou 2 meses fora do radar | `OFFSET/FETCH`, `PARALLEL` e planos adaptativos existem. O código atual pagina com `ROWNUM`, que continua válido |
 | **`TO_NUMBER` em código hierárquico** | `ORA-01722` com `9701.001.02`, ou colisão silenciosa de chaves | Chave de agrupamento é `VARCHAR2`. Sempre |
 | **`COR` do `EPCPARDRE` é `TColor` do Delphi** | BGR, não RGB. Tratar como RGB inverte os canais e o azul vira laranja | Inverter os bytes |

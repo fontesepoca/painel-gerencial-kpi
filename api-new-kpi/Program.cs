@@ -11,7 +11,7 @@ builder.Services.AddDocumentacaoApi();
 builder.Services.AddCorsPadrao(builder.Configuration);
 
 // Ligada por padrão, desligável por `Compressao:Habilitada` no appsettings.
-// Ver docs/COMPRESSAO.md, que também diz como reverter isto.
+// Ver docs/plataforma/COMPRESSAO.md, que também diz como reverter isto.
 builder.Services.AddCompressaoDeResposta(builder.Configuration);
 
 builder.Services.AddPersistencia(builder.Configuration);

@@ -89,7 +89,7 @@ public static class CompressaoConfiguration
         // rede. No Brotli foi pior — `Fastest` é quality 1, que comprimiu 4,8x, PIOR que o
         // gzip, e como o Brotli é o preferido seria ele que o navegador receberia.
         //
-        // Medido em 17/09/2026, apuração de 50 KB (ver docs/COMPRESSAO.md):
+        // Medido em 17/09/2026, apuração de 50 KB (ver docs/plataforma/COMPRESSAO.md):
         //
         //             Fastest     Optimal
         //   gzip      7.594 B     5.587 B

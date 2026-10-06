@@ -5,7 +5,7 @@ namespace Epoca.Kpi.Api.Domain.Entities;
 /// `(=) RECEITAS LIQUIDAS`, que na 9815 abrem a mesma tela.
 ///
 /// <para>As colunas usam as fórmulas da apuração, não as da 9815. Ver
-/// `docs/DIVERGENCIAS.md` §4 — a tela original não soma o valor da linha clicada.</para>
+/// `docs/rotinas/9815-dre-gerencial/DIVERGENCIAS.md` §4 — a tela original não soma o valor da linha clicada.</para>
 /// </summary>
 public class DetalheClienteDre
 {

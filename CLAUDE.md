@@ -7,34 +7,20 @@ literal** da tela antiga.
 - **Empresa:** Época Distribuição.
 - **Banco:** Oracle **19c Enterprise Edition High Performance** (19.32) **da Época**. O Winthor
   é o ERP cujas tabelas (`PC*`) vivem nessa base.
-- **Rotina piloto:** 9815 — *GERENCIAL / DRE*. Vira o molde para as próximas.
 - **Referência arquitetural:** `api-minas-rural` (.NET 10) e `client-minas-rural` (Next.js 16).
 
-## Estado atual
+**As regras imperativas estão em [AGENTS.md](AGENTS.md)** — leia antes de escrever código.
+**A documentação começa em [docs/README.md](docs/README.md).**
 
-| Fase | O quê | Situação |
+## Rotinas
+
+| Rotina | Situação | Onde |
 |---|---|---|
-| 0 | Levantamento da 9815 | ✅ [docs/ROTINA_9815_LEVANTAMENTO.md](docs/ROTINA_9815_LEVANTAMENTO.md) |
-| 1 | Arquitetura e scaffold | ✅ API e front sobem, health check ok |
-| 2 | Documentação | ✅ este arquivo e `docs/` |
-| 3 | Skills do projeto | ✅ 4 skills em `.claude/skills/` |
-| 4 | Implementação da 9815 | ✅ as 4 dimensões implementadas e conferidas — [docs/DIVERGENCIAS.md](docs/DIVERGENCIAS.md) |
-| 4.1 | Detalhamento por duplo clique | ✅ **162/162 fecham ao centavo** — [ROTINA_9815 §16](docs/ROTINA_9815.md) |
-| 4.2 | Recursos da tela web | ✅ reordenar, tema, tela cheia, impressão — §15, §17, §18 |
-| 4.3 | Centro de custo por **conta principal** | ✅ 34 linhas viram 60 — **45/45 contra a 9815** ([DIVERGENCIAS §12](docs/DIVERGENCIAS.md)) |
-| 5 | Homologação — matriz de cenários | ⬜ [docs/HOMOLOGACAO.md](docs/HOMOLOGACAO.md) · **a matriz está desatualizada**, ver os riscos em DIVERGENCIAS |
+| **9815 — GERENCIAL / DRE** | implementada; homologação em aberto | [docs/rotinas/9815-dre-gerencial/](docs/rotinas/9815-dre-gerencial/README.md) |
 
-**Em aberto, em ordem de risco** (detalhe na tabela de riscos de `DIVERGENCIAS.md`):
-
-| | |
-|---|---|
-| **Filtro por fornecedor** | **implementado** — apuração, rateio, tela e detalhamento (dc74, dc77, dc78). Falta o financeiro decidir as linhas marcadas como divergência na carga da tabela de vínculo, e segue aberta a divergência da `MANUTENCAO DE VEICULOS` — ver [docs/FILTRO_FORNECEDOR.md](docs/FILTRO_FORNECEDOR.md) |
-| O duplo clique **pela tela** | a API fecha 162/162, mas as telas novas nunca foram percorridas pela interface com dado real |
-| Tempo das consultas de imposto | nunca medido isoladamente — a dc6 só dá o total da execução |
-| Período de 3 meses e todas as filiais juntas | **custo medido em 17/09** — 173 s e 122,7 KB (dc41); os valores nunca foram conferidos contra a 9815 |
-| `% AH` em Conta Gerencial | a exportação usada saiu sem análise horizontal |
-| **O lucro subiu R$ 1,71 mi** | `Manutencao De Veiculos` e `PNEUS E CAMARAS` saíram do bloco informativo e entraram nas despesas operacionais, a pedido. As duas aparecem com **sinal positivo**, então o lucro **sobe** — vale confirmar com o financeiro que é o efeito esperado ([DIVERGENCIAS §14](docs/DIVERGENCIAS.md)) |
-| **Agosto/2026 não fecha** | `VERBAS MARGEM` diverge R$ 150.930,28 — 83 lançamentos retroativos entrados em 22/09. Junho fecha 45/45 no mesmo dia ([dc63](docs/validacao/dc63_verbas_margem_150_mil.sql)) |
+A 9815 foi a piloto e virou o molde: uma rotina nova copia a estrutura dela, não o conteúdo.
+Para abrir a próxima, a skill é `new-rotina`, e o passo a passo está em
+[docs/plataforma/ARQUITETURA.md](docs/plataforma/ARQUITETURA.md).
 
 ## Stack
 
@@ -47,7 +33,7 @@ literal** da tela antiga.
 | CRUD em tabelas novas | EF Core 10 (`Oracle.EntityFrameworkCore`) — **ainda não instalado** |
 | Driver | `Oracle.ManagedDataAccess.Core` 23.26 (ODP.NET) |
 | Banco | Oracle 19c EE High Performance (19.32) |
-| Auth | JWT — **fora do escopo do piloto** |
+| Auth | JWT — ver [AUTENTICACAO.md](docs/plataforma/AUTENTICACAO.md) |
 | Docs da API | OpenAPI nativo + Scalar (`/scalar/v1`) |
 
 **Front-end** (`client-new-kpi/`)
@@ -58,7 +44,7 @@ literal** da tela antiga.
 | Estilo | Tailwind CSS 4 (tokens em `app/globals.css`) |
 | Dados do servidor | React Query v5 |
 | HTTP | `services/apiClient.ts` — fetch nativo, sem axios |
-| Excel | SheetJS `xlsx` 0.20.3 — **da CDN oficial**, não do npm (ver [ROTINA_9815 §20.2](docs/ROTINA_9815.md)) |
+| Excel | SheetJS `xlsx` 0.20.3 — **da CDN oficial**, não do npm |
 | Tipos | TypeScript strict, com `noUncheckedIndexedAccess` |
 
 Toda biblioteca nova passa por aprovação do Gabriel antes de ser instalada.
@@ -70,7 +56,7 @@ api-new-kpi/
 ├── Domain/{Entities,Interfaces}/
 ├── Application/
 │   ├── Common/          Result<T> · ApiResponse<T> · PagedResult<T> · IModuleInstaller
-│   └── Features/        um diretório por rotina — hoje só DreGerencial/
+│   └── Features/        um diretório por rotina
 ├── Infrastructure/
 │   ├── Persistence/{Context,Repositories,Queries}/
 │   └── Services/
@@ -84,66 +70,36 @@ client-new-kpi/
 ├── components/{layout,ui}/
 ├── context/  hooks/  lib/  services/  types/
 
-docs/                    documentação do monólito (raiz, não por projeto)
+docs/
+├── plataforma/          vale para qualquer rotina
+└── rotinas/<rotina>/    tudo o que é só de uma
 ```
 
 ## Padrões
 
-- **Repository Pattern** — interfaces em `Domain/Interfaces/`, implementação em `Infrastructure/`.
-- **`Result<T>`** para fluxo de negócio, sem exceptions. **`ApiResponse<T>`** como envelope HTTP.
+- **Repository Pattern** — interfaces em `Domain/Interfaces/`, implementação em
+  `Infrastructure/`.
+- **`Result<T>`** para fluxo de negócio, sem exceptions. **`ApiResponse<T>`** como envelope
+  HTTP.
 - **Records** para DTOs; **class com `init`** para entidades mapeadas por Dapper.
 - **Dapper** para tabelas legadas e stored procedures. **EF Core** só para tabelas novas com
   prefixo próprio — migration **nunca** roda em tabela legada.
 - Pipeline: GlobalException → NoStore → CORS → Authentication → Authorization → Controllers.
-- Um módulo por rotina, descoberto por reflexão. Ver [docs/ARQUITETURA.md](docs/ARQUITETURA.md).
+- Um módulo por rotina, descoberto por reflexão.
+- **Toda tela leva `<ControlesDeExibicao />`**, e todo efeito visual tem de existir nos dois
+  temas — com as outras regras de tela em
+  [PADROES_DE_TELA.md](docs/plataforma/PADROES_DE_TELA.md).
 
-### Toda tela leva `<ControlesDeExibicao />`
+## O que vale para toda rotina migrada
 
-**Tema claro e leitura ampliada vão em todas as páginas, sem exceção — inclusive o login.**
-Regra do Gabriel em 16/09/2026. Não são preferência de uma rotina, são preferência de quem
-está lendo: quem precisa de fonte grande precisa dela na tela de entrada também, e uma tela
-sem o controle obriga a pessoa a atravessá-la no tamanho errado para só então poder ajustar.
+**A versão web produz os mesmos números da rotina Delphi, inclusive nos pontos que parecem
+defeito.** Decisão do Gabriel em 27/08/2026. Quando um número tiver de divergir, ele é
+medido, explicado e aprovado no `DIVERGENCIAS.md` da rotina — o que não estiver lá é defeito,
+não escolha.
 
-O componente está em `components/layout/ControlesDeExibicao.tsx`, e o `AppShell` já o inclui —
-uma rotina nova que use a casca não precisa fazer nada. Tela fora da casca (como o login) o
-posiciona por conta própria, no alto à direita.
-
-**Consequência para qualquer efeito visual:** ele tem de existir nos dois temas. O campo de
-estrelas do login mostrou o preço de ignorar isso — no claro ele saía com opacidade média de
-23 em 255, invisível, e a correção não foi cor: um círculo de meio pixel é quase todo
-antialiasing, e o que sobra desaparece contra o branco. Meça, não olhe.
-
-## Regras de negócio críticas
-
-A versão web da 9815 tem que produzir **exatamente os mesmos números** da rotina Delphi,
-inclusive nos pontos que parecem defeito. Decisão do Gabriel em 27/08/2026. Os quatro casos
-que mais confundem quem lê o SQL pela primeira vez:
-
-1. **`RECEITAS LIQUIDAS = RECEITA BRUTA − ABAT./DESC. − DEVOLUCAO`.** ST, PIS e COFINS
-   **não são deduzidos** — são linhas informativas, com selo `INFORMATIVO` na tela web
-   (a 9815 escreve `NÃO SOMA`).
-   Verificado ao centavo contra 4 cenários exportados.
-2. **Regime altera apenas a data das despesas.** Caixa usa `nvl(DTPAGTO, DTVENC)`,
-   competência usa `dtcompetencia`. Receita, deduções e CMV são idênticos nos dois.
-3. **O mês da coluna acompanha o regime** — caixa por `nvl(DTPAGTO, DTVENC)`, competência por
-   `nvl(DTCOMPETENCIA, DTVENC)`. A rotina é coerente neste ponto.
-4. **Despesa não paga nunca entra no DRE**, nem em competência (`DTPAGTO IS NOT NULL`).
-   Confirmado como correto — manter.
-
-O detalhamento está em [docs/ROTINA_9815.md](docs/ROTINA_9815.md) e no levantamento.
-
-### As mudanças aprovadas se acumulam — e nenhuma branch as desfaz
-
-Além dos quatro casos acima, o Gabriel pediu mudanças que **alteram** o comportamento da
-9815 de propósito. Todas estão numeradas em [DIVERGENCIAS.md](docs/DIVERGENCIAS.md), com
-data e com o script que as mede, e a lista cresce. Uma branch nova herda todas.
-
-**Antes de abrir trabalho e antes de entregar, traga a `main`** — `git log --oneline HEAD..main`
-tem de vir vazio. Branch atrasada e regra revertida produzem a MESMA tela, e só o histórico
-distingue uma da outra: em 02/10/2026 a subida de `Manutencao De Veiculos` e
-`PNEUS E CAMARAS` pareceu desfeita pelo filtro por fornecedor, e na verdade a branch nunca
-a tivera. A conferência está em DIVERGENCIAS, na seção *As regras que nenhuma branch pode
-desfazer*.
+**As mudanças aprovadas se acumulam, e nenhuma branch as desfaz.** Antes de abrir trabalho e
+antes de entregar, traga a `main`: `git log --oneline HEAD..main` tem de vir vazio. Branch
+atrasada e regra revertida produzem a MESMA tela, e só o histórico distingue uma da outra.
 
 ## Rodar
 
@@ -158,19 +114,5 @@ cd client-new-kpi && npm run dev
 No VS Code: `F5` → `▶ API + Front`. Front em `:3000`, API em `:5207`, Scalar em `/scalar/v1`.
 
 Para conectar no banco, copie `api-new-kpi/appsettings.example.json` para
-`appsettings.Development.json` e preencha `ConnectionStrings:OracleEpoca`. O arquivo está
-no `.gitignore`.
-
-## Documentação
-
-| Arquivo | Assunto |
-|---|---|
-| [AGENTS.md](AGENTS.md) | regras imperativas para agentes |
-| [docs/ARQUITETURA.md](docs/ARQUITETURA.md) | modularização e como adicionar uma rotina |
-| [docs/ROTINA_9815.md](docs/ROTINA_9815.md) | especificação da 9815 **na web** |
-| [docs/ROTINA_9815_LEVANTAMENTO.md](docs/ROTINA_9815_LEVANTAMENTO.md) | o que a 9815 **é hoje** no Winthor |
-| [docs/SCHEMA_BANCO.md](docs/SCHEMA_BANCO.md) | tabelas, colunas, leitura vs. escrita |
-| [docs/CONVENCOES_ORACLE.md](docs/CONVENCOES_ORACLE.md) | ODP.NET, Dapper, armadilhas reais |
-| [docs/HOMOLOGACAO.md](docs/HOMOLOGACAO.md) | matriz de cenários a conferir contra a 9815 |
-| [docs/DIVERGENCIAS.md](docs/DIVERGENCIAS.md) | **toda** diferença numérica entre a web e a 9815 |
-| [docs/FILTRO_FORNECEDOR.md](docs/FILTRO_FORNECEDOR.md) | o filtro por fornecedor — a mecânica lida no `UBase.pas` e **a tabela de vínculo** |
+`appsettings.Development.json` e preencha `ConnectionStrings:OracleEpoca`. O arquivo está no
+`.gitignore`.

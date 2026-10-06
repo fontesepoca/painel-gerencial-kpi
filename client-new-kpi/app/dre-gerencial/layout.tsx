@@ -18,7 +18,7 @@ import { ROTINA_DRE, podeAbrir } from "@/lib/rotinas";
  *
  * <b>O que isto NÃO faz.</b> Não protege a API: as rotas de `/api/dre-gerencial` continuam sem
  * `[Authorize]`, e quem montar a chamada à mão alcança os dados sem passar por aqui. Este é o
- * bloqueio da PÁGINA; o da API é a fase seguinte, registrada em `docs/AUTENTICACAO.md`.
+ * bloqueio da PÁGINA; o da API é a fase seguinte, registrada em `docs/plataforma/AUTENTICACAO.md`.
  */
 export default async function LayoutDoDre({
   children,

@@ -33,7 +33,7 @@ export type ModoPeriodo = "meses" | "anos" | "comparar-anos";
  * `codFornecPrinc` existe para a tela AVISAR, não para filtrar: quem escolhe a Gillette
  * merece saber que há outros dois cadastros da mesma empresa e que este DRE não os inclui.
  * O filtro continua sendo por CÓDIGO, e um cadastro não puxa o outro — ver
- * `docs/FILTRO_FORNECEDOR.md`.
+ * `docs/rotinas/9815-dre-gerencial/FILTRO_FORNECEDOR.md`.
  */
 export interface Fornecedor {
   codFornec: number;
@@ -410,7 +410,7 @@ export const REGIMES: ReadonlyArray<{ valor: Regime; rotulo: string }> = [
  * **Sem textos de aviso.** C. Custo Principal e Centro de Custo carregavam uma nota sob o
  * campo, dizendo que divergem da 9815 com mais de uma filial e que Centro de Custo nunca
  * funcionou lá. As duas saíram por decisão do Gabriel em 02/09/2026: isso é assunto de
- * `docs/DIVERGENCIAS.md`, não de quem está escolhendo uma dimensão para apurar.
+ * `docs/rotinas/9815-dre-gerencial/DIVERGENCIAS.md`, não de quem está escolhendo uma dimensão para apurar.
  */
 export const ANALISES: ReadonlyArray<{
   valor: Analise;

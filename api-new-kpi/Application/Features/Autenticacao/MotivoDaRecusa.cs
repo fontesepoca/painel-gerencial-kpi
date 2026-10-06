@@ -5,7 +5,7 @@ namespace Epoca.Kpi.Api.Application.Features.Autenticacao;
 ///
 /// <para><b>Por que as mensagens são diferentes entre si.</b> O conselho corrente é responder
 /// sempre "usuário ou senha inválidos", para não revelar se a conta existe. Aqui esse conselho
-/// não se aplica, e a decisão está registrada em <c>docs/AUTENTICACAO.md</c>: o sistema é
+/// não se aplica, e a decisão está registrada em <c>docs/plataforma/AUTENTICACAO.md</c>: o sistema é
 /// interno, quem digita já é funcionário, e o painel antigo nunca escondeu isso. Do outro lado
 /// da balança há 2.810 pessoas sem senha cadastrada e oito com acesso ao DRE que estão como
 /// inativas — todas elas, com a mensagem genérica, tentariam de novo achando que erraram a

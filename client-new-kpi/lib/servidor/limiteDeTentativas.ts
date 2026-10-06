@@ -2,7 +2,7 @@
  * Freio nas tentativas de login.
  *
  * A senha é a do Winthor, tem oito horas de validade por sessão e é comparada **sem
- * diferenciar maiúsculas** — herança do painel antigo, registrada em `docs/AUTENTICACAO.md`.
+ * diferenciar maiúsculas** — herança do painel antigo, registrada em `docs/plataforma/AUTENTICACAO.md`.
  * Isso encurta o espaço de busca, e sem freio nenhum a tela de login aceitaria milhares de
  * tentativas por minuto contra a senha de qualquer funcionário cujo nome de guerra alguém
  * conheça.
