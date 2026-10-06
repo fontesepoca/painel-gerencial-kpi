@@ -9,7 +9,7 @@ registrada. O que não estiver aqui é defeito, não escolha.
 cada exceção precisa de três coisas: a medida, o motivo de não ser reproduzível, e
 a aprovação do Gabriel.
 
-**Última revisão:** 14/09/2026.
+**Última revisão:** 06/10/2026.
 
 ---
 
@@ -30,6 +30,7 @@ a aprovação do Gabriel.
 | [12](#12-a-linha-é-a-conta-principal-e-não-os-dois-primeiros-dígitos--22092026) | O centro de custo deixa de ser agrupado por dois dígitos | C. Custo Principal | **nenhum valor muda** — 34 linhas viram 60 | **a pedido** em 22/09/2026 · dc61, dc62 e **dc64 45/45** |
 | [14](#14-manutencao-de-veiculos-e-pneus-e-camaras-entram-nos-cálculos--25092026) | `Manutencao De Veiculos` e `PNEUS E CAMARAS` saem do bloco informativo e somam nas despesas operacionais | todas | **+R$ 1.709.994,73** no lucro de julho/2026 na filial 7 | **a pedido** em 25/09/2026 · dc34, dc62 e dc71 |
 | [15](#15-o-detalhamento-respeita-o-filtro-por-fornecedor--02102026) | Detalhamento com fornecedor filtrado | todas as telas de duplo clique | a despesa inteira da filial, contra a fatia do fornecedor | **a pedido** em 02/10/2026 · dc78 12/12 |
+| [16](#16-a-coluna-ah--no-bloco-de-total--06102026) | Coluna `AH %` no total — soma dos `%AH`, **não** a variação do período | todas, só com mais de um mês | **nenhum valor muda** — coluna nova | **a pedido** em 06/10/2026 · dc13 43/43 |
 
 ---
 
@@ -2401,3 +2402,62 @@ a duplicata de PNEUS — ela é do cadastro, não nossa. O commit é único e is
 
 dc34, dc62, dc65 e dc9 passam. dc11 (2 de 10) e dc23 (8 de 24) falham **exatamente como antes**
 — mesmas linhas, mesmos valores, confirmado com `git stash`.
+
+---
+
+## 16. A coluna `AH %` no bloco de total — 06/10/2026
+
+**Pedido do Gabriel, direto na `main`.** Quando o período tem mais de um mês — e portanto
+existe `%AH` —, o bloco de total passa a fechar com uma coluna nova: a **soma aritmética** dos
+`%AH` daquela linha. A 9815 não tem essa coluna; nenhum valor existente muda.
+
+### A leitura é uma escolha, e ela tem consequência
+
+A coluna responde **"quanto somam os percentuais que estão na tela"**, e não *"quanto a conta
+variou no período"*. São perguntas diferentes, e a primeira foi a pedida.
+
+Uma conta de 100 → 150 → 120, em três meses:
+
+| | jan | fev | mar | coluna `AH %` |
+|---|---|---|---|---|
+| valor | 100,00 | 150,00 | 120,00 | — |
+| `%AH` | 0,000 | +50,000 | −20,000 | **+30,000** |
+
+A conta variou **+20%** no período (`120 ÷ 100 − 1`), que é o que o produto dos fatores daria.
+A coluna mostra **+30%**, que é a soma do que está nas células. **Quem ler a coluna como
+"quanto a conta cresceu" vai encontrar uma diferença que não é defeito — é a definição.**
+
+A escolha foi informada, entre três leituras, e o critério foi este: o número é conferível de
+olho, somando a linha. Quem precisa da variação do período tem a coluna `Δ %` dos modos de
+comparação, que faz exatamente a outra conta.
+
+### Nulo é ausência, não zero
+
+O `%AH` vem nulo quando a coluna anterior é zero: ali não existe proporção que descreva a
+mudança, e somar zero no lugar afirmaria uma estabilidade que ninguém mediu. Com todas as
+colunas nulas, a célula fica vazia. A primeira coluna entra como `0`, que é o que a API já
+manda — ela não tem anterior.
+
+### Onde a soma é feita, e por que não na API
+
+Em `client-new-kpi/lib/ahDoTotal.ts`, sobre os valores **que estão na tela**. Reordenar linhas
+refaz os `%AH` (divergência 11), e a soma tem de acompanhar o que o olho vê. O Excel chama a
+**mesma** função, e não uma soma escrita de novo: duas somas do mesmo número divergem no
+primeiro dia em que alguém mudar o tratamento do nulo.
+
+A coluna some junto quando o checkbox `AH %` é desmarcado, e não aparece com um mês só —
+ela soma justamente o que está lá.
+
+### Como reverter
+
+Tirar a coluna de `TabelaDre.tsx` e de `exportarExcel.ts`, e voltar o `colunasDoFim` para
+`2 + (mostrarAv ? 1 : 0)`. O `ahDoTotal.ts` fica órfão e pode sair junto. **Atenção ao
+`colunasDoFim`**: se ele não voltar, a faixa colorida de cada mês passa a cobrir célula do mês
+seguinte, e o cabeçalho mente sobre a que período pertence cada valor.
+
+### Conferido
+
+[dc13](validacao/dc13_excel_da_apuracao.mjs) — **43/43**, de 39 que eram: contagem de colunas
+com e sem cada checkbox, merges `[3, 3, 4]`, a posição (`AH %` última, `Média` penúltima), o
+valor contra a soma recalculada, e a ausência da coluna com um mês só. Conferida na tela pelo
+Gabriel em 06/10/2026.
