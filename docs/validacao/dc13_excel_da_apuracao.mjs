@@ -87,7 +87,7 @@ const matriz = matrizDaApuracao(dados, dados.linhas);
 eq(matriz.length, 4, "duas linhas de cabeçalho e duas de conta");
 eq(matriz[0][1].v, "Julho/2026", "faixa dos meses");
 eq(matriz[1][0].v, "Descrição", "rótulo da primeira coluna");
-eq(matriz[1].length, 10, "1 descrição + 2 meses x 3 + total x 3");
+eq(matriz[1].length, 11, "1 descrição + 2 meses x 3 + total x 4 (valor, AV, média, AH)");
 
 // O que este arquivo existe para garantir: número é número.
 eq(typeof matriz[2][1].v, "number", "valor de julho é número");
@@ -106,7 +106,7 @@ matriz.forEach((l, r) => {
     if (alvo) alvo.z = celula.z;
   });
 });
-planilha["!cols"] = Array.from({ length: 10 }, (_, i) => ({ wch: i === 0 ? 52 : 16 }));
+planilha["!cols"] = Array.from({ length: 11 }, (_, i) => ({ wch: i === 0 ? 52 : 16 }));
 planilha["!merges"] = [
   { s: { r: 0, c: 1 }, e: { r: 0, c: 3 } },
   { s: { r: 0, c: 4 }, e: { r: 0, c: 6 } },
@@ -182,8 +182,8 @@ eq(
 );
 
 // A matriz mensal continua com o bloco de total, inclusive quando `modo` não vem.
-eq(matrizDaApuracao(dados, dados.linhas)[1].length, 10, "o modo mensal mantém as 10 colunas");
-eq(matrizDaApuracao({ ...dados, modo: undefined }, dados.linhas)[1].length, 10, "e sem modo também");
+eq(matrizDaApuracao(dados, dados.linhas)[1].length, 11, "o modo mensal mantém as 11 colunas");
+eq(matrizDaApuracao({ ...dados, modo: undefined }, dados.linhas)[1].length, 11, "e sem modo também");
 
 // ── AS COLUNAS DE ANÁLISE DESLIGÁVEIS ────────────────────────────────────────
 //
@@ -196,15 +196,15 @@ eq(matrizDaApuracao({ ...dados, modo: undefined }, dados.linhas)[1].length, 10, 
 
 const colunasDe = (m) => m[1].length;
 
-eq(colunasDe(matrizDaApuracao(dados, dados.linhas, { av: true, ah: true })), 10,
-   "com as duas ligadas, as 10 colunas de sempre");
+eq(colunasDe(matrizDaApuracao(dados, dados.linhas, { av: true, ah: true })), 11,
+   "com as duas ligadas: 1 + 2x(valor, AV, AH) + (valor, AV, média, AH)");
 
 // Dois meses: cada um perde o %AV, e o bloco de total também.
-eq(colunasDe(matrizDaApuracao(dados, dados.linhas, { av: false, ah: true })), 7,
-   "sem %AV sobram 7: descrição + 2x(valor, AH) + (valor, média)");
+eq(colunasDe(matrizDaApuracao(dados, dados.linhas, { av: false, ah: true })), 8,
+   "sem %AV sobram 8: descrição + 2x(valor, AH) + (valor, média, AH)");
 
 eq(colunasDe(matrizDaApuracao(dados, dados.linhas, { av: true, ah: false })), 8,
-   "sem %AH sobram 8: descrição + 2x(valor, AV) + (valor, AV, média)");
+   "sem %AH sobram 8 — e a soma dos AH some junto: descrição + 2x(valor, AV) + (valor, AV, média)");
 
 eq(colunasDe(matrizDaApuracao(dados, dados.linhas, { av: false, ah: false })), 5,
    "sem as duas sobram 5: descrição + 2 valores + (valor, média)");
@@ -214,7 +214,7 @@ eq(colunasDe(matrizDaApuracao(dados, dados.linhas, { av: false, ah: false })), 5
 eq(
   matrizDaApuracao(dados, dados.linhas, { av: false, ah: false })[1].map((c) => c.v),
   ["Descrição", "Valor", "Valor", "Valor", "Média"],
-  "os rótulos ficam na ordem, e a Média continua — ela não é análise",
+  "sem as duas, sobra o dinheiro: a Média continua, porque não é análise",
 );
 
 // E a FAIXA DE MÊS acompanha: uma célula com o rótulo e as demais vazias, tantas quantas
@@ -239,8 +239,8 @@ eq(
   const comTudo = planilhaDaApuracao(dados, dados.linhas, { av: true, ah: true });
   eq(
     comTudo.merges.map((m) => m.e.c - m.s.c + 1),
-    [3, 3, 3],
-    "e com as duas ligadas volta a 3, 3, 3",
+    [3, 3, 4],
+    "com as duas ligadas cada mês mescla 3 e o total mescla 4 — a soma dos AH entra aqui",
   );
 
   // O último merge tem de terminar na última coluna da matriz. Se sobrar ou faltar, a
@@ -249,6 +249,38 @@ eq(
     semNada.merges.at(-1).e.c,
     colunasDe(matrizDaApuracao(dados, dados.linhas, { av: false, ah: false })) - 1,
     "o último merge termina exatamente na última coluna",
+  );
+}
+
+// ── A SOMA DOS %AH NO TOTAL ──────────────────────────────────────────────────
+//
+// Soma ARITMÉTICA, decidida em 06/10/2026 entre três leituras possíveis. Com uma conta
+// que vai de 100 para 150 e depois para 120, os %AH são 0, +50 e −20, e a coluna mostra
+// +30 — não os +20 que a conta de fato variou no período. A escolha foi informada: o
+// número é conferível somando a linha com os olhos.
+{
+  const rotulos = matrizDaApuracao(dados, dados.linhas)[1].map((c) => c.v);
+  eq(rotulos.at(-1), "AH %", "a soma dos AH é a última coluna da planilha");
+  eq(rotulos.at(-2), "Média", "e vem depois da Média, como na tela");
+
+  // O valor: a soma dos %AH das colunas daquela linha.
+  const linha = dados.linhas[0];
+  const esperado = linha.valores.reduce(
+    (soma, v) => (v.percentualAh === null ? soma : soma + v.percentualAh),
+    0,
+  );
+  const corpo = matrizDaApuracao(dados, dados.linhas).slice(2);
+  eq(corpo[0].at(-1).v, esperado, "e o valor é a soma dos %AH daquela linha");
+}
+
+// Com um mês só não há %AH para somar, e a coluna não existe.
+{
+  const umMes = { ...dados, periodos: [dados.periodos[0]] };
+  const rotulos = matrizDaApuracao(umMes, umMes.linhas)[1].map((c) => c.v);
+  eq(
+    rotulos.includes("AH %"),
+    false,
+    "com um mês só a coluna de soma não aparece — não há variação que somar",
   );
 }
 

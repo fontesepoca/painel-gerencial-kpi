@@ -8,6 +8,7 @@ import {
   type Celula,
   type Planilha,
 } from "@/lib/excel";
+import { somaDosAh } from "@/lib/ahDoTotal";
 import { mostraVariacao, rotuloDaVariacao, variacao } from "@/lib/modosDePeriodo";
 import type { Apuracao, LinhaDre } from "@/types/dre-gerencial";
 
@@ -57,7 +58,11 @@ const TUDO: ColunasDeAnalise = { av: true, ah: true };
 function blocoFinal(dados: Apuracao, colunas: ColunasDeAnalise = TUDO) {
   return mostraVariacao(dados.modo, dados.periodos)
     ? { variacao: true as const, largura: 2, rotulo: rotuloDaVariacao(dados.modo, dados.periodos) }
-    : { variacao: false as const, largura: 2 + (colunas.av ? 1 : 0), rotulo: "Total" };
+    : {
+        variacao: false as const,
+        largura: 2 + (colunas.av ? 1 : 0) + (colunas.ah ? 1 : 0),
+        rotulo: "Total",
+      };
 }
 
 export function matrizDaApuracao(
@@ -66,7 +71,7 @@ export function matrizDaApuracao(
   colunas: ColunasDeAnalise = TUDO,
 ): Celula[][] {
   const multiMes = dados.periodos.length > 1;
-  const fim = blocoFinal(dados, colunas);
+  const fim = blocoFinal(dados, { ...colunas, ah: multiMes && colunas.ah });
 
   // O `%AH` só existe com duas colunas ou mais — ele compara com a anterior. É a mesma
   // regra da tela, e por isso a planilha de um mês nunca teve a coluna.
@@ -91,7 +96,13 @@ export function matrizDaApuracao(
     rotulos.push(
       ...(fim.variacao
         ? [txt("Δ Valor"), txt("Δ %")]
-        : [txt("Valor"), ...(colunas.av ? [txt("AV %")] : []), txt("Média")]),
+        : [
+            txt("Valor"),
+            ...(colunas.av ? [txt("AV %")] : []),
+            txt("Média"),
+            // A soma dos %AH fecha a linha, como na tela.
+            ...(comAh ? [txt("AH %")] : []),
+          ]),
     );
   }
 
@@ -112,6 +123,9 @@ export function matrizDaApuracao(
       celulas.push(num(linha.total.valor, MOEDA));
       if (colunas.av) celulas.push(num(linha.total.percentualAv, PERCENTUAL_3));
       celulas.push(num(linha.total.media, MOEDA));
+      // A MESMA função da tela, e não uma soma escrita de novo aqui: duas somas do mesmo
+      // número divergem no primeiro dia em que alguém mudar o tratamento do nulo.
+      if (comAh) celulas.push(num(somaDosAh(linha.valores), PERCENTUAL_3));
     }
 
     return celulas;
@@ -156,8 +170,8 @@ export function planilhaDaApuracao(
 
   // Junta as colunas de cada bloco sob o rótulo dele, como na tela. O último bloco pode
   // ter duas colunas em vez de três — daí a largura vir da lista, e não de um passo fixo.
-  const fim = blocoFinal(dados, analise);
   const comAh = dados.periodos.length > 1 && analise.ah;
+  const fim = blocoFinal(dados, { ...analise, ah: comAh });
   const larguras = dados.periodos.map(
     () => 1 + (analise.av ? 1 : 0) + (comAh ? 1 : 0),
   );

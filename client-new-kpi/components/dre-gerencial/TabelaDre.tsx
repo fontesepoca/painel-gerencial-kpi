@@ -19,6 +19,7 @@ import { useOrdemSalva } from "@/hooks/useOrdemSalva";
 import { passoDeRolagem } from "@/lib/rolagemAutomatica";
 import { filtrarLinhas } from "@/lib/filtrarLinhas";
 import { guardar } from "@/lib/detalheAberto";
+import { somaDosAh } from "@/lib/ahDoTotal";
 import { cn } from "@/lib/cn";
 import { descreverVariacao, lerVariacao } from "@/lib/leituraDaVariacao";
 import { formatarPercentual, formatarValor } from "@/lib/formato";
@@ -705,7 +706,12 @@ export function TabelaDre({
 
   // O bloco final: variação são duas colunas; o total é valor, %AV e média — e a média
   // fica, porque não é análise, é o valor médio das colunas.
-  const colunasDoFim = variacaoNoFim ? 2 : 2 + (mostrarAv ? 1 : 0);
+  // O bloco final: variação são duas colunas; o total é valor, %AV, média e a soma dos
+  // %AH — esta última só quando a coluna existe nos meses, porque ela soma justamente o
+  // que está lá. A média fica sempre: não é análise, é o valor médio das colunas.
+  const colunasDoFim = variacaoNoFim
+    ? 2
+    : 2 + (mostrarAv ? 1 : 0) + (mostrarAh ? 1 : 0);
 
   // Dois lados do comparativo podem cair no mesmo mês — 28/08–03/09 contra 05/09–11/09 põe
   // `Setembro/2026` duas vezes no cabeçalho. Aí, e só aí, o rótulo passa a levar os dias.
@@ -894,7 +900,7 @@ export function TabelaDre({
                 (variacaoNoFim ? (
                   <ColunasCabecalhoVariacao />
                 ) : (
-                  <ColunasCabecalho mostrarAv={mostrarAv} total />
+                  <ColunasCabecalho mostrarAv={mostrarAv} mostrarAh={mostrarAh} total />
                 ))}
             </tr>
           </thead>
@@ -1021,7 +1027,17 @@ function ColunasCabecalho({
       {/* A coluna some de verdade quando desligada — não fica uma `th` vazia ocupando
           largura. Era assim que o mês único desenhava a casa do `%AH`, e a casa vazia
           custava espaço numa tabela que já rola na horizontal. */}
-      {total ? <Th className="text-right">Média</Th> : mostrarAh ? <Th className="text-right">AH %</Th> : null}
+      {total ? (
+        <>
+          <Th className="text-right">Média</Th>
+          {/* A SOMA DOS %AH, no fim do bloco de total. Depois da Média e não antes dela:
+              a Média acompanha o Valor que está à esquerda — as duas falam de dinheiro —,
+              e a análise fecha a linha. */}
+          {mostrarAh && <Th className="text-right">AH %</Th>}
+        </>
+      ) : mostrarAh ? (
+        <Th className="text-right">AH %</Th>
+      ) : null}
     </>
   );
 }
@@ -1343,6 +1359,11 @@ function Linha({
             av={linha.total.percentualAv}
             participacao={comFornecedor && linha.papel === "receitas-liquidas"}
             mostrarAv={mostrarAv}
+            mostrarAh={mostrarAh}
+            // A soma dos %AH das colunas desta linha — ver `somaDosAh`. Sai daqui, e não
+            // da API, porque é dos valores QUE ESTÃO NA TELA: reordenar linhas refaz os
+            // %AH, e a soma tem de acompanhar o que o olho vê.
+            ah={somaDosAh(linha.valores)}
             media={linha.total.media}
             maiorAv={maiorAv}
             totalDaLinha={linha.total.valor}
@@ -1435,9 +1456,19 @@ function BlocoMes({
       )}
 
       {total ? (
-        <td className={cn(celula, "bg-[var(--surface-2)] text-right", corValor(media ?? 0))}>
-          {formatarValor(media ?? 0)}
-        </td>
+        <>
+          <td className={cn(celula, "bg-[var(--surface-2)] text-right", corValor(media ?? 0))}>
+            {formatarValor(media ?? 0)}
+          </td>
+          {mostrarAh && (
+            <td className={cn(celula, "bg-[var(--surface-2)] text-right")}>
+              {/* O MESMO componente das colunas de mês, e de propósito: a soma é um %AH
+                  como os outros, e lê-la com outra cor ou outro sinal faria o olho
+                  procurar uma diferença que não existe. */}
+              <Variacao percentual={ah ?? null} valorDaLinha={totalDaLinha} />
+            </td>
+          )}
+        </>
       ) : mostrarAh ? (
         <td className={cn(celula, "text-right")}>
           <Variacao percentual={ah ?? null} valorDaLinha={totalDaLinha} />
