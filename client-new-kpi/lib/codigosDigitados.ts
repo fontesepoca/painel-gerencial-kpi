@@ -54,19 +54,38 @@ export function lerDigitacao(texto: string): Digitacao {
 }
 
 /**
- * Tudo o que foi digitado, inclusive o último pedaço — o que vale quando o popover fecha.
+ * Todos os códigos que estão escritos, inclusive o último pedaço — o que o <b>Enter</b> leva.
+ *
+ * O Enter é confirmação explícita: quem o tecla disse que terminou, e `29,253` ou `29` valem
+ * igual. É o mesmo gesto de quem digita a vírgula, e por isso leva ao mesmo lugar.
+ */
+export function codigosDigitados(texto: string): number[] {
+  const { confirmados, pendente } = lerDigitacao(texto);
+  const ultimo = codigoDe(pendente);
+
+  // Sem vírgula nenhuma o texto inteiro é o "pendente" — e `lerDigitacao` devolve o pendente
+  // vazio nesse caso, porque para ela o campo ainda é uma busca. Aqui o texto todo conta.
+  const sozinho = codigoDe(texto);
+
+  if (sozinho !== null) return [sozinho];
+
+  return semRepetir(ultimo === null ? confirmados : [...confirmados, ultimo]);
+}
+
+/**
+ * O que vale quando o popover FECHA — os mesmos códigos, mas só em modo lista.
  *
  * `29,253` sem a vírgula final são dois códigos: a pessoa clicou fora porque terminou, e
  * exigir a vírgula do fim seria cobrar pontuação de quem já disse o que queria.
  *
  * <b>Sem nenhuma vírgula, nada é escolhido.</b> `29` sozinho é uma BUSCA — a pessoa está
- * olhando a lista para decidir, e fechar o popover é desistir, não confirmar. Escolher por
- * ela poria no filtro um fornecedor que ela nunca marcou, e o DRE sairia menor sem que nada
- * na tela explicasse por quê.
+ * olhando a lista para decidir, e clicar fora é desistir, não confirmar. Escolher por ela
+ * poria no filtro um fornecedor que ela nunca marcou, e o DRE sairia menor sem que nada na
+ * tela explicasse por quê.
+ *
+ * <b>É aqui que o Enter difere do clique fora</b>, e a diferença é o gesto: teclar Enter é
+ * dizer "este"; clicar em outro lugar é ir embora.
  */
 export function codigosAoFechar(texto: string): number[] {
-  const { confirmados, pendente } = lerDigitacao(texto);
-  const ultimo = codigoDe(pendente);
-
-  return semRepetir(ultimo === null ? confirmados : [...confirmados, ultimo]);
+  return lerDigitacao(texto).modoLista ? codigosDigitados(texto) : [];
 }

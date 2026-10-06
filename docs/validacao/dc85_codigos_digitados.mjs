@@ -8,7 +8,11 @@
  * no filtro não dá erro nenhum, só muda o DRE.
  */
 import assert from "node:assert/strict";
-import { codigosAoFechar, lerDigitacao } from "../../client-new-kpi/lib/codigosDigitados.ts";
+import {
+  codigosAoFechar,
+  codigosDigitados,
+  lerDigitacao,
+} from "../../client-new-kpi/lib/codigosDigitados.ts";
 
 let n = 0;
 const eq = (achou, esperado, oque) => {
@@ -39,6 +43,16 @@ eq(codigosAoFechar("29,253,"), [29, 253], "e a vírgula sobrando não muda nada"
 // olhando a lista faria o DRE sair menor sem nada na tela explicando por quê.
 eq(codigosAoFechar("29"), [], "`29` sozinho é busca: fechar não seleciona");
 eq(codigosAoFechar("PROCTER"), [], "nome sozinho também não");
+
+// ── O QUE O ENTER LEVA ────────────────────────────────────────────────────────
+// Teclar Enter é confirmação explícita, e por isso ele leva MAIS do que o clique fora: o
+// `29` sozinho entra. A diferença é o gesto — Enter é dizer "este", clicar fora é ir embora.
+eq(codigosDigitados("29,253"), [29, 253], "Enter com `29,253` leva os dois");
+eq(codigosDigitados("29,253,"), [29, 253], "e a vírgula sobrando não muda nada");
+eq(codigosDigitados("29"), [29], "Enter com `29` sozinho leva o 29 — o clique fora não leva");
+eq(codigosDigitados(" 29 "), [29], "espaço em volta não atrapalha");
+eq(codigosDigitados("PROCTER"), [], "Enter sobre nome não escolhe ninguém: a escolha é na lista");
+eq(codigosDigitados(""), [], "Enter no campo vazio não faz nada");
 
 // ── O QUE NÃO É CÓDIGO ────────────────────────────────────────────────────────
 eq(lerDigitacao("PROCTER,").confirmados, [], "nome antes da vírgula não vira código");

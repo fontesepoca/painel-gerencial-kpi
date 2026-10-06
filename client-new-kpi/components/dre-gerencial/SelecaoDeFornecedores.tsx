@@ -1,8 +1,11 @@
 "use client";
 
+// Apelidado: o `KeyboardEvent` do React e o do DOM tem o mesmo nome, e o listener de
+// Escape la embaixo usa o do DOM.
+import type { KeyboardEvent as TeclaReact } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/cn";
-import { codigosAoFechar, lerDigitacao } from "@/lib/codigosDigitados";
+import { codigosAoFechar, codigosDigitados, lerDigitacao } from "@/lib/codigosDigitados";
 import { useBuscarFornecedores, useFornecedoresPorCodigo } from "@/hooks/useDreGerencial";
 import type { Fornecedor } from "@/types/dre-gerencial";
 
@@ -211,6 +214,35 @@ export function SelecaoDeFornecedores({
     setNaoEncontrados([]);
   }, [aberto, pedir]);
 
+  /**
+   * O ENTER vale pela vírgula.
+   *
+   * Quem digitou `29,253` e teclou Enter disse que terminou — é o mesmo gesto de quem fecha
+   * o código com a vírgula, e leva ao mesmo lugar. O campo esvazia para o próximo, e o
+   * popover <b>fica aberto</b>: as fichas logo acima são a resposta, e fechar a caixa
+   * esconderia justamente a confirmação do que acabou de entrar.
+   *
+   * <b>Aqui o `29` sozinho entra</b>, e no clique fora não. A diferença é o gesto: teclar
+   * Enter é dizer "este", clicar em outro lugar é ir embora.
+   *
+   * Nome não reage ao Enter. Não há o que confirmar — a escolha é na lista, onde a pessoa vê
+   * de qual dos seis cadastros da P&G está falando, e adivinhar por ela seria o engano que
+   * esta tela existe para evitar. O `preventDefault` só acontece quando há código: em
+   * formulário, um Enter solto no campo submeteria a página.
+   */
+  const teclou = (e: TeclaReact<HTMLInputElement>) => {
+    if (e.key !== "Enter") return;
+
+    const codigos = codigosDigitados(busca);
+    if (codigos.length === 0) return;
+
+    e.preventDefault();
+    pedir(codigos);
+    setBusca("");
+    setTermo("");
+    setNaoEncontrados([]);
+  };
+
   const { data: achados, isFetching } = useBuscarFornecedores(termo);
 
   const alternar = (f: Fornecedor) =>
@@ -258,6 +290,7 @@ export function SelecaoDeFornecedores({
             type="text"
             value={busca}
             onChange={(e) => setBusca(e.target.value)}
+            onKeyDown={teclou}
             placeholder="Nome, código, ou vários códigos separados por vírgula"
             className={cn(CAMPO, "mb-2")}
           />
@@ -306,7 +339,8 @@ export function SelecaoDeFornecedores({
               <p className="px-2 py-3 text-[length:var(--fs-apoio)] leading-relaxed text-[var(--text-muted)]">
                 Lista de códigos: cada <strong>vírgula</strong> fecha um código e o põe no
                 filtro.
-                <br />O último só entra ao fechar esta caixa — até lá ele ainda pode crescer.
+                <br />O último entra com <strong>Enter</strong>, ou ao fechar esta caixa — até
+                lá ele ainda pode crescer.
                 {pedidos.length > 0 && (
                   <>
                     <br />
@@ -319,10 +353,8 @@ export function SelecaoDeFornecedores({
               <p className="px-2 py-3 text-[length:var(--fs-apoio)] leading-relaxed text-[var(--text-muted)]">
                 Digite o código do fornecedor, ou ao menos duas letras do nome.
                 <br />
-                Vários de uma vez, separados por vírgula: <span className="tabular">
-                  29,253
-                </span>
-                .
+                Vários de uma vez, separados por vírgula:{" "}
+                <span className="tabular">29,253</span> e <strong>Enter</strong>.
                 <br />
                 Sem nenhum selecionado, o DRE sai com todos — como sempre foi.
               </p>
