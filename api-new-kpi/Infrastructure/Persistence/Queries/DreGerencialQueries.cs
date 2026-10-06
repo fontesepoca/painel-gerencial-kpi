@@ -111,22 +111,38 @@ public static class DreGerencialQueries
     /// <c>CONVERT(..., 'US7ASCII')</c>, então <i>GUARANY</i> acha <i>GUARANÝ</i> e vice-versa.
     /// É o mesmo tratamento que o ESTOQUE REVENDA usa para comparar histórico.</para>
     ///
+    /// <para><b>Só NOME e CÓDIGO, e nada mais.</b> O CNPJ é devolvido para a tela mostrar,
+    /// mas <b>não</b> é procurado.</para>
+    ///
+    /// <para><b>Número digitado é NÚMERO, não pedaço de número.</b> Esta é a regra que
+    /// resolveu o ruído de 06/10/2026: <b>fornecedor MEI é cadastrado com o CPF dentro do
+    /// nome</b> (<c>ADENIR JOAO RUBIO BAGLI 18341297884</c>), e um <c>LIKE '%29%'</c>
+    /// devolvia vinte pessoas físicas quaisquer no lugar da P&amp;G — o <c>29</c> que casava
+    /// estava no meio de um CPF, onde ele não é o 29 de ninguém.</para>
+    ///
+    /// <para>Quando o que foi digitado é só dígito, o nome é procurado por
+    /// <c>REGEXP_LIKE(..., '(^|[^0-9])29([^0-9]|$)')</c>: o número tem de estar <b>inteiro</b>
+    /// ali, com não-dígito dos dois lados. <c>POSTO 29</c> aparece, <c>...97884</c> não.
+    /// Jogar fora a busca por nome inteira seria mais simples e perderia o <c>POSTO 29</c>;
+    /// a borda de dígito custa uma linha e não perde nada.</para>
+    ///
+    /// <para><b>Com UM caractere que seja letra, nada é procurado no nome</b> —
+    /// <c>LIKE '%a%'</c> sobre treze mil cadastros devolve vinte linhas quaisquer. O piso vale
+    /// para letra, e não para dígito: ele tornava o fornecedor <b>1</b> inalcançável, porque
+    /// não há como digitar um código de um dígito a mais do que ele tem.</para>
+    ///
+    /// <para>Tudo isso é SQL, e não um <c>if</c> em C# montando texto: a consulta roda contra
+    /// produção e nada vindo do cliente entra nela por concatenação. O <c>:busca</c> que vai
+    /// para DENTRO do padrão do <c>REGEXP_LIKE</c> continua sendo um bind, e só chega lá
+    /// quando o <c>REGEXP_LIKE(TRIM(:busca2), '^[0-9]+$')</c> já garantiu que são dígitos —
+    /// não há metacaractere possível.</para>
+    ///
     /// <para><b>Binds, nesta ordem</b> — o ODP.NET liga por posição, e <c>:busca</c> aparece
-    /// três vezes: <c>:busca1</c> (o <c>LIKE</c> do nome), <c>:busca2</c> (o código exato),
-    /// <c>:busca3</c> (o desempate do <c>ORDER BY</c>) e <c>:limite</c>.</para>
+    /// SETE vezes: <c>:busca1</c> (o código exato), <c>:busca2</c> e <c>:busca3</c> (o número
+    /// inteiro no nome), <c>:busca4</c> (o comprimento), <c>:busca5</c> (o teste de só
+    /// dígitos), <c>:busca6</c> (o <c>LIKE</c> do nome), <c>:busca7</c> (o desempate do
+    /// <c>ORDER BY</c>) e <c>:limite</c>.</para>
     /// </summary>
-/// <summary>
-/// <b>Com UM caractere, só o código vale.</b> O `LENGTH(TRIM(:busca1)) >= 2` desliga a
-/// busca por nome, e sobra a igualdade com o <c>CODFORNEC</c>.
-///
-/// <para>Sem isso o fornecedor <b>1</b> era inalcançável na prática: o piso de dois
-/// caracteres existia justamente porque <c>LIKE '%1%'</c> sobre treze mil nomes devolve
-/// lixo. Desligar o nome resolve os dois lados — quem digita um dígito quer um código, e
-/// quem digita uma letra só não quer nada que caiba em vinte linhas.</para>
-///
-/// <para>A condição é SQL, e não um <c>if</c> em C# montando texto: a consulta roda contra
-/// produção e nada vindo do cliente entra nela por concatenação.</para>
-/// </summary>
     public const string Fornecedores = """
         SELECT * FROM (
           SELECT F.CODFORNEC                                  AS CODFORNEC,
@@ -134,11 +150,15 @@ public static class DreGerencialQueries
                  F.CGC                                        AS CGC,
                  F.CODFORNECPRINC                             AS CODFORNECPRINC
             FROM PCFORNEC F
-           WHERE ( LENGTH(TRIM(:busca1)) >= 2
+           WHERE TO_CHAR(F.CODFORNEC) = TRIM(:busca1)
+              OR ( REGEXP_LIKE(TRIM(:busca2), '^[0-9]+$')
+                   AND REGEXP_LIKE(F.FORNECEDOR,
+                                   '(^|[^0-9])' || TRIM(:busca3) || '([^0-9]|$)') )
+              OR ( LENGTH(TRIM(:busca4)) >= 2
+                   AND NOT REGEXP_LIKE(TRIM(:busca5), '^[0-9]+$')
                    AND UPPER(CONVERT(TRIM(F.FORNECEDOR), 'US7ASCII'))
-                         LIKE '%' || UPPER(CONVERT(TRIM(:busca2), 'US7ASCII')) || '%' )
-              OR TO_CHAR(F.CODFORNEC) = TRIM(:busca3)
-           ORDER BY CASE WHEN TO_CHAR(F.CODFORNEC) = TRIM(:busca4) THEN 0 ELSE 1 END,
+                         LIKE '%' || UPPER(CONVERT(TRIM(:busca6), 'US7ASCII')) || '%' )
+           ORDER BY CASE WHEN TO_CHAR(F.CODFORNEC) = TRIM(:busca7) THEN 0 ELSE 1 END,
                     TRIM(F.FORNECEDOR)
         )
         WHERE ROWNUM <= :limite

@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/cn";
-import { useBuscarFornecedores } from "@/hooks/useDreGerencial";
+import { codigosAoFechar, lerDigitacao } from "@/lib/codigosDigitados";
+import { useBuscarFornecedores, useFornecedoresPorCodigo } from "@/hooks/useDreGerencial";
 import type { Fornecedor } from "@/types/dre-gerencial";
 
 const CAMPO =
@@ -27,18 +28,19 @@ function cnpj(valor: string | null): string | null {
 }
 
 /**
- * Vale consultar? <b>Duas letras do nome, ou um dígito que seja.</b>
+ * Vale consultar? <b>Duas letras do nome, ou qualquer número.</b>
  *
  * O piso de dois caracteres é do NOME: `LIKE '%a%'` sobre treze mil cadastros devolve
  * vinte linhas quaisquer. Mas ele tornava o <b>fornecedor 1 inalcançável</b> — não há como
  * digitar um código de um dígito a mais do que ele tem.
  *
- * Com um dígito a consulta desliga a busca por nome e procura só o código, então o
- * resultado é um fornecedor ou nenhum. O mesmo piso, aplicado à pergunta certa.
+ * Com dígitos o piso não faz sentido: a consulta procura o código exato e o número INTEIRO
+ * dentro do nome — `POSTO 29` entra, o `29` no meio de um CPF não. São poucas linhas, todas
+ * pertinentes, mesmo com um dígito só.
  */
 const buscavel = (termo: string) => {
   const t = termo.trim();
-  return t.length >= 2 || /^\d$/.test(t);
+  return t.length >= 2 || /^\d+$/.test(t);
 };
 
 /**
@@ -64,8 +66,87 @@ export function SelecaoDeFornecedores({
   const [aberto, setAberto] = useState(false);
   const [busca, setBusca] = useState("");
   const [termo, setTermo] = useState("");
+  const [pedidos, setPedidos] = useState<number[]>([]);
+  const [naoEncontrados, setNaoEncontrados] = useState<number[]>([]);
   const caixa = useRef<HTMLDivElement>(null);
   const campoBusca = useRef<HTMLInputElement>(null);
+
+  // O que está escrito, lido como lista. Memorizado para a identidade de `confirmados` só
+  // mudar quando o texto muda — é ela que dispara o efeito que põe os códigos no filtro.
+  const digitacao = useMemo(() => lerDigitacao(busca), [busca]);
+
+  /**
+   * O que a tela precisa ler de FORA do ciclo de efeitos, sempre na versão mais nova.
+   *
+   * `onMudar` e `selecionados` vêm do pai e mudam de identidade a cada render dele; pô-los
+   * nas dependências faria os efeitos reagirem a renders alheios em vez de reagirem ao que
+   * aconteceu aqui. `busca` entra porque o efeito que fecha o popover é disparado por
+   * `aberto`, e precisa do texto que estava escrito naquele instante.
+   */
+  const agora = useRef({ selecionados, onMudar, busca });
+  agora.current = { selecionados, onMudar, busca };
+
+  /**
+   * Os códigos que já viraram decisão — entraram no filtro ou foram dados como inexistentes.
+   *
+   * Sem esta marca o efeito de resolução reagiria duas vezes à mesma resposta: ele roda a
+   * cada render enquanto houver pedido resolvido, e `selecionados` só chega atualizado no
+   * render seguinte ao do pai.
+   */
+  const tratados = useRef(new Set<number>());
+
+  /** Põe códigos na fila de resolução, sem repetir o que já está lá. */
+  const pedir = useCallback((codigos: number[]) => {
+    const querer = codigos.filter(
+      (c) => !agora.current.selecionados.some((s) => s.codFornec === c),
+    );
+    if (querer.length === 0) return;
+
+    setPedidos((fila) => {
+      const novos = querer.filter((c) => !fila.includes(c));
+      if (novos.length === 0) return fila;
+
+      // Pedir de novo é mudar de ideia: quem tirou o 29 do filtro e tornou a digitar `29,`
+      // está pedindo o 29 outra vez, e a marca de "já tratado" não pode calar esse pedido.
+      for (const c of novos) tratados.current.delete(c);
+      return [...fila, ...novos];
+    });
+  }, []);
+
+  const resolucoes = useFornecedoresPorCodigo(pedidos);
+
+  /** As respostas que chegaram viram seleção — ou aviso de código que não existe. */
+  useEffect(() => {
+    const prontos = resolucoes.filter(
+      (r) => r.resolvido && !tratados.current.has(r.codigo),
+    );
+    if (prontos.length === 0) return;
+
+    for (const r of prontos) tratados.current.add(r.codigo);
+
+    const { selecionados: atuais, onMudar: mudar } = agora.current;
+    const achados = prontos
+      .map((r) => r.fornecedor)
+      .filter((f): f is Fornecedor => f !== null)
+      .filter((f) => !atuais.some((s) => s.codFornec === f.codFornec));
+    const faltando = prontos.filter((r) => r.fornecedor === null).map((r) => r.codigo);
+
+    if (achados.length > 0) mudar([...atuais, ...achados]);
+    if (faltando.length > 0) {
+      setNaoEncontrados((n) => [...new Set([...n, ...faltando])]);
+    }
+    setPedidos((fila) => fila.filter((c) => !prontos.some((r) => r.codigo === c)));
+  }, [resolucoes]);
+
+  /**
+   * A VÍRGULA FECHA O CÓDIGO.
+   *
+   * `29,` já põe o 29 no filtro, enquanto `29` sozinho ainda pode virar `290` — por isso o
+   * último pedaço fica de fora até a pessoa fechar o popover. Ver `lib/codigosDigitados.ts`.
+   */
+  useEffect(() => {
+    pedir(digitacao.confirmados);
+  }, [digitacao.confirmados, pedir]);
 
   /**
    * O debounce.
@@ -73,9 +154,13 @@ export function SelecaoDeFornecedores({
    * Sem ele, cada tecla vira uma consulta ao Oracle — e o `LIKE '%...%'` sobre treze mil
    * fornecedores não é de graça. 250 ms é o intervalo em que quem digita depressa termina a
    * palavra antes da primeira viagem.
+   *
+   * <b>No modo lista a busca sai de cena.</b> `29,253` não é nome nem código: mandá-lo à API
+   * só gastaria viagem para mostrar "nenhum fornecedor" embaixo de uma lista que está, ela
+   * sim, funcionando.
    */
   useEffect(() => {
-    const t = setTimeout(() => setTermo(busca), 250);
+    const t = setTimeout(() => setTermo(lerDigitacao(busca).modoLista ? "" : busca), 250);
     return () => clearTimeout(t);
   }, [busca]);
 
@@ -108,6 +193,11 @@ export function SelecaoDeFornecedores({
    * `termo` com o valor anterior por mais 250 ms — o tempo do debounce —, e a lista antiga
    * voltaria a aparecer por um instante na abertura seguinte. O que já está SELECIONADO não
    * se perde: ele vive em `selecionados`, que é do filtro, não da busca.
+   *
+   * <b>Mas antes de apagar, o último código da lista é colhido.</b> Quem digitou `29,253` e
+   * clicou fora terminou de digitar — exigir a vírgula do fim seria cobrar pontuação de quem
+   * já disse o que queria. A colheita vem antes do `setBusca("")` justamente porque o texto
+   * é a única fonte dessa informação.
    */
   useEffect(() => {
     if (aberto) {
@@ -115,9 +205,11 @@ export function SelecaoDeFornecedores({
       return;
     }
 
+    pedir(codigosAoFechar(agora.current.busca));
     setBusca("");
     setTermo("");
-  }, [aberto]);
+    setNaoEncontrados([]);
+  }, [aberto, pedir]);
 
   const { data: achados, isFetching } = useBuscarFornecedores(termo);
 
@@ -166,7 +258,7 @@ export function SelecaoDeFornecedores({
             type="text"
             value={busca}
             onChange={(e) => setBusca(e.target.value)}
-            placeholder="Nome ou código do fornecedor"
+            placeholder="Nome, código, ou vários códigos separados por vírgula"
             className={cn(CAMPO, "mb-2")}
           />
 
@@ -197,10 +289,40 @@ export function SelecaoDeFornecedores({
             </div>
           )}
 
+          {naoEncontrados.length > 0 && (
+            <p className="mb-2 px-2 text-[length:var(--fs-apoio)] leading-relaxed text-[var(--warning)]">
+              Sem cadastro para{" "}
+              <span className="tabular font-semibold">{naoEncontrados.join(", ")}</span> — o
+              código não entrou no filtro.
+            </p>
+          )}
+
           <div className="max-h-72 overflow-y-auto">
-            {!buscavel(termo) ? (
+            {/* MODO LISTA: a busca sai de cena e quem manda é o texto. Os escolhidos já
+                aparecem como fichas logo acima, então aqui basta dizer a regra — e dizê-la
+                enquanto ela está valendo é o que torna o atalho descobrível para quem o
+                acionou sem querer, digitando uma vírgula. */}
+            {digitacao.modoLista ? (
+              <p className="px-2 py-3 text-[length:var(--fs-apoio)] leading-relaxed text-[var(--text-muted)]">
+                Lista de códigos: cada <strong>vírgula</strong> fecha um código e o põe no
+                filtro.
+                <br />O último só entra ao fechar esta caixa — até lá ele ainda pode crescer.
+                {pedidos.length > 0 && (
+                  <>
+                    <br />
+                    Procurando{" "}
+                    <span className="tabular">{pedidos.join(", ")}</span>…
+                  </>
+                )}
+              </p>
+            ) : !buscavel(termo) ? (
               <p className="px-2 py-3 text-[length:var(--fs-apoio)] leading-relaxed text-[var(--text-muted)]">
                 Digite o código do fornecedor, ou ao menos duas letras do nome.
+                <br />
+                Vários de uma vez, separados por vírgula: <span className="tabular">
+                  29,253
+                </span>
+                .
                 <br />
                 Sem nenhum selecionado, o DRE sai com todos — como sempre foi.
               </p>
@@ -210,7 +332,19 @@ export function SelecaoDeFornecedores({
               </p>
             ) : (achados?.length ?? 0) === 0 ? (
               <p className="px-2 py-3 text-[length:var(--fs-apoio)] text-[var(--text-muted)]">
-                Nenhum fornecedor com <strong>{termo}</strong> no nome ou no código.
+                {/* A frase acompanha o que a consulta realmente fez: com dígitos ela procura
+                    o código e o número inteiro no nome — e dizer só "no nome" mandaria
+                    procurar onde ninguém procurou. */}
+                {/^\d+$/.test(termo.trim()) ? (
+                  <>
+                    Nenhum fornecedor com o código <strong>{termo.trim()}</strong>, nem com{" "}
+                    <strong>{termo.trim()}</strong> no nome.
+                  </>
+                ) : (
+                  <>
+                    Nenhum fornecedor com <strong>{termo}</strong> no nome.
+                  </>
+                )}
               </p>
             ) : (
               achados!.map((f) => {

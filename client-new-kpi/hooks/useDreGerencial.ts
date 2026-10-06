@@ -1,6 +1,6 @@
 "use client";
 
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQueries, useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/services/apiClient";
 import { useSessao } from "@/hooks/useSessao";
 import type {
@@ -30,10 +30,10 @@ import type {
 /**
  * Busca fornecedores para o filtro, pelo que a pessoa digitou.
  *
- * <b>Só consulta a partir do segundo caractere — exceto um dígito sozinho.</b> Com uma letra
- * só a busca devolveria centenas de linhas que ninguém ia ler, a cada tecla; mas com um
- * dígito a consulta procura pelo CÓDIGO e devolve um fornecedor, no máximo. Era o que
- * tornava o fornecedor <b>1</b> inalcançável pela tela.
+ * <b>Só consulta a partir do segundo caractere — exceto quando são dígitos.</b> Com uma letra
+ * só a busca devolveria centenas de linhas que ninguém ia ler, a cada tecla; com dígitos ela
+ * procura o código exato e o número inteiro dentro do nome, e o que volta é curto e
+ * pertinente. Era o piso de duas letras que tornava o fornecedor <b>1</b> inalcançável.
  *
  * <b>O `staleTime` é generoso de propósito.</b> Cadastro de fornecedor não muda durante uma
  * sessão de DRE, e quem está procurando digita, apaga e redigita o mesmo prefixo várias vezes:
@@ -50,9 +50,47 @@ export function useBuscarFornecedores(busca: string) {
       apiClient.get<Fornecedor[]>(
         `/api/dre-gerencial/fornecedores?busca=${encodeURIComponent(termo)}&limite=20`,
       ),
-    // Um dígito sozinho passa: a consulta desliga a busca por nome e procura o código.
-    enabled: termo.length >= 2 || /^\d$/.test(termo),
+    // Dígitos passam em qualquer tamanho: a consulta procura o código e o número inteiro no
+    // nome, então o que volta cabe na tela — nunca os vinte CPFs que contêm aqueles dígitos.
+    enabled: termo.length >= 2 || /^\d+$/.test(termo),
     staleTime: 30 * 60 * 1000,
+  });
+}
+
+/**
+ * Os fornecedores de uma lista de CÓDIGOS — o que a digitação com vírgula precisa.
+ *
+ * <b>Por que uma consulta por código, e não uma só com a lista inteira.</b> A chave de cada
+ * uma é a MESMA de `useBuscarFornecedores` com aquele número (`["dre-gerencial",
+ * "fornecedores", "29"]`), então quem já procurou o 29 pela lista não viaja de novo — e quem
+ * digita `29,253,` aproveita a primeira resposta ao acrescentar a segunda. Uma consulta com a
+ * lista toda teria chave nova a cada vírgula e jogaria esse cache fora.
+ *
+ * O <b>código não encontrado</b> volta como array vazio, não como erro: é o que deixa a tela
+ * dizer que aquele número não existe no cadastro em vez de mostrar uma falha de rede.
+ */
+export function useFornecedoresPorCodigo(codigos: readonly number[]) {
+  return useQueries({
+    queries: codigos.map((codigo) => ({
+      queryKey: ["dre-gerencial", "fornecedores", String(codigo)],
+      queryFn: () =>
+        apiClient.get<Fornecedor[]>(
+          `/api/dre-gerencial/fornecedores?busca=${codigo}&limite=20`,
+        ),
+      staleTime: 30 * 60 * 1000,
+    })),
+    combine: (respostas) =>
+      codigos.map((codigo, i) => {
+        const r = respostas[i];
+        return {
+          codigo,
+          // A igualdade é conferida, e não é formalidade: a consulta por número devolve
+          // também quem tem AQUELE número no nome (`POSTO 29`), e pegar a primeira linha
+          // poria no filtro um fornecedor que ninguém pediu.
+          fornecedor: r?.data?.find((f) => f.codFornec === codigo) ?? null,
+          resolvido: r?.isSuccess === true || r?.isError === true,
+        };
+      }),
   });
 }
 
