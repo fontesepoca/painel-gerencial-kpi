@@ -92,7 +92,7 @@ export function MenuDoUsuario() {
         aria-expanded={aberto}
         aria-controls={idDoPainel}
         aria-haspopup="true"
-        title={`${usuario.nome} — ${usuario.filiais.length} filiais`}
+        title={`${usuario.nome} — ${usuario.base.rotulo} — ${usuario.filiais.length} filiais`}
         className={cn(
           "flex items-center gap-2 rounded-full border py-1 pr-1 pl-1 transition-colors sm:pl-3",
           aberto
@@ -125,6 +125,9 @@ export function MenuDoUsuario() {
             </span>
             <span className="text-[length:var(--fs-apoio)] text-[var(--text-muted)]">
               {usuario.nomeGuerra} · matrícula {usuario.matricula}
+            </span>
+            <span className="text-[length:var(--fs-apoio)] font-medium text-[var(--text-secondary)]">
+              Base: {usuario.base.rotulo}
             </span>
           </div>
 
