@@ -1396,6 +1396,12 @@ linhas batiam.
 LIQUIDO (312.572,51) iguais aos da 9815, e nada avulso. Sobram só as diferenças de apresentação
 já aprovadas (nº 9, 11 e 12).
 
+**E o detalhamento fecha com a linha** (divergência 4): o duplo clique em DESPESAS TRIBUTÁRIAS
+traz 32 lançamentos somando 82.051,22. A conta `Icms [3003007]` soma 69.841,06 = 37.704,69
+(`Icms Mrural F10`) + 31.786,95 (`Icms Parcel`, 3 parcelas) + 349,42 (`Icms Diferencial De
+Aliquota F10`, 3 notas). No detalhe os lançamentos aparecem com a conta **remapeada** — o nome
+original se perde, como no `ULanc.pas`.
+
 ---
 
 ## As regras que nenhuma branch pode desfazer
