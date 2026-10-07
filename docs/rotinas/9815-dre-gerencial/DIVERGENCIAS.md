@@ -38,6 +38,7 @@ linha no índice.
 | [15](#15-o-detalhamento-respeita-o-filtro-por-fornecedor--02102026) | Detalhamento com fornecedor filtrado | todas as telas de duplo clique | a despesa inteira da filial, contra a fatia do fornecedor | **a pedido** em 02/10/2026 · dc78 12/12 |
 | [16](#16-a-coluna-ah--no-bloco-de-total--06102026) | Coluna `AH %` no total — soma dos `%AH`, **não** a variação do período | todas, só com mais de um mês | **nenhum valor muda** — coluna nova | **a pedido** em 06/10/2026 · dc13 43/43 |
 | [17](#17-minas-rural-a-seção-sem-custo-é-a-1401--07102026) | Minas Rural: a seção tirada da venda e da devolução passa de `1601` para `1401` | todas, só no Minas Rural | **nenhum valor** nos meses medidos — jul a set/2026 | **ligada** em 07/10/2026 pela prova do trace · dc86 46/46 |
+| [18](#18-minas-rural-as-contas-de-icms-viram-a-3003007--07102026) | Minas Rural: conta de ICMS do grupo 303 vira a `3003007` na despesa e no detalhamento | todas, só no Minas Rural | **R$ 38.054,11** no lucro de agosto/2026 na filial 10 | **ligada** em 07/10/2026 · dc89 |
 
 ---
 
@@ -1350,6 +1351,46 @@ seria deixar a tela divergir em silêncio no primeiro mês em que a 1401 vender.
 
 **Quando houver movimento na 1401**, a medição a fazer é a do `dc89` num recorte com essa
 seção: a diferença contra a regra antiga tem de ser exatamente a venda e o custo desses itens.
+
+---
+
+## 18. Minas Rural: as contas de ICMS viram a `3003007` — 07/10/2026
+
+A segunda regra por base — esta, **medida**. Como a nº 17, não é a web divergindo da 9815: é a
+web passando a fazer o que a 9815 do Minas Rural faz (`UBase.pas` `GetValorGrupo`, `ULanc.pas`;
+e os traces em `referencia-oficial-miras-rural/`):
+
+```sql
+case when upper(conta) like '%ICMS%' and grupoconta = 303 then 3003007 else codconta end
+```
+
+aplicado ao `PCLANC` e ao `PCRATEIOCENTROCUSTO` nas consultas de **despesa** e no
+**detalhamento** — e **não** nas de estrutura, como na 9815. Ligada em
+`appsettings.json` → `Bases:MinasRural:Regras:AgrupaIcms`. A Época não tem a regra.
+
+### O que move
+
+Conta de ICMS **sem** linha no DRE (as `Icms Mrural F__`, uma por filial, e as `Icms
+Diferencial De Aliquota F__` não parametrizadas) saía **avulsa**, no bloco que não soma em
+totalizador nenhum. Remapeada para a `3003007` — que existe no Minas Rural, é do grupo 303 e tem
+linha no DRE —, ela entra na despesa e move o lucro. Conta de ICMS **com** linha própria passa a
+somar na da `3003007`.
+
+### A medida
+
+Filial 10, agosto/2026, competência, C. Custo Principal
+(`Export_filial10_ago2026_competencia_ccusto.xlsx`), pelo
+[dc89](./validacao/dc89_apuracao_contra_planilha_da_9815.mjs):
+
+| | 9815 | web, regra desligada | diferença |
+|---|---:|---:|---:|
+| DESPESAS TRIBUTÁRIAS | (82.051,22) | (43.997,11) | 38.054,11 |
+| LUCRO LIQUIDO | (312.572,51) | (274.518,40) | 38.054,11 |
+| `ICMS MRURAL F10` (avulsa) | — | (37.704,69) | |
+| `ICMS DIFERENCIAL DE ALIQUOTA F10` (avulsa) | — | (349,42) | |
+
+**38.054,11 = 37.704,69 + 349,42, ao centavo** — exatamente as duas avulsas. Todas as outras
+linhas batiam.
 
 ---
 

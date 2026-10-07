@@ -171,3 +171,10 @@ agosto/2026: 37.704,69 na filial 10, 39.879,26 na 13…) **não** têm linha no 
 avulsas, fora dos totais; com a regra, entram na despesa e movem o `LUCRO LIQUIDO`. Próxima
 medição: **filial 10, agosto/2026, competência, C. Custo Principal** — com a regra desligada e
 depois ligada.
+
+### 3 — filial 10, agosto/2026, competência, C. Custo Principal (07/10/2026)
+
+Com a seção 1401 ligada e o ICMS **desligado**: tudo bate, menos DESPESAS TRIBUTÁRIAS, Sub-Total,
+RESULTADO OPERACIONAL e LUCRO LIQUIDO, os quatro com **38.054,11** — a soma exata das duas
+contas de ICMS que só a web mostrava avulsas (`Icms Mrural F10` 37.704,69 e `Icms Diferencial
+De Aliquota F10` 349,42). Regra ligada: [DIVERGENCIAS.md nº 18](./DIVERGENCIAS.md#18-minas-rural-as-contas-de-icms-viram-a-3003007--07102026).
