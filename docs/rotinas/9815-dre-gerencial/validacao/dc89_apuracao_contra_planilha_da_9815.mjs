@@ -9,7 +9,7 @@
  *     node --import ./docs/rotinas/9815-dre-gerencial/validacao/_autenticar.mjs \
  *       docs/rotinas/9815-dre-gerencial/validacao/dc89_apuracao_contra_planilha_da_9815.mjs \
  *       <9815.xlsx> <filiais, ex. 10 ou 10,37> <início AAAA-MM-DD> <fim AAAA-MM-DD> \
- *       [competencia|caixa] [ccusto-principal|grupo-contas|conta-gerencial|centro-custo]
+ *       [competencia|caixa] [ccusto-principal|grupo-contas|conta-gerencial|centro-custo] \n *       [fornecedores, ex. 29 ou 29,253 — o mesmo filtro da 9815]
  *
  * O que sai:
  *   1. cada linha da 9815 contra a SOMA das nossas linhas de mesmo rótulo (a 9815 agrupa por
@@ -26,10 +26,10 @@
 import fs from "node:fs";
 import zlib from "node:zlib";
 
-const [xlsx, filiaisArg, dataInicio, dataFim, regime = "competencia", analise = "ccusto-principal"] =
+const [xlsx, filiaisArg, dataInicio, dataFim, regime = "competencia", analise = "ccusto-principal", fornecedoresArg] =
   process.argv.slice(2);
 if (!xlsx || !filiaisArg || !dataInicio || !dataFim) {
-  console.error("Uso: dc89 <9815.xlsx> <filiais> <início AAAA-MM-DD> <fim AAAA-MM-DD> [regime] [análise]");
+  console.error("Uso: dc89 <9815.xlsx> <filiais> <início AAAA-MM-DD> <fim AAAA-MM-DD> [regime] [análise] [fornecedores]");
   process.exit(2);
 }
 if (!fs.existsSync(xlsx)) {
@@ -49,7 +49,20 @@ Análises: ${ANALISES.join(", ")}.`);
 }
 
 const API = process.env.API ?? "http://localhost:5207";
-const FILTRO = { filiais: filiaisArg.split(","), dataInicio, dataFim, regime, analise };
+// Fornecedores como NÚMEROS: é o que a API recebe (o front manda os códigos, não os objetos).
+const fornecedores = fornecedoresArg ? fornecedoresArg.split(",").map((s) => Number(s.trim())) : [];
+if (fornecedores.some((n) => !Number.isInteger(n) || n <= 0)) {
+  console.error(`Fornecedores inválidos: "${fornecedoresArg}". Use códigos separados por vírgula, ex. 29 ou 29,253.`);
+  process.exit(2);
+}
+const FILTRO = {
+  filiais: filiaisArg.split(","),
+  dataInicio,
+  dataFim,
+  regime,
+  analise,
+  ...(fornecedores.length > 0 ? { fornecedores } : {}),
+};
 
 // ── a planilha da 9815 (o mesmo leitor do dc28) ──────────────────────────────────────
 const fonte = fs.readFileSync(new URL("./dc28_impressao_contra_planilha.mjs", import.meta.url), "utf8");
