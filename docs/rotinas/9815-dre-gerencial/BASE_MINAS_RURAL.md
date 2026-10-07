@@ -126,3 +126,27 @@ confirme na tela), nos dois períodos exportados:
 **O que a lista de filiais do Minas Rural ainda não diz:** começa com **todas**, inclusive a
 `2` e as `**FECHOU**`. Compare com a lista que o Delphi mostra na tela dele e esconda, em
 `FiliaisForaDoFiltro`, só o que a 9815 esconde.
+
+## Medições
+
+### 1 — filial 10, setembro/2026, competência, C. Custo Principal (07/10/2026)
+
+Exportação `referencia-oficial-miras-rural/Export_filial10_set2026_competencia_ccusto.xlsx`,
+sem contas zeradas, contra a API do Minas Rural **com as regras da Época** (seção 1601, ICMS
+desligado). Medido com o `dc89`:
+
+**Todos os valores batem ao centavo**, de `RECEITA BRUTA` a `LUCRO LIQUIDO`. As 16 linhas que o
+`dc89` acusou na primeira passada são apresentação já aprovada: a nº 12 (a 9815 soma
+`MATERIAL DE CONSUMO - F13…F38` em `ADMINISTRATIVO`, as `TRANSPORTES - CD …` e `TRANSPORTE
+MINAS RURAL` em `TRANSPORTES`, e `MG - GRANDE BH` em `VENDAS` — cada diferença é exatamente a
+soma das linhas avulsas), a nº 11 (`Total das Despesas`) e a nº 9 (`SUBTOTAL POSITIVO`).
+
+**O que esta medição NÃO prova:**
+
+- **A seção sem custo.** A seção sai da venda inteira (`nvl(PR.codsec,0) <> …` filtra o item,
+  não só o custo), e a `RECEITA BRUTA` bateu: neste recorte nem a 1401 nem a 1601 parecem ter
+  movimento. Bater com 1601 aqui não distingue as duas — a consulta abaixo diz se há período
+  ou filial onde elas pesam.
+- **O ICMS.** O remapeamento troca a CONTA (para a 3003007), e o C. Custo Principal agrupa por
+  centro de custo: a regra não muda nenhuma linha desta análise. Só uma exportação por
+  **Grupo de Contas** (ou Conta Gerencial) exercita a regra.
