@@ -1491,6 +1491,7 @@ nas seções deste documento, que são posteriores.
 | Filial sem movimento no período | ✅ [medida em 31/08](#fase-5--filial-parada-e-filial-meio-vazia--31082026) — a parada não contamina nada |
 | O duplo clique **pela tela** | ⬜ a API fecha 162/162, mas o caminho pela interface com dado real nunca foi percorrido ponta a ponta |
 | `% AH` em Conta Gerencial | ⬜ a exportação usada saiu sem análise horizontal; a coluna só foi conferida em Grupo de Contas |
+| **A exclusão de adiantamento quitado** — 07/10/2026 | ⬜ **a decidir.** O fonte (`UBase.pas:27204`, `ULanc.pas:319`) e a web excluem o adiantamento quitado **em qualquer data** (`not exists`); a linha antiga, comentada no fonte, excluía só o quitado **no período** (`dtlanc Between`). Os traces da 9815 do **Minas Rural** de 07/10/2026 trazem a versão **antiga** — o executável em produção não é o do fonte. Na Época, junho/2026 da filial 7 exportado em 07/10 mostra `CREDITO FORNECEDORES` (19.573,91) que a web zera: é o que a versão antiga produziria. A linha fica depois do LUCRO LIQUIDO e não move totalizador. Falta o trace da Época para saber se é o mesmo executável, e a decisão de seguir o fonte ou o executável |
 
 Os dois períodos e o conjunto de filiais são riscos de **custo**, não de valor: nenhum
 mecanismo depende do número de meses ou de filiais — o recorte parcial de mês, que era o

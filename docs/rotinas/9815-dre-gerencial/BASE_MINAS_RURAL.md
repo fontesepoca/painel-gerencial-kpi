@@ -187,3 +187,11 @@ De Aliquota F10` 349,42). Regra ligada: [DIVERGENCIAS.md nº 18](./DIVERGENCIAS.
 BRUTA ao LUCRO LIQUIDO (504.162,43) e no bloco informativo (`dc89`). Primeiro cenário em regime
 caixa e com duas filiais. A filial 37 não vendeu em setembro — a RECEITA BRUTA é a mesma da
 filial 10 sozinha —, então a soma de filiais está provada na despesa, não na venda.
+
+### 5 — o filtro por fornecedor (07/10/2026)
+
+A `TAB_WEB_CENTROC_FORNEC` passou a existir no Minas Rural, **vazia**
+([FILTRO_FORNECEDOR.md](./FILTRO_FORNECEDOR.md#no-minas-rural--07102026)), e o filtro por
+fornecedor deixou de dar erro. Conferido pela tela em 07/10/2026. O `dc89` aceita os
+fornecedores como último argumento, no mesmo formato que o front manda, para a conferência
+contra uma exportação da 9815 filtrada.

@@ -223,15 +223,12 @@ lá → só então ligar regras. Nenhuma consulta é editada.
 
 ## 11. Em aberto, para decidir no plano
 
-- **O filtro por fornecedor no Minas Rural — decidido no plano de 07/10/2026: fica
-  como está, e a limitação é documentada.** Ele depende da `TAB_WEB_CENTROC_FORNEC`, que
-  **não existe** nessa base. Escolher fornecedor ali falha com erro interno genérico (500).
-  Esconder o controle seria um quinto campo em `RegrasDaBase` (`FiltroPorFornecedor`), e a
-  spec pedia que essa decisão não fosse tomada por omissão: **não está neste plano**, e é a
-  primeira tarefa seguinte se o Minas Rural for usado antes de a tabela existir. Antes de
-  oferecer o filtro lá é preciso criar a tabela (DDL em
-  [FILTRO_FORNECEDOR.md](../rotinas/9815-dre-gerencial/FILTRO_FORNECEDOR.md)) e carregar o
-  vínculo de lá — conversa com o financeiro, não com o DBA.
+- ~~**O filtro por fornecedor no Minas Rural.**~~ **Resolvido em 07/10/2026**: a
+  `TAB_WEB_CENTROC_FORNEC` foi criada no Minas Rural (schema EPCTI, leitura pelo `EDI`) pela
+  [mb3](validacao/mb3_tab_web_centroc_fornec_minas_rural.sql), **vazia** — lá o fornecedor 29 é
+  a Nutrifar, não a P&G, e o centro 25 não tem movimento. O filtro funciona e o
+  `RegrasDaBase` não ganhou o quinto campo. Ver
+  [FILTRO_FORNECEDOR.md](../rotinas/9815-dre-gerencial/FILTRO_FORNECEDOR.md#no-minas-rural--07102026).
 - **Dados de ambiente local.** Quem desenvolve precisa da `OracleMinasRural` no
   `appsettings.Development.json`, com o `EDI`; o `appsettings.example.json` ganha a chave.
 
