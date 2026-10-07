@@ -2,6 +2,8 @@ using System.Diagnostics;
 using System.Text.RegularExpressions;
 using Dapper;
 using Epoca.Kpi.Api.Application.Common;
+using Epoca.Kpi.Api.Application.Common.Bases;
+using Epoca.Kpi.Api.Domain.Entities;
 using Epoca.Kpi.Api.Infrastructure.Persistence.Context;
 using Microsoft.AspNetCore.Mvc;
 
@@ -12,17 +14,20 @@ namespace Epoca.Kpi.Api.Controllers;
 public sealed partial class HealthController : ControllerBase
 {
     private readonly IOracleConnectionFactory _conexoes;
+    private readonly RegistroDeBases _registro;
     private readonly IReadOnlyList<IModuleInstaller> _modulos;
     private readonly IHostEnvironment _ambiente;
     private readonly ILogger<HealthController> _logger;
 
     public HealthController(
         IOracleConnectionFactory conexoes,
+        RegistroDeBases registro,
         IReadOnlyList<IModuleInstaller> modulos,
         IHostEnvironment ambiente,
         ILogger<HealthController> logger)
     {
         _conexoes = conexoes;
+        _registro = registro;
         _modulos = modulos;
         _ambiente = ambiente;
         _logger = logger;
@@ -35,7 +40,8 @@ public sealed partial class HealthController : ControllerBase
         var resposta = new HealthResponse(
             Status: "ok",
             Ambiente: _ambiente.EnvironmentName,
-            OracleConfigurado: _conexoes.EstaConfigurada,
+            OracleConfigurado: _registro.Disponiveis.Count > 0,
+            Bases: _registro.Disponiveis.Select(BaseDto.De).ToArray(),
             Modulos: _modulos.Select(m => m.Nome).ToArray(),
             VerificadoEm: HoraDeBrasilia.Agora);
 
@@ -48,22 +54,37 @@ public sealed partial class HealthController : ControllerBase
     /// e não uma credencial antiga esquecida na configuração.
     /// </summary>
     [HttpGet("oracle")]
-    public async Task<IActionResult> GetOracle(CancellationToken cancellationToken)
+    public async Task<IActionResult> GetOracle(
+        [FromQuery(Name = "base")] string? baseId,
+        CancellationToken cancellationToken)
     {
-        if (!_conexoes.EstaConfigurada)
+        if (_registro.Disponiveis.Count == 0)
         {
             return StatusCode(
                 StatusCodes.Status503ServiceUnavailable,
                 ApiResponse<object>.Falha(
-                    "ConnectionStrings:OracleEpoca não está configurada.",
+                    "Nenhuma base tem string de conexão configurada.",
                     ["Copie appsettings.example.json para appsettings.Development.json e preencha."]));
+        }
+
+        // Com uma base só, exigir `?base=` seria cerimônia. Com mais de uma, escolher por
+        // conta própria qual testar é o engano que esta bifurcação existe para impedir.
+        var alvo = string.IsNullOrWhiteSpace(baseId)
+            ? (_registro.Disponiveis.Count == 1 ? _registro.Disponiveis[0] : null)
+            : _registro.Buscar(baseId);
+
+        if (alvo is null)
+        {
+            var ids = string.Join(", ", _registro.Disponiveis.Select(b => b.Id));
+            return BadRequest(ApiResponse<object>.Falha(
+                $"Informe ?base=<id>. Bases disponíveis: {ids}."));
         }
 
         var cronometro = Stopwatch.StartNew();
 
         try
         {
-            using var conexao = await _conexoes.CriarConexaoAsync(cancellationToken);
+            using var conexao = await _conexoes.CriarConexaoAsync(alvo, cancellationToken);
 
             var usuario = await conexao.QuerySingleAsync<string>(
                 new CommandDefinition(
@@ -77,7 +98,8 @@ public sealed partial class HealthController : ControllerBase
                 Status: "ok",
                 Usuario: usuario,
                 TempoMs: cronometro.ElapsedMilliseconds,
-                VerificadoEm: HoraDeBrasilia.Agora)));
+                VerificadoEm: HoraDeBrasilia.Agora,
+                Base: BaseDto.De(alvo))));
         }
         catch (Exception excecao)
         {
@@ -87,7 +109,7 @@ public sealed partial class HealthController : ControllerBase
 
             // Loga só o código ORA e a mensagem — nunca a string de conexão,
             // que carrega a senha.
-            _logger.LogError("Falha ao conectar no Oracle. {Codigo}", codigo ?? "sem código ORA");
+            _logger.LogError("Falha ao conectar no Oracle da base {Base}. {Codigo}", alvo.Id, codigo ?? "sem código ORA");
 
             return StatusCode(
                 StatusCodes.Status503ServiceUnavailable,
@@ -124,6 +146,7 @@ public record HealthResponse(
     string Status,
     string Ambiente,
     bool OracleConfigurado,
+    IReadOnlyList<BaseDto> Bases,
     IReadOnlyList<string> Modulos,
     DateTimeOffset VerificadoEm);
 
@@ -131,4 +154,5 @@ public record OracleHealthResponse(
     string Status,
     string Usuario,
     long TempoMs,
-    DateTimeOffset VerificadoEm);
+    DateTimeOffset VerificadoEm,
+    BaseDto Base);

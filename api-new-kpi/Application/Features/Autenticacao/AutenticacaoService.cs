@@ -1,4 +1,5 @@
 using Epoca.Kpi.Api.Application.Common;
+using Epoca.Kpi.Api.Application.Common.Bases;
 using Epoca.Kpi.Api.Application.Features.Autenticacao.Dtos;
 using Epoca.Kpi.Api.Domain.Entities;
 using Epoca.Kpi.Api.Domain.Interfaces;
@@ -23,15 +24,18 @@ namespace Epoca.Kpi.Api.Application.Features.Autenticacao;
 public sealed class AutenticacaoService
 {
     private readonly IAutenticacaoRepository _repositorio;
+    private readonly RegistroDeBases _bases;
     private readonly GeradorDeToken _tokens;
     private readonly ILogger<AutenticacaoService> _logger;
 
     public AutenticacaoService(
         IAutenticacaoRepository repositorio,
+        RegistroDeBases bases,
         GeradorDeToken tokens,
         ILogger<AutenticacaoService> logger)
     {
         _repositorio = repositorio;
+        _bases = bases;
         _tokens = tokens;
         _logger = logger;
     }
@@ -50,8 +54,17 @@ public sealed class AutenticacaoService
             return Result<LoginResponse>.Invalido("Preencha o usuário e a senha.");
         }
 
+        // A BASE VEM ANTES DE QUALQUER CONSULTA, e ausente é erro: nunca cai na Época por
+        // omissão. Um front antigo, ou um erro de digitação, não pode entrar na base errada
+        // sem ninguém perceber.
+        var baseAlvo = _bases.Buscar(pedido.Base);
+        if (baseAlvo is null)
+        {
+            return Result<LoginResponse>.Invalido("Escolha uma base de dados da lista.");
+        }
+
         var credenciais = await _repositorio.VerificarCredenciaisAsync(
-            login, pedido.Senha, cancellationToken);
+            baseAlvo, login, pedido.Senha, cancellationToken);
 
         // A ORDEM DESTES TESTES É A DA MENSAGEM QUE A PESSOA PRECISA LER.
         //
@@ -62,7 +75,7 @@ public sealed class AutenticacaoService
         {
             // `credenciais is null` também cobre o homônimo com duas senhas — ver o
             // repositório. É raro, mas cai aqui como credencial inválida, e não como erro.
-            return Recusar(login, MotivoDaRecusa.Credenciais);
+            return Recusar(login, MotivoDaRecusa.Credenciais, baseAlvo);
         }
 
         if (!credenciais.PossuiSenha)
@@ -71,12 +84,12 @@ public sealed class AutenticacaoService
             // teste acima pegou. Fica porque a alternativa é este caso depender de uma
             // dedução sobre outra coluna — e porque, se a consulta mudar, quem lê aqui vê a
             // regra inteira.
-            return Recusar(login, MotivoDaRecusa.SemSenhaCadastrada);
+            return Recusar(login, MotivoDaRecusa.SemSenhaCadastrada, baseAlvo);
         }
 
         if (!credenciais.EstaAtivo)
         {
-            return Recusar(login, MotivoDaRecusa.CadastroInativo);
+            return Recusar(login, MotivoDaRecusa.CadastroInativo, baseAlvo);
         }
 
         // A PARTIR DAQUI NINGUÉM MAIS É RECUSADO. Permissão deixou de ser condição para
@@ -87,8 +100,8 @@ public sealed class AutenticacaoService
         // sucesso e mesmo assim foi tratada como quem errou a senha. Agora ela entra, e a tela
         // inicial mostra o que ela pode abrir — que pode ser nada.
 
-        var filiais = await _repositorio.ObterFiliaisDoUsuarioAsync(
-            credenciais.Matricula, cancellationToken);
+                var filiais = await _repositorio.ObterFiliaisDoUsuarioAsync(
+            baseAlvo, credenciais.Matricula, cancellationToken);
 
         var rotinas = RotinasDe(credenciais, filiais);
 
@@ -98,9 +111,10 @@ public sealed class AutenticacaoService
             // vendo a tela inicial vazia — e as duas causas pedem providências diferentes:
             // liberar a guia 4-DRE na 9815, ou cadastrar filial no PCLIB.
             _logger.LogWarning(
-                "Matrícula {Matricula} entrou sem rotina nenhuma. " +
+                "Matrícula {Matricula} entrou na base {Base} sem rotina nenhuma. " +
                 "Rotina 9815: {Rotina}. Guia 4-DRE: {Guia}. Filiais em PCLIB: {Filiais}.",
                 credenciais.Matricula,
+                baseAlvo.Id,
                 credenciais.PodeAbrirRotina,
                 credenciais.PodeVerDre,
                 filiais.Count);
@@ -111,16 +125,18 @@ public sealed class AutenticacaoService
             credenciais.Nome.Trim(),
             credenciais.NomeGuerra.Trim(),
             filiais,
-            rotinas);
+            rotinas,
+            BaseDto.De(baseAlvo));
 
         var (token, expiraEm) = _tokens.Emitir(usuario);
 
         // Matrícula, não nome de guerra, e nunca a senha: o log serve para investigar acesso,
         // e a matrícula é o identificador estável. Ver a regra de nunca logar dado sensível.
         _logger.LogInformation(
-            "Login concluído para a matrícula {Matricula}, com {Filiais} filiais e " +
-            "{Rotinas} rotinas.",
+            "Login concluído para a matrícula {Matricula} na base {Base}, com {Filiais} " +
+            "filiais e {Rotinas} rotinas.",
             credenciais.Matricula,
+            baseAlvo.Id,
             filiais.Count,
             rotinas.Count);
 
@@ -158,9 +174,10 @@ public sealed class AutenticacaoService
     /// <para>O log tem o que a tela não diz: é ali que se descobre que as tentativas de
     /// ontem eram todas de cadastro inativo, e não gente errando a senha.</para>
     /// </summary>
-    private Result<LoginResponse> Recusar(string login, MotivoDaRecusa motivo)
+    private Result<LoginResponse> Recusar(string login, MotivoDaRecusa motivo, BaseConfigurada baseAlvo)
     {
-        _logger.LogInformation("Login recusado para {Login}: {Motivo}.", login, motivo);
-        return Result<LoginResponse>.Proibido(motivo.Mensagem());
+        _logger.LogInformation(
+            "Login recusado para {Login} na base {Base}: {Motivo}.", login, baseAlvo.Id, motivo);
+        return Result<LoginResponse>.Proibido(motivo.Mensagem(baseAlvo.Rotulo));
     }
 }

@@ -21,11 +21,12 @@ public sealed class AutenticacaoRepository : IAutenticacaoRepository
     public AutenticacaoRepository(IOracleConnectionFactory conexoes) => _conexoes = conexoes;
 
     public async Task<CredenciaisWinthor?> VerificarCredenciaisAsync(
+        BaseConfigurada baseAlvo,
         string nomeGuerra,
         string senha,
         CancellationToken cancellationToken = default)
     {
-        using var conexao = await _conexoes.CriarConexaoAsync(cancellationToken);
+        using var conexao = await _conexoes.CriarConexaoAsync(baseAlvo, cancellationToken);
 
         // A ORDEM É A DO SQL, não a da assinatura deste método: `:senha` aparece no SELECT e
         // `:login` no WHERE. Com BindByName = false quem casa é a posição. Trocar as duas
@@ -36,7 +37,7 @@ public sealed class AutenticacaoRepository : IAutenticacaoRepository
 
         var encontradas = await conexao.QueryAsync<CredenciaisWinthor>(
             new CommandDefinition(
-                AutenticacaoQueries.Credenciais,
+                baseAlvo.Regras.Aplicar(AutenticacaoQueries.Credenciais),
                 parametros,
                 commandTimeout: TempoLimiteSegundos,
                 cancellationToken: cancellationToken));
@@ -58,14 +59,15 @@ public sealed class AutenticacaoRepository : IAutenticacaoRepository
     }
 
     public async Task<IReadOnlyList<string>> ObterFiliaisDoUsuarioAsync(
+        BaseConfigurada baseAlvo,
         int matricula,
         CancellationToken cancellationToken = default)
     {
-        using var conexao = await _conexoes.CriarConexaoAsync(cancellationToken);
+        using var conexao = await _conexoes.CriarConexaoAsync(baseAlvo, cancellationToken);
 
         var filiais = await conexao.QueryAsync<string>(
             new CommandDefinition(
-                AutenticacaoQueries.FiliaisDoUsuario,
+                baseAlvo.Regras.Aplicar(AutenticacaoQueries.FiliaisDoUsuario),
                 new { matricula },
                 commandTimeout: TempoLimiteSegundos,
                 cancellationToken: cancellationToken));

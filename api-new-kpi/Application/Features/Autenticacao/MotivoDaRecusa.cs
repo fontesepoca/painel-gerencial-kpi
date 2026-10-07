@@ -43,8 +43,12 @@ public static class MotivoDaRecusaExtensoes
     /// A frase que a tela mostra. Cada uma diz o que aconteceu <b>e</b> o que fazer — uma
     /// mensagem que só informa o problema deixa a pessoa parada na mesma tela.
     /// </summary>
-    public static string Mensagem(this MotivoDaRecusa motivo) => motivo switch
+    public static string Mensagem(this MotivoDaRecusa motivo, string? rotuloDaBase = null) => motivo switch
     {
+        MotivoDaRecusa.Credenciais when rotuloDaBase is not null =>
+            $"Usuário ou senha incorretos na base {rotuloDaBase}. " +
+            "Use o mesmo nome de guerra e a mesma senha do Winthor.",
+
         MotivoDaRecusa.Credenciais =>
             "Usuário ou senha incorretos. Use o mesmo nome de guerra e a mesma senha do Winthor.",
 

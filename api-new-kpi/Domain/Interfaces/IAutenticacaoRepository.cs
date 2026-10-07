@@ -18,6 +18,7 @@ public interface IAutenticacaoRepository
     /// atravessa é só o resultado da comparação.</para>
     /// </summary>
     Task<CredenciaisWinthor?> VerificarCredenciaisAsync(
+        BaseConfigurada baseAlvo,
         string nomeGuerra,
         string senha,
         CancellationToken cancellationToken = default);
@@ -27,6 +28,7 @@ public interface IAutenticacaoRepository
     /// legítima: significa que ela não tem filial liberada em <c>PCLIB</c>.
     /// </summary>
     Task<IReadOnlyList<string>> ObterFiliaisDoUsuarioAsync(
+        BaseConfigurada baseAlvo,
         int matricula,
         CancellationToken cancellationToken = default);
 }

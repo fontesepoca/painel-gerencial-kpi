@@ -18,7 +18,13 @@ public static class PersistenceConfiguration
         // A lista fechada de bases. Singleton: é configuração lida uma vez no boot.
         services.AddSingleton<RegistroDeBases>();
 
-        services.AddSingleton<IOracleConnectionFactory, OracleConnectionFactory>();
+        services.AddHttpContextAccessor();
+        services.AddScoped<IBaseAtual, BaseAtual>();
+
+        // POR REQUISIÇÃO, e não singleton: a fábrica abre a conexão da base do token, e o
+        // token é da requisição. (Era singleton quando só existia uma string de conexão.)
+        services.AddScoped<IOracleConnectionFactory, OracleConnectionFactory>();
+
 
         // Paralelismo da consulta de faturamento. Singleton porque é configuração lida uma
         // vez no boot — mudar o grau exige reiniciar, e isso está escrito em

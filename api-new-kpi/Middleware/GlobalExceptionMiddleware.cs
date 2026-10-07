@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text.Json;
 using Epoca.Kpi.Api.Application.Common;
+using Epoca.Kpi.Api.Application.Common.Bases;
 
 namespace Epoca.Kpi.Api.Middleware;
 
@@ -76,6 +77,33 @@ public sealed class GlobalExceptionMiddleware
                 "no modo por ano, cada coluna é uma varredura de doze meses da base.");
 
             await context.Response.WriteAsync(JsonSerializer.Serialize(aviso, JsonOptions));
+        }
+        catch (BaseIndisponivelException excecao)
+        {
+            // A BASE NÃO RESPONDEU — rede, listener, credencial do EDI. Não é erro de código e
+            // não é "senha incorreta": 503, com o nome da base na mensagem, é o que diz à
+            // pessoa (e à TI) onde olhar. O código ORA vai ao log, nunca a string de conexão.
+            _logger.LogError(
+                "Base {Base} indisponível em {Metodo} {Caminho}: {Codigo}",
+                excecao.BaseId,
+                context.Request.Method,
+                context.Request.Path,
+                excecao.CodigoOra ?? "sem código ORA");
+
+            if (context.Response.HasStarted)
+            {
+                throw;
+            }
+
+            context.Response.Clear();
+            context.Response.StatusCode = (int)HttpStatusCode.ServiceUnavailable;
+            context.Response.ContentType = "application/json; charset=utf-8";
+
+            var resposta = ApiResponse.Falha(
+                $"A base {excecao.Rotulo} não respondeu. Tente de novo ou avise a TI.",
+                _ambiente.IsDevelopment() ? [excecao.CodigoOra ?? "Erro sem código ORA."] : null);
+
+            await context.Response.WriteAsync(JsonSerializer.Serialize(resposta, JsonOptions));
         }
         catch (Exception excecao)
         {
