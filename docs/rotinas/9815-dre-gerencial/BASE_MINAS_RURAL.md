@@ -145,8 +145,29 @@ soma das linhas avulsas), a nº 11 (`Total das Despesas`) e a nº 9 (`SUBTOTAL P
 
 - **A seção sem custo.** A seção sai da venda inteira (`nvl(PR.codsec,0) <> …` filtra o item,
   não só o custo), e a `RECEITA BRUTA` bateu: neste recorte nem a 1401 nem a 1601 parecem ter
-  movimento. Bater com 1601 aqui não distingue as duas — a consulta abaixo diz se há período
-  ou filial onde elas pesam.
-- **O ICMS.** O remapeamento troca a CONTA (para a 3003007), e o C. Custo Principal agrupa por
-  centro de custo: a regra não muda nenhuma linha desta análise. Só uma exportação por
-  **Grupo de Contas** (ou Conta Gerencial) exercita a regra.
+  movimento. Bater com 1601 aqui não distingue as duas (ver a medição 2).
+- **O ICMS.** Setembro da filial 10 não tem lançamento de conta de ICMS do grupo 303 — a regra
+  não tinha o que remapear. (Ela muda linhas **também** no C. Custo Principal: conta sem linha
+  no DRE sai avulsa, por conta, e o remapeamento a leva para a 3003007, que tem linha.)
+
+### 2 — filial 41, julho/2026, competência, Grupo de Contas (07/10/2026)
+
+O único recorte de julho a setembro com venda da seção 1401 (um item, R$ 666,16). **A 9815 trava
+nesta análise** — `'' is not a valid floating point value`, em 20%, depois de rodar as consultas
+— e a exportação sai só até a primeira linha de despesa
+(`Export_filial41_jul2026_competencia_grupo_INCOMPLETA.xlsx`; trace ao lado). Defeito da 9815,
+não reproduzido.
+
+**Da RECEITA BRUTA ao LUCRO BRUTO, e a primeira `Despesas Adm e Vendas`, bate ao centavo — com a
+regra da seção ainda em 1601.** O item da 1401 não pesou (não passa nos demais filtros da venda).
+Nenhum recorte dos três meses distingue 1401 de 1601: a regra foi ligada pela prova do trace —
+[DIVERGENCIAS.md nº 17](./DIVERGENCIAS.md#17-minas-rural-a-seção-sem-custo-é-a-1401--07102026).
+
+### O ICMS: onde a regra pesa
+
+Consultado em 07/10/2026: a **3003007 "Icms"** existe no Minas Rural, é do grupo 303 e tem linha
+no DRE — o ICMS remapeado não some. As contas `Icms Mrural F__` (uma por filial, só em
+agosto/2026: 37.704,69 na filial 10, 39.879,26 na 13…) **não** têm linha no DRE: hoje saem
+avulsas, fora dos totais; com a regra, entram na despesa e movem o `LUCRO LIQUIDO`. Próxima
+medição: **filial 10, agosto/2026, competência, C. Custo Principal** — com a regra desligada e
+depois ligada.

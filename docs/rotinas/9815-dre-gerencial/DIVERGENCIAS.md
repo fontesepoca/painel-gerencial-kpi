@@ -9,7 +9,7 @@ registrada. O que não estiver aqui é defeito, não escolha.
 cada exceção precisa de três coisas: a medida, o motivo de não ser reproduzível, e
 a aprovação do Gabriel.
 
-**Última revisão:** 06/10/2026.
+**Última revisão:** 07/10/2026.
 
 **Como este arquivo está organizado:** o índice, as divergências **em ordem numérica**, as
 quatro seções transversais — as regras que nenhuma branch pode desfazer, o que *não* é
@@ -37,6 +37,7 @@ linha no índice.
 | [14](#14-manutencao-de-veiculos-e-pneus-e-camaras-entram-nos-cálculos--25092026) | `Manutencao De Veiculos` e `PNEUS E CAMARAS` saem do bloco informativo e somam nas despesas operacionais | todas | **+R$ 1.709.994,73** no lucro de julho/2026 na filial 7 | **a pedido** em 25/09/2026 · dc34, dc62 e dc71 |
 | [15](#15-o-detalhamento-respeita-o-filtro-por-fornecedor--02102026) | Detalhamento com fornecedor filtrado | todas as telas de duplo clique | a despesa inteira da filial, contra a fatia do fornecedor | **a pedido** em 02/10/2026 · dc78 12/12 |
 | [16](#16-a-coluna-ah--no-bloco-de-total--06102026) | Coluna `AH %` no total — soma dos `%AH`, **não** a variação do período | todas, só com mais de um mês | **nenhum valor muda** — coluna nova | **a pedido** em 06/10/2026 · dc13 43/43 |
+| [17](#17-minas-rural-a-seção-sem-custo-é-a-1401--07102026) | Minas Rural: a seção tirada da venda e da devolução passa de `1601` para `1401` | todas, só no Minas Rural | **nenhum valor** nos meses medidos — jul a set/2026 | **ligada** em 07/10/2026 pela prova do trace · dc86 46/46 |
 
 ---
 
@@ -1312,6 +1313,45 @@ seguinte, e o cabeçalho mente sobre a que período pertence cada valor.
 com e sem cada checkbox, merges `[3, 3, 4]`, a posição (`AH %` última, `Média` penúltima), o
 valor contra a soma recalculada, e a ausência da coluna com um mês só. Conferida na tela pelo
 Gabriel em 06/10/2026.
+
+## 17. Minas Rural: a seção sem custo é a `1401` — 07/10/2026
+
+A primeira regra por base ligada (ver [BASE_MINAS_RURAL.md](./BASE_MINAS_RURAL.md) e
+[BIFURCACAO_DE_BASES.md](../../plataforma/BIFURCACAO_DE_BASES.md)). **Não é a web divergindo da
+9815 — é a web passando a fazer o que a 9815 do Minas Rural faz.** Está aqui porque o roteiro
+manda registrar toda regra ligada, com a medida.
+
+| | Época | Minas Rural |
+|---|---|---|
+| Antes | `nvl(PR.codsec,0) <> 1601` · `MV.CODSEC <> 1601` | o mesmo da Época |
+| Agora | igual | `<> 1401` — `appsettings.json` → `Bases:MinasRural:Regras:SecaoSemCusto` |
+
+O item da seção sai **inteiro** — venda, custo, devolução —, não só o custo.
+
+### Por que foi ligada sem diferença numérica
+
+**A prova é de texto, e é direta.** Os dois traces da 9815 do Minas Rural em
+`referencia-oficial-miras-rural/` (filial 10 em setembro; filial 41 em julho) mostram a rotina
+enviando `nvl(PR.codsec,0) <> 1401` na venda e `MV.CODSEC <> 1401` na devolução — o que o fonte
+Delphi (`UBase.pas` `GetVlfat`) já dizia.
+
+**A prova numérica não existe nos dados de hoje.** De julho a setembro/2026, em todas as filiais
+do Minas Rural, a seção 1601 não vendeu nada e a 1401 vendeu **um item**, de R$ 666,16, na
+filial 41 em julho — que não chegou a pesar: a apuração da filial 41 em julho bateu com a 9815
+**com a regra desligada**, da RECEITA BRUTA ao LUCRO BRUTO. Esperar uma diferença medível
+seria deixar a tela divergir em silêncio no primeiro mês em que a 1401 vender.
+
+### Como foi conferido
+
+| | |
+|---|---|
+| [dc86](./validacao/dc86_sql_da_epoca_identico.mjs) | a Época continua com `1601`, byte a byte; a expansão ligada não tem `:` nem `@@` |
+| [dc89](./validacao/dc89_apuracao_contra_planilha_da_9815.mjs) | filial 10 em setembro (C. Custo Principal) e filial 41 em julho (Grupo de Contas, até o LUCRO BRUTO): batem — a regra não move valor nesses recortes |
+
+**Quando houver movimento na 1401**, a medição a fazer é a do `dc89` num recorte com essa
+seção: a diferença contra a regra antiga tem de ser exatamente a venda e o custo desses itens.
+
+---
 
 ## As regras que nenhuma branch pode desfazer
 
