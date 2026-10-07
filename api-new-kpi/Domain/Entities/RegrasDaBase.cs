@@ -17,13 +17,20 @@ namespace Epoca.Kpi.Api.Domain.Entities;
 public sealed class RegrasDaBase
 {
     public const string MarcadorSecaoSemCusto = "@@SECAO_SEM_CUSTO@@";
+    public const string MarcadorFiliaisForaDoFiltro = "@@FILIAIS_FORA_DO_FILTRO@@";
+    public const string MarcadorFiliaisForaDaPermissao = "@@FILIAIS_FORA_DA_PERMISSAO@@";
 
     /// <summary>
     /// Todo marcador que <see cref="Aplicar"/> sabe expandir. O programa
     /// <c>docs/plataforma/validacao/verificar_regras.cs</c> imprime a expansão de cada um, e
     /// o <c>dc86</c> a compara com o que a Época tinha no SQL original.
     /// </summary>
-    public static readonly IReadOnlyList<string> Marcadores = [MarcadorSecaoSemCusto];
+    public static readonly IReadOnlyList<string> Marcadores =
+    [
+        MarcadorSecaoSemCusto,
+        MarcadorFiliaisForaDoFiltro,
+        MarcadorFiliaisForaDaPermissao,
+    ];
 
     /// <summary>Código da seção cujo custo o DRE zera. Época: 1601. Minas Rural (fonte): 1401.</summary>
     public int SecaoSemCusto { get; set; } = 1601;
@@ -84,6 +91,23 @@ public sealed class RegrasDaBase
             MarcadorSecaoSemCusto,
             SecaoSemCusto.ToString(CultureInfo.InvariantCulture),
             StringComparison.Ordinal);
+
+        // Lista vazia vira NADA — e não `NOT IN ()`, que o Oracle recusa. Os códigos do filtro
+        // entram entre aspas porque `F.CODFIL` é texto; os da permissão entram como número,
+        // como a 9815 faz (`CODIGOA NOT IN (2, 99)`). Os dois já foram validados (só dígito).
+        pronto = pronto
+            .Replace(
+                MarcadorFiliaisForaDoFiltro,
+                FiliaisForaDoFiltro.Count == 0
+                    ? string.Empty
+                    : $"AND F.CODFIL NOT IN ({string.Join(",", FiliaisForaDoFiltro.Select(f => $"'{f}'"))})",
+                StringComparison.Ordinal)
+            .Replace(
+                MarcadorFiliaisForaDaPermissao,
+                FiliaisForaDaPermissao.Count == 0
+                    ? string.Empty
+                    : $"AND CODIGOA NOT IN ({string.Join(", ", FiliaisForaDaPermissao)})",
+                StringComparison.Ordinal);
 
         if (pronto.Contains("@@", StringComparison.Ordinal))
         {

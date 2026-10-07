@@ -91,7 +91,7 @@ public static class DreGerencialQueries
          WHERE F.EMPRESA = E.EMPRESA
            AND F.CODFIL  = FW.CODIGO (+)
            AND F.DBLEPCTI IS NULL
-           AND F.CODFIL NOT IN ('20','31','35','91')
+           @@FILIAIS_FORA_DO_FILTRO@@
          ORDER BY F.ORDEM_PROCESSA, LPAD(F.CODFIL, 10, '0')
         """;
 
