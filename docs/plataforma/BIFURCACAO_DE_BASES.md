@@ -1,8 +1,9 @@
 # Bifurcação de bases — um sistema, mais de um Oracle
 
-**Situação:** desenho aprovado em conversa em 07/10/2026; **aguardando revisão escrita** antes
-do plano de implementação. Todo o trabalho vive na branch `feat/bifurcacao-de-bases` e **não
-sobe** até ser testado de ponta a ponta.
+**Situação:** desenho aprovado em 07/10/2026 e **corrigido no mesmo dia** — ver §4.1. A
+primeira versão supunha que a API recebia o token do navegador; ao escrever o plano, a leitura
+do BFF mostrou que não recebe. Todo o trabalho vive na branch `feat/bifurcacao-de-bases` e
+**não sobe** até ser testado de ponta a ponta.
 
 Hoje o sistema fala com um Oracle só, o da Época. Esta spec faz o **login escolher a base**
 (Época Distribuição ou Minas Rural, e uma terceira quando vier), trocando host, porta, usuário
@@ -24,7 +25,7 @@ a Época produzindo exatamente o que produz hoje.
 | Decisão | Escolha | Por quê |
 |---|---|---|
 | Trocar de base | **exige novo login** | o token carrega uma base só; não existe estado em que a tela mostra uma e a API consulta outra. É o que o Delphi faz hoje |
-| Onde a base é resolvida | **uma API, base dentro do token assinado** | o cookie já é `HttpOnly`; o cliente não consegue alterá-lo. Descartadas: uma API por base (dobra hospedagem) e base em cabeçalho a cada chamada (o cliente decide cada consulta) |
+| Onde a base é resolvida | **uma API, base dentro do JWT** | o JWT fica na memória do BFF (Next) e o navegador só tem um identificador opaco, então o cliente não consegue alterar a base. **Para isso as chamadas do DRE precisam passar pelo BFF** — ver §4.1. Descartadas: uma API por base (dobra hospedagem) e base em cabeçalho a cada chamada (o cliente decide cada consulta) |
 | Diferenças entre bases | **objeto `RegrasDaBase` tipado**, vindo da configuração | uma lista legível do que difere; uma terceira base entra sem mexer em consulta. O Delphi usa `if bBaseMRURAL` espalhado — é como nasceram os 8 `1601` fixos |
 | Filiais do Minas Rural | **todas**, inclusive a `2` e as `**FECHOU**` | a consulta do Delphi mora no `.dfm`, que não veio. Compara-se com a lista da tela dele e esconde-se só o que a 9815 esconde |
 | Regras do Minas Rural | **sobe com os valores da Época**, e liga-se uma de cada vez | o interruptor serve de instrumento de medição — ver §9 |
@@ -73,6 +74,43 @@ roda** — não existe "a Época por padrão".
   Minas Rural."* O rótulo é público, e o engano mais provável agora é escolher a base errada.
   Os motivos mais finos (inativo, sem senha) só aparecem depois de a senha provada, como hoje.
 - **O cookie é único.** Entrar numa base substitui a sessão anterior.
+
+### 4.1 O transporte: o navegador não tem o token — correção de 07/10/2026
+
+A primeira versão desta spec dizia que a base "viaja no cookie `HttpOnly` com JWT" e que a API a
+lê do token a cada requisição. **Não é como o sistema funciona hoje:**
+
+- O cookie `HttpOnly` é um **identificador opaco** que o Next guarda; o JWT fica **na memória
+  do servidor Next** (o BFF) e o navegador nunca o vê — `lib/servidor/sessoes.ts`.
+- O navegador chama a API .NET **direto** nas rotas do DRE (`apiClient`, `NEXT_PUBLIC_API_URL`),
+  **sem credencial nenhuma**, e nenhuma dessas rotas tem `[Authorize]` — é o "o que ainda não
+  está ligado" de [AUTENTICACAO.md](AUTENTICACAO.md).
+
+Resultado: na apuração **não chega token**, e "a API resolve a base pelo claim" não funciona.
+Existem duas saídas, e uma é fraca demais:
+
+| Saída | Por que não / por que sim |
+|---|---|
+| Navegador manda `X-Base` a cada chamada | é a opção C descartada: o cliente decide a base de cada consulta, numa API **sem autenticação** — qualquer um alcançaria a base que quiser, e uma aba velha consulta a base errada sem ninguém perceber |
+| **As chamadas do DRE passam pelo BFF, que anexa o JWT da sessão**, e a API passa a exigir `[Authorize]` | **escolhida.** A base vem do token, o cliente não a controla, e de quebra fecha o furo que a documentação já listava como pendente |
+
+**O que isto acrescenta ao escopo:**
+
+- **`[Authorize]` no `DreGerencialController`.** `/api/health` e `/api/auth/login` ficam anônimos.
+- **Um proxy no BFF** (`app/api/[...caminho]/route.ts`) que repassa **só** `dre-gerencial/*` e
+  `health/*` à API, com o `Authorization: Bearer` tirado da sessão. `/api/auth/*` **não** é
+  repassado: o navegador não pode chamar o login da API pulando o freio de tentativas.
+- **O `apiClient` passa a falar com a própria origem** (`/api/...`). `NEXT_PUBLIC_API_URL` deixa
+  de ser necessária para o DRE, e o CORS deixa de ser exercitado por ele.
+- **O proxy usa `node:http`, e não `fetch`.** Uma apuração leva até 407 s (dc19), e o `fetch` do
+  Node tem `headersTimeout` de 300 s que só se altera instalando o pacote `undici` — biblioteca
+  nova, que exige sua aprovação. `node:http` já vem com o Node, não tem esse teto e entrega a
+  resposta em fluxo, sem guardá-la inteira na memória.
+
+**A segurança passa a ter uma garantia que não tinha:** hoje qualquer pessoa que alcance a API
+consegue apurar qualquer filial. Depois desta mudança, só quem tem sessão — e só na base da
+sessão. As filiais do token ainda **não** são cobradas na apuração (continua sendo o "passo
+seguinte" da documentação de autenticação); isso fica fora desta spec.
 
 ## 5. As regras por base
 
@@ -156,7 +194,10 @@ O log guarda a base e o código `ORA-`, nunca a string de conexão.
 
 ## 9. A ordem de entrega — a Época nunca fica quebrada
 
-1. Registro de bases e fábrica de conexão, com o teste de SQL idêntico.
+0. **Fechar as rotas do DRE** (§4.1): `[Authorize]` na API e proxy no BFF. Vem primeiro porque
+   sem token na chamada não há onde ler a base, e porque é útil sozinho — com uma base só, a
+   Época continua funcionando por dentro do proxy.
+1. Registro de bases, e a fábrica de conexão que lê a base do token, com o teste de SQL idêntico.
 2. Login e token.
 3. `RegrasDaBase`, com o Minas Rural **nos valores da Época**.
 4. O front.
@@ -166,7 +207,7 @@ O log guarda a base e o código `ORA-`, nunca a string de conexão.
 6. Ligar as regras, **uma por commit**, cada uma com a entrada no `DIVERGENCIAS.md` e a medida
    que a justificou.
 
-Os passos 1 a 4 não mudam número nenhum. A mudança de comportamento só entra no 6, medida.
+Os passos 0 a 4 não mudam número nenhum. A mudança de comportamento só entra no 6, medida.
 
 ## 10. Para acrescentar uma terceira base
 
