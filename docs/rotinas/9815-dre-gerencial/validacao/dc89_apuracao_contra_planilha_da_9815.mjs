@@ -9,7 +9,7 @@
  *     node --import ./docs/rotinas/9815-dre-gerencial/validacao/_autenticar.mjs \
  *       docs/rotinas/9815-dre-gerencial/validacao/dc89_apuracao_contra_planilha_da_9815.mjs \
  *       <9815.xlsx> <filiais, ex. 10 ou 10,37> <início AAAA-MM-DD> <fim AAAA-MM-DD> \
- *       [competencia|caixa] [ccusto-principal|grupo|...]
+ *       [competencia|caixa] [ccusto-principal|grupo-contas|conta-gerencial|centro-custo]
  *
  * O que sai:
  *   1. cada linha da 9815 contra a SOMA das nossas linhas de mesmo rótulo (a 9815 agrupa por
@@ -34,6 +34,17 @@ if (!xlsx || !filiaisArg || !dataInicio || !dataFim) {
 }
 if (!fs.existsSync(xlsx)) {
   console.error(`A planilha da 9815 não foi encontrada: ${xlsx}\nExporte o cenário na 9815 e passe o caminho do .xlsx como primeiro argumento.`);
+  process.exit(2);
+}
+
+// Os valores que a API aceita. Conferir aqui poupa a ida à API (e o login) por um erro de
+// digitação — `grupo` em vez de `grupo-contas` foi o primeiro.
+const ANALISES = ["grupo-contas", "conta-gerencial", "ccusto-principal", "centro-custo"];
+const REGIMES = ["competencia", "caixa"];
+if (!ANALISES.includes(analise) || !REGIMES.includes(regime)) {
+  console.error(`Regime "${regime}" ou análise "${analise}" inválido.
+Regimes: ${REGIMES.join(", ")}.
+Análises: ${ANALISES.join(", ")}.`);
   process.exit(2);
 }
 
@@ -80,104 +91,112 @@ const r = await fetch(`${API}/api/dre-gerencial/apuracao`, {
   body: JSON.stringify(FILTRO),
 });
 const j = await r.json();
-if (!j.sucesso) throw new Error(`apuração recusada (${r.status}): ${j.mensagem ?? j.erros?.[0] ?? "sem mensagem"}`);
-const dados = j.dados;
-const segundos = ((Date.now() - t0) / 1000).toFixed(1);
-
-const nossas = new Map();
-for (const l of dados.linhas) {
-  const k = norm(l.descricao);
-  const v = l.total?.valor ?? 0;
-  const atual = nossas.get(k) ?? { valor: 0, partes: [], chaves: [], calculada: l.calculada };
-  // Linha calculada vale uma vez; conta soma com as homônimas.
-  atual.valor = l.calculada ? v : atual.valor + v;
-  atual.partes.push(`${l.chave ?? "?"}=${v.toFixed(2)}`);
-  if (!l.calculada && /^\d+$/.test(String(l.chave ?? ""))) atual.chaves.push(String(l.chave));
-  nossas.set(k, atual);
+// Recusa sai por mensagem e `exitCode`, nunca por `throw`: o erro não tratado encerra o Node
+// com a conexão do `fetch` ainda aberta, e no Windows isso termina numa asserção da libuv.
+if (!j.sucesso) {
+  console.error(`Apuração recusada (${r.status}): ${j.mensagem ?? j.erros?.[0] ?? "sem mensagem"}`);
+  process.exitCode = 1;
+} else {
+  process.exitCode = comparar(j.dados) === 0 ? 0 : 1;
 }
 
-// ── comparar ─────────────────────────────────────────────────────────────────────────
-const fmt = (v) => v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-const igual = (a, b) => Math.abs(a - b) <= 0.005;
-console.log(`\n══ dc89 — API contra a 9815 ══`);
-console.log(`  base da sessão: ${dados.base?.rotulo ?? "(a API não disse)"}  ·  ${JSON.stringify(FILTRO)}`);
-console.log(`  apurado em ${segundos} s  ·  planilha: ${xlsx}\n`);
-console.log("  " + "linha da 9815".padEnd(40) + "9815".padStart(16) + "nosso".padStart(16) + "diferença".padStart(16));
+/** Imprime a comparação e devolve quantas divergências ficaram sem explicação. */
+function comparar(dados) {
+  const segundos = ((Date.now() - t0) / 1000).toFixed(1);
 
-const vistas = new Set(planilha.map((p) => p.rotulo));
-// As nossas que a 9815 não tem, com valor: candidatas a explicar uma diferença.
-const soNossas = new Map([...nossas].filter(([k, n]) => !vistas.has(k) && !igual(n.valor, 0)));
-const valorNosso = (rotulo) => nossas.get(norm(rotulo))?.valor;
+  const nossas = new Map();
+  for (const l of dados.linhas) {
+    const k = norm(l.descricao);
+    const v = l.total?.valor ?? 0;
+    const atual = nossas.get(k) ?? { valor: 0, partes: [], chaves: [], calculada: l.calculada };
+    // Linha calculada vale uma vez; conta soma com as homônimas.
+    atual.valor = l.calculada ? v : atual.valor + v;
+    atual.partes.push(`${l.chave ?? "?"}=${v.toFixed(2)}`);
+    if (!l.calculada && /^\d+$/.test(String(l.chave ?? ""))) atual.chaves.push(String(l.chave));
+    nossas.set(k, atual);
+  }
 
-let divergencias = 0;
-const explicadas = [];
-for (const p of planilha) {
-  const n = nossas.get(p.rotulo);
-  const linha = (nosso, dif, nota) =>
-    console.log(
-      `  ${p.original.slice(0, 39).padEnd(40)}${fmt(p.valor).padStart(16)}${nosso.padStart(16)}${dif.padStart(16)}${nota}`,
-    );
+  // ── comparar ─────────────────────────────────────────────────────────────────────────
+  const fmt = (v) => v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const igual = (a, b) => Math.abs(a - b) <= 0.005;
+  console.log(`\n══ dc89 — API contra a 9815 ══`);
+  console.log(`  base da sessão: ${dados.base?.rotulo ?? "(a API não disse)"}  ·  ${JSON.stringify(FILTRO)}`);
+  console.log(`  apurado em ${segundos} s  ·  planilha: ${xlsx}\n`);
+  console.log("  " + "linha da 9815".padEnd(40) + "9815".padStart(16) + "nosso".padStart(16) + "diferença".padStart(16));
 
-  if (!n) {
-    // DIVERGÊNCIA 11: a linha `Total das Despesas` saiu da nossa tela. O número não sumiu —
-    // é LUCRO LIQUIDO − LUCRO BRUTO —, e é ele que se confere, não a ausência da linha.
-    if (p.rotulo === "TOTAL DAS DESPESAS") {
-      const ll = valorNosso("LUCRO LIQUIDO");
-      const lb = valorNosso("LUCRO BRUTO");
-      if (ll !== undefined && lb !== undefined && igual(ll - lb, p.valor)) {
-        linha("(sem linha)", "", "   ok pela div. 11: LUCRO LIQUIDO − LUCRO BRUTO bate");
-        explicadas.push("11");
-        continue;
+  const vistas = new Set(planilha.map((p) => p.rotulo));
+  // As nossas que a 9815 não tem, com valor: candidatas a explicar uma diferença.
+  const soNossas = new Map([...nossas].filter(([k, n]) => !vistas.has(k) && !igual(n.valor, 0)));
+  const valorNosso = (rotulo) => nossas.get(norm(rotulo))?.valor;
+
+  let divergencias = 0;
+  const explicadas = [];
+  for (const p of planilha) {
+    const n = nossas.get(p.rotulo);
+    const linha = (nosso, dif, nota) =>
+      console.log(
+        `  ${p.original.slice(0, 39).padEnd(40)}${fmt(p.valor).padStart(16)}${nosso.padStart(16)}${dif.padStart(16)}${nota}`,
+      );
+
+    if (!n) {
+      // DIVERGÊNCIA 11: a linha `Total das Despesas` saiu da nossa tela. O número não sumiu —
+      // é LUCRO LIQUIDO − LUCRO BRUTO —, e é ele que se confere, não a ausência da linha.
+      if (p.rotulo === "TOTAL DAS DESPESAS") {
+        const ll = valorNosso("LUCRO LIQUIDO");
+        const lb = valorNosso("LUCRO BRUTO");
+        if (ll !== undefined && lb !== undefined && igual(ll - lb, p.valor)) {
+          linha("(sem linha)", "", "   ok pela div. 11: LUCRO LIQUIDO − LUCRO BRUTO bate");
+          explicadas.push("11");
+          continue;
+        }
       }
+      linha("—", "", "   FALTA NO NOSSO");
+      if (!igual(p.valor, 0)) divergencias++;
+      continue;
     }
-    linha("—", "", "   FALTA NO NOSSO");
-    if (!igual(p.valor, 0)) divergencias++;
-    continue;
-  }
 
-  const d = n.valor - p.valor;
-  if (igual(d, 0)) {
-    linha(fmt(n.valor), "", "");
-    continue;
-  }
+    const d = n.valor - p.valor;
+    if (igual(d, 0)) {
+      linha(fmt(n.valor), "", "");
+      continue;
+    }
 
-  // DIVERGÊNCIA 12: no C. Custo Principal a 9815 agrupa pelos DOIS primeiros dígitos, e nós
-  // mostramos cada conta principal. A diferença tem de ser, ao centavo, a soma das nossas
-  // linhas avulsas do mesmo grupo — senão não é agrupamento, é número errado.
-  const grupos = new Set(n.chaves.map((c) => c.slice(0, 2)));
-  const doGrupo = [...soNossas].filter(([, s]) => s.chaves.some((c) => grupos.has(c.slice(0, 2))));
-  const soma = doGrupo.reduce((t, [, s]) => t + s.valor, 0);
-  if (analise === "ccusto-principal" && doGrupo.length > 0 && igual(n.valor + soma, p.valor)) {
-    linha(fmt(n.valor), fmt(d), `   ok pela div. 12: + ${doGrupo.map(([k]) => k).join(", ")}`);
-    for (const [k] of doGrupo) soNossas.delete(k);
-    explicadas.push("12");
-    continue;
-  }
+    // DIVERGÊNCIA 12: no C. Custo Principal a 9815 agrupa pelos DOIS primeiros dígitos, e nós
+    // mostramos cada conta principal. A diferença tem de ser, ao centavo, a soma das nossas
+    // linhas avulsas do mesmo grupo — senão não é agrupamento, é número errado.
+    const grupos = new Set(n.chaves.map((c) => c.slice(0, 2)));
+    const doGrupo = [...soNossas].filter(([, s]) => s.chaves.some((c) => grupos.has(c.slice(0, 2))));
+    const soma = doGrupo.reduce((t, [, s]) => t + s.valor, 0);
+    if (analise === "ccusto-principal" && doGrupo.length > 0 && igual(n.valor + soma, p.valor)) {
+      linha(fmt(n.valor), fmt(d), `   ok pela div. 12: + ${doGrupo.map(([k]) => k).join(", ")}`);
+      for (const [k] of doGrupo) soNossas.delete(k);
+      explicadas.push("12");
+      continue;
+    }
 
-  divergencias++;
-  linha(fmt(n.valor), fmt(d), `  ◄${n.partes.length > 1 ? `   [${n.partes.join(" ")}]` : ""}`);
-}
-
-// DIVERGÊNCIA 9: o `SUBTOTAL POSITIVO` é linha nossa, pedida em 14/09/2026; a 9815 não a tem.
-if (soNossas.has("SUBTOTAL POSITIVO")) {
-  soNossas.delete("SUBTOTAL POSITIVO");
-  explicadas.push("9");
-}
-
-if (soNossas.size > 0) {
-  console.log("\n  Só no nosso (com valor), sem explicação:");
-  for (const [k, n] of soNossas) {
     divergencias++;
-    console.log(`  ${k.slice(0, 39).padEnd(40)}${"—".padStart(16)}${fmt(n.valor).padStart(16)}   [${n.partes.join(" ")}]`);
+    linha(fmt(n.valor), fmt(d), `  ◄${n.partes.length > 1 ? `   [${n.partes.join(" ")}]` : ""}`);
   }
-}
 
-const aprovadas = [...new Set(explicadas)].sort((a, b) => a - b);
-if (aprovadas.length > 0) {
-  console.log(`\n  Diferenças de apresentação, já aprovadas no DIVERGENCIAS.md: ${aprovadas.map((d) => `nº ${d}`).join(", ")}`);
-}
-console.log(`\n  ${divergencias === 0 ? "BATE — todos os valores conferem" : `${divergencias} divergência(s) sem explicação`}\n`);
+  // DIVERGÊNCIA 9: o `SUBTOTAL POSITIVO` é linha nossa, pedida em 14/09/2026; a 9815 não a tem.
+  if (soNossas.has("SUBTOTAL POSITIVO")) {
+    soNossas.delete("SUBTOTAL POSITIVO");
+    explicadas.push("9");
+  }
 
-// `exitCode`, e não `process.exit()`: sair à força com a conexão do `fetch` ainda aberta
-// derruba o Node no Windows com uma asserção da libuv (`UV_HANDLE_CLOSING`).
-process.exitCode = divergencias === 0 ? 0 : 1;
+  if (soNossas.size > 0) {
+    console.log("\n  Só no nosso (com valor), sem explicação:");
+    for (const [k, n] of soNossas) {
+      divergencias++;
+      console.log(`  ${k.slice(0, 39).padEnd(40)}${"—".padStart(16)}${fmt(n.valor).padStart(16)}   [${n.partes.join(" ")}]`);
+    }
+  }
+
+  const aprovadas = [...new Set(explicadas)].sort((a, b) => a - b);
+  if (aprovadas.length > 0) {
+    console.log(`\n  Diferenças de apresentação, já aprovadas no DIVERGENCIAS.md: ${aprovadas.map((d) => `nº ${d}`).join(", ")}`);
+  }
+  console.log(`\n  ${divergencias === 0 ? "BATE — todos os valores conferem" : `${divergencias} divergência(s) sem explicação`}\n`);
+
+  return divergencias;
+}
