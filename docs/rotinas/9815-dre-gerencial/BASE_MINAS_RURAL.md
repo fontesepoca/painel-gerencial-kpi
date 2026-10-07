@@ -178,3 +178,5 @@ Com a seção 1401 ligada e o ICMS **desligado**: tudo bate, menos DESPESAS TRIB
 RESULTADO OPERACIONAL e LUCRO LIQUIDO, os quatro com **38.054,11** — a soma exata das duas
 contas de ICMS que só a web mostrava avulsas (`Icms Mrural F10` 37.704,69 e `Icms Diferencial
 De Aliquota F10` 349,42). Regra ligada: [DIVERGENCIAS.md nº 18](./DIVERGENCIAS.md#18-minas-rural-as-contas-de-icms-viram-a-3003007--07102026).
+
+**Depois de ligar: bate ao centavo**, da RECEITA BRUTA ao LUCRO LIQUIDO (`dc89`).
