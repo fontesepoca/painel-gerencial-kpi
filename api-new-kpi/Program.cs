@@ -26,6 +26,11 @@ builder.Services.AddModulosDeRotina(builder.Configuration);
 
 var app = builder.Build();
 
+// Constrói o registro de bases AGORA. A validação da configuração (código de filial com
+// letra, seção negativa) tem de derrubar o boot — e não a primeira pessoa que tentar entrar,
+// numa tela de login, com uma mensagem que ninguém liga a um appsettings.
+_ = app.Services.GetRequiredService<Epoca.Kpi.Api.Application.Common.Bases.RegistroDeBases>();
+
 // ---------------------------------------------------------------------------
 // Pipeline — a ordem importa e é a mesma do projeto Minas Rural, com a compressão
 // acrescentada logo no começo:

@@ -1,3 +1,4 @@
+using Epoca.Kpi.Api.Application.Common.Bases;
 using Epoca.Kpi.Api.Infrastructure.Persistence;
 using Epoca.Kpi.Api.Infrastructure.Persistence.Context;
 
@@ -14,6 +15,9 @@ public static class PersistenceConfiguration
         this IServiceCollection services,
         IConfiguration configuration)
     {
+        // A lista fechada de bases. Singleton: é configuração lida uma vez no boot.
+        services.AddSingleton<RegistroDeBases>();
+
         services.AddSingleton<IOracleConnectionFactory, OracleConnectionFactory>();
 
         // Paralelismo da consulta de faturamento. Singleton porque é configuração lida uma
