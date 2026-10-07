@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+import { decidirRepasse, sessaoMorreu } from "@/lib/servidor/decidirRepasse";
 import { repassarParaApi } from "@/lib/servidor/repassarParaApi";
 import { NOME_DO_COOKIE, encerrarSessao, lerSessao } from "@/lib/servidor/sessoes";
 import { URL_DA_API } from "@/lib/servidor/urlDaApi";
@@ -18,27 +19,21 @@ import { URL_DA_API } from "@/lib/servidor/urlDaApi";
  */
 export const dynamic = "force-dynamic";
 
-const REPASSADOS = new Set(["dre-gerencial", "health"]);
-
 type Contexto = { params: Promise<{ caminho: string[] }> };
 
 async function repassar(requisicao: Request, { params }: Contexto) {
   const { caminho } = await params;
-  const primeiro = caminho[0] ?? "";
-
-  if (!REPASSADOS.has(primeiro)) {
-    return NextResponse.json({ sucesso: false, mensagem: "Rota inexistente." }, { status: 404 });
-  }
 
   const cookieStore = await cookies();
   const id = cookieStore.get(NOME_DO_COOKIE)?.value;
   const sessao = lerSessao(id);
 
-  // `health` é anônimo na API e serve para diagnosticar; o resto exige sessão.
-  if (!sessao && primeiro !== "health") {
+  // A decisão (o que passa, o que exige sessão) mora em `decidirRepasse`, que o dc87 testa.
+  const decisao = decidirRepasse(caminho, sessao !== null);
+  if (decisao.tipo === "recusar") {
     return NextResponse.json(
-      { sucesso: false, mensagem: "Sessão expirada ou ausente. Entre novamente." },
-      { status: 401 },
+      { sucesso: false, mensagem: decisao.mensagem },
+      { status: decisao.status },
     );
   }
 
@@ -46,11 +41,11 @@ async function repassar(requisicao: Request, { params }: Contexto) {
   const resposta = await repassarParaApi(
     requisicao,
     URL_DA_API,
-    `/api/${caminho.map(encodeURIComponent).join("/")}${consulta}`,
+    `${decisao.caminho}${consulta}`,
     sessao?.token ?? null,
   );
 
-  if (resposta.status === 401 && sessao) {
+  if (sessaoMorreu(resposta.status, sessao !== null)) {
     encerrarSessao(id);
     cookieStore.delete(NOME_DO_COOKIE);
   }

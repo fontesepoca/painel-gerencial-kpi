@@ -10,6 +10,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import http from "node:http";
 import { repassarParaApi } from "../../../../client-new-kpi/lib/servidor/repassarParaApi.ts";
+import { decidirRepasse, sessaoMorreu } from "../../../../client-new-kpi/lib/servidor/decidirRepasse.ts";
 
 let n = 0;
 const eq = (achou, esperado, oque) => {
@@ -168,6 +169,47 @@ const pedido = (url, init = {}) => new Request(`http://bff.local${url}`, init);
   ok(!/\btimeout\b/i.test(codigo), "repassarParaApi não define timeout");
   ok(!/\bfetch\s*\(/.test(codigo), "repassarParaApi não usa fetch — o headersTimeout dele é de 300 s");
   ok(/node:http/.test(codigo), "usa node:http");
+}
+
+// ── 8. O QUE O ROUTE HANDLER REPASSA — e o que ele recusa sem chamar a API ────────────
+{
+  // `/api/auth/*` NÃO passa: o navegador não pode chamar o login da API pulando o freio de
+  // tentativas do BFF. Nem qualquer outra coisa fora da lista.
+  for (const caminho of [["auth", "login"], ["auth", "bases"], ["qualquercoisa"], []]) {
+    const d = decidirRepasse(caminho, true);
+    eq(d.tipo === "recusar" && d.status, 404, `/api/${caminho.join("/")} não é repassado, nem com sessão`);
+  }
+
+  const semSessao = decidirRepasse(["dre-gerencial", "apuracao"], false);
+  eq(semSessao.tipo === "recusar" && semSessao.status, 401, "DRE sem sessão: 401, sem chamar a API");
+
+  eq(decidirRepasse(["health"], false), { tipo: "repassar", caminho: "/api/health" }, "health é anônimo");
+  eq(
+    decidirRepasse(["dre-gerencial", "fornecedores"], true),
+    { tipo: "repassar", caminho: "/api/dre-gerencial/fornecedores" },
+    "DRE com sessão: repassa",
+  );
+  eq(
+    decidirRepasse(["dre-gerencial", "a/b"], true),
+    { tipo: "repassar", caminho: "/api/dre-gerencial/a%2Fb" },
+    "cada segmento é codificado: uma barra no segmento não vira outro caminho",
+  );
+}
+
+// ── 9. REVIEW FOCUS 1: um 401 DA API encerra a sessão do BFF ─────────────────────────────
+// Token sem o claim `base`, ou de base que saiu da configuração: se a sessão ficasse, o
+// navegador teria cookie vivo e sessão morta, e cada tela daria 401 sem mandar entrar.
+eq(sessaoMorreu(401, true), true, "401 da API com sessão: encerra");
+eq(sessaoMorreu(401, false), false, "sem sessão, não há o que encerrar");
+for (const status of [200, 400, 403, 500, 502, 503]) {
+  eq(sessaoMorreu(status, true), false, `${status} não encerra a sessão`);
+}
+
+// E o route handler USA as duas funções — sem isto, testá-las não provaria nada da rota.
+{
+  const rota = fs.readFileSync("client-new-kpi/app/api/[...caminho]/route.ts", "utf8");
+  ok(rota.includes("decidirRepasse("), "o route.ts decide por decidirRepasse");
+  ok(rota.includes("sessaoMorreu(") && rota.includes("encerrarSessao("), "e encerra a sessão por sessaoMorreu");
 }
 
 console.log(`dc87 — ${n} conferências, todas passaram.`);
