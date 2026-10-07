@@ -32,6 +32,10 @@ if (!xlsx || !filiaisArg || !dataInicio || !dataFim) {
   console.error("Uso: dc89 <9815.xlsx> <filiais> <início AAAA-MM-DD> <fim AAAA-MM-DD> [regime] [análise]");
   process.exit(2);
 }
+if (!fs.existsSync(xlsx)) {
+  console.error(`A planilha da 9815 não foi encontrada: ${xlsx}\nExporte o cenário na 9815 e passe o caminho do .xlsx como primeiro argumento.`);
+  process.exit(2);
+}
 
 const API = process.env.API ?? "http://localhost:5207";
 const FILTRO = { filiais: filiaisArg.split(","), dataInicio, dataFim, regime, analise };
