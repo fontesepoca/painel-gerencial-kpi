@@ -408,11 +408,23 @@ A [dc40](../rotinas/9815-dre-gerencial/validacao/dc40_login_e_ceu.mjs) cobre as 
 asserções: as formas de escapar do site pelo `destino` e a aritmética do céu — inclusive que
 60 Hz e 144 Hz percorrem o mesmo caminho em um segundo.
 
+### A base de dados da sessão
+
+O login pede **base** (`Epoca`, `MinasRural`…), a lista vem de `GET /api/auth/bases`, e o JWT
+carrega o claim `base`. A identidade passa a ser o par **(base, matrícula)**: a 144 da Época
+e a 144 do Minas Rural são pessoas diferentes. Token sem o claim, ou de uma base que saiu da
+configuração, é recusado com *"Sua sessão é anterior a esta atualização. Entre de novo."* — e o
+BFF encerra a sessão em memória, para o navegador não ficar com cookie vivo e sessão morta.
+Banco da base fora do ar é **503**, nunca "senha incorreta". Trocar de base exige novo login.
+
 ### O que ainda não está ligado
 
-**As rotas do DRE não exigem token.** `UseAuthentication` e `UseAuthorization` estão no
-pipeline, mas nenhum endpoint do DRE tem `[Authorize]` — ligar agora derrubaria o front, que
-não manda credencial nenhuma. Isso entra junto com a tela de login.
+**As rotas do DRE exigem sessão desde 07/10/2026** — `[Authorize]` no `DreGerencialController`.
+O navegador não manda token (ele não o tem): as chamadas passam pelo BFF, em
+`app/api/[...caminho]/route.ts`, que anexa o JWT da sessão. O proxy usa `node:http` e não
+`fetch` porque uma apuração leva até 407 s e o `fetch` do Node corta em 300 s; e repassa só
+`dre-gerencial/*` e `health/*` — **`/api/auth/*` não passa**, para o navegador não chamar o
+login da API pulando o freio de tentativas. Ver [BIFURCACAO_DE_BASES.md §4.1](BIFURCACAO_DE_BASES.md).
 
 **A apuração ainda aceita qualquer filial** que o corpo da requisição pedir. As filiais já
 viajam no token; passar a exigi-las é o passo seguinte, e é o que fecha o furo.

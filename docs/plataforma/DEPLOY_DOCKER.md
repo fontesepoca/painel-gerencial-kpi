@@ -200,3 +200,18 @@ Só mexa se a API deixar de ser um serviço deste mesmo compose.
 - `NEXT_PUBLIC_API_URL` entra no build do Next. Se trocar IP, domínio ou porta da API, rode `docker compose up -d --build client`.
 - `appsettings.Development.json`, `appsettings.Production.json` e `.env*` não entram nas imagens.
 - Em produção real, prefira colocar um proxy reverso com HTTPS na frente e não expor a API diretamente.
+
+## As bases (a partir de 07/10/2026)
+
+Cada base tem a sua string de conexão, por variável de ambiente:
+
+| Variável | Base |
+|---|---|
+| `ConnectionStrings__OracleEpoca` | Época Distribuição |
+| `ConnectionStrings__OracleMinasRural` | Minas Rural — **sem ela a base não aparece no login** |
+
+**`NEXT_PUBLIC_API_URL` deixou de ser usada pelo navegador.** Ele fala só com o Next; quem
+fala com a API é o servidor Next, por `API_URL_INTERNA` (`http://api:8080` em container). Uma
+build antiga com `NEXT_PUBLIC_API_URL` definida **não** volta a chamar a API direto: o
+`apiClient` usa a própria origem. As regras de cada base (seção sem custo, ICMS, filiais) são
+configuração em `appsettings.json` → `Bases`, e não variável de ambiente.

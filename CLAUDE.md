@@ -101,6 +101,15 @@ não escolha.
 antes de entregar, traga a `main`: `git log --oneline HEAD..main` tem de vir vazio. Branch
 atrasada e regra revertida produzem a MESMA tela, e só o histórico distingue uma da outra.
 
+## Bases
+
+O login escolhe a **base** (Época Distribuição ou Minas Rural), e a escolha vai no JWT: cada
+requisição consulta só a base da sessão. As diferenças de regra entre bases (a seção sem custo,
+o ICMS, as filiais) são **configuração** — `appsettings.json` → `Bases` —, nunca `if` no código.
+Ver [BIFURCACAO_DE_BASES.md](docs/plataforma/BIFURCACAO_DE_BASES.md). **Uma regra do Minas Rural
+só se liga depois de medida contra a 9815 de lá**, e cada uma entra no `DIVERGENCIAS.md`.
+
+
 ## Rodar
 
 ```bash

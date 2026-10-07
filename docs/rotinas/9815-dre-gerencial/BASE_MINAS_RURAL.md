@@ -85,13 +85,44 @@ outras. O Delphi não distingue por base — ele só lê a tabela `FILIAIS`. **A
 da Época ao Minas Rural pode esconder uma filial real ou mostrar uma morta.** Só uma consulta
 na base responde.
 
-## Como confirmar
+## Como confirmar — o roteiro
 
-1. **Apurar a 9815 no Winthor do Minas Rural** e exportar, nos mesmos seis cenários da
-   primeira versão (um mês sem `AH`; dois meses com `AH`; as três análises × caixa e
-   competência). Guardar em `referencia-oficial-minas-rural/`, com o `queries/` do trace.
-2. **Apurar a mesma coisa pela API apontada para o Minas Rural**, com o código **como está**
-   — sem o `1401` e sem a conta `3003007`.
-3. **A diferença é a medida.** Se a hipótese acima estiver certa, ela se explica toda pelos
-   dois mecanismos — e o que sobrar é um terceiro achado. Só então o código é alterado, e cada
-   mudança entra no `DIVERGENCIAS.md` com a medida que a justificou.
+O Minas Rural **sobe com os valores da Época** (`SecaoSemCusto` 1601, `AgrupaIcms` falso). A
+medição é a diferença entre a nossa apuração e a 9815 de lá, e **cada regra só é ligada
+depois de a diferença que ela explica ter sido medida**.
+
+**O cenário de referência** (as exportações em `referencia-oficial-miras-rural/`, do trace do
+Delphi em 07/10/2026): análise **C. Custo Principal**, filiais **10 e 37**, sem filtro de
+fornecedor, regime **caixa** (o trace mostra `nvl(FIN.DTPAGTO, …)` no mês da coluna —
+confirme na tela), nos dois períodos exportados:
+
+| Exportação | Período | Colunas |
+|---|---|---|
+| `Export_mes_anterior_MR.xlsx` | 01/09/2026 a 30/09/2026 | Setembro, com `% AV` |
+| `Export_ult3meses_mr.xlsx` | 01/07/2026 a 30/09/2026 | Julho, Agosto, Setembro, com `% AV` e `% AH`, total e média |
+
+1. **Entrar no Minas Rural** pela nossa tela (credencial do Minas Rural, do próprio Gabriel) e
+   apurar os dois cenários, **sem ligar regra nenhuma**.
+2. **Comparar com os `.xlsx`**, por script (a skill `conferir-dre`), com tolerância de meio
+   centavo. **Registrar o que divergiu, linha a linha, sem corrigir.**
+3. **Atribuir cada diferença a um mecanismo.** Se a leitura do fonte estiver certa, a diferença
+   se explica pelos dois mecanismos acima (a seção `1401` no CMV; o ICMS na despesa). O que
+   sobrar é um **terceiro achado** — e **não se liga nada** antes de entendê-lo.
+4. **Ligar uma regra por vez**, em `appsettings.json` → `Bases:MinasRural:Regras`:
+   `SecaoSemCusto` para `1401`; depois, em outro commit, `AgrupaIcms` para `true`. Cada uma:
+   reiniciar a API, repetir os dois cenários, e **só então** commitar, com a entrada
+   correspondente no `DIVERGENCIAS.md` (a medida antes e depois, e o script que a mede).
+5. **Conferir que a Época não mexeu:** o `dc64` (45/45) e o `dc86` depois de cada commit.
+
+**Duas coisas a olhar com atenção ao ligar o ICMS:**
+
+- O Delphi remapeia para a conta `3003007`, e a consulta de despesa faz `FIN.CODCONTA =
+  CT.CODCONTA` com o `PCCONTA`: **se a `3003007` não existir no `PCCONTA` do Minas Rural, as
+  linhas de ICMS somem da despesa** em vez de se agruparem. Confira com uma consulta antes de
+  ligar.
+- A apuração e o duplo clique têm de concordar (divergência 4): depois de ligar, o `dc78` —
+  o detalhamento fecha com a célula — roda nas duas bases.
+
+**O que a lista de filiais do Minas Rural ainda não diz:** começa com **todas**, inclusive a
+`2` e as `**FECHOU**`. Compare com a lista que o Delphi mostra na tela dele e esconda, em
+`FiliaisForaDoFiltro`, só o que a 9815 esconde.

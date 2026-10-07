@@ -1,13 +1,17 @@
 # Bifurcação de bases — um sistema, mais de um Oracle
 
-**Situação:** desenho aprovado em 07/10/2026 e **corrigido no mesmo dia** — ver §4.1. A
-primeira versão supunha que a API recebia o token do navegador; ao escrever o plano, a leitura
-do BFF mostrou que não recebe. Todo o trabalho vive na branch `feat/bifurcacao-de-bases` e
-**não sobe** até ser testado de ponta a ponta.
+**Situação:** **implementada na branch `feat/bifurcacao-de-bases`; em teste. Não sobe antes de
+testada de ponta a ponta.** O desenho, aprovado em 07/10/2026, foi corrigido no mesmo dia — ver
+§4.1: a primeira versão supunha que a API recebia o token do navegador, e não recebe.
 
 Hoje o sistema fala com um Oracle só, o da Época. Esta spec faz o **login escolher a base**
 (Época Distribuição ou Minas Rural, e uma terceira quando vier), trocando host, porta, usuário
 e credencial do banco, e carregando junto as regras que mudam de uma base para outra.
+
+**Como foi entregue:** [o plano](../superpowers/plans/2026-10-07-bifurcacao-de-bases.md), em 13
+tarefas, cada uma deixando a Época funcionando igual. As provas: `dc86` (o SQL da Época não
+mudou), `dc87` (o proxy), `dc88` (os scripts com token), `bf1` (registro), `bf2` (login e
+token), `bf3` (front).
 
 ---
 
@@ -219,11 +223,15 @@ lá → só então ligar regras. Nenhuma consulta é editada.
 
 ## 11. Em aberto, para decidir no plano
 
-- **O filtro por fornecedor no Minas Rural.** Ele depende da `TAB_WEB_CENTROC_FORNEC`, que
-  **não existe** nessa base, e o vínculo de centro de custo × fornecedor de lá é outro. Sem a
-  tabela, escolher fornecedor dá `ORA-00942`. O desenho provável é um campo `FiltroPorFornecedor`
-  em `RegrasDaBase` que esconda o controle quando a base não o suporta — **um quinto campo**,
-  e por isso fica para decidir aqui, não por omissão.
+- **O filtro por fornecedor no Minas Rural — decidido no plano de 07/10/2026: fica
+  como está, e a limitação é documentada.** Ele depende da `TAB_WEB_CENTROC_FORNEC`, que
+  **não existe** nessa base. Escolher fornecedor ali falha com erro interno genérico (500).
+  Esconder o controle seria um quinto campo em `RegrasDaBase` (`FiltroPorFornecedor`), e a
+  spec pedia que essa decisão não fosse tomada por omissão: **não está neste plano**, e é a
+  primeira tarefa seguinte se o Minas Rural for usado antes de a tabela existir. Antes de
+  oferecer o filtro lá é preciso criar a tabela (DDL em
+  [FILTRO_FORNECEDOR.md](../rotinas/9815-dre-gerencial/FILTRO_FORNECEDOR.md)) e carregar o
+  vínculo de lá — conversa com o financeiro, não com o DBA.
 - **Dados de ambiente local.** Quem desenvolve precisa da `OracleMinasRural` no
   `appsettings.Development.json`, com o `EDI`; o `appsettings.example.json` ganha a chave.
 

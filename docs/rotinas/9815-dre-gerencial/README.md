@@ -60,3 +60,18 @@ A skill [`conferir-dre`](../../../.claude/skills/conferir-dre/SKILL.md) é o cic
 escolher o cenário em `referencia-oficial/`, extrair os valores esperados do `.xlsx`, escrever
 a query, **entregar ao Gabriel para executar** — nunca conectar no Oracle — e comparar por
 script, com tolerância de meio centavo.
+
+## Os scripts de validação agora precisam de sessão
+
+As rotas do DRE exigem `[Authorize]` desde 07/10/2026. Os `dcNN` que chamam a API direto
+rodam com o módulo `_autenticar.mjs`, que loga com a credencial de variáveis de ambiente
+(nunca de argumento, nunca impressa):
+
+```bash
+KPI_LOGIN=… KPI_SENHA=… [KPI_BASE=MinasRural] \
+  node --import ./docs/rotinas/9815-dre-gerencial/validacao/_autenticar.mjs <script>
+```
+
+`KPI_BASE` é `Epoca` por padrão. Sem `KPI_LOGIN` e `KPI_SENHA` o script falha dizendo o que
+definir — seguir sem token daria 401 em cada chamada e um relatório de "divergência" que é só
+falta de login.

@@ -158,6 +158,13 @@ usado e a data. Divergência não resolvida vira pendência documentada — **nu
 | Ordem das linhas diferente | `EPCPARDRE.ID` tem uma linha com valor **nulo** | `ORDER BY ID NULLS LAST` |
 | Total confere mas o detalhe não | Rateio: quando existe `PCRATEIOCENTROCUSTO`, o valor rateado **substitui** o do lançamento | Não somar os dois |
 
+## Os scripts precisam de sessão
+
+As rotas do DRE exigem login. Todo script que chama a API roda com
+`node --import ./docs/rotinas/9815-dre-gerencial/validacao/_autenticar.mjs <script>` e as
+variáveis `KPI_LOGIN` e `KPI_SENHA` (e `KPI_BASE=MinasRural` para a outra base). **A senha é do
+Gabriel e vem do ambiente dele**: entregue o comando, não o execute.
+
 ## Checklist final
 
 - [ ] Período com folga de alguns meses — o mês recém-fechado ainda recebe lançamento retroativo
