@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace Epoca.Kpi.Api.Domain.Entities;
 
 /// <summary>
@@ -14,12 +16,14 @@ namespace Epoca.Kpi.Api.Domain.Entities;
 /// </summary>
 public sealed class RegrasDaBase
 {
+    public const string MarcadorSecaoSemCusto = "@@SECAO_SEM_CUSTO@@";
+
     /// <summary>
     /// Todo marcador que <see cref="Aplicar"/> sabe expandir. O programa
     /// <c>docs/plataforma/validacao/verificar_regras.cs</c> imprime a expansão de cada um, e
     /// o <c>dc86</c> a compara com o que a Época tinha no SQL original.
     /// </summary>
-    public static readonly IReadOnlyList<string> Marcadores = [];
+    public static readonly IReadOnlyList<string> Marcadores = [MarcadorSecaoSemCusto];
 
     /// <summary>Código da seção cujo custo o DRE zera. Época: 1601. Minas Rural (fonte): 1401.</summary>
     public int SecaoSemCusto { get; set; } = 1601;
@@ -76,7 +80,10 @@ public sealed class RegrasDaBase
     /// </summary>
     public string Aplicar(string sql)
     {
-        var pronto = sql;
+        var pronto = sql.Replace(
+            MarcadorSecaoSemCusto,
+            SecaoSemCusto.ToString(CultureInfo.InvariantCulture),
+            StringComparison.Ordinal);
 
         if (pronto.Contains("@@", StringComparison.Ordinal))
         {

@@ -1096,7 +1096,7 @@ public static class DreGerencialQueries
             AND NF.DTSAIDA BETWEEN :dtIni1 AND :dtFim1
             AND NF.CODFILIAL IN ({0})
            AND ( (nvl(esp.mostra_dre,'S') = 'S') or (NF.CONDVENDA in (5)) ) 
-            AND nvl(PR.codsec,0) <> 1601 
+            AND nvl(PR.codsec,0) <> @@SECAO_SEM_CUSTO@@ 
           GROUP BY TO_CHAR(NF.DTSAIDA,'mm/yyyy') 
          UNION ALL 
          SELECT TO_CHAR(NFE.DTENT,'mm/yyyy') AS MESANO, 0 as VLCUSTOCONT, 0 as VLVENDA, 0 as VLVENDA_Total, 0 as VLTABELA, 
@@ -1121,7 +1121,7 @@ public static class DreGerencialQueries
             AND MV.DTCANCEL IS NULL AND (NVL(NFE.OBS,'X') <> 'NF CANCELADA') 
             AND NFE.DTENT BETWEEN :dtIni2 AND :dtFim2
             AND MV.CODFISCAL IN (1202,1411,1949,2202,2411,2949) 
-          AND MV.CODSEC <> 1601
+          AND MV.CODSEC <> @@SECAO_SEM_CUSTO@@
             /* Cliente especial com `mostra_dre = 'N'` fica de fora do DRE — e ficava só
                metade: o filtro estava nos TRÊS blocos de venda e faltava neste, o de
                devolução. Resultado em 2025/filial 7: somávamos 958,95 de devolução que a

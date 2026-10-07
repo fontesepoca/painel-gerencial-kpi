@@ -36,7 +36,7 @@ const REPOSITORIO = "api-new-kpi/Infrastructure/Persistence/Repositories/DreGere
 const HARNESS = "docs/plataforma/validacao/verificar_regras.cs";
 
 /** A Task 7 troca esta constante para `true`: dali em diante, `1601`/`1401` literal é erro. */
-const SECAO_JA_MIGRADA = false;
+const SECAO_JA_MIGRADA = true;
 
 /** O que cada marcador vale PARA A ÉPOCA: o texto que o literal original tinha. */
 const EPOCA = new Map([
