@@ -10,6 +10,7 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawn } from "node:child_process";
 import os from "node:os";
+import fs from "node:fs";
 import path from "node:path";
 
 const SAIDA = path.join(os.tmpdir(), "bf-api");
@@ -105,6 +106,16 @@ const CONEXAO = "User Id=u;Password=p;Data Source=//127.0.0.1:1/x";
   });
   ok(!(await a.pronto), "a API NÃO sobe com SecaoSemCusto = 0");
   ok(/SecaoSemCusto/.test(a.texto()), "a mensagem diz o campo");
+}
+
+// 5. Toda base do appsettings chega ao CONTAINER. O compose lista as variáveis da API uma a
+//    uma: uma conexão que ele não repasse faz a base sumir do login em produção, sem erro.
+{
+  const config = JSON.parse(fs.readFileSync("api-new-kpi/appsettings.json", "utf8"));
+  const compose = fs.readFileSync("docker-compose.yml", "utf8");
+  for (const chave of Object.keys(config.ConnectionStrings ?? {})) {
+    ok(compose.includes(`ConnectionStrings__${chave}:`), `docker-compose.yml repassa ConnectionStrings__${chave}`);
+  }
 }
 
 console.log(`bf1 — ${n} conferências, todas passaram.`);

@@ -25,6 +25,8 @@ Preencha:
 - `NEXT_PUBLIC_API_URL`: URL pública da API vista pelo navegador, por exemplo `http://192.168.0.227:5207`.
 - `FRONTEND_ORIGIN`: URL pública do front, por exemplo `http://192.168.0.227:3000`.
 - `ORACLE_EPOCA`: string de conexão do Oracle. Não commitar este valor.
+- `ORACLE_MINAS_RURAL`: string de conexão do Oracle do Minas Rural. Opcional: vazia, a base não
+  aparece no login. Não commitar este valor.
 - `JWT_CHAVE`: a chave que assina os tokens de login. **Obrigatória — sem ela a API não**
   **sobe.** Gere uma sua na VM e guarde só lá:
 
@@ -203,12 +205,16 @@ Só mexa se a API deixar de ser um serviço deste mesmo compose.
 
 ## As bases (a partir de 07/10/2026)
 
-Cada base tem a sua string de conexão, por variável de ambiente:
+Cada base tem a sua string de conexão. No `.env` da VM, o compose as repassa à API:
 
-| Variável | Base |
-|---|---|
-| `ConnectionStrings__OracleEpoca` | Época Distribuição |
-| `ConnectionStrings__OracleMinasRural` | Minas Rural — **sem ela a base não aparece no login** |
+| No `.env` | Chega à API como | Base |
+|---|---|---|
+| `ORACLE_EPOCA` | `ConnectionStrings__OracleEpoca` | Época Distribuição — obrigatória |
+| `ORACLE_MINAS_RURAL` | `ConnectionStrings__OracleMinasRural` | Minas Rural — **sem ela a base não aparece no login** |
+
+Uma base nova precisa das três coisas: a entrada em `Bases` no `appsettings.json`, a linha no
+`docker-compose.yml` e a variável no `.env`. O `bf1` falha se o compose não repassar uma
+conexão que o `appsettings.json` declara.
 
 **`NEXT_PUBLIC_API_URL` deixou de ser usada pelo navegador.** Ele fala só com o Next; quem
 fala com a API é o servidor Next, por `API_URL_INTERNA` (`http://api:8080` em container). Uma
