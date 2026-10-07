@@ -3,6 +3,7 @@
 import { useMutation, useQueries, useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/services/apiClient";
 import { exigirMesmaBase } from "@/lib/baseDaResposta";
+import { chaveDeFiliais, chaveDeFornecedores } from "@/lib/chavesPorBase";
 import { useSessao } from "@/hooks/useSessao";
 import type {
   Apuracao,
@@ -44,16 +45,18 @@ import type {
  */
 export function useBuscarFornecedores(busca: string) {
   const termo = busca.trim();
+  const { data: usuario } = useSessao();
+  const baseId = usuario?.base.id ?? null;
 
   return useQuery({
-    queryKey: ["dre-gerencial", "fornecedores", termo],
+    queryKey: chaveDeFornecedores(baseId, termo),
     queryFn: () =>
       apiClient.get<Fornecedor[]>(
         `/api/dre-gerencial/fornecedores?busca=${encodeURIComponent(termo)}&limite=20`,
       ),
     // Dígitos passam em qualquer tamanho: a consulta procura o código e o número inteiro no
     // nome, então o que volta cabe na tela — nunca os vinte CPFs que contêm aqueles dígitos.
-    enabled: termo.length >= 2 || /^\d+$/.test(termo),
+    enabled: baseId !== null && (termo.length >= 2 || /^\d+$/.test(termo)),
     staleTime: 30 * 60 * 1000,
   });
 }
@@ -62,8 +65,8 @@ export function useBuscarFornecedores(busca: string) {
  * Os fornecedores de uma lista de CÓDIGOS — o que a digitação com vírgula precisa.
  *
  * <b>Por que uma consulta por código, e não uma só com a lista inteira.</b> A chave de cada
- * uma é a MESMA de `useBuscarFornecedores` com aquele número (`["dre-gerencial",
- * "fornecedores", "29"]`), então quem já procurou o 29 pela lista não viaja de novo — e quem
+ * uma é a MESMA de `useBuscarFornecedores` com aquele número (`chaveDeFornecedores(base,
+ * "29")`), então quem já procurou o 29 pela lista não viaja de novo — e quem
  * digita `29,253,` aproveita a primeira resposta ao acrescentar a segunda. Uma consulta com a
  * lista toda teria chave nova a cada vírgula e jogaria esse cache fora.
  *
@@ -71,9 +74,13 @@ export function useBuscarFornecedores(busca: string) {
  * dizer que aquele número não existe no cadastro em vez de mostrar uma falha de rede.
  */
 export function useFornecedoresPorCodigo(codigos: readonly number[]) {
+  const { data: usuario } = useSessao();
+  const baseId = usuario?.base.id ?? null;
+
   return useQueries({
     queries: codigos.map((codigo) => ({
-      queryKey: ["dre-gerencial", "fornecedores", String(codigo)],
+      queryKey: chaveDeFornecedores(baseId, String(codigo)),
+      enabled: baseId !== null,
       queryFn: () =>
         apiClient.get<Fornecedor[]>(
           `/api/dre-gerencial/fornecedores?busca=${codigo}&limite=20`,
@@ -101,7 +108,7 @@ export function useFiliais() {
   return useQuery({
     // A matrícula entra na chave: sem ela, trocar de usuário no mesmo navegador serviria a
     // lista da sessão anterior direto do cache.
-    queryKey: ["dre-gerencial", "filiais", usuario?.matricula ?? null],
+    queryKey: chaveDeFiliais(usuario?.base.id ?? null, usuario?.matricula ?? null),
     queryFn: async () => {
       const todas = await apiClient.get<Filial[]>("/api/dre-gerencial/filiais");
       if (!usuario) return [];

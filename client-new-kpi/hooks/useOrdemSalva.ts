@@ -3,12 +3,14 @@
 import { useCallback, useSyncExternalStore } from "react";
 import type { Analise } from "@/types/dre-gerencial";
 
+import { chaveDaOrdem, chavesAntigasDaOrdem } from "@/lib/chavesPorBase";
+
 /**
- * A ordem é **por dimensão de análise**. Grupo de Contas e Centro de Custo não
- * compartilham uma linha sequer — uma ordem salva numa não diz nada sobre a outra.
- * Não entra filial nem período na chave: a estrutura do DRE é a mesma nos dois.
+ * A ordem é **por base e por dimensão de análise**. Grupo de Contas e Centro de Custo não
+ * compartilham uma linha sequer — uma ordem salva numa não diz nada sobre a outra — e as
+ * linhas do Minas Rural não são as da Época. Não entra filial nem período na chave: a
+ * estrutura do DRE é a mesma nos dois recortes. As chaves moram em `lib/chavesPorBase.ts`.
  */
-const chaveArmazenamento = (analise: Analise) => `epoca:dre:ordem:v1:${analise}`;
 
 /**
  * ── Por que isto não é `useState` + `useEffect` ──
@@ -58,12 +60,22 @@ function inscrever(ouvinte: () => void): () => void {
 }
 
 /** Lê e valida. Conteúdo estragado é descartado, nunca aplicado pela metade. */
-function ler(analise: Analise): string[] | null {
-  const chave = chaveArmazenamento(analise);
+function ler(baseId: string, analise: Analise): string[] | null {
+  // Sem base conhecida (a sessão ainda não chegou), não há ordem a ler: aplicar a de outra
+  // base seria exatamente o engano que a chave por base existe para impedir.
+  if (!baseId) return null;
+
+  const chave = chaveDaOrdem(baseId, analise);
 
   let bruto: string | null;
   try {
+    // A chave desta base; e, só para a Época, a de ANTES das bases (v1), para ninguém perder
+    // a ordem que já tinha. Na primeira vez que a pessoa reordenar, a v2 passa a valer.
     bruto = localStorage.getItem(chave);
+    for (const antiga of chavesAntigasDaOrdem(baseId, analise)) {
+      if (bruto !== null) break;
+      bruto = localStorage.getItem(antiga);
+    }
   } catch {
     // localStorage bloqueado (janela anônima, política do navegador).
     // A tela funciona sem: cai na ordem do cadastro.
@@ -94,10 +106,10 @@ function ler(analise: Analise): string[] | null {
  * cadastro. Duas pessoas conferindo o mesmo DRE não deveriam ver a tabela de um jeito
  * porque a outra arrastou uma linha.
  */
-export function useOrdemSalva(analise: Analise) {
+export function useOrdemSalva(baseId: string, analise: Analise) {
   const ordem = useSyncExternalStore(
     inscrever,
-    () => ler(analise),
+    () => ler(baseId, analise),
     // No servidor não existe `localStorage`, e a tabela nasce na ordem do cadastro. Sem este
     // terceiro argumento, o React não teria o que renderizar no servidor e a rota inteira
     // falharia na primeira passagem.
@@ -106,25 +118,32 @@ export function useOrdemSalva(analise: Analise) {
 
   const salvar = useCallback(
     (chaves: string[]) => {
+      if (!baseId) return;
       try {
-        localStorage.setItem(chaveArmazenamento(analise), JSON.stringify(chaves));
+        localStorage.setItem(chaveDaOrdem(baseId, analise), JSON.stringify(chaves));
       } catch {
         // Sem espaço ou sem permissão: a ordem não persiste, e o aviso abaixo faz a tela
         // voltar para o que está guardado — que é a verdade. Fingir que salvou seria pior.
       }
       avisar();
     },
-    [analise],
+    [baseId, analise],
   );
 
   const limpar = useCallback(() => {
+    if (!baseId) return;
     try {
-      localStorage.removeItem(chaveArmazenamento(analise));
+      localStorage.removeItem(chaveDaOrdem(baseId, analise));
+      // E as antigas: sem isto, "Restaurar ordem do cadastro" devolveria a v1 pela porta dos
+      // fundos, e a pessoa veria a ordem voltar sozinha.
+      for (const antiga of chavesAntigasDaOrdem(baseId, analise)) {
+        localStorage.removeItem(antiga);
+      }
     } catch {
       /* idem */
     }
     avisar();
-  }, [analise]);
+  }, [baseId, analise]);
 
   return { ordem, salvar, limpar };
 }

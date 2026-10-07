@@ -10,6 +10,12 @@
 import assert from "node:assert/strict";
 import { escolherBaseInicial } from "../../../client-new-kpi/lib/baseInicial.ts";
 import { exigirMesmaBase } from "../../../client-new-kpi/lib/baseDaResposta.ts";
+import {
+  chaveDaOrdem,
+  chaveDeFiliais,
+  chaveDeFornecedores,
+  chavesAntigasDaOrdem,
+} from "../../../client-new-kpi/lib/chavesPorBase.ts";
 
 let n = 0;
 const eq = (achou, esperado, oque) => {
@@ -66,5 +72,32 @@ n++;
 // O id é comparado como está: "epoca" e "Epoca" são ids diferentes para quem confere.
 assert.throws(() => exigirMesmaBase({ base: epoca }, "epoca"), /outra base/, "a caixa conta");
 n++;
+
+// ── A mesma matrícula em duas bases NÃO divide nada ──────────────────────────────────
+// REVIEW FOCUS 2. A matrícula 144 da Época e a 144 do Minas Rural são pessoas diferentes.
+eq(chaveDaOrdem("Epoca", "grupo") === chaveDaOrdem("MinasRural", "grupo"), false, "a ordem salva é por base");
+eq(chaveDaOrdem("Epoca", "grupo") === chaveDaOrdem("Epoca", "ccusto"), false, "e continua por análise");
+
+eq(
+  JSON.stringify(chaveDeFiliais("Epoca", 144)) === JSON.stringify(chaveDeFiliais("MinasRural", 144)),
+  false,
+  "as filiais em cache: mesma matrícula, bases diferentes, entradas diferentes",
+);
+eq(
+  JSON.stringify(chaveDeFornecedores("Epoca", "29")) === JSON.stringify(chaveDeFornecedores("MinasRural", "29")),
+  false,
+  "o cadastro de fornecedores em cache também",
+);
+
+// A ordem que a pessoa já tinha (a v1, de antes das bases) é da ÉPOCA — era a única que
+// existia — e de mais ninguém. Entregá-la ao Minas Rural aplicaria ali uma ordem de outro
+// cadastro de linhas.
+eq(chavesAntigasDaOrdem("Epoca", "grupo"), ["epoca:dre:ordem:v1:grupo"], "a Época herda a ordem v1");
+eq(chavesAntigasDaOrdem("MinasRural", "grupo"), [], "o Minas Rural não herda nada");
+eq(chaveDaOrdem("Epoca", "grupo").includes(":v2:"), true, "a chave nova é v2, para nunca colidir com a v1");
+
+// Antes de a sessão chegar não há base: as chaves de cache aceitam `null`, e é isso que
+// permite os hooks ficarem desligados (`enabled: false`) em vez de usarem uma base inventada.
+eq(chaveDeFiliais(null, null)[2], null, "sem base, a chave diz null — nunca uma base presumida");
 
 console.log(`bf3 — ${n} conferências, todas passaram.`);
