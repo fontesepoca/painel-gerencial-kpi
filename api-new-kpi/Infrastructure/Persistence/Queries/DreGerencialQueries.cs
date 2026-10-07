@@ -341,9 +341,9 @@ public static class DreGerencialQueries
                   FIN.DTRECLASSIFIC, FIN.CODFUNCRECLASSIFIC, 
                   (SELECT NOME FROM PCEMPR WHERE MATRICULA = FIN.CODFUNCBAIXA) NOMEFUNCBAIXA 
             FROM  PCCONTA CT, PCGRUPO GR, PCCENTROCUSTO CC, 
-        PCRATEIOCENTROCUSTO RC, 
+        @@RATEIO_RC@@ RC, 
                   (select RECNUM, CODFILIAL, numtrans, NUMNOTA, Duplic, codprojeto, dtcompetencia, DTVENC, DTPAGTO, nvl(VPAGO,VALOR) as VPAGO, INDICE, 
-         codconta, 
+         @@CODCONTA_LANC@@, 
                           TIPOPARCEIRO, DTRECLASSIFIC, CODFUNCRECLASSIFIC, historico, HISTORICO2, 
                           NUMBANCO, NumCheque, numbordero, numseqbordero, NUMCHEQUE2, LOCALIZACAO, NOMEFUNC, CODFORNEC, CODFUNCBAIXA 
                      from PCLANC
@@ -505,9 +505,9 @@ public static class DreGerencialQueries
                   FIN.DTRECLASSIFIC, FIN.CODFUNCRECLASSIFIC,
                   (SELECT NOME FROM PCEMPR WHERE MATRICULA = FIN.CODFUNCBAIXA) NOMEFUNCBAIXA
             FROM  PCCONTA CT, PCGRUPO GR, PCCENTROCUSTO CC,
-        PCRATEIOCENTROCUSTO RC,
+        @@RATEIO_RC@@ RC,
                   (select RECNUM, CODFILIAL, numtrans, NUMNOTA, Duplic, codprojeto, dtcompetencia, DTVENC, DTPAGTO, nvl(VPAGO,VALOR) as VPAGO, INDICE,
-         codconta,
+         @@CODCONTA_LANC@@,
                           TIPOPARCEIRO, DTRECLASSIFIC, CODFUNCRECLASSIFIC, historico, HISTORICO2,
                           NUMBANCO, NumCheque, numbordero, numseqbordero, NUMCHEQUE2, LOCALIZACAO, NOMEFUNC, CODFORNEC, CODFUNCBAIXA
                      from PCLANC
@@ -742,9 +742,9 @@ public static class DreGerencialQueries
                   FIN.DTRECLASSIFIC, FIN.CODFUNCRECLASSIFIC,
                   (SELECT NOME FROM PCEMPR WHERE MATRICULA = FIN.CODFUNCBAIXA) NOMEFUNCBAIXA
             FROM  PCCONTA CT, PCGRUPO GR, PCCENTROCUSTO CC,
-        PCRATEIOCENTROCUSTO RC,
+        @@RATEIO_RC@@ RC,
                   (select RECNUM, CODFILIAL, numtrans, NUMNOTA, Duplic, codprojeto, dtcompetencia, DTVENC, DTPAGTO, nvl(VPAGO,VALOR) as VPAGO, INDICE,
-         codconta,
+         @@CODCONTA_LANC@@,
                           TIPOPARCEIRO, DTRECLASSIFIC, CODFUNCRECLASSIFIC, historico, HISTORICO2,
                           NUMBANCO, NumCheque, numbordero, numseqbordero, NUMCHEQUE2, LOCALIZACAO, NOMEFUNC, CODFORNEC, CODFUNCBAIXA
                      from PCLANC
@@ -945,9 +945,9 @@ public static class DreGerencialQueries
                   FIN.DTRECLASSIFIC, FIN.CODFUNCRECLASSIFIC,
                   (SELECT NOME FROM PCEMPR WHERE MATRICULA = FIN.CODFUNCBAIXA) NOMEFUNCBAIXA
             FROM  PCCONTA CT, PCGRUPO GR, PCCENTROCUSTO CC,
-        PCRATEIOCENTROCUSTO RC,
+        @@RATEIO_RC@@ RC,
                   (select RECNUM, CODFILIAL, numtrans, NUMNOTA, Duplic, codprojeto, dtcompetencia, DTVENC, DTPAGTO, nvl(VPAGO,VALOR) as VPAGO, INDICE,
-         codconta,
+         @@CODCONTA_LANC@@,
                           TIPOPARCEIRO, DTRECLASSIFIC, CODFUNCRECLASSIFIC, historico, HISTORICO2,
                           NUMBANCO, NumCheque, numbordero, numseqbordero, NUMCHEQUE2, LOCALIZACAO, NOMEFUNC, CODFORNEC, CODFUNCBAIXA
                      from PCLANC

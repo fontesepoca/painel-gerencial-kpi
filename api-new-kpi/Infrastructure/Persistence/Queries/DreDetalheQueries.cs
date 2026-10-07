@@ -362,10 +362,10 @@ public static class DreDetalheQueries
                          'OUTROS') AS FORNECEDOR,
                        FIN.DTRECLASSIFIC, FIN.CODFUNCRECLASSIFIC,
                        (SELECT NOME FROM PCEMPR WHERE MATRICULA = FIN.CODFUNCBAIXA) AS NOMEFUNCBAIXA
-                  FROM PCCONTA CT, PCGRUPO GR, PCCENTROCUSTO CC, PCRATEIOCENTROCUSTO RC,
+                  FROM PCCONTA CT, PCGRUPO GR, PCCENTROCUSTO CC, @@RATEIO_RC@@ RC,
                        (SELECT RECNUM, CODFILIAL, numtrans, NUMNOTA, Duplic, codprojeto,
                                dtcompetencia, dtlanc, DTVENC, DTPAGTO, nvl(VPAGO,VALOR) AS VPAGO,
-                               INDICE, codconta, TIPOPARCEIRO, DTRECLASSIFIC, CODFUNCRECLASSIFIC,
+                               INDICE, @@CODCONTA_LANC@@, TIPOPARCEIRO, DTRECLASSIFIC, CODFUNCRECLASSIFIC,
                                historico, HISTORICO2, NUMBANCO, NumCheque, numbordero,
                                numseqbordero, NUMCHEQUE2, LOCALIZACAO, NOMEFUNC, CODFORNEC,
                                CODFUNCBAIXA, DTESTORNOBAIXA

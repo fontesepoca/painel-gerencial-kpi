@@ -19,6 +19,26 @@ public sealed class RegrasDaBase
     public const string MarcadorSecaoSemCusto = "@@SECAO_SEM_CUSTO@@";
     public const string MarcadorFiliaisForaDoFiltro = "@@FILIAIS_FORA_DO_FILTRO@@";
     public const string MarcadorFiliaisForaDaPermissao = "@@FILIAIS_FORA_DA_PERMISSAO@@";
+    public const string MarcadorRateioRc = "@@RATEIO_RC@@";
+    public const string MarcadorCodcontaLanc = "@@CODCONTA_LANC@@";
+
+    // O grupo e a conta agrupadora do ICMS, como o Delphi os fixa (UBase.pas GetValorGrupo e
+    // ULanc.pas): conta cujo nome tem ICMS e cujo grupo é 303 passa a ser a 3003007.
+    private const int GrupoDeContasDoIcms = 303;
+    private const int ContaAgrupadoraDoIcms = 3003007;
+
+    // O rateio vira uma subconsulta que expõe as MESMAS quatro colunas que as consultas leem
+    // de `RC` (recnum, codconta, valor, codigocentrocusto) — o Step 2 desta tarefa confere.
+    private const string RateioComIcms =
+        "(select rt.recnum, " +
+        "case when upper(cta.conta) like '%ICMS%' and cta.grupoconta = 303 then 3003007 " +
+        "else rt.codconta end as codconta, " +
+        "rt.valor, rt.codigocentrocusto " +
+        "from PCRATEIOCENTROCUSTO rt, PCCONTA cta where rt.codconta = cta.codconta)";
+
+    private const string CodcontaComIcms =
+        "(SELECT case when upper(conta) like '%ICMS%' and grupoconta = 303 then 3003007 " +
+        "else codconta end FROM PCCONTA WHERE CODCONTA = PCLANC.CODCONTA) as codconta";
 
     /// <summary>
     /// Todo marcador que <see cref="Aplicar"/> sabe expandir. O programa
@@ -30,6 +50,8 @@ public sealed class RegrasDaBase
         MarcadorSecaoSemCusto,
         MarcadorFiliaisForaDoFiltro,
         MarcadorFiliaisForaDaPermissao,
+        MarcadorRateioRc,
+        MarcadorCodcontaLanc,
     ];
 
     /// <summary>Código da seção cujo custo o DRE zera. Época: 1601. Minas Rural (fonte): 1401.</summary>
@@ -108,6 +130,12 @@ public sealed class RegrasDaBase
                     ? string.Empty
                     : $"AND CODIGOA NOT IN ({string.Join(", ", FiliaisForaDaPermissao)})",
                 StringComparison.Ordinal);
+
+        // O ICMS DESLIGADO devolve o texto que as consultas tinham: `PCRATEIOCENTROCUSTO` e
+        // `codconta`. É por isso que a Época não muda — o dc86 prova que a expansão é essa.
+        pronto = pronto
+            .Replace(MarcadorRateioRc, AgrupaIcms ? RateioComIcms : "PCRATEIOCENTROCUSTO", StringComparison.Ordinal)
+            .Replace(MarcadorCodcontaLanc, AgrupaIcms ? CodcontaComIcms : "codconta", StringComparison.Ordinal);
 
         if (pronto.Contains("@@", StringComparison.Ordinal))
         {
