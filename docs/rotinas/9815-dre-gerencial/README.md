@@ -14,6 +14,7 @@ parecem defeito. Divergir é exceção, e toda exceção está numerada no `DIVE
 | [DIVERGENCIAS.md](DIVERGENCIAS.md) | **toda** diferença numérica entre as duas, medida e decidida |
 | [FILTRO_FORNECEDOR.md](FILTRO_FORNECEDOR.md) | o filtro por fornecedor — a mecânica lida no fonte e a tabela de vínculo |
 | [HOMOLOGACAO.md](HOMOLOGACAO.md) | a matriz de cenários a conferir |
+| [BASE_MINAS_RURAL.md](BASE_MINAS_RURAL.md) | o que o Delphi faz diferente na base do Minas Rural — lido do fonte, a confirmar por medição |
 | [validacao/](validacao/) | os scripts que provam cada número (`dcNN`) |
 | [referencia-oficial/](referencia-oficial/) | o que a 9815 exportou, e o SQL que ela mandou ao Oracle |
 
