@@ -1,4 +1,5 @@
 using Epoca.Kpi.Api.Application.Common;
+using Epoca.Kpi.Api.Application.Common.Bases;
 
 namespace Epoca.Kpi.Api.Application.Features.DreGerencial.Dtos;
 
@@ -406,7 +407,8 @@ public record DetalhamentoDto(
     long DuracaoMs,
     IReadOnlyList<DetalheNotaDto>? Notas = null,
     IReadOnlyList<decimal>? Fornecedores = null,
-    decimal Participacao = 1m)
+    decimal Participacao = 1m,
+    BaseDto? Base = null)
 {
     /// <summary>
     /// <b>Quando esta apuração foi feita</b> — a hora do SERVIDOR, não a do navegador.
@@ -472,4 +474,10 @@ public record ApuracaoDto(
     /// do formulário. Mexer no filtro depois de apurar não pode reescrever o cabeçalho do que
     /// já está na tela.</para>
     /// </summary>
-    IReadOnlyList<decimal> Fornecedores);
+    IReadOnlyList<decimal> Fornecedores,
+    /// <summary>
+    /// A base de onde estes números vieram — a do token da requisição. O front a compara com a
+    /// da sessão e <b>recusa renderizar se diferir</b>: a segunda barreira contra uma apuração
+    /// na base errada, depois do token.
+    /// </summary>
+    BaseDto? Base = null);

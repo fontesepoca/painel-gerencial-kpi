@@ -2,6 +2,7 @@
 
 import { useMutation, useQueries, useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/services/apiClient";
+import { exigirMesmaBase } from "@/lib/baseDaResposta";
 import { useSessao } from "@/hooks/useSessao";
 import type {
   Apuracao,
@@ -131,9 +132,14 @@ function normalizarCodigo(codigo: string): string {
  * segundos e quem decide quando rodar é o usuário, no botão Apurar.
  */
 export function useApuracao() {
+  const { data: usuario } = useSessao();
+
   return useMutation({
-    mutationFn: (filtro: FiltroApuracao) =>
-      apiClient.post<Apuracao>("/api/dre-gerencial/apuracao", paraApi(filtro)),
+    mutationFn: async (filtro: FiltroApuracao) =>
+      exigirMesmaBase(
+        await apiClient.post<Apuracao>("/api/dre-gerencial/apuracao", paraApi(filtro)),
+        usuario?.base.id,
+      ),
   });
 }
 
@@ -165,17 +171,22 @@ function paraApi(filtro: FiltroApuracao) {
  * um mês e três filiais.
  */
 export function useDetalhe() {
+  const { data: usuario } = useSessao();
+
   return useMutation({
     // Pelo `paraApi` como a apuração, e não pelo filtro cru: a tela guarda os fornecedores
     // como OBJETOS, e o servidor só quer os códigos. Mandar o objeto inteiro faria a
     // desserialização falhar no primeiro campo que ele não conhece — e o detalhe voltaria
     // sem filtro nenhum, mostrando a filial toda com cara de certo.
-    mutationFn: ({ tipo, bloco, chave, ...filtro }: FiltroDetalhe) =>
-      apiClient.post<Detalhamento>("/api/dre-gerencial/detalhe", {
-        ...paraApi(filtro),
-        tipo,
-        bloco,
-        chave,
-      }),
+    mutationFn: async ({ tipo, bloco, chave, ...filtro }: FiltroDetalhe) =>
+      exigirMesmaBase(
+        await apiClient.post<Detalhamento>("/api/dre-gerencial/detalhe", {
+          ...paraApi(filtro),
+          tipo,
+          bloco,
+          chave,
+        }),
+        usuario?.base.id,
+      ),
   });
 }

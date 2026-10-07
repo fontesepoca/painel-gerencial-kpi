@@ -346,6 +346,11 @@ export interface DetalheLancamento {
  * telas têm formatos de linha diferentes e não há como unificá-las sem perder coluna.
  */
 export interface Detalhamento {
+  /**
+   * A base de onde a API tirou estes números. <b>Opcional no tipo</b> porque uma API anterior
+   * à bifurcação não a manda — mas `exigirMesmaBase` recusa a resposta que não a traz.
+   */
+  base?: { id: string; rotulo: string } | null;
   tipo: TipoDetalhe;
   dataInicio: string;
   dataFim: string;
@@ -377,6 +382,11 @@ export interface Detalhamento {
 }
 
 export interface Apuracao {
+  /**
+   * A base de onde a API tirou estes números. <b>Opcional no tipo</b> porque uma API anterior
+   * à bifurcação não a manda — mas `exigirMesmaBase` recusa a resposta que não a traz.
+   */
+  base?: { id: string; rotulo: string } | null;
   regime: Regime;
   analise: Analise;
   /** O modo que a API de fato usou, que nem sempre é o pedido. Ver `RecorteDre.ModoEfetivo`. */
