@@ -180,3 +180,10 @@ contas de ICMS que só a web mostrava avulsas (`Icms Mrural F10` 37.704,69 e `Ic
 De Aliquota F10` 349,42). Regra ligada: [DIVERGENCIAS.md nº 18](./DIVERGENCIAS.md#18-minas-rural-as-contas-de-icms-viram-a-3003007--07102026).
 
 **Depois de ligar: bate ao centavo**, da RECEITA BRUTA ao LUCRO LIQUIDO (`dc89`).
+
+### 4 — filiais 10 e 37, setembro/2026, CAIXA, C. Custo Principal (07/10/2026)
+
+`Export_mes_anterior_MR.xlsx`, com as duas regras ligadas: **bate ao centavo**, da RECEITA
+BRUTA ao LUCRO LIQUIDO (504.162,43) e no bloco informativo (`dc89`). Primeiro cenário em regime
+caixa e com duas filiais. A filial 37 não vendeu em setembro — a RECEITA BRUTA é a mesma da
+filial 10 sozinha —, então a soma de filiais está provada na despesa, não na venda.
