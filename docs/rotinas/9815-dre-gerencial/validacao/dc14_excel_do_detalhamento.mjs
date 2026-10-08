@@ -1,7 +1,7 @@
 /**
  * dc14 — o `.xlsx` do detalhamento: uma matriz por tela, valores como número.
  *
- *   node --experimental-strip-types docs/rotinas/9815-dre-gerencial/validacao/dc14_excel_do_detalhamento.mjs
+ *   node --experimental-strip-types --import ./docs/rotinas/9815-dre-gerencial/validacao/_alias.mjs docs/rotinas/9815-dre-gerencial/validacao/dc14_excel_do_detalhamento.mjs
  *
  * As quatro telas têm colunas diferentes, e a de lançamentos tem 27. Um teste que só olha
  * "gerou o arquivo" passaria com a matriz errada; aqui cada tela é conferida pelos rótulos
@@ -125,11 +125,17 @@ const receita = monta(
   "(=) CMV LIQ.",
 );
 
-eq(receita.matriz[0].length, 9, "nove colunas");
+// Nove colunas da tela mais o `% part.` (140ed51), que entra quando a linha tem coluna que
+// fecha o total — o CMV tem, o `Custo líq.`.
+eq(receita.matriz[0].length, 10, "nove colunas mais o % part.");
+eq(receita.larguras.length, 10, "uma largura por coluna");
 // Código e nome separados: quem cruza com outra planilha precisa do código sozinho.
 eq(receita.matriz[1][0].v, 1001, "código do cliente em coluna própria");
 eq(receita.matriz[1][1].v, "MERCADO SAO JOSE", "nome em outra");
 eq(receita.matriz[0][7].v, "(CMV LIQ.) Custo líq.", "a coluna que fecha o CMV se anuncia");
+eq(receita.matriz[0][9].v, "% part.", "o % part. é a última coluna");
+// Um cliente só é 100% do custo — a base do percentual é a coluna que fecha, não outra.
+eq(receita.matriz[1][9].v, 100, "% part. sobre o Custo líq.");
 
 // ── Lançamentos ─────────────────────────────────────────────────────────────────────────
 const lancamentos = monta(
@@ -181,6 +187,31 @@ eq(lancamentos.matriz[1][6].v, null, "data nula fica vazia");
 eq(lancamentos.matriz[1][4].v, -1250.4, "V. Pago negativo é número negativo");
 eq(lancamentos.matriz[0][4].v, "(DESPESAS FINANCEIRAS) V. Pago", "a coluna do total se anuncia");
 eq(lancamentos.larguras.length, 27, "uma largura por coluna");
+
+// ── O checkbox "Ocultar baixas estornadas e da rotina 737" chega ao arquivo ─────────────
+// O arquivo conta o que a tela conta: com o checkbox marcado (o padrão) a baixa estornada
+// não sai; desmarcado, sai. Ver `lib/baixasEstornadas.ts` e a dc90.
+const umLancamento = lancamentos.matriz.length - 1;
+const comEstornada = (ocultarBaixas) =>
+  planilhaDoDetalhe({
+    titulo: "DESPESAS FINANCEIRAS · Setembro/2026",
+    periodo,
+    linha: { descricao: "DESPESAS FINANCEIRAS", valor: 1 },
+    dados: {
+      ...vazio,
+      tipo: "lancamentos",
+      lancamentos: [
+        { recNum: 1, vPago: -10, historico: "A", codCcPrinc: "10", codConta: 1 },
+        { recNum: 2, vPago: -20, historico: "B", codCcPrinc: "10", codConta: 1, dtEstornoBaixa: "2026-09-02T00:00:00" },
+        { recNum: 3, vPago: -30, historico: "C", codCcPrinc: "10", codConta: 1, codRotinaBaixa: "737" },
+      ],
+    },
+    ...(ocultarBaixas === undefined ? {} : { ocultarBaixas }),
+  });
+eq(umLancamento, 1, "o caso de cima tem uma linha de dados");
+eq(comEstornada(undefined).matriz.length - 1, 1, "sem dizer nada, oculta — o padrão da tela");
+eq(comEstornada(true).matriz.length - 1, 1, "marcado: só a baixa comum");
+eq(comEstornada(false).matriz.length - 1, 3, "desmarcado: as três");
 
 // ── O nome do arquivo ───────────────────────────────────────────────────────────────────
 eq(
