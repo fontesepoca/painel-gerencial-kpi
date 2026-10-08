@@ -16,6 +16,7 @@ import {
   variacao,
 } from "@/lib/modosDePeriodo";
 import { useOrdemSalva } from "@/hooks/useOrdemSalva";
+import { useSessao } from "@/hooks/useSessao";
 import { passoDeRolagem } from "@/lib/rolagemAutomatica";
 import { filtrarLinhas } from "@/lib/filtrarLinhas";
 import { guardar } from "@/lib/detalheAberto";
@@ -129,7 +130,10 @@ export function TabelaDre({
    */
   filiaisApuradas: string;
 }) {
-  const { ordem, salvar, limpar } = useOrdemSalva(filtro.analise);
+  // A base da sessão entra na chave da ordem salva. Sem sessão ainda, `""` — e o hook, sem
+  // base, não lê nem grava: melhor a ordem do cadastro por um instante que a de outra base.
+  const { data: usuario } = useSessao();
+  const { ordem, salvar, limpar } = useOrdemSalva(usuario?.base.id ?? "", filtro.analise);
 
   // `linhas` é sempre a ordem do cadastro, como veio da API — é a referência contra a
   // qual tudo aqui é medido. `ordenadas` é o que a pessoa vê, **com os totais refeitos

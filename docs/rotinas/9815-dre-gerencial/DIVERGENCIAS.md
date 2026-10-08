@@ -9,7 +9,7 @@ registrada. O que não estiver aqui é defeito, não escolha.
 cada exceção precisa de três coisas: a medida, o motivo de não ser reproduzível, e
 a aprovação do Gabriel.
 
-**Última revisão:** 06/10/2026.
+**Última revisão:** 07/10/2026.
 
 **Como este arquivo está organizado:** o índice, as divergências **em ordem numérica**, as
 quatro seções transversais — as regras que nenhuma branch pode desfazer, o que *não* é
@@ -37,6 +37,8 @@ linha no índice.
 | [14](#14-manutencao-de-veiculos-e-pneus-e-camaras-entram-nos-cálculos--25092026) | `Manutencao De Veiculos` e `PNEUS E CAMARAS` saem do bloco informativo e somam nas despesas operacionais | todas | **+R$ 1.709.994,73** no lucro de julho/2026 na filial 7 | **a pedido** em 25/09/2026 · dc34, dc62 e dc71 |
 | [15](#15-o-detalhamento-respeita-o-filtro-por-fornecedor--02102026) | Detalhamento com fornecedor filtrado | todas as telas de duplo clique | a despesa inteira da filial, contra a fatia do fornecedor | **a pedido** em 02/10/2026 · dc78 12/12 |
 | [16](#16-a-coluna-ah--no-bloco-de-total--06102026) | Coluna `AH %` no total — soma dos `%AH`, **não** a variação do período | todas, só com mais de um mês | **nenhum valor muda** — coluna nova | **a pedido** em 06/10/2026 · dc13 43/43 |
+| [17](#17-minas-rural-a-seção-sem-custo-é-a-1401--07102026) | Minas Rural: a seção tirada da venda e da devolução passa de `1601` para `1401` | todas, só no Minas Rural | **nenhum valor** nos meses medidos — jul a set/2026 | **ligada** em 07/10/2026 pela prova do trace · dc86 46/46 |
+| [18](#18-minas-rural-as-contas-de-icms-viram-a-3003007--07102026) | Minas Rural: conta de ICMS do grupo 303 vira a `3003007` na despesa e no detalhamento | todas, só no Minas Rural | **R$ 38.054,11** no lucro de agosto/2026 na filial 10 | **ligada** em 07/10/2026 · dc89 bate ao centavo |
 
 ---
 
@@ -1313,6 +1315,95 @@ com e sem cada checkbox, merges `[3, 3, 4]`, a posição (`AH %` última, `Médi
 valor contra a soma recalculada, e a ausência da coluna com um mês só. Conferida na tela pelo
 Gabriel em 06/10/2026.
 
+## 17. Minas Rural: a seção sem custo é a `1401` — 07/10/2026
+
+A primeira regra por base ligada (ver [BASE_MINAS_RURAL.md](./BASE_MINAS_RURAL.md) e
+[BIFURCACAO_DE_BASES.md](../../plataforma/BIFURCACAO_DE_BASES.md)). **Não é a web divergindo da
+9815 — é a web passando a fazer o que a 9815 do Minas Rural faz.** Está aqui porque o roteiro
+manda registrar toda regra ligada, com a medida.
+
+| | Época | Minas Rural |
+|---|---|---|
+| Antes | `nvl(PR.codsec,0) <> 1601` · `MV.CODSEC <> 1601` | o mesmo da Época |
+| Agora | igual | `<> 1401` — `appsettings.json` → `Bases:MinasRural:Regras:SecaoSemCusto` |
+
+O item da seção sai **inteiro** — venda, custo, devolução —, não só o custo.
+
+### Por que foi ligada sem diferença numérica
+
+**A prova é de texto, e é direta.** Os dois traces da 9815 do Minas Rural em
+`referencia-oficial-miras-rural/` (filial 10 em setembro; filial 41 em julho) mostram a rotina
+enviando `nvl(PR.codsec,0) <> 1401` na venda e `MV.CODSEC <> 1401` na devolução — o que o fonte
+Delphi (`UBase.pas` `GetVlfat`) já dizia.
+
+**A prova numérica não existe nos dados de hoje.** De julho a setembro/2026, em todas as filiais
+do Minas Rural, a seção 1601 não vendeu nada e a 1401 vendeu **um item**, de R$ 666,16, na
+filial 41 em julho — que não chegou a pesar: a apuração da filial 41 em julho bateu com a 9815
+**com a regra desligada**, da RECEITA BRUTA ao LUCRO BRUTO. Esperar uma diferença medível
+seria deixar a tela divergir em silêncio no primeiro mês em que a 1401 vender.
+
+### Como foi conferido
+
+| | |
+|---|---|
+| [dc86](./validacao/dc86_sql_da_epoca_identico.mjs) | a Época continua com `1601`, byte a byte; a expansão ligada não tem `:` nem `@@` |
+| [dc89](./validacao/dc89_apuracao_contra_planilha_da_9815.mjs) | filial 10 em setembro (C. Custo Principal) e filial 41 em julho (Grupo de Contas, até o LUCRO BRUTO): batem — a regra não move valor nesses recortes |
+
+**Quando houver movimento na 1401**, a medição a fazer é a do `dc89` num recorte com essa
+seção: a diferença contra a regra antiga tem de ser exatamente a venda e o custo desses itens.
+
+---
+
+## 18. Minas Rural: as contas de ICMS viram a `3003007` — 07/10/2026
+
+A segunda regra por base — esta, **medida**. Como a nº 17, não é a web divergindo da 9815: é a
+web passando a fazer o que a 9815 do Minas Rural faz (`UBase.pas` `GetValorGrupo`, `ULanc.pas`;
+e os traces em `referencia-oficial-miras-rural/`):
+
+```sql
+case when upper(conta) like '%ICMS%' and grupoconta = 303 then 3003007 else codconta end
+```
+
+aplicado ao `PCLANC` e ao `PCRATEIOCENTROCUSTO` nas consultas de **despesa** e no
+**detalhamento** — e **não** nas de estrutura, como na 9815. Ligada em
+`appsettings.json` → `Bases:MinasRural:Regras:AgrupaIcms`. A Época não tem a regra.
+
+### O que move
+
+Conta de ICMS **sem** linha no DRE (as `Icms Mrural F__`, uma por filial, e as `Icms
+Diferencial De Aliquota F__` não parametrizadas) saía **avulsa**, no bloco que não soma em
+totalizador nenhum. Remapeada para a `3003007` — que existe no Minas Rural, é do grupo 303 e tem
+linha no DRE —, ela entra na despesa e move o lucro. Conta de ICMS **com** linha própria passa a
+somar na da `3003007`.
+
+### A medida
+
+Filial 10, agosto/2026, competência, C. Custo Principal
+(`Export_filial10_ago2026_competencia_ccusto.xlsx`), pelo
+[dc89](./validacao/dc89_apuracao_contra_planilha_da_9815.mjs):
+
+| | 9815 | web, regra desligada | diferença |
+|---|---:|---:|---:|
+| DESPESAS TRIBUTÁRIAS | (82.051,22) | (43.997,11) | 38.054,11 |
+| LUCRO LIQUIDO | (312.572,51) | (274.518,40) | 38.054,11 |
+| `ICMS MRURAL F10` (avulsa) | — | (37.704,69) | |
+| `ICMS DIFERENCIAL DE ALIQUOTA F10` (avulsa) | — | (349,42) | |
+
+**38.054,11 = 37.704,69 + 349,42, ao centavo** — exatamente as duas avulsas. Todas as outras
+linhas batiam.
+
+**Com a regra ligada, o mesmo cenário bate inteiro**: DESPESAS TRIBUTÁRIAS (82.051,22) e LUCRO
+LIQUIDO (312.572,51) iguais aos da 9815, e nada avulso. Sobram só as diferenças de apresentação
+já aprovadas (nº 9, 11 e 12).
+
+**E o detalhamento fecha com a linha** (divergência 4): o duplo clique em DESPESAS TRIBUTÁRIAS
+traz 32 lançamentos somando 82.051,22. A conta `Icms [3003007]` soma 69.841,06 = 37.704,69
+(`Icms Mrural F10`) + 31.786,95 (`Icms Parcel`, 3 parcelas) + 349,42 (`Icms Diferencial De
+Aliquota F10`, 3 notas). No detalhe os lançamentos aparecem com a conta **remapeada** — o nome
+original se perde, como no `ULanc.pas`.
+
+---
+
 ## As regras que nenhuma branch pode desfazer
 
 Tudo nesta página que está marcado **a pedido** é decisão do Gabriel, não defeito. Elas se
@@ -1400,6 +1491,7 @@ nas seções deste documento, que são posteriores.
 | Filial sem movimento no período | ✅ [medida em 31/08](#fase-5--filial-parada-e-filial-meio-vazia--31082026) — a parada não contamina nada |
 | O duplo clique **pela tela** | ⬜ a API fecha 162/162, mas o caminho pela interface com dado real nunca foi percorrido ponta a ponta |
 | `% AH` em Conta Gerencial | ⬜ a exportação usada saiu sem análise horizontal; a coluna só foi conferida em Grupo de Contas |
+| **A exclusão de adiantamento quitado** — 07/10/2026 | ⬜ **a decidir.** O fonte (`UBase.pas:27204`, `ULanc.pas:319`) e a web excluem o adiantamento quitado **em qualquer data** (`not exists`); a linha antiga, comentada no fonte, excluía só o quitado **no período** (`dtlanc Between`). Os traces da 9815 do **Minas Rural** de 07/10/2026 trazem a versão **antiga** — o executável em produção não é o do fonte. Na Época, junho/2026 da filial 7 exportado em 07/10 mostra `CREDITO FORNECEDORES` (19.573,91) que a web zera: é o que a versão antiga produziria. A linha fica depois do LUCRO LIQUIDO e não move totalizador. Falta o trace da Época para saber se é o mesmo executável, e a decisão de seguir o fonte ou o executável |
 
 Os dois períodos e o conjunto de filiais são riscos de **custo**, não de valor: nenhum
 mecanismo depende do número de meses ou de filiais — o recorte parcial de mês, que era o

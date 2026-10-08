@@ -16,6 +16,8 @@ export interface UsuarioLogado {
   filiais: string[];
   /** Códigos das rotinas que esta pessoa pode abrir. Vazia é estado válido. */
   rotinas: string[];
+  /** A base da sessão. Vai em toda chave de cache e de armazenamento que depende da pessoa. */
+  base: { id: string; rotulo: string };
 }
 
 export function useSessao() {

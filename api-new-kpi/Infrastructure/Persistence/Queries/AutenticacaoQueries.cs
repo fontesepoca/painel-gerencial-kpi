@@ -109,7 +109,7 @@ public static class AutenticacaoQueries
           FROM PCLIB
          WHERE CODFUNC = :matricula
            AND CODTABELA = 1
-           AND CODIGOA NOT IN (2, 99)
+           @@FILIAIS_FORA_DA_PERMISSAO@@
          ORDER BY TO_NUMBER(CODIGOA)
         """;
 }

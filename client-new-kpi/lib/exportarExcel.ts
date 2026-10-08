@@ -139,7 +139,16 @@ export function matrizDaApuracao(
  * modo por ano inteiro — onde as datas do filtro não descrevem o que foi apurado, e um
  * nome de arquivo que mente é pior do que um nome curto.
  */
-export function nomeDoArquivo(dados: Apuracao): string {
+export function nomeDoArquivo(dados: Apuracao, baseId?: string): string {
+  const nome = nomeSemBase(dados);
+
+  // O ID da base, e não o rótulo: é ASCII, estável, e não precisa passar pela limpeza de nome
+  // de arquivo. Entra logo depois de `DRE_` para os arquivos de uma base ficarem juntos na
+  // pasta de quem arquiva.
+  return baseId ? nome.replace(/^DRE_/, `DRE_${baseId}_`) : nome;
+}
+
+function nomeSemBase(dados: Apuracao): string {
   if (dados.modo === "anos") {
     return `DRE_${dados.analise}_${dados.periodos.map((p) => p.rotulo).join("_")}`;
   }
@@ -201,9 +210,10 @@ export async function exportarApuracao(
   dados: Apuracao,
   linhas: readonly LinhaDre[],
   analise: ColunasDeAnalise = TUDO,
+  baseId?: string,
 ): Promise<void> {
   const blob = await gerarPlanilha([planilhaDaApuracao(dados, linhas, analise)]);
-  baixar(blob, `${nomeDoArquivo(dados)}.xlsx`);
+  baixar(blob, `${nomeDoArquivo(dados, baseId)}.xlsx`);
 }
 
 /** Só a geração, para conferir sem baixar. */

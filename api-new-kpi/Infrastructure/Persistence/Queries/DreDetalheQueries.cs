@@ -102,7 +102,7 @@ public static class DreDetalheQueries
                            AND NF.CODFILIAL IN ({0})
                            {2}
                            AND ( (nvl(esp.mostra_dre,'S') = 'S') OR (NF.CONDVENDA IN (5)) )
-                           AND nvl(PR.codsec,0) <> 1601
+                           AND nvl(PR.codsec,0) <> @@SECAO_SEM_CUSTO@@
                         UNION ALL
                         SELECT cli.codcli, cli.cliente, cli.municcob, NFE.numnota,
                                0, 0, 0,
@@ -127,7 +127,7 @@ public static class DreDetalheQueries
                            AND MV.DTCANCEL IS NULL
                            AND (NVL(NFE.OBS,'X') <> 'NF CANCELADA')
                            AND MV.CODFISCAL IN (1202,1411,1949,2202,2411,2949)
-                           AND MV.CODSEC <> 1601
+                           AND MV.CODSEC <> @@SECAO_SEM_CUSTO@@
                        )
                  GROUP BY CODCLI, CLIENTE, CIDADE
                )
@@ -180,7 +180,7 @@ public static class DreDetalheQueries
                    AND MV.DTCANCEL IS NULL
                    AND (NVL(NFE.OBS,'X') <> 'NF CANCELADA')
                    AND MV.CODFISCAL IN (1202,1411,1949,2202,2411,2949)
-                   AND MV.CODSEC <> 1601
+                   AND MV.CODSEC <> @@SECAO_SEM_CUSTO@@
                  GROUP BY MOTIVO.CODDEVOL, motivo.motivo, motivo.crldevculparca
                )
          ORDER BY VLDEVOLUCAO DESC
@@ -263,7 +263,7 @@ public static class DreDetalheQueries
                    AND MV.DTCANCEL IS NULL
                    AND (NVL(NFE.OBS,'X') <> 'NF CANCELADA')
                    AND MV.CODFISCAL IN (1202,1411,1949,2202,2411,2949)
-                   AND MV.CODSEC <> 1601
+                   AND MV.CODSEC <> @@SECAO_SEM_CUSTO@@
                    AND NVL(MOTIVO.CODDEVOL, -1) = NVL(:codMotivo, -1)
                  GROUP BY NFE.NUMNOTA, NFE.SERIE, NFE.DTENT, NFE.NUMTRANSENT
                )
@@ -362,10 +362,10 @@ public static class DreDetalheQueries
                          'OUTROS') AS FORNECEDOR,
                        FIN.DTRECLASSIFIC, FIN.CODFUNCRECLASSIFIC,
                        (SELECT NOME FROM PCEMPR WHERE MATRICULA = FIN.CODFUNCBAIXA) AS NOMEFUNCBAIXA
-                  FROM PCCONTA CT, PCGRUPO GR, PCCENTROCUSTO CC, PCRATEIOCENTROCUSTO RC,
+                  FROM PCCONTA CT, PCGRUPO GR, PCCENTROCUSTO CC, @@RATEIO_RC@@ RC,
                        (SELECT RECNUM, CODFILIAL, numtrans, NUMNOTA, Duplic, codprojeto,
                                dtcompetencia, dtlanc, DTVENC, DTPAGTO, nvl(VPAGO,VALOR) AS VPAGO,
-                               INDICE, codconta, TIPOPARCEIRO, DTRECLASSIFIC, CODFUNCRECLASSIFIC,
+                               INDICE, @@CODCONTA_LANC@@, TIPOPARCEIRO, DTRECLASSIFIC, CODFUNCRECLASSIFIC,
                                historico, HISTORICO2, NUMBANCO, NumCheque, numbordero,
                                numseqbordero, NUMCHEQUE2, LOCALIZACAO, NOMEFUNC, CODFORNEC,
                                CODFUNCBAIXA, DTESTORNOBAIXA
@@ -550,7 +550,7 @@ public static class DreDetalheQueries
                    AND NF.CODFILIAL IN ({1})
                    {4}
                    AND ( (nvl(esp.mostra_dre,'S') = 'S') OR (NF.CONDVENDA IN (5)) )
-                   AND nvl(PR.codsec,0) <> 1601
+                   AND nvl(PR.codsec,0) <> @@SECAO_SEM_CUSTO@@
                  GROUP BY PR.CODPROD, PR.DESCRICAO
                 UNION ALL
                 SELECT PR.CODPROD, PR.DESCRICAO,
@@ -580,7 +580,7 @@ public static class DreDetalheQueries
                    AND MV.DTCANCEL IS NULL
                    AND (NVL(NFE.OBS,'X') <> 'NF CANCELADA')
                    AND MV.CODFISCAL IN (1202,1411,1949,2202,2411,2949)
-                   AND MV.CODSEC <> 1601
+                   AND MV.CODSEC <> @@SECAO_SEM_CUSTO@@
                  GROUP BY PR.CODPROD, PR.DESCRICAO
                )
          GROUP BY CODPROD, PRODUTO

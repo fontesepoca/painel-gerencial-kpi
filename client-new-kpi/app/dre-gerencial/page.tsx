@@ -11,6 +11,7 @@ import { exportarApuracao } from "@/lib/exportarExcel";
 import { aplicarOrdem } from "@/lib/ordemLinhas";
 import { recalcular } from "@/lib/recalculoDoDre";
 import { useApuracao, useFiliais } from "@/hooks/useDreGerencial";
+import { useSessao } from "@/hooks/useSessao";
 import { cn } from "@/lib/cn";
 import { formatarDataIso, formatarDuracao } from "@/lib/formato";
 import { descreverFiliais } from "@/lib/filiaisApuradas";
@@ -22,6 +23,10 @@ import type { Apuracao, FiltroApuracao } from "@/types/dre-gerencial";
 export default function DreGerencialPage() {
   const filiais = useFiliais();
   const apuracao = useApuracao();
+  const { data: usuario } = useSessao();
+  // Fora do `useCallback` do Excel: o React Compiler não aceita encadeamento opcional na lista
+  // de dependências, e a base é o que muda o nome do arquivo.
+  const baseDaSessao = usuario?.base.id;
   const [mostrarZeradas, setMostrarZeradas] = useState(false);
 
   /**
@@ -116,6 +121,7 @@ export default function DreGerencialPage() {
         apuracao,
         naTela.length > 0 ? naTela : apuracao.linhas,
         { av: mostrarAv, ah: mostrarAh },
+        baseDaSessao,
       );
     } catch (e) {
       setErroExportar(
@@ -130,7 +136,7 @@ export default function DreGerencialPage() {
     // primeira renderizacao -- os dois marcados -- e o Excel sairia sempre completo, por
     // mais que a tela mostrasse outra coisa. Um defeito que nao da erro: o arquivo abre, e
     // so quem conferir coluna por coluna percebe.
-  }, [mostrarAv, mostrarAh]);
+  }, [mostrarAv, mostrarAh, baseDaSessao]);
 
   // O mês corrente, em colunas mensais: o recorte que a tela sempre abriu, e que os modos
   // de ano não deslocaram. `anos` começa vazio de propósito — um ano pré-escolhido seria
@@ -155,6 +161,15 @@ export default function DreGerencialPage() {
     dados?.filiais ?? [],
     filiais.data ?? [],
   );
+
+  // A BASE entra onde o papel já diz o que foi apurado. Um DRE impresso circula semanas
+  // depois, e "qual empresa?" é a primeira pergunta de quem o recebe. A mesma frase vai ao
+  // detalhamento aberto em outra aba (via `TabelaDre`), que não tem a sessão em memória.
+  const baseApurada = usuario?.base.rotulo ?? null;
+  const detalheDasFiliais =
+    baseApurada === null
+      ? filiaisApuradas.detalhe
+      : `Base: ${baseApurada} · ${filiaisApuradas.detalhe}`;
 
   // Os códigos saem da apuração; os nomes, do que está selecionado agora. Ver
   // `descreverFornecedores` — e é `null` quando o DRE é o inteiro, que é o caso comum.
@@ -239,6 +254,14 @@ export default function DreGerencialPage() {
                     {/* O intervalo do filtro só descreve o que foi apurado no modo mensal. Por
                       ano inteiro quem manda são as colunas; no comparativo são DOIS
                       intervalos, e citar só o primeiro esconderia metade da apuração. */}
+                    {baseApurada !== null && (
+                      <>
+                        <span className="font-medium text-[var(--text-secondary)]">
+                          {baseApurada}
+                        </span>{" "}
+                        ·{" "}
+                      </>
+                    )}
                     {descreverPeriodo(dados)} ·{" "}
                     {dados.regime === "caixa" ? "Caixa" : "Competência"} ·{" "}
                     {/* O separador vai DENTRO do span: escondido, ele leva o ` · ` junto e a
@@ -281,7 +304,7 @@ export default function DreGerencialPage() {
                     Fica no DOM sempre, escondida por CSS, porque `Ctrl+P` não espera
                     re-render — a mesma razão do par de `%AH` em `Variacao`. */}
                   <p className="filiais-descritas mt-0.5 text-[length:var(--fs-apoio)] text-[var(--text-muted)]">
-                    {filiaisApuradas.detalhe}
+                    {detalheDasFiliais}
                   </p>
 
                   {/* DE QUEM É ESTE DRE.
@@ -444,7 +467,7 @@ export default function DreGerencialPage() {
                   anos: [],
                 }}
                 modo={dados.modo}
-                filiaisApuradas={filiaisApuradas.detalhe}
+                filiaisApuradas={detalheDasFiliais}
               />
             </section>
           </>

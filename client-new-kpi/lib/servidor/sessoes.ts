@@ -38,6 +38,13 @@ export interface UsuarioDaSessao {
    * onde não havia nada a fazer. Agora entra e a tela inicial mostra que não há o que abrir.
    */
   readonly rotinas: readonly string[];
+
+  /**
+   * A base em que esta pessoa entrou. <b>Faz parte da identidade:</b> a matrícula 144 da
+   * Época e a 144 do Minas Rural são pessoas diferentes. Vem da API, que a leu do token que
+   * ela mesma emitiu.
+   */
+  readonly base: { readonly id: string; readonly rotulo: string };
 }
 
 /** O que pode ser entregue ao navegador: tudo menos o token. */
@@ -111,6 +118,15 @@ export function lerSessao(id: string | undefined): Sessao | null {
   // nova já derruba todas as sessões. Fica para o Fast Refresh em desenvolvimento, que
   // recarrega o módulo sem reiniciar o processo.
   if (!Array.isArray(sessao.usuario.rotinas)) {
+    sessoes.delete(id);
+    return null;
+  }
+
+  // Mesma razão, para a base: sessão sem ela é de antes da bifurcação (Fast Refresh em
+  // desenvolvimento, que recarrega o módulo sem reiniciar o processo). Sem base nenhuma
+  // consulta saberia onde rodar, e o proxy a recusaria de qualquer jeito — só que com um 401
+  // sem explicação. Melhor encerrar aqui e mandar a pessoa entrar.
+  if (!sessao.usuario.base?.id) {
     sessoes.delete(id);
     return null;
   }

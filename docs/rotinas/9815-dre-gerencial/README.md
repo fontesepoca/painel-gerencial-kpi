@@ -14,6 +14,7 @@ parecem defeito. Divergir é exceção, e toda exceção está numerada no `DIVE
 | [DIVERGENCIAS.md](DIVERGENCIAS.md) | **toda** diferença numérica entre as duas, medida e decidida |
 | [FILTRO_FORNECEDOR.md](FILTRO_FORNECEDOR.md) | o filtro por fornecedor — a mecânica lida no fonte e a tabela de vínculo |
 | [HOMOLOGACAO.md](HOMOLOGACAO.md) | a matriz de cenários a conferir |
+| [BASE_MINAS_RURAL.md](BASE_MINAS_RURAL.md) | o que o Delphi faz diferente na base do Minas Rural — lido do fonte, a confirmar por medição |
 | [validacao/](validacao/) | os scripts que provam cada número (`dcNN`) |
 | [referencia-oficial/](referencia-oficial/) | o que a 9815 exportou, e o SQL que ela mandou ao Oracle |
 
@@ -59,3 +60,18 @@ A skill [`conferir-dre`](../../../.claude/skills/conferir-dre/SKILL.md) é o cic
 escolher o cenário em `referencia-oficial/`, extrair os valores esperados do `.xlsx`, escrever
 a query, **entregar ao Gabriel para executar** — nunca conectar no Oracle — e comparar por
 script, com tolerância de meio centavo.
+
+## Os scripts de validação agora precisam de sessão
+
+As rotas do DRE exigem `[Authorize]` desde 07/10/2026. Os `dcNN` que chamam a API direto
+rodam com o módulo `_autenticar.mjs`, que loga com a credencial de variáveis de ambiente
+(nunca de argumento, nunca impressa):
+
+```bash
+KPI_LOGIN=… KPI_SENHA=… [KPI_BASE=MinasRural] \
+  node --import ./docs/rotinas/9815-dre-gerencial/validacao/_autenticar.mjs <script>
+```
+
+`KPI_BASE` é `Epoca` por padrão. Sem `KPI_LOGIN` e `KPI_SENHA` o script falha dizendo o que
+definir — seguir sem token daria 401 em cada chamada e um relatório de "divergência" que é só
+falta de login.

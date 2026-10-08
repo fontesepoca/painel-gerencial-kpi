@@ -294,4 +294,13 @@ eq(
   );
 }
 
+// O NOME DO ARQUIVO diz de que base ele é. Dois DREs de bases diferentes para o mesmo período
+// não podem ter o mesmo nome: quem arquiva não teria como distinguir.
+eq(nomeDoArquivo(dados), "DRE_ccusto-principal_2026-07-01_a_2026-08-27", "sem base, o nome é o de sempre");
+eq(
+  nomeDoArquivo(dados, "MinasRural"),
+  "DRE_MinasRural_ccusto-principal_2026-07-01_a_2026-08-27",
+  "com base, o id dela entra logo depois do DRE",
+);
+
 console.log(`dc13: ${n}/${n} asserções passaram. Arquivo gerado, reaberto e conferido.`);

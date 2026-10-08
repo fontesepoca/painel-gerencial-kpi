@@ -343,6 +343,30 @@ VALUES ('25', 29, 4893,
         'Fiel a 9815 - UBase.pas:27217, literal escrito a mao. Centro 2501 EQUIPE P&G');
 ```
 
+### No Minas Rural — 07/10/2026
+
+A mesma tabela, criada pela [mb3](../../plataforma/validacao/mb3_tab_web_centroc_fornec_minas_rural.sql)
+no schema EPCTI (leitura pelo `EDI`, por grant e sinônimo), com a mesma estrutura e o mesmo
+trigger. **A carga é vazia**, e o motivo é o que torna o literal da 9815 um defeito naquela base:
+
+| | Época | Minas Rural |
+|---|---|---|
+| centro `2501` | EQUIPE P&G | P&G |
+| fornecedor `29` | **P&G** | **NUTRIFAR COMERCIAL LTDA.** |
+| fornecedor P&G / Gillette | 29, 2453, 815 | nenhum cadastrado |
+| lançamento rateado no centro 25 (jul–set/2026) | sim | nenhum |
+
+O `codccprinc = 25 and 29 in (...)` está no executável das duas bases (não há `bBaseMRURAL`
+nesse trecho do `UBase.pas`). No Minas Rural ele daria à Nutrifar a despesa do centro P&G — e
+só não muda número hoje porque o centro 25 não tem movimento. **Não copiamos o `25 → 29`**:
+tabela vazia é neutra (nenhum centro dedicado, nada some), e o centro 90 segue pelo
+fornecedor do próprio lançamento, sem linha aqui. Um vínculo no Minas Rural entra quando o
+negócio de lá disser qual é.
+
+A varredura do fonte confirmou que **só existem as duas regras** — o centro 90 (dinâmico) e o
+25 ↔ 29 (fixo) —, ambas no `UBase.pas`; o detalhamento do Delphi (`ULanc.pas`) não filtra por
+fornecedor.
+
 ### O que o negócio precisa decidir
 
 Os fornecedores com verba no centro 90 em 2026, que são os candidatos a vínculo:

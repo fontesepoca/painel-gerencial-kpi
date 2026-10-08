@@ -8,6 +8,8 @@ services:
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_URLS: http://+:8080
       ConnectionStrings__OracleEpoca: ${ORACLE_EPOCA:?Configure ORACLE_EPOCA no arquivo .env}
+      # Sem `:?`: o Minas Rural é opcional. Vazia, a API sobe e a base só não aparece no login.
+      ConnectionStrings__OracleMinasRural: ${ORACLE_MINAS_RURAL:-}
       Cors__OrigensPermitidas__0: ${FRONTEND_ORIGIN:-http://localhost:3000}
       # Duplo sublinhado separa a seção da chave: Oracle__GrauDeParalelismo é
       # "Oracle": { "GrauDeParalelismo": ... } no appsettings. Sem a variável, vale o

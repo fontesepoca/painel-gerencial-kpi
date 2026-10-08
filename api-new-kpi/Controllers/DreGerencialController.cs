@@ -1,6 +1,8 @@
 using Epoca.Kpi.Api.Application.Common;
+using Epoca.Kpi.Api.Application.Common.Bases;
 using Epoca.Kpi.Api.Application.Features.DreGerencial;
 using Epoca.Kpi.Api.Application.Features.DreGerencial.Dtos;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Epoca.Kpi.Api.Controllers;
@@ -9,12 +11,18 @@ namespace Epoca.Kpi.Api.Controllers;
 /// DRE Gerencial — rotina 9815 do Winthor.
 /// </summary>
 [ApiController]
+[Authorize]
 [Route("api/dre-gerencial")]
 public sealed class DreGerencialController : ControllerBase
 {
     private readonly DreGerencialService _servico;
+    private readonly IBaseAtual _baseAtual;
 
-    public DreGerencialController(DreGerencialService servico) => _servico = servico;
+    public DreGerencialController(DreGerencialService servico, IBaseAtual baseAtual)
+    {
+        _servico = servico;
+        _baseAtual = baseAtual;
+    }
 
     /// <summary>Filiais disponíveis para o filtro, na ordem de exibição do cadastro.</summary>
     [HttpGet("filiais")]
@@ -133,7 +141,8 @@ public sealed class DreGerencialController : ControllerBase
             return BadRequest(ApiResponse<object>.Falha(resultado.Erro!));
         }
 
-        return Ok(ApiResponse<ApuracaoDto>.Ok(resultado.Valor!));
+        return Ok(ApiResponse<ApuracaoDto>.Ok(
+            resultado.Valor! with { Base = BaseDto.De(_baseAtual.Base) }));
     }
 
     /// <summary>
@@ -161,6 +170,7 @@ public sealed class DreGerencialController : ControllerBase
             return BadRequest(ApiResponse<object>.Falha(resultado.Erro!));
         }
 
-        return Ok(ApiResponse<DetalhamentoDto>.Ok(resultado.Valor!));
+        return Ok(ApiResponse<DetalhamentoDto>.Ok(
+            resultado.Valor! with { Base = BaseDto.De(_baseAtual.Base) }));
     }
 }

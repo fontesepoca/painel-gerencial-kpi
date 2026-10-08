@@ -1,5 +1,6 @@
 using System.Text;
 using Epoca.Kpi.Api.Application.Common;
+using Epoca.Kpi.Api.Application.Common.Bases;
 using Epoca.Kpi.Api.Application.Features.Autenticacao;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
@@ -11,6 +12,9 @@ namespace Epoca.Kpi.Api.Configurations;
 /// </summary>
 public static class AutenticacaoConfiguration
 {
+    /// <summary>A razão que <c>OnTokenValidated</c> dá e o <c>OnChallenge</c> reconhece.</summary>
+    private const string SessaoSemBase = "sessao-sem-base";
+
     public static IServiceCollection AddAutenticacaoJwt(
         this IServiceCollection services,
         IConfiguration configuration)
@@ -50,6 +54,24 @@ public static class AutenticacaoConfiguration
 
                 options.Events = new JwtBearerEvents
                 {
+                    // A BASE É PARTE DA IDENTIDADE. Um token sem o claim `base` (emitido antes
+                    // da bifurcação) ou com uma base que saiu da configuração não vale: a API
+                    // não tem como saber em que Oracle consultar, e adivinhar é o erro que
+                    // esta mudança existe para impedir.
+                    OnTokenValidated = contexto =>
+                    {
+                        var registro = contexto.HttpContext.RequestServices
+                            .GetRequiredService<RegistroDeBases>();
+                        var id = contexto.Principal?.FindFirst(BaseAtual.ClaimBase)?.Value;
+
+                        if (registro.Buscar(id) is null)
+                        {
+                            contexto.Fail(SessaoSemBase);
+                        }
+
+                        return Task.CompletedTask;
+                    },
+
                     // Sem esta linha a resposta 401 sai com corpo vazio, e o front precisa
                     // tratar um caso a mais só porque esta rota respondeu diferente das outras.
                     OnChallenge = async contexto =>
@@ -58,8 +80,15 @@ public static class AutenticacaoConfiguration
                         contexto.Response.StatusCode = StatusCodes.Status401Unauthorized;
                         contexto.Response.ContentType = "application/json; charset=utf-8";
 
-                        await contexto.Response.WriteAsJsonAsync(
-                            ApiResponse<object>.Falha("Sessão expirada ou ausente. Entre novamente."));
+                        // Os dois 401 pedem a mesma ação (entrar de novo), mas dizem coisas
+                        // diferentes: um é sessão que venceu, o outro é sessão que a
+                        // atualização invalidou. Quem lê o segundo não deve achar que errou.
+                        var anterior = contexto.AuthenticateFailure?.Message == SessaoSemBase;
+                        var mensagem = anterior
+                            ? "Sua sessão é anterior a esta atualização. Entre de novo."
+                            : "Sessão expirada ou ausente. Entre novamente.";
+
+                        await contexto.Response.WriteAsJsonAsync(ApiResponse<object>.Falha(mensagem));
                     }
                 };
             });

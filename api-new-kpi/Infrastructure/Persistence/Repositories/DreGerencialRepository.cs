@@ -1,6 +1,7 @@
 using Epoca.Kpi.Api.Application.Features.DreGerencial;
 using System.Text.RegularExpressions;
 using Dapper;
+using Epoca.Kpi.Api.Application.Common.Bases;
 using Epoca.Kpi.Api.Domain.Entities;
 using Epoca.Kpi.Api.Domain.Interfaces;
 using Epoca.Kpi.Api.Infrastructure.Persistence.Context;
@@ -13,14 +14,24 @@ public sealed class DreGerencialRepository : IDreGerencialRepository
 {
     private readonly IOracleConnectionFactory _conexoes;
     private readonly OpcoesDeParalelismo _paralelismo;
+    private readonly IBaseAtual _baseAtual;
 
     public DreGerencialRepository(
         IOracleConnectionFactory conexoes,
-        OpcoesDeParalelismo paralelismo)
+        OpcoesDeParalelismo paralelismo,
+        IBaseAtual baseAtual)
     {
         _conexoes = conexoes;
         _paralelismo = paralelismo;
+        _baseAtual = baseAtual;
     }
+
+    /// <summary>
+    /// A ÚNICA porta do SQL ao Oracle: troca os marcadores pelo que a base da sessão manda.
+    /// Toda consulta passa por aqui — o `dc86` falha se uma `CommandDefinition` escapar —, e
+    /// <b>um marcador que sobrar lança</b>, em vez de seguir com o valor de outra base.
+    /// </summary>
+    private string Final(string sql) => _baseAtual.Base.Regras.Aplicar(sql);
 
     /// <summary>Meses que o recorte cobre, contando as pontas.</summary>
     private static int MesesDoRecorte(DateOnly inicio, DateOnly fim) =>
@@ -36,7 +47,7 @@ public sealed class DreGerencialRepository : IDreGerencialRepository
         // a tela de filtros do usuário.
         var filiais = await conexao.QueryAsync<Filial>(
             new CommandDefinition(
-                DreGerencialQueries.Filiais,
+                Final(DreGerencialQueries.Filiais),
                 commandTimeout: 30,
                 cancellationToken: cancellationToken));
 
@@ -147,7 +158,7 @@ public sealed class DreGerencialRepository : IDreGerencialRepository
         // ver `FolegoDaApuracao`.
         var linhas = await conexao.QueryAsync<LinhaEstruturaDre>(
             new CommandDefinition(
-                sql,
+                Final(sql),
                 parametros,
                 commandTimeout: FolegoDaApuracao(dataInicio, dataFim),
                 cancellationToken: cancellationToken));
@@ -277,7 +288,7 @@ public sealed class DreGerencialRepository : IDreGerencialRepository
         // período — daí o fôlego sair de `FolegoDaApuracao` e não de um número fixo.
         var despesas = await conexao.QueryAsync<DespesaDre>(
             new CommandDefinition(
-                sql,
+                Final(sql),
                 parametros,
                 commandTimeout: FolegoDaApuracao(dataInicio, dataFim),
                 cancellationToken: cancellationToken));
@@ -310,7 +321,7 @@ public sealed class DreGerencialRepository : IDreGerencialRepository
 
         var fornecedores = await conexao.QueryAsync<FornecedorDre>(
             new CommandDefinition(
-                DreGerencialQueries.Fornecedores,
+                Final(DreGerencialQueries.Fornecedores),
                 parametros,
                 commandTimeout: 30,
                 cancellationToken: cancellationToken));
@@ -446,7 +457,7 @@ public sealed class DreGerencialRepository : IDreGerencialRepository
         // DESLIGADO, que é o caso a proteger. Ver `FolegoDaApuracao`.
         var faturamento = await conexao.QueryAsync<FaturamentoDre>(
             new CommandDefinition(
-                sql,
+                Final(sql),
                 parametros,
                 commandTimeout: FolegoDaApuracao(dataInicio, dataFim),
                 cancellationToken: cancellationToken));
@@ -598,7 +609,7 @@ public sealed class DreGerencialRepository : IDreGerencialRepository
         // para um mês e três filiais — ver docs/rotinas/9815-dre-gerencial/DIVERGENCIAS.md §4.
         var linhas = await conexao.QueryAsync<DetalheClienteDre>(
             new CommandDefinition(
-                sql,
+                Final(sql),
                 parametros,
                 commandTimeout: 600,
                 cancellationToken: cancellationToken));
@@ -659,7 +670,7 @@ public sealed class DreGerencialRepository : IDreGerencialRepository
 
         var linhas = await conexao.QueryAsync<DetalheImpostoDre>(
             new CommandDefinition(
-                sql,
+                Final(sql),
                 parametros,
                 commandTimeout: 600,
                 cancellationToken: cancellationToken));
@@ -697,7 +708,7 @@ public sealed class DreGerencialRepository : IDreGerencialRepository
 
         var linhas = await conexao.QueryAsync<DetalheNotaDre>(
             new CommandDefinition(
-                sql,
+                Final(sql),
                 parametros,
                 commandTimeout: 300,
                 cancellationToken: cancellationToken));
@@ -736,7 +747,7 @@ public sealed class DreGerencialRepository : IDreGerencialRepository
 
         var linhas = await conexao.QueryAsync<DetalheMotivoDre>(
             new CommandDefinition(
-                sql,
+                Final(sql),
                 parametros,
                 commandTimeout: 300,
                 cancellationToken: cancellationToken));
@@ -847,7 +858,7 @@ public sealed class DreGerencialRepository : IDreGerencialRepository
 
         var linhas = await conexao.QueryAsync<DetalheLancamentoDre>(
             new CommandDefinition(
-                sql,
+                Final(sql),
                 parametros,
                 commandTimeout: 300,
                 cancellationToken: cancellationToken));

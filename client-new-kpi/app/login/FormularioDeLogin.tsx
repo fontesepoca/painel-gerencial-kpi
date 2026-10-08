@@ -1,8 +1,14 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { destinoSeguro } from "@/lib/destinoSeguro";
+import {
+  escolherBaseInicial,
+  guardarUltimaBase,
+  lerUltimaBase,
+  type BaseOferecida,
+} from "@/lib/baseInicial";
 
 /**
  * O formulário de entrada.
@@ -19,6 +25,30 @@ export function FormularioDeLogin() {
   const [erro, setErro] = useState<string | null>(null);
   const [entrando, setEntrando] = useState(false);
 
+  // As bases que o login oferece. `null` = ainda carregando; lista vazia = nenhuma disponível.
+  const [bases, setBases] = useState<BaseOferecida[] | null>(null);
+  const [base, setBase] = useState("");
+
+  useEffect(() => {
+    let cancelado = false;
+
+    fetch("/api/bases", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((conteudo) => {
+        if (cancelado) return;
+        const lista = (conteudo?.dados ?? []) as BaseOferecida[];
+        setBases(lista);
+        setBase(escolherBaseInicial(lista, lerUltimaBase()));
+      })
+      .catch(() => {
+        if (!cancelado) setBases([]);
+      });
+
+    return () => {
+      cancelado = true;
+    };
+  }, []);
+
   async function entrar(evento: FormEvent) {
     evento.preventDefault();
     if (entrando) return;
@@ -30,7 +60,7 @@ export function FormularioDeLogin() {
       const resposta = await fetch("/api/sessao", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ login, senha }),
+        body: JSON.stringify({ login, senha, base }),
       });
 
       const conteudo = await resposta.json().catch(() => null);
@@ -42,6 +72,8 @@ export function FormularioDeLogin() {
         setSenha("");
         return;
       }
+
+      guardarUltimaBase(base);
 
       // De volta para onde a pessoa ia antes de ser desviada — validado, porque veio da URL.
       const destino = destinoSeguro(parametros.get("destino"));
@@ -65,6 +97,53 @@ export function FormularioDeLogin() {
 
   return (
     <form onSubmit={entrar} className="flex flex-col gap-4">
+      <div className="flex flex-col gap-1.5">
+        <label
+          htmlFor="base"
+          className="text-[length:var(--fs-rotulo)] font-medium tracking-[0.14em] text-[var(--text-muted)] uppercase"
+        >
+          Base de dados
+        </label>
+        <div className="relative">
+          <select
+            id="base"
+            name="base"
+            value={base}
+            onChange={(e) => setBase(e.target.value)}
+            disabled={bases === null || bases.length === 0}
+            required
+            className="campo-login appearance-none pr-10"
+          >
+            {bases === null && <option value="">Carregando…</option>}
+            {bases?.length === 0 && <option value="">Nenhuma base disponível</option>}
+            {bases?.map((b) => (
+              <option key={b.id} value={b.id}>
+                {b.rotulo}
+              </option>
+            ))}
+          </select>
+          {/* A seta é nossa porque `appearance-none` leva a do navegador, que não acompanha
+              os nossos temas. `text-muted` é token: existe nos dois. */}
+          <svg
+            aria-hidden
+            viewBox="0 0 20 20"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.6"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2 text-[var(--text-muted)]"
+          >
+            <path d="m5 7.5 5 5 5-5" />
+          </svg>
+        </div>
+        {bases !== null && bases.length === 0 && (
+          <p role="alert" className="text-[length:var(--fs-apoio)] text-[var(--text-muted)]">
+            Nenhuma base de dados está disponível agora. Avise a TI.
+          </p>
+        )}
+      </div>
+
       <Campo
         id="login"
         rotulo="Usuário"
@@ -119,7 +198,7 @@ export function FormularioDeLogin() {
 
       <button
         type="submit"
-        disabled={entrando}
+        disabled={entrando || !base}
         className="mt-1 flex h-[var(--altura-controle)] items-center justify-center gap-2 rounded-[var(--radius-md)] bg-[var(--primary)] px-5 text-[length:var(--fs-base)] font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
       >
         {entrando ? "Entrando…" : "Entrar"}

@@ -1,3 +1,5 @@
+using Epoca.Kpi.Api.Application.Common.Bases;
+
 namespace Epoca.Kpi.Api.Application.Features.Autenticacao.Dtos;
 
 /// <summary>
@@ -10,7 +12,7 @@ namespace Epoca.Kpi.Api.Application.Features.Autenticacao.Dtos;
 /// </summary>
 /// <param name="Login">O nome de guerra, como no Winthor. A caixa não importa.</param>
 /// <param name="Senha">A mesma senha do Winthor.</param>
-public sealed record LoginRequest(string Login, string Senha);
+public sealed record LoginRequest(string Login, string Senha, string? Base = null);
 
 /// <summary>
 /// A sessão recém-criada.
@@ -44,4 +46,5 @@ public sealed record UsuarioDto(
     string Nome,
     string NomeGuerra,
     IReadOnlyList<string> Filiais,
-    IReadOnlyList<string> Rotinas);
+    IReadOnlyList<string> Rotinas,
+    BaseDto Base);

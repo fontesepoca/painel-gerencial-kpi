@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using System.Text;
+using Epoca.Kpi.Api.Application.Common.Bases;
 using Epoca.Kpi.Api.Application.Features.Autenticacao.Dtos;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.JsonWebTokens;
@@ -61,6 +62,9 @@ public sealed class GeradorDeToken
             // guerra: é o identificador com que a pessoa entrou, e o que faz sentido aparecer
             // num log de acesso. O nome completo tem claim própria, acima.
             new Claim(ClaimTypes.Name, usuario.NomeGuerra),
+            // A BASE da sessão. Assinada junto, o cliente não a altera: é o que a API usa, a
+            // cada requisição, para saber em que Oracle consultar.
+            new Claim(BaseAtual.ClaimBase, usuario.Base.Id),
             // Identificador único deste token. Serve para o dia em que existir revogação:
             // sem ele, invalidar uma sessão específica exigiria trocar a chave de todas.
             new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())

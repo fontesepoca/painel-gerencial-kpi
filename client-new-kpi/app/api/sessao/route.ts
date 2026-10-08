@@ -7,6 +7,7 @@ import {
   lerSessaoPublica,
 } from "@/lib/servidor/sessoes";
 import { esquecerTentativas, registrarTentativa } from "@/lib/servidor/limiteDeTentativas";
+import { enderecoDaApi } from "@/lib/servidor/urlDaApi";
 
 /**
  * A sessão do navegador — o BFF do login.
@@ -17,24 +18,6 @@ import { esquecerTentativas, registrarTentativa } from "@/lib/servidor/limiteDeT
  *
  * `POST` entra · `GET` diz quem está logado · `DELETE` sai.
  */
-
-/**
- * Onde a API .NET está, do ponto de vista DESTE processo.
- *
- * <b>Não é o mesmo endereço que o navegador usa.</b> `NEXT_PUBLIC_API_URL` é o endereço
- * público — serve para o navegador chamar a API direto, e é fixado no build. Este arquivo
- * roda no servidor Next, e em container os dois vivem na mesma rede: falar por
- * `http://api:8080` é direto e não depende de IP, domínio ou de o host deixar o container
- * sair e voltar.
- *
- * A ordem dos fallbacks cobre os três ambientes sem ninguém configurar nada a mais:
- * `API_URL_INTERNA` em container, `NEXT_PUBLIC_API_URL` quando só ela existe, e o localhost
- * do desenvolvimento.
- */
-const API =
-  process.env.API_URL_INTERNA ??
-  process.env.NEXT_PUBLIC_API_URL ??
-  "http://localhost:5207";
 
 /** Oito horas, o mesmo fôlego do token — o cookie não deve sobreviver ao que ele aponta. */
 const VALIDADE_DO_COOKIE_SEGUNDOS = 8 * 60 * 60;
@@ -51,6 +34,7 @@ interface RespostaDaApi {
       nomeGuerra: string;
       filiais: string[];
       rotinas: string[];
+      base: { id: string; rotulo: string };
     };
   } | null;
 }
@@ -86,7 +70,7 @@ async function conexaoSegura(requisicao: Request): Promise<boolean> {
   }
 }
 export async function POST(requisicao: Request) {
-  let corpo: { login?: unknown; senha?: unknown };
+  let corpo: { login?: unknown; senha?: unknown; base?: unknown };
 
   try {
     corpo = await requisicao.json();
@@ -99,6 +83,10 @@ export async function POST(requisicao: Request) {
 
   const login = typeof corpo.login === "string" ? corpo.login.trim() : "";
   const senha = typeof corpo.senha === "string" ? corpo.senha : "";
+  // A base NÃO é validada aqui: quem sabe quais bases existem é a API, e repetir a lista no
+  // BFF seria mantê-la em dois lugares. Vazia ou desconhecida, a API responde 400 com a
+  // mensagem certa, e o 400 passa como está (item 7).
+  const base = typeof corpo.base === "string" ? corpo.base.trim() : "";
 
   if (!login || !senha) {
     return NextResponse.json(
@@ -124,10 +112,10 @@ export async function POST(requisicao: Request) {
 
   let resposta: Response;
   try {
-    resposta = await fetch(`${API}/api/auth/login`, {
+    resposta = await fetch(enderecoDaApi("/api/auth/login"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ login, senha }),
+      body: JSON.stringify({ login, senha, base }),
       // Nunca cacheia: é uma verificação de senha, e o resultado vale só para esta chamada.
       cache: "no-store",
     });
@@ -146,13 +134,27 @@ export async function POST(requisicao: Request) {
   if (!resposta.ok || !conteudo?.sucesso || !conteudo.dados) {
     // A mensagem vem da API, que é quem sabe o motivo — senha errada, cadastro inativo, falta
     // de permissão. Repetir a decisão aqui seria manter duas listas de mensagens em sincronia.
+    // 400 (campo ou base inválida) e 503 (a base não respondeu) passam como são. O 503 em
+    // especial: virar 401 faria a pessoa ler "usuário ou senha incorretos" para um banco fora
+    // do ar, e ela trocaria a senha para resolver um problema que não é dela.
+    const repassa = resposta.status === 400 || resposta.status === 503;
     return NextResponse.json(
       { sucesso: false, mensagem: conteudo?.mensagem ?? "Não foi possível entrar." },
-      { status: resposta.status === 400 ? 400 : 401 },
+      { status: repassa ? resposta.status : 401 },
     );
   }
 
   const { token, expiraEm, usuario } = conteudo.dados;
+
+  // Uma API que não diz a base é uma API anterior à bifurcação (ou um defeito dela). Seguir
+  // criaria uma sessão que o proxy recusaria na primeira chamada, com um 401 que ninguém
+  // saberia explicar.
+  if (!usuario.base?.id) {
+    return NextResponse.json(
+      { sucesso: false, mensagem: "A API não informou a base da sessão. Atualize a API e tente de novo." },
+      { status: 502 },
+    );
+  }
 
   const id = criarSessao(token, new Date(expiraEm), {
     matricula: usuario.matricula,
@@ -163,6 +165,7 @@ export async function POST(requisicao: Request) {
     // ninguém abriria nada — o que é o padrão seguro, mas quebrado de um jeito difícil de
     // diagnosticar. Com a lista vazia explícita, a tela inicial diz o que está acontecendo.
     rotinas: usuario.rotinas ?? [],
+    base: usuario.base,
   });
 
   esquecerTentativas(await enderecoDeOrigem(), login);

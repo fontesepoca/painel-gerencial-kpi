@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using Epoca.Kpi.Api.Application.Common;
+using Epoca.Kpi.Api.Application.Common.Bases;
 using Epoca.Kpi.Api.Application.Features.Autenticacao;
 using Epoca.Kpi.Api.Application.Features.Autenticacao.Dtos;
 using Microsoft.AspNetCore.Authorization;
@@ -19,8 +20,24 @@ namespace Epoca.Kpi.Api.Controllers;
 public sealed class AutenticacaoController : ControllerBase
 {
     private readonly AutenticacaoService _servico;
+    private readonly RegistroDeBases _bases;
 
-    public AutenticacaoController(AutenticacaoService servico) => _servico = servico;
+    public AutenticacaoController(AutenticacaoService servico, RegistroDeBases bases)
+    {
+        _servico = servico;
+        _bases = bases;
+    }
+
+    /// <summary>
+    /// As bases que o login oferece. Público: a tela de login precisa dela antes de haver
+    /// sessão. Devolve só o id e o rótulo — nunca host, usuário nem string de conexão.
+    /// </summary>
+    [HttpGet("bases")]
+    [AllowAnonymous]
+    [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<BaseDto>>), StatusCodes.Status200OK)]
+    public IActionResult Bases() =>
+        Ok(ApiResponse<IReadOnlyList<BaseDto>>.Ok(
+            _bases.Disponiveis.Select(BaseDto.De).ToList()));
 
     /// <summary>
     /// Confere usuário e senha do Winthor e devolve a sessão.
@@ -98,11 +115,19 @@ public sealed class AutenticacaoController : ControllerBase
             .Select(c => c.Value)
             .ToList();
 
+        // O OnTokenValidated já recusou token sem base válida; isto é a rede de baixo.
+        var baseDaSessao = _bases.Buscar(User.FindFirstValue(BaseAtual.ClaimBase));
+        if (baseDaSessao is null)
+        {
+            return Unauthorized(ApiResponse<object>.Falha("Sessão inválida. Entre novamente."));
+        }
+
         return Ok(ApiResponse<UsuarioDto>.Ok(new UsuarioDto(
             codigo,
             User.FindFirstValue(GeradorDeToken.ClaimNome) ?? string.Empty,
             User.FindFirstValue(ClaimTypes.Name) ?? string.Empty,
             filiais,
-            rotinas)));
+            rotinas,
+            BaseDto.De(baseDaSessao))));
     }
 }

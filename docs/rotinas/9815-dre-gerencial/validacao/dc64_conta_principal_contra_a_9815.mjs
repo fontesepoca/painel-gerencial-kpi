@@ -77,8 +77,20 @@ const j = await r.json();
 if (!j.sucesso) throw new Error(j.erros?.[0] ?? 'falha na apuração');
 const linhas = j.dados.linhas;
 
+// A referência é da ÉPOCA (filial 7). Depois da bifurcação, a sessão do `_autenticar.mjs` pode
+// ser de outra base (`KPI_BASE`) — e aí a estrutura vem, a filial 7 não tem movimento, e TODA
+// linha sai 0,00: 48 falhas que parecem defeito de cálculo e são só a base errada.
+if (j.dados.base && j.dados.base.id !== 'Epoca') {
+  console.error(`\n  A sessão é da base ${j.dados.base.rotulo}, e esta referência é da Época.`);
+  console.error('  Defina KPI_BASE=Epoca (no .env.validacao) e rode de novo.\n');
+  process.exitCode = 2;
+} else {
+  conferir();
+}
+
+function conferir() {
 console.log('\n══ dc64 — a conta principal contra a 9815 ══\n');
-console.log('  junho/2026 · filial 7 · competência · C. Custo Principal\n');
+console.log(`  base: ${j.dados.base?.rotulo ?? '(a API não disse)'} · junho/2026 · filial 7 · competência · C. Custo Principal\n`);
 
 // ── O índice do nosso lado, por chave e por rótulo ──────────────────────────
 const porRotulo = new Map();
@@ -167,4 +179,7 @@ for (const o of orfas.sort((a, b) => Math.abs(b.valor) - Math.abs(a.valor)).slic
 console.log(falhas === 0
   ? '\n✓ dc64 passou — o desmembramento reconcilia com a 9815 ao centavo\n'
   : `\n✗ ${falhas} falha(s)\n`);
-process.exit(falhas === 0 ? 0 : 1);
+// `exitCode`, e não `process.exit()`: sair à força com a conexão do `fetch` aberta derruba o
+// Node no Windows com uma asserção da libuv.
+process.exitCode = falhas === 0 ? 0 : 1;
+}

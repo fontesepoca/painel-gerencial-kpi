@@ -24,6 +24,7 @@ geral estava enterrada na 9815 não é.
 | [SCHEMA_BANCO.md](plataforma/SCHEMA_BANCO.md) | tabelas do Winthor, o que é leitura e o que é escrita |
 | [PADROES_DE_TELA.md](plataforma/PADROES_DE_TELA.md) | ao construir qualquer tela — impressão, exportação, tela cheia, celular, controles de exibição |
 | [AUTENTICACAO.md](plataforma/AUTENTICACAO.md) | login, sessão, permissão por rotina do Winthor |
+| [BIFURCACAO_DE_BASES.md](plataforma/BIFURCACAO_DE_BASES.md) | um sistema, mais de um Oracle: a base escolhida no login, as regras por base. **Na branch `feat/bifurcacao-de-bases`, em teste** |
 | [DEPLOY_DOCKER.md](plataforma/DEPLOY_DOCKER.md) · [COMPRESSAO.md](plataforma/COMPRESSAO.md) · [PARALELISMO.md](plataforma/PARALELISMO.md) | infraestrutura e desempenho |
 
 ## Rotinas
