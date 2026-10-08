@@ -221,6 +221,12 @@ export interface DetalheDisponivel {
   bloco: string | null;
   /** Só em `lancamentos`: o `GRUPOCONTA` da linha. */
   chave: string | null;
+  /**
+   * Só na linha de uma conta subida para as operacionais (Manutencao De Veiculos, PNEUS E
+   * CAMARAS), fora da Conta Gerencial: os centros ou grupos cujos lançamentos ficaram nela
+   * por não terem linha própria. O front devolve como recebeu — ver `DetalheDisponivelDto`.
+   */
+  sobra?: string[] | null;
 }
 
 /**
@@ -231,6 +237,7 @@ export interface FiltroDetalhe extends FiltroApuracao {
   tipo: TipoDetalhe;
   bloco: string | null;
   chave: string | null;
+  sobra?: string[] | null;
 }
 
 export interface DetalheCliente {

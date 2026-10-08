@@ -1,4 +1,5 @@
 using Epoca.Kpi.Api.Application.Common;
+using Epoca.Kpi.Api.Application.Common.Bases;
 using Epoca.Kpi.Api.Application.Features.DreGerencial.Dtos;
 using Epoca.Kpi.Api.Domain.Interfaces;
 
@@ -10,8 +11,13 @@ namespace Epoca.Kpi.Api.Application.Features.DreGerencial;
 public sealed class DreGerencialService
 {
     private readonly IDreGerencialRepository _repositorio;
+    private readonly IBaseAtual _baseAtual;
 
-    public DreGerencialService(IDreGerencialRepository repositorio) => _repositorio = repositorio;
+    public DreGerencialService(IDreGerencialRepository repositorio, IBaseAtual baseAtual)
+    {
+        _repositorio = repositorio;
+        _baseAtual = baseAtual;
+    }
 
     /// <summary>
     /// Busca fornecedores para o filtro do DRE, por nome ou por código exato.
@@ -373,8 +379,11 @@ public sealed class DreGerencialService
 
         cronometro.Stop();
 
+        // As contas subidas são regra da BASE: a mesma lista que expandiu os marcadores das
+        // consultas de despesa tem de chegar ao montador, ou os dois lados discordam.
         var apuracao = MontadorDre.Montar(
-            estrutura, colunas, filtro, cronometro.ElapsedMilliseconds);
+            estrutura, colunas, filtro, cronometro.ElapsedMilliseconds,
+            _baseAtual.Base.Regras.ContasSubidasParaOperacional);
 
         return Result<ApuracaoDto>.Ok(apuracao);
     }
@@ -502,9 +511,21 @@ public sealed class DreGerencialService
                         $"Análise '{filtro.Analise}' não existe ou não está implementada.");
                 }
 
+                // A SOBRA de uma conta subida: as chaves da análise que não acharam linha
+                // operacional (`MontadorDre.Destino`). Vêm da apuração, ida e volta pelo
+                // front, e por isso passam por uma forma fechada — entram como bind, mas uma
+                // lista sem limite ainda seria uma consulta sem limite.
+                if (filtro.Sobra is { } sobra
+                    && (sobra.Count is 0 or > 200
+                        || sobra.Any(c => c.Length is 0 or > 20 || !c.All(ch => char.IsAsciiDigit(ch) || ch == '.'))))
+                {
+                    return Result<DetalhamentoDto>.Invalido(
+                        "A sobra do detalhamento tem de ser de 1 a 200 códigos, só com dígitos e ponto.");
+                }
+
                 var linhas = await _repositorio.ObterDetalheLancamentosAsync(
                     filtro.Filiais, filtro.DataInicio, filtro.DataFim, regime, analise,
-                    filtro.Bloco, filtro.Chave, fornecedores, cancellationToken);
+                    filtro.Bloco, filtro.Chave, fornecedores, filtro.Sobra, cancellationToken);
 
                 // ── A PARTICIPAÇÃO, QUE É O QUE FAZ A TELA FECHAR COM A CÉLULA ──────
                 //

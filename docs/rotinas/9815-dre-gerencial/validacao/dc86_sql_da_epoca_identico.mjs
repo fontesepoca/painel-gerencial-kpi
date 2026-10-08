@@ -45,6 +45,10 @@ const EPOCA = new Map([
   ["@@FILIAIS_FORA_DA_PERMISSAO@@", "AND CODIGOA NOT IN (2, 99)"],
   ["@@RATEIO_RC@@", "PCRATEIOCENTROCUSTO"],
   ["@@CODCONTA_LANC@@", "codconta"],
+  // 08/10/2026 — Manutencao De Veiculos e PNEUS E CAMARAS se distribuem pela análise
+  // (DIVERGENCIAS.md §14). Não eram literais: são SQL NOVO, que só a Época liga.
+  ["@@OU_CONTA_SUBIDA@@", "or FIN.CODCONTA in (3000067, 3000080)"],
+  ["@@CONTA_SUBIDA@@", "case when FIN.CODCONTA in (3000067, 3000080) then to_char(FIN.CODCONTA) end"],
 ]);
 
 let n = 0;
@@ -93,8 +97,10 @@ function semComentarios(texto) {
 for (const arquivo of ARQUIVOS) {
   const texto = atual(arquivo);
 
-  // 1 — a Época volta a ser o que era.
-  eq(expandir(texto), baseline(arquivo), `${arquivo}: expandido com a Época, igual ao commit-base`);
+  // 1 — a Época volta a ser o que era. Os DOIS lados são expandidos: desde 08/10/2026 o
+  // commit-base é uma mudança aprovada que já tinha marcadores, e não mais o de antes da
+  // bifurcação, que não tinha nenhum.
+  eq(expandir(texto), expandir(baseline(arquivo)), `${arquivo}: expandido com a Época, igual ao commit-base`);
 
   // 2 — nenhum marcador desconhecido.
   const achados = new Set(texto.match(/@@[A-Z_]+@@/g) ?? []);

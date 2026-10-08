@@ -16,6 +16,16 @@ public class DespesaDre
     /// <summary>Chave da dimensão, sempre texto.</summary>
     public string GrupoConta { get; init; } = string.Empty;
 
+    /// <summary>
+    /// A conta, quando a despesa é de uma conta subida para as operacionais
+    /// (<c>RegrasDaBase.ContasSubidasParaOperacional</c>); nulo para todo o resto.
+    ///
+    /// <para>Fora da Conta Gerencial a chave dessas despesas já é a da análise — o centro, o
+    /// grupo. Esta coluna é o que deixa o montador devolver à linha da conta o que não acha
+    /// linha da análise para cair, em vez de perder o valor.</para>
+    /// </summary>
+    public string? ContaSubida { get; init; }
+
     public string AntesRo { get; init; } = "N";
     public string AntesLl { get; init; } = "N";
     public string AntesLf { get; init; } = "N";

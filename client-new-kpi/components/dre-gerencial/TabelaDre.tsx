@@ -413,6 +413,9 @@ export function TabelaDre({
         tipo: pedido.tipo.tipo,
         bloco: pedido.tipo.bloco,
         chave: pedido.tipo.chave,
+        // Sem isto a linha que sobrou de Manutencao De Veiculos listaria TODOS os
+        // lançamentos da conta, inclusive os que já estão na linha ADMINISTRATIVO.
+        sobra: pedido.tipo.sobra ?? null,
       });
     },
     [filtro, consultaDetalhe],

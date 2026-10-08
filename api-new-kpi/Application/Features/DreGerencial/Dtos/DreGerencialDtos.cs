@@ -176,7 +176,17 @@ public record TotalLinhaDto(decimal Valor, decimal Media, decimal? PercentualAv)
 /// Só para `lancamentos`: o `GRUPOCONTA` da linha — o mesmo <see cref="LinhaDreDto.Chave"/>
 /// que a apuração usou para somá-la.
 /// </param>
-public record DetalheDisponivelDto(string Tipo, string? Bloco, string? Chave);
+/// <param name="Sobra">
+/// Só na linha de uma conta subida para as operacionais, fora da Conta Gerencial: as chaves
+/// da análise (centros, grupos) cujos lançamentos ficaram na linha da conta por não terem
+/// linha operacional própria. O detalhamento recorta por elas, e o front devolve a lista
+/// como recebeu. Nulo em todas as outras linhas.
+/// </param>
+public record DetalheDisponivelDto(
+    string Tipo,
+    string? Bloco,
+    string? Chave,
+    IReadOnlyList<string>? Sobra = null);
 
 /// <summary>Uma linha do DRE montado, com um valor por mês e o total.</summary>
 public record LinhaDreDto(
@@ -294,7 +304,9 @@ public record DetalheFiltroDto(
     string Tipo,
     string? Bloco,
     string? Chave,
-    IReadOnlyList<decimal>? Fornecedores = null);
+    IReadOnlyList<decimal>? Fornecedores = null,
+    /// <summary>A <see cref="DetalheDisponivelDto.Sobra"/> da linha clicada, devolvida pelo front.</summary>
+    IReadOnlyList<string>? Sobra = null);
 
 /// <summary>Uma linha da tela "Receita por Cliente".</summary>
 public record DetalheClienteDto(

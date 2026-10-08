@@ -435,6 +435,7 @@ public static class DreDetalheQueries
                    AND nf.codfilial IN ({2})
                )
          WHERE {3} = :chave
+         {7}
          -- A ordem e a da 9815, conferida na exportacao de RECEITAS FINANCEIRAS:
          -- contas em ordem ALFABETICA, nao por codigo, e os lancamentos por valor
          -- DECRESCENTE dentro de cada conta. A mesma regra explica os dois sinais —
@@ -478,6 +479,26 @@ public static class DreDetalheQueries
     /// </summary>
     public static string PredicadoDoBloco(bool antesRo, bool antesLl)
     {
+        // O BLOCO OPERACIONAL inclui as contas subidas (`@@OU_CONTA_SUBIDA@@`): a linha
+        // ADMINISTRATIVO soma a Manutencao De Veiculos do centro 1001 desde 08/10/2026, e o
+        // duplo clique nela tem de listar esses lançamentos. Os outros dois blocos ficam com
+        // o texto de antes — as contas subidas não estão no `EPCPARDRE`, então o `not in`
+        // da órfã já as admite, e o `in` do pós-operacional já as recusa.
+        if (antesRo && antesLl)
+        {
+            return """
+                       AND (FIN.CODCONTA in (SELECT codgruconta FROM EPCPARDRE
+                                               WHERE codgruconta > 0
+                                                 AND id < (SELECT ID FROM EPCPARDRE
+                                                            WHERE upper(grupo) LIKE 'LUCRO LIQUIDO'))
+                            @@OU_CONTA_SUBIDA@@)
+                       AND (FIN.CODCONTA in (SELECT codgruconta FROM EPCPARDRE
+                                               WHERE id < (SELECT ID FROM EPCPARDRE
+                                                            WHERE upper(grupo) LIKE 'RESULTADO OPERACIONAL'))
+                            @@OU_CONTA_SUBIDA@@)
+               """;
+        }
+
         var ll = antesLl ? "in" : "not in";
         var ro = antesRo ? "in" : "not in";
 

@@ -53,7 +53,7 @@ public static class MontadorDre
 
     /// <summary>
     /// Os flags que uma chave passa a ter depois da subida — <c>'S'</c> nos três para quem
-    /// está em <see cref="ContasSubidasParaOperacional"/>, e os originais para todo o resto.
+    /// está em <c>RegrasDaBase.ContasSubidasParaOperacional</c>, e os originais para todo o resto.
     ///
     /// <para><b>Tem de ser aplicada nos DOIS lados do casamento</b>, na estrutura e no índice
     /// das despesas. A tupla <c>(chave, AntesRo, AntesLl, AntesLf)</c> é o que liga uma à
@@ -62,8 +62,37 @@ public static class MontadorDre
     /// inteira parecendo correta.</para>
     /// </summary>
     private static (string Ro, string Ll, string Lf) FlagsDepoisDaSubida(
-        string chave, string ro, string ll, string lf) =>
-        ContasSubidasParaOperacional.Contains(chave) ? ("S", "S", "S") : (ro, ll, lf);
+        IReadOnlySet<string> subidas, string chave, string ro, string ll, string lf) =>
+        subidas.Contains(chave) ? ("S", "S", "S") : (ro, ll, lf);
+
+    /// <summary>
+    /// A linha onde uma despesa cai: a tupla <c>(chave, AntesRo, AntesLl, AntesLf)</c> que
+    /// a estrutura vai procurar.
+    ///
+    /// <para><b>Despesa de conta subida, fora da Conta Gerencial</b> (<see
+    /// cref="DespesaDre.ContaSubida"/> preenchida): o SQL já a entregou com a chave da análise
+    /// — o centro principal, o centro, o grupo — e as flags operacionais. Ela fica nessa linha
+    /// <b>se a estrutura tem a linha operacional daquela chave</b>; senão volta para a linha
+    /// da própria conta. Pedido do cliente em 08/10/2026: a conta se distribui como as
+    /// demais, e o que não acha lugar não pode sumir do Sub-Total.</para>
+    ///
+    /// <para>Todo o resto passa por <see cref="FlagsDepoisDaSubida"/>, como antes.</para>
+    /// </summary>
+    private static (string Chave, string Ro, string Ll, string Lf) Destino(
+        DespesaDre d,
+        IReadOnlySet<string> subidas,
+        IReadOnlySet<string> operacionaisDaEstrutura)
+    {
+        if (d.ContaSubida is not null)
+        {
+            return operacionaisDaEstrutura.Contains(d.GrupoConta)
+                ? (d.GrupoConta, "S", "S", "S")
+                : (d.ContaSubida, "S", "S", "S");
+        }
+
+        var (ro, ll, lf) = FlagsDepoisDaSubida(subidas, d.GrupoConta, d.AntesRo, d.AntesLl, d.AntesLf);
+        return (d.GrupoConta, ro, ll, lf);
+    }
 
     /// <summary>
     /// As linhas de crédito que sobem para logo abaixo do `LUCRO BRUTO` — ver
@@ -121,9 +150,14 @@ public static class MontadorDre
     /// enquanto a chave da linha continuava sendo a <b>conta</b>. A tela abria vazia, e os
     /// lançamentos ainda vazavam para o detalhe das outras linhas operacionais — a dc62
     /// acusou R$ 11.982,92 a mais numa linha que a grade contava sem eles.</para>
+    ///
+    /// <para><b>Desde 08/10/2026 a lista vem da base</b>
+    /// (<c>RegrasDaBase.ContasSubidasParaOperacional</c>): Época com as duas, Minas Rural com
+    /// nenhuma. <b>E a linha da conta só segura o que sobra</b> fora da Conta Gerencial — ver
+    /// <see cref="Destino"/>. O parágrafo acima sobre a chave ser a conta "nas quatro
+    /// dimensões" descreve a regra de 25/09, que o cliente corrigiu.</para>
     /// </summary>
-    private static readonly HashSet<string> ContasSubidasParaOperacional =
-        ["3000067", "3000080"];
+    private const string AnaliseQueNaoRedistribui = "conta-gerencial";
 
     /// <summary>
     /// Linhas que passam a <b>não somar em totalizador nenhum</b>, a pedido — o mesmo
@@ -175,9 +209,39 @@ public static class MontadorDre
         IReadOnlyList<LinhaEstruturaDre> estrutura,
         IReadOnlyList<ColunaApuracao> colunas,
         DespesasFiltroDto filtro,
-        long duracaoMs)
+        long duracaoMs,
+        IReadOnlyCollection<long>? contasSubidasParaOperacional = null)
     {
         var avisos = new List<string>();
+
+        // As contas que sobem para as despesas operacionais, como texto — a chave das linhas
+        // é texto. Vem da base (`RegrasDaBase`); vazia, nada sobe.
+        IReadOnlySet<string> subidas = (contasSubidasParaOperacional ?? [])
+            .Select(c => c.ToString(System.Globalization.CultureInfo.InvariantCulture))
+            .ToHashSet(StringComparer.Ordinal);
+
+        // As chaves que têm linha OPERACIONAL no cadastro: é para elas que a despesa de uma
+        // conta subida pode ir. Lidas da estrutura crua, antes de `SubirParaOperacional` —
+        // a linha da própria conta não pode contar como destino de si mesma.
+        IReadOnlySet<string> operacionaisDaEstrutura = estrutura
+            .Where(e => e.AntesRo == "S" && e.AntesLl == "S" && e.AntesLf == "S")
+            .Select(e => e.CodGruConta)
+            .ToHashSet(StringComparer.Ordinal);
+
+        // O que cada conta subida segura na própria linha: as chaves da análise que não
+        // acharam linha operacional. É o recorte do duplo clique nela — ver `ResolverDetalhe`.
+        var sobras = colunas
+            .SelectMany(c => c.Despesas)
+            .Where(d => d.ContaSubida is not null && !operacionaisDaEstrutura.Contains(d.GrupoConta))
+            .GroupBy(d => d.ContaSubida!, StringComparer.Ordinal)
+            .ToDictionary(
+                g => g.Key,
+                g => (IReadOnlyList<string>)g.Select(d => d.GrupoConta)
+                    .Distinct(StringComparer.Ordinal)
+                    .Order(StringComparer.Ordinal)
+                    .ToList(),
+                StringComparer.Ordinal);
+        var redistribui = !string.Equals(filtro.Analise, AnaliseQueNaoRedistribui, StringComparison.OrdinalIgnoreCase);
 
         // Índice pela TUPLA COMPLETA, com a COLUNA: o mesmo grupo aparece mais de uma vez no
         // DRE com flags diferentes, e cada ocorrência tem um valor por coluna. Antes a chave
@@ -201,9 +265,8 @@ public static class MontadorDre
             // lançamento, e nenhuma das duas substitui a outra.
             .GroupBy(x =>
             {
-                var (ro, ll, lf) = FlagsDepoisDaSubida(
-                    x.Despesa.GrupoConta, x.Despesa.AntesRo, x.Despesa.AntesLl, x.Despesa.AntesLf);
-                return (x.Despesa.GrupoConta, ro, ll, lf, x.Coluna);
+                var (chave, ro, ll, lf) = Destino(x.Despesa, subidas, operacionaisDaEstrutura);
+                return (chave, ro, ll, lf, x.Coluna);
             })
             .ToDictionary(
                 g => g.Key,
@@ -215,11 +278,7 @@ public static class MontadorDre
         // MOVIMENTO, nao por valor zero. Sem a coluna na chave: a visibilidade e da linha.
         var qtdDespesa = colunas
             .SelectMany(c => c.Despesas)
-            .GroupBy(d =>
-            {
-                var (ro, ll, lf) = FlagsDepoisDaSubida(d.GrupoConta, d.AntesRo, d.AntesLl, d.AntesLf);
-                return (d.GrupoConta, ro, ll, lf);
-            })
+            .GroupBy(d => Destino(d, subidas, operacionaisDaEstrutura))
             .ToDictionary(g => g.Key, g => g.Sum(d => d.QdeReg));
 
         // A ordem destes elos importa. `RemoverTotalDespesas` e `DescerAsInformativas`
@@ -234,7 +293,8 @@ public static class MontadorDre
                             SubirParaOperacional(
                                 estrutura
                                     .Select(e => new LinhaEmMontagem(e, Normalizar(e.Grupo), e.CodGruConta.StartsWith('-')))
-                                    .ToList()),
+                                    .ToList(),
+                                subidas),
                             filtro.Analise),
                         filtro.Analise))));
 
@@ -245,6 +305,17 @@ public static class MontadorDre
             c => MontarMes(linhas, valorDespesa, c.Faturamento, c.Chave, avisos));
 
         var chavesOrdem = GerarChavesOrdem(linhas);
+
+        // A linha de uma conta subida, fora da Conta Gerencial, guarda só a SOBRA: os
+        // lançamentos cujo centro (ou grupo) não tem linha operacional. O duplo clique tem de
+        // recortar exatamente isso — senão a tela listaria de novo o que já está na linha
+        // ADMINISTRATIVO e não fecharia com a célula. Sem sobra, não há o que abrir.
+        // `Valido: false` = a linha não é de conta subida, e o detalhamento segue o caminho
+        // de sempre.
+        (bool Valido, IReadOnlyList<string>? Chaves) DetalheDaSobra(LinhaEmMontagem l) =>
+            redistribui && !l.Calculada && subidas.Contains(l.Estrutura.CodGruConta)
+                ? (true, sobras.GetValueOrDefault(l.Estrutura.CodGruConta))
+                : (false, null);
 
         var resultado = linhas.Select((l, indice) =>
         {
@@ -319,7 +390,7 @@ public static class MontadorDre
                     && valores.All(v => v.Valor == 0m),
                 Zerada: valores.All(v => v.Valor == 0m),
                 Cor: CorDelphi.ParaCss(l.Estrutura.Cor),
-                Detalhe: ResolverDetalhe(l),
+                Detalhe: ResolverDetalhe(l, DetalheDaSobra(l)),
                 Composicao: ResolverComposicao(l, linhas, chavesOrdem));
         }).ToList();
 
@@ -363,7 +434,7 @@ public static class MontadorDre
     /// onde vem o valor dela.</para>
     /// </summary>
     /// <summary>
-    /// Sobe <see cref="ContasSubidasParaOperacional"/> do bloco informativo para as despesas
+    /// Sobe <c>RegrasDaBase.ContasSubidasParaOperacional</c> do bloco informativo para as despesas
     /// operacionais, logo antes do <c>Sub-Total -> Despesas Operacionais</c>.
     ///
     /// <para><b>É o primeiro elo do pipeline, e tem de ser.</b> Os que vêm depois leem as
@@ -387,10 +458,11 @@ public static class MontadorDre
     /// <para><b>Sem o Sub-Total na tela, nada sobe.</b> A tela continua exatamente como
     /// estava, em vez de subir linhas para um total que não existe.</para>
     /// </summary>
-    private static List<LinhaEmMontagem> SubirParaOperacional(List<LinhaEmMontagem> linhas)
+    private static List<LinhaEmMontagem> SubirParaOperacional(
+        List<LinhaEmMontagem> linhas, IReadOnlySet<string> subidas)
     {
-        static bool Sobe(LinhaEmMontagem l) =>
-            !l.Calculada && ContasSubidasParaOperacional.Contains(l.Estrutura.CodGruConta);
+        bool Sobe(LinhaEmMontagem l) =>
+            !l.Calculada && subidas.Contains(l.Estrutura.CodGruConta);
 
         if (!linhas.Any(Sobe)) return linhas;
 
@@ -738,7 +810,9 @@ public static class MontadorDre
         : e.AntesLl == "S" ? "pos-operacional"
         : "orfa";
 
-    private static DetalheDisponivelDto? ResolverDetalhe(LinhaEmMontagem l)
+    private static DetalheDisponivelDto? ResolverDetalhe(
+        LinhaEmMontagem l,
+        (bool Valido, IReadOnlyList<string>? Chaves) sobra)
     {
         if (l.Calculada)
         {
@@ -774,6 +848,14 @@ public static class MontadorDre
         // A linha que subiu para as despesas operacionais mantém o bloco que tinha: os
         // lançamentos dela não se mudaram de lugar, só a soma de que participam.
         var bloco = l.BlocoDeDetalheOriginal ?? BlocoDeDetalhe(l.Estrutura);
+
+        // Conta subida fora da Conta Gerencial: só a sobra. Nenhuma sobra = nada a abrir.
+        if (sobra.Valido)
+        {
+            return sobra.Chaves is { Count: > 0 } chaves
+                ? new("lancamentos", bloco, l.Estrutura.CodGruConta, chaves)
+                : null;
+        }
 
         return new("lancamentos", bloco, l.Estrutura.CodGruConta);
     }

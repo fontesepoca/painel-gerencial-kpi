@@ -14,9 +14,14 @@
  * O que se espera de cada comparação é igualdade exata, ao centavo. É isso que a
  * divergência 4 promete, e a única forma de saber se ela sobreviveu ao caminho inteiro.
  *
- * USO
- *   node docs/rotinas/9815-dre-gerencial/validacao/dc6_ponta_a_ponta.mjs
- *   API=http://localhost:5207 node docs/rotinas/9815-dre-gerencial/validacao/dc6_ponta_a_ponta.mjs
+ * USO (com a sessão do `_autenticar.mjs`, desde que a rota exige login)
+ *   node --env-file=.env.validacao --import ./docs/rotinas/9815-dre-gerencial/validacao/_autenticar.mjs \
+ *     docs/rotinas/9815-dre-gerencial/validacao/dc6_ponta_a_ponta.mjs [análise]
+ *
+ * A análise é `ccusto-principal` por padrão; `grupo-contas`, `conta-gerencial` e
+ * `centro-custo` também valem. Desde 08/10/2026 as três que redistribuem as contas subidas
+ * (DIVERGENCIAS.md §14) têm de passar aqui — é o que prova que a linha ADMINISTRATIVO abre a
+ * manutenção do 1001 e que a linha da conta abre só a sobra.
  *
  * Leva alguns minutos: a apuração sozinha demora, e a receita por cliente foi medida em
  * 116,9 s. As linhas de lançamento respondem entre 0,2 s e 2,3 s.
@@ -30,7 +35,7 @@ const FILTRO = {
   dataInicio: "2026-08-01",
   dataFim: "2026-08-31",
   regime: "caixa",
-  analise: "ccusto-principal",
+  analise: process.argv[2] ?? "ccusto-principal",
 };
 
 const dinheiro = (n) =>
@@ -117,6 +122,9 @@ for (const linha of comDetalhe) {
         tipo: linha.detalhe.tipo,
         bloco: linha.detalhe.bloco,
         chave: linha.detalhe.chave,
+        // A sobra de uma conta subida, devolvida como o front devolve. Sem ela a linha da
+        // conta listaria também o que já está nas linhas dos centros.
+        ...(linha.detalhe.sobra ? { sobra: linha.detalhe.sobra } : {}),
       });
       if (linha.detalhe.tipo === "receita-por-cliente") receita = dados;
     }

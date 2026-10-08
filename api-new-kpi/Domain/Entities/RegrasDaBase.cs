@@ -22,6 +22,19 @@ public sealed class RegrasDaBase
     public const string MarcadorRateioRc = "@@RATEIO_RC@@";
     public const string MarcadorCodcontaLanc = "@@CODCONTA_LANC@@";
 
+    /// <summary>
+    /// Completa um <c>when FIN.CODCONTA in (...)</c> das flags com as contas subidas para as
+    /// despesas operacionais: <c>or FIN.CODCONTA in (3000067, 3000080)</c>. Vazio quando a
+    /// base não sobe nenhuma. Ver <see cref="ContasSubidasParaOperacional"/>.
+    /// </summary>
+    public const string MarcadorOuContaSubida = "@@OU_CONTA_SUBIDA@@";
+
+    /// <summary>
+    /// A coluna <c>CONTASUBIDA</c> das consultas de despesa: a conta, em texto, quando o
+    /// lançamento é de uma conta subida; nulo para todo o resto.
+    /// </summary>
+    public const string MarcadorContaSubida = "@@CONTA_SUBIDA@@";
+
     // O grupo e a conta agrupadora do ICMS, como o Delphi os fixa (UBase.pas GetValorGrupo e
     // ULanc.pas): conta cujo nome tem ICMS e cujo grupo é 303 passa a ser a 3003007.
     private const int GrupoDeContasDoIcms = 303;
@@ -52,6 +65,8 @@ public sealed class RegrasDaBase
         MarcadorFiliaisForaDaPermissao,
         MarcadorRateioRc,
         MarcadorCodcontaLanc,
+        MarcadorOuContaSubida,
+        MarcadorContaSubida,
     ];
 
     /// <summary>Código da seção cujo custo o DRE zera. Época: 1601. Minas Rural (fonte): 1401.</summary>
@@ -65,6 +80,19 @@ public sealed class RegrasDaBase
 
     /// <summary>Filiais que a permissão (<c>PCLIB</c>) NÃO conta. Vazia = todas.</summary>
     public List<int> FiliaisForaDaPermissao { get; set; } = [];
+
+    /// <summary>
+    /// Contas que o cadastro deixa fora do DRE (não estão no <c>EPCPARDRE</c>) e que entram
+    /// nas <b>despesas operacionais</b> a pedido, como se estivessem cadastradas antes do
+    /// <c>RESULTADO OPERACIONAL</c>. Época: <c>3000067</c> (Manutencao De Veiculos) e
+    /// <c>3000080</c> (PNEUS E CAMARAS). Minas Rural: nenhuma — a regra foi medida só na
+    /// Época, e o mesmo código pode ser outra conta lá.
+    ///
+    /// <para>Fora da Conta Gerencial, cada lançamento cai na linha da análise — o centro de
+    /// custo principal, o centro ou o grupo — e só o que não acha linha fica na da conta. Ver
+    /// <c>docs/rotinas/9815-dre-gerencial/DIVERGENCIAS.md §14</c>.</para>
+    /// </summary>
+    public List<long> ContasSubidasParaOperacional { get; set; } = [];
 
     /// <summary>
     /// Derruba o boot com a mensagem certa quando a configuração está errada.
@@ -98,6 +126,16 @@ public sealed class RegrasDaBase
                 throw new InvalidOperationException(
                     $"Bases:{baseId}:Regras:FiliaisForaDaPermissao tem {filial}. Use o código " +
                     "da filial, que é positivo.");
+            }
+        }
+
+        foreach (var conta in ContasSubidasParaOperacional)
+        {
+            if (conta <= 0)
+            {
+                throw new InvalidOperationException(
+                    $"Bases:{baseId}:Regras:ContasSubidasParaOperacional tem {conta}. Use o " +
+                    "código da conta, que é positivo: o valor entra no SQL por texto.");
             }
         }
     }
@@ -136,6 +174,22 @@ public sealed class RegrasDaBase
         pronto = pronto
             .Replace(MarcadorRateioRc, AgrupaIcms ? RateioComIcms : "PCRATEIOCENTROCUSTO", StringComparison.Ordinal)
             .Replace(MarcadorCodcontaLanc, AgrupaIcms ? CodcontaComIcms : "codconta", StringComparison.Ordinal);
+
+        // As contas subidas são `long` validado (positivo), por isso podem entrar como texto.
+        // Sem nenhuma, o `or` some e a coluna vira um nulo tipado — o UNION ALL das consultas
+        // de despesa precisa que os dois ramos concordem no tipo.
+        var subidas = string.Join(", ", ContasSubidasParaOperacional);
+        pronto = pronto
+            .Replace(
+                MarcadorOuContaSubida,
+                subidas.Length == 0 ? string.Empty : $"or FIN.CODCONTA in ({subidas})",
+                StringComparison.Ordinal)
+            .Replace(
+                MarcadorContaSubida,
+                subidas.Length == 0
+                    ? "cast(null as varchar2(20))"
+                    : $"case when FIN.CODCONTA in ({subidas}) then to_char(FIN.CODCONTA) end",
+                StringComparison.Ordinal);
 
         if (pronto.Contains("@@", StringComparison.Ordinal))
         {

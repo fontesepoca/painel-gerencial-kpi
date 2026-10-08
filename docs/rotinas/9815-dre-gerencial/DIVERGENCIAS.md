@@ -34,7 +34,7 @@ linha no índice.
 | [10](#10-indenizacao-de-merc-venc-e-avaria-vira-informativa--14092026) | `INDENIZACAO DE MERC. VENC. E AVARIA` não soma | as três dimensões conferidas | R$ 177 mil em 2 meses | **a pedido** em 14/09/2026 · dc32 25/25 · dc34 11/11 |
 | [11](#11-três-mudanças-de-ordem-e-de-exibição--21092026) | Sai a linha `Total das Despesas`, a indenização desce, as `- RAT` sobem, e as `TRANSPORTE T` vêm logo depois | todas | **nenhum valor muda** | **a pedido** em 21 e 23/09/2026 · dc34, dc35, dc36 e **dc65** |
 | [12](#12-a-linha-é-a-conta-principal-e-não-os-dois-primeiros-dígitos--22092026) | O centro de custo deixa de ser agrupado por dois dígitos | C. Custo Principal | **nenhum valor muda** — 34 linhas viram 60 | **a pedido** em 22/09/2026 · dc61, dc62 e **dc64 45/45** |
-| [14](#14-manutencao-de-veiculos-e-pneus-e-camaras-entram-nos-cálculos--25092026) | `Manutencao De Veiculos` e `PNEUS E CAMARAS` saem do bloco informativo e somam nas despesas operacionais | todas | **+R$ 1.709.994,73** no lucro de julho/2026 na filial 7 | **a pedido** em 25/09/2026 · dc34, dc62 e dc71 |
+| [14](#14-manutencao-de-veiculos-e-pneus-e-camaras-entram-nos-cálculos--25092026) | `Manutencao De Veiculos` e `PNEUS E CAMARAS` saem do bloco informativo e somam nas despesas operacionais; desde 08/10, fora da Conta Gerencial, cada lançamento cai na linha do seu centro ou grupo | todas · só Época | **+R$ 1.709.994,73** no lucro de julho/2026 na filial 7 | **a pedido** em 25/09 e 08/10/2026 · dc34, dc62, dc71 e dc91 |
 | [15](#15-o-detalhamento-respeita-o-filtro-por-fornecedor--02102026) | Detalhamento com fornecedor filtrado | todas as telas de duplo clique | a despesa inteira da filial, contra a fatia do fornecedor | **a pedido** em 02/10/2026 · dc78 12/12 |
 | [16](#16-a-coluna-ah--no-bloco-de-total--06102026) | Coluna `AH %` no total — soma dos `%AH`, **não** a variação do período | todas, só com mais de um mês | **nenhum valor muda** — coluna nova | **a pedido** em 06/10/2026 · dc13 43/43 |
 | [17](#17-minas-rural-a-seção-sem-custo-é-a-1401--07102026) | Minas Rural: a seção tirada da venda e da devolução passa de `1601` para `1401` | todas, só no Minas Rural | **nenhum valor** nos meses medidos — jul a set/2026 | **ligada** em 07/10/2026 pela prova do trace · dc86 46/46 |
@@ -1176,10 +1176,72 @@ princípio que a divergência 10 já registrou.
 > A dc62 acusou R$ 11.982,92 a mais em `TRANSPORTES MATRIZ`. A correção foi guardar o bloco
 > que a linha tinha **antes** de subir, em vez de deduzi-lo das flags novas.
 
+### 08/10/2026 — fora da Conta Gerencial, a conta se distribui pela análise
+
+**Pedido do cliente.** A subida de 25/09 estava certa na Conta Gerencial e errada nas outras
+três análises: a conta subia **inteira, como linha própria**. Abrindo `Manutencao De
+Veiculos` em C. Custo Principal aparecia o centro `1001 - ADMINISTRATIVO`, que deveria estar
+na linha `ADMINISTRATIVO`. O pedido: distribuir os lançamentos **como as demais contas
+operacionais**, cada um na linha do seu centro principal (C. Custo Principal), do seu centro
+(Centro de Custo) ou do seu grupo (Grupo de Contas, o `300`). **O Sub-Total não muda** — os
+valores só trocam de linha dentro dele.
+
+**Por que a §14 não fazia isso.** As duas contas não estão no `EPCPARDRE`, então a consulta
+lhes dá `AntesLF = 'N'`, e o `decode(AntesLF, 'N', CODCONTA, codccprinc)` as agrupa pela
+**conta**. A subida acontecia depois, no montador, sobre uma linha já agregada.
+
+**O que mudou:**
+
+- **A regra é da base.** A lista saiu do código e foi para `appsettings.json` →
+  `Bases:*:Regras:ContasSubidasParaOperacional`: Época `[3000067, 3000080]`, Minas Rural `[]`
+  — lá a regra nunca foi medida, e o mesmo código pode ser outra conta.
+- **As três consultas de despesa** (Grupo de Contas, C. Custo Principal, Centro de Custo)
+  dão às duas contas as flags `S/S/S` (`@@OU_CONTA_SUBIDA@@`) — com isso o `decode` já as
+  agrupa pela chave da análise — e devolvem a conta numa coluna nova, `CONTASUBIDA`
+  (`@@CONTA_SUBIDA@@`). A Conta Gerencial não muda: lá a chave já é a conta.
+- **O montador** (`MontadorDre.Destino`) põe cada valor na linha operacional da chave. **O
+  que não acha linha volta para a linha da conta** — decisão do Gabriel, para nada sumir do
+  Sub-Total. Em julho/2026, filial 7, o candidato é o centro `99` (um lançamento de
+  +6.476,66).
+- **O detalhamento acompanha.** O bloco operacional passa a incluir as duas contas, e o
+  duplo clique em `ADMINISTRATIVO` lista a manutenção do centro 1001. A linha da conta abre
+  **só a sobra**: a apuração manda as chaves que sobraram (`DetalheDisponivelDto.Sobra`), o
+  front as devolve, e a consulta recorta por elas. Sem sobra, a linha não abre nada.
+
+**Onde o valor vai, julho/2026, filial 7** (medido no `PCLANC` em 08/10/2026):
+
+| Centro principal | Manutencao De Veiculos | PNEUS E CAMARAS |
+|---|---:|---:|
+| `2900` | **+691.367,74** | **+1.250.507,22** |
+| `2801` | −166.116,55 | −10.302,98 |
+| `4101` | −23.428,26 | −5.345,35 |
+| `2501` | −12.962,69 | −2.128,00 |
+| `2201` | −6.576,61 | −5.421,07 |
+| os demais (19 centros · 2 centros) | −14.403,34 | −1.039,00 |
+| `99` (sem centro) | +6.476,66 | — |
+| **total** | **474.356,95** | **1.226.270,82** |
+
+> **O "lucro que sobe" da §14 está quase todo no centro `2900`**: são créditos, +1,94 milhão
+> nas duas contas. Antes eles ficavam numa linha solta; agora aparecem na linha do 2900, e
+> quem ler o DRE por centro vai ver ali um valor positivo grande. Vale a mesma ressalva de
+> 25/09 — conferir com o financeiro se é o efeito esperado.
+
+A Manutenção somou 474.356,95, contra 483.723,91 medidos em 25/09: é a base viva (lançamentos
+retroativos de julho), não a regra. Pneus fechou ao centavo.
+
+**Provas:** [dc91](./validacao/dc91_contas_subidas_se_distribuem.cs) (15 conferências, sem
+banco) cobre o centro na sua linha, a sobra na da conta com o recorte do duplo clique, a linha
+sem sobra que não abre, a Conta Gerencial intacta e o Minas Rural sem a regra. Com a API no
+ar, **dc34** (o `LUCRO LIQUIDO` igual nas quatro análises) e **dc62** (cada detalhe fecha com a
+sua linha) são as que provam que nada sumiu nem duplicou. O
+[dc86](./validacao/dc86_sql_da_epoca_identico.mjs) passou a ter este commit como base.
+
 ### Como reverter
 
-Esvaziar `MontadorDre.ContasSubidasParaOperacional`. Tudo volta ao estado anterior, inclusive
-a duplicata de PNEUS — ela é do cadastro, não nossa. O commit é único e isolado.
+Esvaziar `Bases:Epoca:Regras:ContasSubidasParaOperacional` no `appsettings.json`. Tudo volta
+ao estado de antes de 25/09, inclusive a duplicata de PNEUS — ela é do cadastro, não nossa.
+Para voltar só ao 25/09 (a conta inteira na própria linha) não há chave: é reverter o commit
+de 08/10.
 
 ### O que continua igual
 
@@ -1428,7 +1490,7 @@ mudança de 22/09, quando a chave da dimensão deixou de ser o centro de dois d�
 
 | Onde | Tem de ser | Era antes |
 |---|---|---|
-| `MontadorDre.ContasSubidasParaOperacional` | `["3000067", "3000080"]` | não existia |
+| `appsettings.json` → `Bases:Epoca:Regras:ContasSubidasParaOperacional` | `[3000067, 3000080]` | `MontadorDre.ContasSubidasParaOperacional` até 08/10/2026; antes de 25/09, não existia |
 | `MontadorDre.CreditosPromovidos` | `["9601\|NSS", "9001\|NSS"]` | `["96\|NSS", "90\|NSS"]` |
 | `MontadorDre.InformativasPorPedido["ccusto-principal"]` | `["9701\|NSS"]` | `["97\|NSS"]` |
 

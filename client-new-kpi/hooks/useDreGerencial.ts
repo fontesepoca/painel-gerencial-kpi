@@ -185,13 +185,15 @@ export function useDetalhe() {
     // como OBJETOS, e o servidor só quer os códigos. Mandar o objeto inteiro faria a
     // desserialização falhar no primeiro campo que ele não conhece — e o detalhe voltaria
     // sem filtro nenhum, mostrando a filial toda com cara de certo.
-    mutationFn: async ({ tipo, bloco, chave, ...filtro }: FiltroDetalhe) =>
+    mutationFn: async ({ tipo, bloco, chave, sobra, ...filtro }: FiltroDetalhe) =>
       exigirMesmaBase(
         await apiClient.post<Detalhamento>("/api/dre-gerencial/detalhe", {
           ...paraApi(filtro),
           tipo,
           bloco,
           chave,
+          // Só quando há: o servidor recusa lista vazia, e nulo é "linha comum".
+          ...(sobra && sobra.length > 0 ? { sobra } : {}),
         }),
         usuario?.base.id,
       ),

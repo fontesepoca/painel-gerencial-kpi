@@ -302,25 +302,25 @@ public static class DreGerencialQueries
     /// <c>docs/rotinas/9815-dre-gerencial/validacao/dc73...</c> para a tabela.</para>
     /// </summary>
     public const string DespesasGrupoDeContas = """
-         SELECT  GRUPOCONTA AS GRUPOCONTA, AntesRO AS ANTESRO, AntesLL AS ANTESLL, AntesLF AS ANTESLF, MES_ANO AS MESANO, MES AS MES, ANO AS ANO, sum(VLREALIZADO) AS VLREALIZADO, sum(VPAGO_EXCLUSIVO_FORNEC) AS VPAGOEXCLUSIVOFORNEC, sum(QdeReg) AS QDEREG 
+         SELECT  GRUPOCONTA AS GRUPOCONTA, CONTASUBIDA AS CONTASUBIDA, AntesRO AS ANTESRO, AntesLL AS ANTESLL, AntesLF AS ANTESLF, MES_ANO AS MESANO, MES AS MES, ANO AS ANO, sum(VLREALIZADO) AS VLREALIZADO, sum(VPAGO_EXCLUSIVO_FORNEC) AS VPAGOEXCLUSIVOFORNEC, sum(QdeReg) AS QDEREG 
          FROM ( 
          /* `decode(AntesLF,'N',CODCONTA,codgrupo)`: as linhas DEPOIS do LUCRO LIQUIDO já saem
             por conta, e as de antes por grupo. A conta 3000165 entra na primeira regra sem
             estar depois do LUCRO LIQUIDO — é a exceção que mantém `INDENIZACAO DE MERC.
             VENC. E AVARIA` como linha própria em vez de somida no grupo 300. A estrutura tem
             a exceção gêmea; as duas precisam concordar ou a linha aparece zerada. */
-         SELECT  to_char(case when AntesLF = 'N' or CODCONTA = 3000165 then CODCONTA else codgrupo end) as GRUPOCONTA, AntesRO, AntesLL, AntesLF, MES_ANO, MES, ANO, SUM(VPAGO) AS VLREALIZADO, sum(VPAGO_EXCLUSIVO_FORNEC) as VPAGO_EXCLUSIVO_FORNEC, count(*) as QdeReg
+         SELECT  to_char(case when AntesLF = 'N' or CODCONTA = 3000165 then CODCONTA else codgrupo end) as GRUPOCONTA, CONTASUBIDA, AntesRO, AntesLL, AntesLF, MES_ANO, MES, ANO, SUM(VPAGO) AS VLREALIZADO, sum(VPAGO_EXCLUSIVO_FORNEC) as VPAGO_EXCLUSIVO_FORNEC, count(*) as QdeReg
                         FROM ( 
-          SELECT  FIN.RECNUM, FIN.CODFILIAL, CCPrinc.codccprinc, CCPrinc.DescCCPrinc,  
+          SELECT  FIN.RECNUM, @@CONTA_SUBIDA@@ as CONTASUBIDA, FIN.CODFILIAL, CCPrinc.codccprinc, CCPrinc.DescCCPrinc,  
                   case  
                         when FIN.CODCONTA in (select codgruconta from EPCPARDRE where codgruconta > 0 
-                        and id < (select ID from EPCPARDRE where upper(grupo) like 'RESULTADO OPERACIONAL'))  then 'S' else 'N' end as AntesRO, 
+                        and id < (select ID from EPCPARDRE where upper(grupo) like 'RESULTADO OPERACIONAL')) @@OU_CONTA_SUBIDA@@ then 'S' else 'N' end as AntesRO, 
                   case  
                         when FIN.CODCONTA in (select codgruconta from EPCPARDRE where codgruconta > 0 
-                        and id < (select ID from EPCPARDRE where upper(grupo) like 'LUCRO LIQUIDO'))  then 'S' else 'N' end as AntesLL, 
+                        and id < (select ID from EPCPARDRE where upper(grupo) like 'LUCRO LIQUIDO')) @@OU_CONTA_SUBIDA@@ then 'S' else 'N' end as AntesLL, 
                   case  
                         when FIN.CODCONTA in (select codgruconta from EPCPARDRE where codgruconta > 0 
-                        and id < (select ID from EPCPARDRE where upper(grupo) like 'LUCRO LIQUIDO'))  then 'S' else 'N' end as AntesLF, 
+                        and id < (select ID from EPCPARDRE where upper(grupo) like 'LUCRO LIQUIDO')) @@OU_CONTA_SUBIDA@@ then 'S' else 'N' end as AntesLF, 
                   DECODE(RC.valor,NULL, DECODE(CT.usarateiocentrocusto,'S',NVL(CC.CodigoCentroCusto,9998),9999) , NVL(CC.CodigoCentroCusto,9998)) as CODCENTROCUSTO, 
                   DECODE(RC.valor,NULL, DECODE(CT.usarateiocentrocusto,'S',NVL(CC.DESCRICAO,'NÃO INFORMADO'),'NÃO USA CENTRO DE CUSTO') ,NVL(CC.DESCRICAO,'NÃO INFORMADO')) as DESCCENTROCUSTO,  
                   GR.codgrupo, GR.GRUPO, FIN.CODCONTA, CT.CONTA, 
@@ -366,9 +366,9 @@ public static class DreGerencialQueries
         {5}
             AND {2} BETWEEN :dtIni1 AND :dtFim1
          AND FIN.CODCONTA NOT IN ( SELECT codconta FROM EPCPARDRE_NAOEXIBIR) 
-                         ) GROUP BY  to_char(case when AntesLF = 'N' or CODCONTA = 3000165 then CODCONTA else codgrupo end), AntesRO, AntesLL, AntesLF, MES_ANO, MES, ANO
+                         ) GROUP BY  to_char(case when AntesLF = 'N' or CODCONTA = 3000165 then CODCONTA else codgrupo end), CONTASUBIDA, AntesRO, AntesLL, AntesLF, MES_ANO, MES, ANO
          union all 
-         select '400' as GRUPOCONTA,  
+         select '400' as GRUPOCONTA, cast(null as varchar2(20)) as CONTASUBIDA,  
                 'N' as AntesRO, 'S' as AntesLL,  'S' as AntesLF, TO_CHAR(FIN.dtpag,'mm/yyyy') as MES_ANO, 
                 TO_CHAR(FIN.dtpag,'mm') as MES, 
                 extract(YEAR FROM FIN.dtpag) as ANO, fin.valor as VLREALIZADO, 0 as VPAGO_EXCLUSIVO_FORNEC, 0 as QdeReg  
@@ -379,7 +379,7 @@ public static class DreGerencialQueries
             and fin.codcob <> 'DESD' and fin.dtcancel is null 
             and fin.dtpag BETWEEN :dtIni2 AND :dtFim2
             and nf.codfilial IN ({3}) 
-        ) GROUP BY GRUPOCONTA, AntesRO, AntesLL, AntesLF, MES_ANO, MES, ANO
+        ) GROUP BY GRUPOCONTA, CONTASUBIDA, AntesRO, AntesLL, AntesLF, MES_ANO, MES, ANO
         """;
 
     /// <summary>
@@ -708,20 +708,20 @@ public static class DreGerencialQueries
     /// expressões de data do regime.</para>
     /// </summary>
     public const string DespesasCCustoPrincipal = """
-         SELECT  GRUPOCONTA AS GRUPOCONTA, AntesRO AS ANTESRO, AntesLL AS ANTESLL, AntesLF AS ANTESLF, MES_ANO AS MESANO, MES AS MES, ANO AS ANO, sum(VLREALIZADO) AS VLREALIZADO, sum(VPAGO_EXCLUSIVO_FORNEC) AS VPAGOEXCLUSIVOFORNEC, sum(QdeReg) AS QDEREG
+         SELECT  GRUPOCONTA AS GRUPOCONTA, CONTASUBIDA AS CONTASUBIDA, AntesRO AS ANTESRO, AntesLL AS ANTESLL, AntesLF AS ANTESLF, MES_ANO AS MESANO, MES AS MES, ANO AS ANO, sum(VLREALIZADO) AS VLREALIZADO, sum(VPAGO_EXCLUSIVO_FORNEC) AS VPAGOEXCLUSIVOFORNEC, sum(QdeReg) AS QDEREG
          FROM (
-         SELECT  decode(AntesLF,'N',to_char(CODCONTA),  NVL(codccprinc,'99')) as GRUPOCONTA, AntesRO, AntesLL, AntesLF, MES_ANO, MES, ANO, SUM(VPAGO) AS VLREALIZADO, sum(VPAGO_EXCLUSIVO_FORNEC) as VPAGO_EXCLUSIVO_FORNEC, count(*) as QdeReg
+         SELECT  decode(AntesLF,'N',to_char(CODCONTA),  NVL(codccprinc,'99')) as GRUPOCONTA, CONTASUBIDA, AntesRO, AntesLL, AntesLF, MES_ANO, MES, ANO, SUM(VPAGO) AS VLREALIZADO, sum(VPAGO_EXCLUSIVO_FORNEC) as VPAGO_EXCLUSIVO_FORNEC, count(*) as QdeReg
                         FROM (
-          SELECT  FIN.RECNUM, FIN.CODFILIAL, CCPrinc.codccprinc, CCPrinc.DescCCPrinc,
+          SELECT  FIN.RECNUM, @@CONTA_SUBIDA@@ as CONTASUBIDA, FIN.CODFILIAL, CCPrinc.codccprinc, CCPrinc.DescCCPrinc,
                   case
                         when FIN.CODCONTA in (select codgruconta from EPCPARDRE where codgruconta > 0
-                        and id < (select ID from EPCPARDRE where upper(grupo) like 'RESULTADO OPERACIONAL'))  then 'S' else 'N' end as AntesRO,
+                        and id < (select ID from EPCPARDRE where upper(grupo) like 'RESULTADO OPERACIONAL')) @@OU_CONTA_SUBIDA@@ then 'S' else 'N' end as AntesRO,
                   case
                         when FIN.CODCONTA in (select codgruconta from EPCPARDRE where codgruconta > 0
-                        and id < (select ID from EPCPARDRE where upper(grupo) like 'LUCRO LIQUIDO'))  then 'S' else 'N' end as AntesLL,
+                        and id < (select ID from EPCPARDRE where upper(grupo) like 'LUCRO LIQUIDO')) @@OU_CONTA_SUBIDA@@ then 'S' else 'N' end as AntesLL,
                   case
                         when FIN.CODCONTA in (select codgruconta from EPCPARDRE where codgruconta > 0
-                        and id < (select ID from EPCPARDRE where upper(grupo) like 'LUCRO LIQUIDO'))  then 'S' else 'N' end as AntesLF,
+                        and id < (select ID from EPCPARDRE where upper(grupo) like 'LUCRO LIQUIDO')) @@OU_CONTA_SUBIDA@@ then 'S' else 'N' end as AntesLF,
                   DECODE(RC.valor,NULL, DECODE(CT.usarateiocentrocusto,'S',NVL(CC.CodigoCentroCusto,9998),9999) , NVL(CC.CodigoCentroCusto,9998)) as CODCENTROCUSTO,
                   DECODE(RC.valor,NULL, DECODE(CT.usarateiocentrocusto,'S',NVL(CC.DESCRICAO,'NÃO INFORMADO'),'NÃO USA CENTRO DE CUSTO') ,NVL(CC.DESCRICAO,'NÃO INFORMADO')) as DESCCENTROCUSTO,
                   GR.codgrupo, GR.GRUPO, FIN.CODCONTA, CT.CONTA,
@@ -767,9 +767,9 @@ public static class DreGerencialQueries
         {5}
             AND {2} BETWEEN :dtIni1 AND :dtFim1
          AND FIN.CODCONTA NOT IN ( SELECT codconta FROM EPCPARDRE_NAOEXIBIR)
-                         ) GROUP BY  decode(AntesLF,'N',to_char(CODCONTA),  NVL(codccprinc,'99')), AntesRO, AntesLL, AntesLF, MES_ANO, MES, ANO
+                         ) GROUP BY  decode(AntesLF,'N',to_char(CODCONTA),  NVL(codccprinc,'99')), CONTASUBIDA, AntesRO, AntesLL, AntesLF, MES_ANO, MES, ANO
          union all
-         select '85' as GRUPOCONTA,
+         select '85' as GRUPOCONTA, cast(null as varchar2(20)) as CONTASUBIDA,
                 'N' as AntesRO, 'S' as AntesLL,  'S' as AntesLF, TO_CHAR(FIN.dtpag,'mm/yyyy') as MES_ANO,
                 TO_CHAR(FIN.dtpag,'mm') as MES,
                 extract(YEAR FROM FIN.dtpag) as ANO, fin.valor as VLREALIZADO, 0 as VPAGO_EXCLUSIVO_FORNEC, 0 as QdeReg
@@ -780,7 +780,7 @@ public static class DreGerencialQueries
             and fin.codcob <> 'DESD' and fin.dtcancel is null
             and fin.dtpag BETWEEN :dtIni2 AND :dtFim2
             and nf.codfilial IN ({3})
-        ) GROUP BY GRUPOCONTA, AntesRO, AntesLL, AntesLF, MES_ANO, MES, ANO
+        ) GROUP BY GRUPOCONTA, CONTASUBIDA, AntesRO, AntesLL, AntesLF, MES_ANO, MES, ANO
         """;
 
     /// <summary>
@@ -911,20 +911,20 @@ public static class DreGerencialQueries
     /// :dtIni2/:dtFim2, {3} filiais de `PCNFSAID`.</para>
     /// </summary>
     public const string DespesasCentroCusto = """
-         SELECT  GRUPOCONTA AS GRUPOCONTA, AntesRO AS ANTESRO, AntesLL AS ANTESLL, AntesLF AS ANTESLF, MES_ANO AS MESANO, MES AS MES, ANO AS ANO, sum(VLREALIZADO) AS VLREALIZADO, sum(VPAGO_EXCLUSIVO_FORNEC) AS VPAGOEXCLUSIVOFORNEC, sum(QdeReg) AS QDEREG
+         SELECT  GRUPOCONTA AS GRUPOCONTA, CONTASUBIDA AS CONTASUBIDA, AntesRO AS ANTESRO, AntesLL AS ANTESLL, AntesLF AS ANTESLF, MES_ANO AS MESANO, MES AS MES, ANO AS ANO, sum(VLREALIZADO) AS VLREALIZADO, sum(VPAGO_EXCLUSIVO_FORNEC) AS VPAGOEXCLUSIVOFORNEC, sum(QdeReg) AS QDEREG
          FROM (
-         SELECT  decode(AntesLF,'N',to_char(CODCONTA),  CODCENTROCUSTO) as GRUPOCONTA, AntesRO, AntesLL, AntesLF, MES_ANO, MES, ANO, SUM(VPAGO) AS VLREALIZADO, sum(VPAGO_EXCLUSIVO_FORNEC) as VPAGO_EXCLUSIVO_FORNEC, count(*) as QdeReg
+         SELECT  decode(AntesLF,'N',to_char(CODCONTA),  CODCENTROCUSTO) as GRUPOCONTA, CONTASUBIDA, AntesRO, AntesLL, AntesLF, MES_ANO, MES, ANO, SUM(VPAGO) AS VLREALIZADO, sum(VPAGO_EXCLUSIVO_FORNEC) as VPAGO_EXCLUSIVO_FORNEC, count(*) as QdeReg
                         FROM (
-          SELECT  FIN.RECNUM, FIN.CODFILIAL, CCPrinc.codccprinc, CCPrinc.DescCCPrinc,
+          SELECT  FIN.RECNUM, @@CONTA_SUBIDA@@ as CONTASUBIDA, FIN.CODFILIAL, CCPrinc.codccprinc, CCPrinc.DescCCPrinc,
                   case
                         when FIN.CODCONTA in (select codgruconta from EPCPARDRE where codgruconta > 0
-                        and id < (select ID from EPCPARDRE where upper(grupo) like 'RESULTADO OPERACIONAL'))  then 'S' else 'N' end as AntesRO,
+                        and id < (select ID from EPCPARDRE where upper(grupo) like 'RESULTADO OPERACIONAL')) @@OU_CONTA_SUBIDA@@ then 'S' else 'N' end as AntesRO,
                   case
                         when FIN.CODCONTA in (select codgruconta from EPCPARDRE where codgruconta > 0
-                        and id < (select ID from EPCPARDRE where upper(grupo) like 'LUCRO LIQUIDO'))  then 'S' else 'N' end as AntesLL,
+                        and id < (select ID from EPCPARDRE where upper(grupo) like 'LUCRO LIQUIDO')) @@OU_CONTA_SUBIDA@@ then 'S' else 'N' end as AntesLL,
                   case
                         when FIN.CODCONTA in (select codgruconta from EPCPARDRE where codgruconta > 0
-                        and id < (select ID from EPCPARDRE where upper(grupo) like 'LUCRO LIQUIDO'))  then 'S' else 'N' end as AntesLF,
+                        and id < (select ID from EPCPARDRE where upper(grupo) like 'LUCRO LIQUIDO')) @@OU_CONTA_SUBIDA@@ then 'S' else 'N' end as AntesLF,
                   DECODE(RC.valor,NULL, DECODE(CT.usarateiocentrocusto,'S',NVL(CC.CodigoCentroCusto,'9998'),'9999') , NVL(CC.CodigoCentroCusto,'9998')) as CODCENTROCUSTO,
                   DECODE(RC.valor,NULL, DECODE(CT.usarateiocentrocusto,'S',NVL(CC.DESCRICAO,'NÃO INFORMADO'),'NÃO USA CENTRO DE CUSTO') ,NVL(CC.DESCRICAO,'NÃO INFORMADO')) as DESCCENTROCUSTO,
                   GR.codgrupo, GR.GRUPO, FIN.CODCONTA, CT.CONTA,
@@ -970,9 +970,9 @@ public static class DreGerencialQueries
         {5}
             AND {2} BETWEEN :dtIni1 AND :dtFim1
          AND FIN.CODCONTA NOT IN ( SELECT codconta FROM EPCPARDRE_NAOEXIBIR)
-                         ) GROUP BY  decode(AntesLF,'N',to_char(CODCONTA),  CODCENTROCUSTO), AntesRO, AntesLL, AntesLF, MES_ANO, MES, ANO
+                         ) GROUP BY  decode(AntesLF,'N',to_char(CODCONTA),  CODCENTROCUSTO), CONTASUBIDA, AntesRO, AntesLL, AntesLF, MES_ANO, MES, ANO
          union all
-         select '8501' as GRUPOCONTA,
+         select '8501' as GRUPOCONTA, cast(null as varchar2(20)) as CONTASUBIDA,
                 'N' as AntesRO, 'S' as AntesLL,  'S' as AntesLF, TO_CHAR(FIN.dtpag,'mm/yyyy') as MES_ANO,
                 TO_CHAR(FIN.dtpag,'mm') as MES,
                 extract(YEAR FROM FIN.dtpag) as ANO, fin.valor as VLREALIZADO, 0 as VPAGO_EXCLUSIVO_FORNEC, 0 as QdeReg
@@ -983,7 +983,7 @@ public static class DreGerencialQueries
             and fin.codcob <> 'DESD' and fin.dtcancel is null
             and fin.dtpag BETWEEN :dtIni2 AND :dtFim2
             and nf.codfilial IN ({3})
-        ) GROUP BY GRUPOCONTA, AntesRO, AntesLL, AntesLF, MES_ANO, MES, ANO
+        ) GROUP BY GRUPOCONTA, CONTASUBIDA, AntesRO, AntesLL, AntesLF, MES_ANO, MES, ANO
         """;
 
     /// <summary>

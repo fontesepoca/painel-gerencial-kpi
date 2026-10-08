@@ -156,5 +156,6 @@ public interface IDreGerencialRepository
         string bloco,
         string chave,
         IReadOnlyList<decimal>? fornecedores = null,
+        IReadOnlyList<string>? sobra = null,
         CancellationToken cancellationToken = default);
 }

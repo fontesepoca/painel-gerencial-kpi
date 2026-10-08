@@ -764,6 +764,7 @@ public sealed class DreGerencialRepository : IDreGerencialRepository
         string bloco,
         string chave,
         IReadOnlyList<decimal>? fornecedores = null,
+        IReadOnlyList<string>? sobra = null,
         CancellationToken cancellationToken = default)
     {
         if (filiais.Count == 0)
@@ -811,7 +812,14 @@ public sealed class DreGerencialRepository : IDreGerencialRepository
             DreDetalheQueries.ColunaDoRecorte(analise.Codigo, orfa),
             regime.ExpressaoFiltro,
             exclusivo,
-            condicoes);
+            condicoes,
+            // A SOBRA de uma conta subida: só os lançamentos das chaves da análise que não
+            // acharam linha operacional — ver `MontadorDre.Destino`. A coluna é a da
+            // dimensão (o centro, o grupo), e não a do recorte, que aqui é a conta.
+            sobra is { Count: > 0 }
+                ? $"AND {DreDetalheQueries.ColunaDoRecorte(analise.Codigo, orfa: false)} IN ("
+                  + string.Join(", ", sobra.Select((_, i) => $":sb{i}")) + ")"
+                : string.Empty);
 
         var inicio = dataInicio.ToDateTime(TimeOnly.MinValue);
         var fim = dataFim.ToDateTime(TimeOnly.MinValue);
@@ -853,6 +861,12 @@ public sealed class DreGerencialRepository : IDreGerencialRepository
             parametros.Add($"filialB{i}", filiais[i]);
         }
         parametros.Add("chave", chave);
+        // A sobra vem DEPOIS da chave: é a ordem dos `:placeholders` no SQL ({7} fica
+        // abaixo do `WHERE {3} = :chave`), e o ODP.NET liga por posição.
+        for (var i = 0; i < (sobra?.Count ?? 0); i++)
+        {
+            parametros.Add($"sb{i}", sobra![i]);
+        }
 
         using var conexao = await _conexoes.CriarConexaoAsync(cancellationToken);
 
