@@ -6,9 +6,10 @@
  *
  * Não toca no banco. O que prova, em ordem:
  *
- *   1. Trocando cada marcador pelo que o literal valia na Época, o texto de cada arquivo de
- *      consultas volta a ser o que estava em `COMMIT_BASE` — o último commit antes da
- *      bifurcação. É a prova de TEXTO de que "a Época não mudou".
+ *   1. Trocando cada marcador pelo que ele vale na Época, o texto de cada arquivo de
+ *      consultas é o de `COMMIT_BASE` — a última mudança APROVADA do SQL da Época. É a
+ *      prova de TEXTO de que "a Época não mudou" desde então. Quem mudar o SQL da Época de
+ *      propósito aponta `COMMIT_BASE` para o commit dessa mudança, no commit seguinte.
  *   2. Todo marcador que aparece num arquivo é conhecido desta tabela. Um marcador novo sem
  *      linha aqui é um literal que alguém trocou sem dizer o que a Época tinha.
  *   3. Não sobrou `1601` nem `1401` fora de comentário. Se sobrou, é um literal esquecido:
@@ -28,7 +29,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-const COMMIT_BASE = "cb4ad694ee01ccf4a53436cb3fb489932e889d6f";
+const COMMIT_BASE = "b758c42"; // 08/10/2026: as contas subidas (DIVERGENCIAS §14). Antes: cb4ad69, o de antes da bifurcação.
 const DIR = "api-new-kpi/Infrastructure/Persistence/Queries";
 const ARQUIVOS = ["DreGerencialQueries.cs", "DreDetalheQueries.cs", "AutenticacaoQueries.cs"];
 const REGRAS_CS = "api-new-kpi/Domain/Entities/RegrasDaBase.cs";
