@@ -29,7 +29,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-const COMMIT_BASE = "b758c42"; // 08/10/2026: as contas subidas (DIVERGENCIAS §14). Antes: cb4ad69, o de antes da bifurcação.
+const COMMIT_BASE = "6202e2e"; // 08/10/2026: o recorte da indenização em Grupo de Contas. Antes: b758c42 (contas subidas) e cb4ad69 (antes da bifurcação).
 const DIR = "api-new-kpi/Infrastructure/Persistence/Queries";
 const ARQUIVOS = ["DreGerencialQueries.cs", "DreDetalheQueries.cs", "AutenticacaoQueries.cs"];
 const REGRAS_CS = "api-new-kpi/Domain/Entities/RegrasDaBase.cs";
