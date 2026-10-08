@@ -462,7 +462,11 @@ public static class DreDetalheQueries
 
         return analise switch
         {
-            "grupo-contas"     => "TO_CHAR(CODGRUPO)",
+            // A 3000165 (INDENIZACAO DE MERC. VENC. E AVARIA) não se colapsa no grupo 300:
+            // `DespesasGrupoDeContas` a agrupa pela conta desde 14/09/2026. Até 08/10 este
+            // recorte não sabia disso — a linha da indenização abria vazia e os 180.750,15
+            // dela apareciam em `Despesas Adm e Vendas` pós-operacional. Achado pela dc6.
+            "grupo-contas"     => "TO_CHAR(CASE WHEN CODCONTA = 3000165 THEN CODCONTA ELSE CODGRUPO END)",
             "conta-gerencial"  => "TO_CHAR(CODCONTA)",
             "ccusto-principal" => "NVL(CODCCPRINC,'99')",
             "centro-custo"     => "TO_CHAR(CODCENTROCUSTO)",
