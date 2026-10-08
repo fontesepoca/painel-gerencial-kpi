@@ -11,9 +11,14 @@
  */
 import http from "node:http";
 
-export function postar(url, corpo) {
+export async function postar(url, corpo) {
   const { hostname, port, pathname } = new URL(url);
   const dados = JSON.stringify(corpo);
+
+  // A sessão do `_autenticar.mjs`, quando ele foi carregado por `--import`. As rotas do DRE
+  // exigem login desde a bifurcação; sem isto, todo script que posta por aqui recebe
+  // "Sessão expirada ou ausente".
+  const token = globalThis.__kpiObterToken ? await globalThis.__kpiObterToken() : null;
 
   return new Promise((resolve, reject) => {
     const req = http.request(
@@ -25,6 +30,7 @@ export function postar(url, corpo) {
         headers: {
           "Content-Type": "application/json",
           "Content-Length": Buffer.byteLength(dados),
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
       },
       (res) => {

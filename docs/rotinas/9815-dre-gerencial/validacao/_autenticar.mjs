@@ -46,6 +46,11 @@ async function obterToken() {
   return token;
 }
 
+// O `_postar.mjs` não usa `fetch` (usa `node:http`, para não ter o teto de 300 s do undici),
+// então o embrulho abaixo não o alcança. Ele pede o token por aqui — sem `--import`, a
+// função não existe e ele segue sem cabeçalho, como antes.
+globalThis.__kpiObterToken = obterToken;
+
 globalThis.fetch = async (entrada, init = {}) => {
   const url = typeof entrada === "string" ? entrada : (entrada.url ?? String(entrada));
 
