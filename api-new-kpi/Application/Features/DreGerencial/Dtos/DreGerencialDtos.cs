@@ -374,7 +374,9 @@ public record DetalheLancamentoDto(
     string? NomeFunc,
     string? NomeFuncBaixa,
     DateTime? DtReclassific,
-    decimal? CodFuncReclassific);
+    decimal? CodFuncReclassific,
+    DateTime? DtEstornoBaixa,
+    string? CodRotinaBaixa);
 
 /// <summary>
 /// Resposta do detalhamento. **Uma coleção preenchida por vez**, conforme

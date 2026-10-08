@@ -332,7 +332,8 @@ public static class DreDetalheQueries
                DTLANC, DTCOMPETENCIA, DTCOMPENSACAO, DTPAGTO, HISTORICO, VPAGO,
                NUMBANCO, NUMCHEQUE, NUMBORDERO, NUMSEQBORDERO, NUMCHEQUE2,
                LOCALIZACAO, NOMEFUNC, NOMEFUNCBAIXA, NUMCAR,
-               DTRECLASSIFIC, CODFUNCRECLASSIFIC
+               DTRECLASSIFIC, CODFUNCRECLASSIFIC,
+               DTESTORNOBAIXA, CODROTINABAIXA
           FROM (
                 SELECT FIN.RECNUM, {5} FIN.INDICE, FIN.CODFILIAL,
                        CCPrinc.codccprinc AS CODCCPRINC,
@@ -361,14 +362,19 @@ public static class DreDetalheQueries
                          'M', (SELECT nome FROM pcempr WHERE matricula = FIN.CODFORNEC),
                          'OUTROS') AS FORNECEDOR,
                        FIN.DTRECLASSIFIC, FIN.CODFUNCRECLASSIFIC,
-                       (SELECT NOME FROM PCEMPR WHERE MATRICULA = FIN.CODFUNCBAIXA) AS NOMEFUNCBAIXA
+                       (SELECT NOME FROM PCEMPR WHERE MATRICULA = FIN.CODFUNCBAIXA) AS NOMEFUNCBAIXA,
+                       -- Só para a tela poder OCULTAR, nunca para filtrar aqui: o checkbox
+                       -- "Ocultar baixas estornadas e da rotina 737" do modal decide o que
+                       -- some, e a consulta continua trazendo tudo o que a linha do DRE soma.
+                       FIN.DTESTORNOBAIXA,
+                       TO_CHAR(FIN.CODROTINABAIXA) AS CODROTINABAIXA
                   FROM PCCONTA CT, PCGRUPO GR, PCCENTROCUSTO CC, @@RATEIO_RC@@ RC,
                        (SELECT RECNUM, CODFILIAL, numtrans, NUMNOTA, Duplic, codprojeto,
                                dtcompetencia, dtlanc, DTVENC, DTPAGTO, nvl(VPAGO,VALOR) AS VPAGO,
                                INDICE, @@CODCONTA_LANC@@, TIPOPARCEIRO, DTRECLASSIFIC, CODFUNCRECLASSIFIC,
                                historico, HISTORICO2, NUMBANCO, NumCheque, numbordero,
                                numseqbordero, NUMCHEQUE2, LOCALIZACAO, NOMEFUNC, CODFORNEC,
-                               CODFUNCBAIXA, DTESTORNOBAIXA
+                               CODFUNCBAIXA, DTESTORNOBAIXA, CODROTINABAIXA
                           FROM PCLANC
                          WHERE DTPAGTO IS NOT NULL) FIN,
                        (SELECT '99' AS codccprinc, 'NÃO USA/NÃO INFORMADO' AS DescCCPrinc FROM DUAL
@@ -414,7 +420,8 @@ public static class DreDetalheQueries
                            AND PCMOVCIAP.NUMTRANSVENDA = nf.numtransvenda),
                        fin.valor, nf.codcli, fin.dtemissao, fin.dtpag,
                        fin.codbanco, NULL, NULL, NULL, NULL,
-                       NULL, UPPER(fin.funclanc), nf.cliente, NULL, NULL, NULL
+                       NULL, UPPER(fin.funclanc), nf.cliente, NULL, NULL, NULL,
+                       NULL, NULL
                   FROM pcnfsaid nf, pcprest fin, PCCONTA CT, PCGRUPO GR
                  WHERE nf.numnota = fin.duplic
                    AND nf.numtransvenda = fin.numtransvenda

@@ -1939,6 +1939,43 @@ casos que NÃO podem ser escondidos inclusive, e 200 listas aleatórias em que a
 mudou — e a **dc6 em 162/162** depois da mudança. Na tela, `ADMINISTRATIVO` passou de 7 para
 5 lançamentos com o rodapé em (71.311,55), idêntico à célula do DRE.
 
+#### O checkbox "Ocultar baixas estornadas e da rotina 737" — 08/10/2026
+
+Pedido do Gabriel: o filtro da 9815 volta ao detalhamento, **como escolha da tela**, marcado
+por padrão. A regra, escrita por ele:
+
+    pclanc.dtestornobaixa is null and pclanc.codrotinabaixa not like '%737%'
+
+Fica na tela o que satisfaz a condição. **Uma diferença, acertada com ele:** rotina de baixa
+vazia continua na tela. `NULL NOT LIKE '%737%'` não é verdadeiro no Oracle, e o SQL ao pé da
+letra esconderia todo lançamento sem `CODROTINABAIXA`.
+
+Medido na filial 7, junho/2026, competência, sobre o `PCLANC` pago:
+
+| Situação | Lançamentos | Valor |
+|---|---:|---:|
+| baixa estornada | 160 | 0,00 |
+| sem rotina de baixa (**continua na tela**) | 625 | −466.160,04 |
+| rotina 737 | 48 | 0,00 |
+| continua na tela | 9.763 | −49.597.689,94 |
+
+No agregado os dois grupos ocultados somam zero (são pares), mas **por conta podem não
+somar** — em `VENDAS` o filtro da 9815 deixava −471,87 de fora. Por isso:
+
+- **a apuração e a consulta do detalhamento não mudam.** A consulta passou a devolver
+  `DTESTORNOBAIXA` e `CODROTINABAIXA` só para a tela decidir; desmarcar devolve as linhas na
+  hora, sem ir ao banco ([`lib/baixasEstornadas.ts`](../../../client-new-kpi/lib/baixasEstornadas.ts));
+- **a tela diz o que tirou, com o valor.** Quando a soma oculta não é zero, a frase embaixo
+  da tabela avisa que o rodapé não fecha com a célula por esse valor. A frase imprime; o
+  checkbox não;
+- **o Excel segue o checkbox** no momento da exportação.
+
+Verificado: [dc90](./validacao/dc90_ocultar_baixas_estornadas.mjs), 16 conferências — o vazio
+que fica, o `737` contido em outro código, a API antiga sem os campos (nada some).
+
+**A dc6 mede a consulta**, não a tela, e por isso continua valendo: o 162/162 é sobre o que a
+API devolve, que não mudou.
+
 
 ### A armadilha 3 em detalhe: medir contra um binário velho
 

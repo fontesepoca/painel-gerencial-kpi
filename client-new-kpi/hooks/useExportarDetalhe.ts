@@ -5,6 +5,7 @@ import {
   exportarDetalhe,
   type DetalheParaExportar,
 } from "@/lib/exportarExcelDetalhe";
+import { useOcultarBaixas } from "@/hooks/useOcultarBaixas";
 
 /**
  * Exportar o detalhamento para Excel, com o estado que a interface precisa mostrar.
@@ -20,12 +21,15 @@ import {
 export function useExportarDetalhe() {
   const [exportando, setExportando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+  // O checkbox de baixas estornadas, aqui e não em cada chamador: as duas telas exportam
+  // por este hook, e assim nenhuma esquece de mandar a escolha que a pessoa vê na tela.
+  const [ocultarBaixas] = useOcultarBaixas();
 
   const exportar = useCallback(async (detalhe: DetalheParaExportar) => {
     setExportando(true);
     setErro(null);
     try {
-      await exportarDetalhe(detalhe);
+      await exportarDetalhe({ ocultarBaixas, ...detalhe });
     } catch (e) {
       setErro(
         e instanceof Error
@@ -35,7 +39,7 @@ export function useExportarDetalhe() {
     } finally {
       setExportando(false);
     }
-  }, []);
+  }, [ocultarBaixas]);
 
   return { exportar, exportando, erro };
 }

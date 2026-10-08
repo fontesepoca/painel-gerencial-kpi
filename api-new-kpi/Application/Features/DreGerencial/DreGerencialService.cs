@@ -543,7 +543,8 @@ public sealed class DreGerencialService
                         l.Fornecedor, l.NumBanco, l.NumCheque, l.NumBordero,
                         l.NumSeqBordero, l.NumCheque2, l.NumCar, l.Localizacao,
                         l.NomeFunc, l.NomeFuncBaixa, l.DtReclassific,
-                        l.CodFuncReclassific)).ToList(),
+                        l.CodFuncReclassific, l.DtEstornoBaixa,
+                        l.CodRotinaBaixa)).ToList(),
                     null, cronometro.ElapsedMilliseconds, Fornecedores: eco, Participacao: participacao));
             }
 

@@ -339,6 +339,13 @@ export interface DetalheLancamento {
   nomeFuncBaixa: string | null;
   dtReclassific: string | null;
   codFuncReclassific: number | null;
+  /**
+   * Os dois campos do checkbox "Ocultar baixas estornadas e da rotina 737" — ver
+   * `lib/baixasEstornadas.ts`. Opcionais porque uma API anterior a 08/10/2026 não os manda,
+   * e aí nada é ocultado.
+   */
+  dtEstornoBaixa?: string | null;
+  codRotinaBaixa?: string | null;
 }
 
 /**

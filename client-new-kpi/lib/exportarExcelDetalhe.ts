@@ -14,6 +14,7 @@ import {
 import { colunaDoTotal, nomeDaLinha, rotuloDaColuna } from "@/lib/colunaDoTotal";
 import { temRateio, valorNoDre } from "@/lib/rateioDoDetalhe";
 import { semEstornosQueSeAnulam } from "@/lib/estornosQueSeAnulam";
+import { semBaixasEstornadas } from "@/lib/baixasEstornadas";
 import type { DetalheCliente, Detalhamento } from "@/types/dre-gerencial";
 
 /**
@@ -41,6 +42,11 @@ export interface DetalheParaExportar {
   periodo: { dataInicio: string; dataFim: string };
   linha: { descricao: string; valor: number };
   dados: Detalhamento;
+  /**
+   * O checkbox "Ocultar baixas estornadas e da rotina 737" no momento da exportação — o
+   * arquivo conta o que a tela conta. Ausente vale `true`, o padrão da tela.
+   */
+  ocultarBaixas?: boolean;
 }
 
 /** Cabeçalho onde a coluna do total se anuncia — igual ao `ThNum` da tela. */
@@ -63,7 +69,11 @@ interface Corpo {
 const parteDe = (valor: number, total: number) =>
   total !== 0 ? (valor / total) * 100 : null;
 
-function corpoDoDetalhe(dados: Detalhamento, nomeDaLinhaDoDre: string | null): Corpo {
+function corpoDoDetalhe(
+  dados: Detalhamento,
+  nomeDaLinhaDoDre: string | null,
+  ocultarBaixas = true,
+): Corpo {
   if (dados.tipo === "receita-por-cliente") {
     // A MESMA base da tela: a coluna que fecha o total da linha do DRE. Cinco colunas de
     // dinheiro dariam cinco percentuais, e a planilha tem de responder à mesma pergunta
@@ -210,9 +220,12 @@ function corpoDoDetalhe(dados: Detalhamento, nomeDaLinhaDoDre: string | null): C
       14, 14, 14, 14, 8, 12, 8, 12, 36, 20, 20, 10, 10, 14, 12, 12, 12,
       14, 16, 16, 14, 18,
     ],
-    // Os mesmos pares de estorno que a tela esconde — o arquivo e a tela têm de contar a
-    // mesma coisa sobre a mesma consulta. A soma não muda: par oposto no mesmo grupo é zero.
-    linhas: semEstornosQueSeAnulam(dados.lancamentos ?? []).visiveis.map((l) => [
+    // O que a tela esconde, na mesma ordem — o arquivo e a tela têm de contar a mesma coisa
+    // sobre a mesma consulta: as baixas estornadas e da 737 (se o checkbox estava marcado)
+    // e os pares de estorno que se anulam.
+    linhas: semEstornosQueSeAnulam(
+      semBaixasEstornadas(dados.lancamentos ?? [], ocultarBaixas).visiveis,
+    ).visiveis.map((l) => [
       txt(l.descCcPrinc),
       txt(l.conta),
       num(l.recNum, INTEIRO),
@@ -251,6 +264,7 @@ export function planilhaDoDetalhe(detalhe: DetalheParaExportar): Planilha {
   const { rotulos, larguras, linhas } = corpoDoDetalhe(
     detalhe.dados,
     nomeDaLinha(detalhe.linha),
+    detalhe.ocultarBaixas ?? true,
   );
   const nome = nomeDaLinha(detalhe.linha);
   const coluna = colunaDoTotal(detalhe.dados.tipo, nome);

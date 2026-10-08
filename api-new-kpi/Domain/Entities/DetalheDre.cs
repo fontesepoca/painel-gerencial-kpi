@@ -111,6 +111,12 @@ public class DetalheLancamentoDre
     public string? NomeFuncBaixa { get; init; }
     public DateTime? DtReclassific { get; init; }
     public decimal? CodFuncReclassific { get; init; }
+
+    /// <summary>Preenchida quando a baixa foi estornada. Só a tela usa, para ocultar.</summary>
+    public DateTime? DtEstornoBaixa { get; init; }
+
+    /// <summary>A rotina que baixou o título, em texto. Só a tela usa (a rotina 737).</summary>
+    public string? CodRotinaBaixa { get; init; }
 }
 
 /// <summary>

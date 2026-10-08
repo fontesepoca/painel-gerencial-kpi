@@ -12,6 +12,8 @@ import {
   rotuloDaColuna,
 } from "@/lib/colunaDoTotal";
 import { semEstornosQueSeAnulam } from "@/lib/estornosQueSeAnulam";
+import { semBaixasEstornadas } from "@/lib/baixasEstornadas";
+import { useOcultarBaixas } from "@/hooks/useOcultarBaixas";
 import {
   Cabecalho,
   Identidade,
@@ -1345,16 +1347,18 @@ function TabelaLancamentos({
     setOrdem((atual) => proximaOrdem(atual, rotulo, tipo));
   }, []);
 
-  if (linhas.length === 0) return <Vazio />;
+  const [ocultarBaixas, setOcultarBaixas] = useOcultarBaixas();
 
   /**
-   * Os pares de estorno que se anulam saem da lista — e **só eles**.
+   * Dois filtros de apresentação, nesta ordem — a consulta continua trazendo tudo:
    *
-   * Filtro de apresentação: a consulta continua trazendo tudo, e a soma do que sobra é
-   * idêntica à de antes, porque par oposto no mesmo grupo soma zero. Ver
-   * `lib/estornosQueSeAnulam.ts` para o motivo de não copiarmos o filtro da 9815.
+   * 1. **o checkbox**: baixas estornadas e da rotina 737, marcado por padrão. Este PODE
+   *    mudar o total, e a tela diz quanto (`lib/baixasEstornadas.ts`);
+   * 2. **os pares de estorno que se anulam**, que nunca mudam o total
+   *    (`lib/estornosQueSeAnulam.ts`, com o motivo de não copiarmos o filtro da 9815).
    */
-  const { visiveis, omitidos } = semEstornosQueSeAnulam(linhas);
+  const semBaixas = semBaixasEstornadas(linhas, ocultarBaixas);
+  const { visiveis, omitidos } = semEstornosQueSeAnulam(semBaixas.visiveis);
   const COLS = colunasDeLancamento(participacao);
   const ORDENAVEIS = ordenaveisDeLancamento(participacao);
 
@@ -1408,8 +1412,30 @@ function TabelaLancamentos({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visiveis, ordem, participacao]);
 
+  // Depois de todos os hooks: um `return` antes do `useMemo` muda a ordem das chamadas
+  // entre um detalhamento vazio e um cheio, e o React acusa.
+  if (linhas.length === 0) return <Vazio />;
+
   return (
     <>
+      {/* O controle fica fora do papel; a frase do que ele ocultou, embaixo da tabela,
+          imprime — quem lê a folha precisa saber que a lista não está completa.
+
+          <b>Aparece sempre</b>, mesmo sem nada a ocultar. A primeira versão só o mostrava
+          quando a linha tinha baixa estornada, e o controle sumindo de um detalhamento para
+          o outro foi lido como "só existe no C. Custo Principal" (08/10/2026). */}
+      <div className="nao-imprime border-b border-[var(--border)] px-3 py-2">
+        <label className="flex w-fit cursor-pointer items-center gap-2.5 text-[length:var(--fs-apoio)] text-[var(--text-secondary)]">
+          <input
+            type="checkbox"
+            checked={ocultarBaixas}
+            onChange={(e) => setOcultarBaixas(e.target.checked)}
+            className="size-4 accent-[var(--primary)]"
+          />
+          Ocultar baixas estornadas e da rotina 737
+        </label>
+      </div>
+
       <table className="w-full border-collapse text-[length:var(--fs-base)]">
         <Cabecalho>
           {COLS.map((c, i) => (
@@ -1511,9 +1537,9 @@ function TabelaLancamentos({
             {visiveis.length} lançamentos
           </td>
           <td className={TD} />
-          {/* Soma o que está na tela. Dá o mesmo número de antes — par de estorno oposto no
-            mesmo grupo soma zero —, e é o que mantém este rodapé fechando com a linha do
-            DRE. Se um dia divergir, o filtro escondeu algo que não se anulava. */}
+          {/* Soma o que está na tela. Os pares de estorno não mudam este número — par
+            oposto no mesmo grupo soma zero. O checkbox de baixas estornadas PODE mudar, e
+            quando muda a frase embaixo da tabela diz quanto ficou de fora. */}
           <td className={totalDe(colunaQueFecha, "V. Pago")}>
             {formatarValor(soma(visiveis, (l) => l.vPago))}
           </td>
@@ -1549,6 +1575,29 @@ function TabelaLancamentos({
       {/* Dizer o que foi escondido não é formalidade: quem confere esta tela contra a 9815
           compara a contagem de linhas, e uma lista mais curta sem explicação parece dado
           faltando. A frase também deixa claro que o total não mudou. */}
+      {/* O que o checkbox tirou, com o valor. Sem isto o rodapé deixa de fechar com a
+          célula clicada e ninguém sabe por quê — foi exatamente o defeito que fez a §4 do
+          DIVERGENCIAS.md tirar este filtro da consulta. */}
+      {semBaixas.ocultos > 0 && (
+        <p
+          role="status"
+          className="px-3 py-2 text-[length:var(--fs-apoio)] leading-relaxed text-[var(--text-muted)]"
+        >
+          {semBaixas.ocultos === 1
+            ? "1 baixa estornada ou da rotina 737 está oculta"
+            : `${semBaixas.ocultos} baixas estornadas ou da rotina 737 estão ocultas`}
+          {semBaixas.somaOculta === 0 ? (
+            <> — elas somam 0,00, e o total acima não muda.</>
+          ) : (
+            <>
+              {" "}
+              — somam <strong>{formatarValor(semBaixas.somaOculta)}</strong>, que a linha
+              do DRE conta e o total acima não. Desmarque o filtro para vê-las.
+            </>
+          )}
+        </p>
+      )}
+
       {omitidos > 0 && (
         <p className="px-3 py-2 text-[length:var(--fs-apoio)] text-[var(--text-muted)]">
           {omitidos === 2
