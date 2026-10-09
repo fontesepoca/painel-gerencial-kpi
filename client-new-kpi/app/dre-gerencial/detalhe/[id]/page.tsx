@@ -4,7 +4,7 @@ import { use, useEffect, useRef, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { AppShell } from "@/components/layout/AppShell";
-import { CorpoDoDetalhe } from "@/components/dre-gerencial/ModalDetalhe";
+import { CorpoDoDetalhe, FiltroDeBaixas } from "@/components/dre-gerencial/ModalDetalhe";
 import { FolhaDaImpressao } from "@/components/dre-gerencial/impressao";
 import { MenuExportar } from "@/components/dre-gerencial/MenuExportar";
 import { useExportarDetalhe } from "@/hooks/useExportarDetalhe";
@@ -143,7 +143,9 @@ export default function DetalhePage({ params }: { params: Promise<{ id: string }
               )}
             </div>
 
-            <div className="nao-imprime flex shrink-0 items-center gap-2">
+            <div className="nao-imprime flex shrink-0 flex-wrap items-center gap-2">
+              {/* No cabeçalho, como no modal: fora da área que rola. */}
+              {detalhe.dados.tipo === "lancamentos" && <FiltroDeBaixas />}
               <MenuExportar
                 onImprimir={() => window.print()}
                 onExcel={() => exportar(detalhe)}

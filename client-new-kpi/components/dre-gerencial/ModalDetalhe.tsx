@@ -224,7 +224,12 @@ export function ModalDetalhe({
             )}
           </div>
 
-          <div className="flex shrink-0 items-center gap-2">
+          <div className="flex shrink-0 flex-wrap items-center gap-2">
+            {/* Fora da área que rola, para não sumir no meio de seis mil lançamentos. */}
+            {!composicao && dados?.tipo === "lancamentos" && !carregando && !erro && (
+              <FiltroDeBaixas />
+            )}
+
             {/* Mesma condição do botão de nova aba: sem detalhamento carregado não há o
                 que exportar. */}
             {onImprimir && dados && !carregando && !erro && (
@@ -1330,6 +1335,36 @@ function ordenaveisDeLancamento(
   ];
 }
 
+/**
+ * O checkbox "Ocultar baixas estornadas e da rotina 737".
+ *
+ * <b>Mora no cabeçalho, fora da área que rola</b> — pedido do Gabriel em 08/10/2026. A
+ * primeira versão ficava acima da tabela, dentro da rolagem: quem descia seis mil
+ * lançamentos para conferir tinha de subir tudo de novo para desmarcar. O estado é um só
+ * para a página (`useOcultarBaixas`), então a tabela, a frase do que foi ocultado e o Excel
+ * continuam lendo a mesma escolha, onde quer que o controle esteja.
+ *
+ * <b>Aparece em todo detalhamento de lançamentos</b>, mesmo sem nada a ocultar: o controle
+ * sumindo de uma linha para a outra foi lido como "só existe no C. Custo Principal".
+ *
+ * Fica fora do papel (`nao-imprime`); a frase embaixo da tabela, que diz o que saiu,
+ * imprime.
+ */
+export function FiltroDeBaixas() {
+  const [ocultar, setOcultar] = useOcultarBaixas();
+  return (
+    <label className="nao-imprime flex cursor-pointer items-center gap-2.5 rounded-[var(--radius-md)] border border-[var(--border-strong)] px-3 py-2 text-[length:var(--fs-apoio)] whitespace-nowrap text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-2)]">
+      <input
+        type="checkbox"
+        checked={ocultar}
+        onChange={(e) => setOcultar(e.target.checked)}
+        className="size-4 accent-[var(--primary)]"
+      />
+      Ocultar baixas estornadas e da rotina 737
+    </label>
+  );
+}
+
 function TabelaLancamentos({
   linhas,
   coluna,
@@ -1347,7 +1382,7 @@ function TabelaLancamentos({
     setOrdem((atual) => proximaOrdem(atual, rotulo, tipo));
   }, []);
 
-  const [ocultarBaixas, setOcultarBaixas] = useOcultarBaixas();
+  const [ocultarBaixas] = useOcultarBaixas();
 
   /**
    * Dois filtros de apresentação, nesta ordem — a consulta continua trazendo tudo:
@@ -1418,24 +1453,6 @@ function TabelaLancamentos({
 
   return (
     <>
-      {/* O controle fica fora do papel; a frase do que ele ocultou, embaixo da tabela,
-          imprime — quem lê a folha precisa saber que a lista não está completa.
-
-          <b>Aparece sempre</b>, mesmo sem nada a ocultar. A primeira versão só o mostrava
-          quando a linha tinha baixa estornada, e o controle sumindo de um detalhamento para
-          o outro foi lido como "só existe no C. Custo Principal" (08/10/2026). */}
-      <div className="nao-imprime border-b border-[var(--border)] px-3 py-2">
-        <label className="flex w-fit cursor-pointer items-center gap-2.5 text-[length:var(--fs-apoio)] text-[var(--text-secondary)]">
-          <input
-            type="checkbox"
-            checked={ocultarBaixas}
-            onChange={(e) => setOcultarBaixas(e.target.checked)}
-            className="size-4 accent-[var(--primary)]"
-          />
-          Ocultar baixas estornadas e da rotina 737
-        </label>
-      </div>
-
       <table className="w-full border-collapse text-[length:var(--fs-base)]">
         <Cabecalho>
           {COLS.map((c, i) => (
