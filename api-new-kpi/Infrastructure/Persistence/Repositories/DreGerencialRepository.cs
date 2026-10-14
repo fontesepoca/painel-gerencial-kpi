@@ -173,6 +173,7 @@ public sealed class DreGerencialRepository : IDreGerencialRepository
         RegimeDre regime,
         AnaliseDre analise,
         IReadOnlyList<decimal>? fornecedores = null,
+        bool emAberto = false,
         CancellationToken cancellationToken = default)
     {
         if (filiais.Count == 0)
@@ -232,7 +233,9 @@ public sealed class DreGerencialRepository : IDreGerencialRepository
         }
 
         var sql = string.Format(
-            analise.SqlDespesas,
+            // O PROVISIONADO é a MESMA consulta trocando só o pagamento — ver `DreGerencialQueries.EmAberto`.
+            // A lista de binds abaixo vale para as duas versões, de propósito.
+            emAberto ? DreGerencialQueries.EmAberto(analise.SqlDespesas) : analise.SqlDespesas,
             placeholdersA,
             regime.ExpressaoBucket,
             regime.ExpressaoFiltro,

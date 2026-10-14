@@ -39,6 +39,10 @@ public interface IDreGerencialRepository
     /// ele — do que vai ser rateado pela participação, e tira do DRE os centros que pertencem
     /// a outro fornecedor. Quem rateia é o montador. Nulo ou vazio é o DRE inteiro.
     /// </param>
+    /// <param name="emAberto">
+    /// Os títulos EM ABERTO (<c>DTPAGTO IS NULL</c>) em vez dos pagos — a coluna PROVISIONADO.
+    /// Mesma consulta, mesmos binds; ver <c>DreGerencialQueries.EmAberto</c>.
+    /// </param>
     Task<IReadOnlyList<DespesaDre>> ObterDespesasAsync(
         IReadOnlyList<string> filiais,
         DateOnly dataInicio,
@@ -46,6 +50,7 @@ public interface IDreGerencialRepository
         RegimeDre regime,
         AnaliseDre analise,
         IReadOnlyList<decimal>? fornecedores = null,
+        bool emAberto = false,
         CancellationToken cancellationToken = default);
 
     /// <summary>

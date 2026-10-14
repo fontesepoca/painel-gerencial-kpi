@@ -26,6 +26,17 @@ namespace Epoca.Kpi.Api.Infrastructure.Persistence.Queries;
 public static class DreDetalheQueries
 {
     /// <summary>
+    /// Os títulos EM ABERTO de uma célula de Provisionado — a mesma troca de
+    /// <see cref="DreGerencialQueries.EmAberto"/>, sobre <see cref="Lancamentos"/>.
+    /// </summary>
+    public static string EmAberto(string sqlLancamentos) =>
+        DreGerencialQueries.TrocarUmaVez(
+            DreGerencialQueries.TrocarUmaVez(
+                sqlLancamentos, "WHERE DTPAGTO IS NOT NULL) FIN", "WHERE DTPAGTO IS NULL) FIN"),
+            "nf.codfilial IN ({2})",
+            "nf.codfilial IN ({2}) AND 1 = 0");
+
+    /// <summary>
     /// Receita por cliente — a tela de `(+) RECEITA BRUTA` e `(=) RECEITAS LIQUIDAS`.
     ///
     /// <para><b>Corrigida em relação à 9815</b>, para fechar com a linha clicada. A original
