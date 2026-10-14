@@ -234,9 +234,16 @@ export function TabelaDre({
 
   // Esconde por AUSÊNCIA DE MOVIMENTO, não por valor zero — é o critério da 9815.
   // `DESCONTO FUNCIONÁRIOS` fecha em 0,00 com 16 lançamentos e continua na tela.
+  //
+  // Uma linha só com título EM ABERTO não tem movimento pelo critério da 9815, e aparece só
+  // com o Provisionado ligado — é ele que explica por que ela está ali. Desligado, a tela é
+  // a de antes (D9 da spec de 14/10/2026).
   const comMovimento = useMemo(
-    () => (mostrarZeradas ? ordenadas : ordenadas.filter((l) => !l.semMovimento)),
-    [ordenadas, mostrarZeradas],
+    () =>
+      mostrarZeradas
+        ? ordenadas
+        : ordenadas.filter((l) => !l.semMovimento || (mostrarProvisionado && l.comAberto === true)),
+    [ordenadas, mostrarZeradas, mostrarProvisionado],
   );
 
   /**

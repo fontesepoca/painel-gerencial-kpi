@@ -87,7 +87,13 @@ Afirmar(V(a, "Sub-Total -> Despesas Operacionais", "07/2026").Valor == -100m,
 // TRANSPORTES MATRIZ só tem aberto: tem de aparecer.
 Afirmar(V(a, "TRANSPORTES MATRIZ", "07/2026").Valor == 0m && V(a, "TRANSPORTES MATRIZ", "07/2026").Provisionado == -7m,
     "linha só com aberto: Valor 0,00 e o Provisionado");
-Afirmar(!L(a, "TRANSPORTES MATRIZ").SemMovimento, "e ela NÃO some com 'Mostrar zeradas' desmarcado");
+// A visibilidade de SEMPRE não muda (D9): pelo critério do pago ela continua sem movimento —
+// com o checkbox desligado a tela é a de antes. Quem a traz de volta é o `ComAberto`, que o
+// front só usa com o Provisionado ligado.
+Afirmar(L(a, "TRANSPORTES MATRIZ").SemMovimento, "pelo critério do pago, segue sem movimento (a tela de antes)");
+Afirmar(L(a, "TRANSPORTES MATRIZ").ComAberto, "mas tem aberto — a tela a mostra com o Provisionado ligado");
+Afirmar(L(a, "ADMINISTRATIVO").ComAberto && !L(a, "ADMINISTRATIVO").SemMovimento, "linha com pago e aberto: as duas marcas");
+Afirmar(!L(a, "Sub-Total -> Despesas Operacionais").ComAberto, "totalizador nunca tem aberto");
 
 // ── 2. Conta subida em aberto num centro sem linha: vai para a conta e entra na sobra ──────
 var s = Montar(Coluna("07/2026",

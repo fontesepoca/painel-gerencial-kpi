@@ -145,7 +145,9 @@ export default function DetalhePage({ params }: { params: Promise<{ id: string }
 
             <div className="nao-imprime flex shrink-0 flex-wrap items-center gap-2">
               {/* No cabeçalho, como no modal: fora da área que rola. */}
-              {detalhe.dados.tipo === "lancamentos" && <FiltroDeBaixas />}
+              {detalhe.dados.tipo === "lancamentos" && detalhe.dados.provisionado !== true && (
+                <FiltroDeBaixas />
+              )}
               <MenuExportar
                 onImprimir={() => window.print()}
                 onExcel={() => exportar(detalhe)}

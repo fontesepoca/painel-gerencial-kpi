@@ -230,7 +230,9 @@ function corpoDoDetalhe(
     // sobre a mesma consulta: as baixas estornadas e da 737 (se o checkbox estava marcado)
     // e os pares de estorno que se anulam.
     linhas: semEstornosQueSeAnulam(
-      semBaixasEstornadas(dados.lancamentos ?? [], ocultarBaixas).visiveis,
+      // Na lista em aberto o filtro não vale: título com baixa estornada é título REABERTO,
+      // e é exatamente quem a lista existe para cobrar.
+      semBaixasEstornadas(dados.lancamentos ?? [], ocultarBaixas && dados.provisionado !== true).visiveis,
     ).visiveis.map((l) => [
       txt(l.descCcPrinc),
       txt(l.conta),

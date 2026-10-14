@@ -272,7 +272,14 @@ public record LinhaDreDto(
     /// <para>`SUB-TOTAL` referencia as dezenas de linhas do bloco operacional; os outros
     /// quatro têm duas parcelas cada.</para>
     /// </summary>
-    IReadOnlyList<ParcelaDto> Composicao);
+    IReadOnlyList<ParcelaDto> Composicao,
+    /// <summary>
+    /// A linha tem título EM ABERTO no período (competência, 14/10/2026). <b>Não muda o
+    /// <see cref="SemMovimento"/></b>, que continua sendo o critério da 9815, só do pago: com
+    /// o Provisionado desligado a tela tem de ser a de antes (D9). O front mostra uma linha
+    /// sem movimento quando ela tem aberto E o Provisionado está ligado.
+    /// </summary>
+    bool ComAberto = false);
 
 /// <summary>
 /// Uma parcela de uma linha calculada. Ou aponta para outra linha da apuração, ou traz o

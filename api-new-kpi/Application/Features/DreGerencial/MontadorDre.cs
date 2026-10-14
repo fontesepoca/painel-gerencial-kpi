@@ -295,10 +295,16 @@ public static class MontadorDre
         // aparece com "Mostrar Contas Zeradas" desmarcada — a 9815 esconde por AUSENCIA DE
         // MOVIMENTO, nao por valor zero. Sem a coluna na chave: a visibilidade e da linha.
         //
-        // Os ABERTOS contam: uma linha sem nada pago e com título em aberto tem movimento —
-        // escondê-la sumiria justamente com o Provisionado que a coluna existe para mostrar.
+        // SÓ OS PAGOS, como sempre: é o critério da 9815, e com o Provisionado desligado a tela
+        // tem de ser a de antes (D9). Os abertos contam à parte, em `qtdAberto`, e é o front
+        // que decide mostrar a linha só com aberto quando o Provisionado está ligado.
         var qtdDespesa = colunas
-            .SelectMany(c => c.Despesas.Concat(c.Abertos ?? []))
+            .SelectMany(c => c.Despesas)
+            .GroupBy(d => Destino(d, subidas, operacionaisDaEstrutura))
+            .ToDictionary(g => g.Key, g => g.Sum(d => d.QdeReg));
+
+        var qtdAberto = colunas
+            .SelectMany(c => c.Abertos ?? [])
             .GroupBy(d => Destino(d, subidas, operacionaisDaEstrutura))
             .ToDictionary(g => g.Key, g => g.Sum(d => d.QdeReg));
 
@@ -438,7 +444,10 @@ public static class MontadorDre
                 Zerada: valores.All(v => v.Valor == 0m),
                 Cor: CorDelphi.ParaCss(l.Estrutura.Cor),
                 Detalhe: ResolverDetalhe(l, DetalheDaSobra(l)),
-                Composicao: ResolverComposicao(l, linhas, chavesOrdem));
+                Composicao: ResolverComposicao(l, linhas, chavesOrdem),
+                ComAberto: !l.Calculada && qtdAberto.GetValueOrDefault(
+                    (l.Estrutura.CodGruConta, l.Estrutura.AntesRo,
+                     l.Estrutura.AntesLl, l.Estrutura.AntesLf)) > 0);
         }).ToList();
 
         return new ApuracaoDto(

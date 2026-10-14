@@ -183,6 +183,11 @@ export interface LinhaDre {
    * `DESCONTO FUNCIONÁRIOS` sai com 0,00 e 16 lançamentos, e ela mostra.
    */
   semMovimento: boolean;
+  /**
+   * Tem título EM ABERTO no período (competência). Não muda `semMovimento`, que é do pago:
+   * a linha só com aberto aparece apenas com o Provisionado ligado.
+   */
+  comAberto?: boolean;
   /** Zero em todos os meses. Não decide visibilidade. */
   zerada: boolean;
   /** `#RRGGBB` vindo do `TColor` do Delphi, já convertido. */

@@ -226,7 +226,7 @@ export function ModalDetalhe({
 
           <div className="flex shrink-0 flex-wrap items-center gap-2">
             {/* Fora da área que rola, para não sumir no meio de seis mil lançamentos. */}
-            {!composicao && dados?.tipo === "lancamentos" && !carregando && !erro && (
+            {!composicao && dados?.tipo === "lancamentos" && dados.provisionado !== true && !carregando && !erro && (
               <FiltroDeBaixas />
             )}
 
@@ -1442,7 +1442,9 @@ function TabelaLancamentos({
    * 2. **os pares de estorno que se anulam**, que nunca mudam o total
    *    (`lib/estornosQueSeAnulam.ts`, com o motivo de não copiarmos o filtro da 9815).
    */
-  const semBaixas = semBaixasEstornadas(linhas, ocultarBaixas);
+  // Na lista em aberto (Provisionado) o filtro não vale: título com baixa estornada é título
+  // REABERTO — está em aberto de novo, e é justamente quem a lista existe para cobrar.
+  const semBaixas = semBaixasEstornadas(linhas, ocultarBaixas && !provisionado);
   const { visiveis, omitidos } = semEstornosQueSeAnulam(semBaixas.visiveis);
   const COLS = colunasDeLancamento(participacao, provisionado);
   const ORDENAVEIS = ordenaveisDeLancamento(participacao, provisionado);

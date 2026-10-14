@@ -1492,6 +1492,15 @@ aparece — é para quem o cadastrou ser cobrado. Por isso o duplo clique no Pro
 os títulos em aberto com **Vencimento** e **Dias em atraso**, ao lado do **Func.Lanc** (quem
 lançou).
 
+### Duas regras que a revisão da branch acertou
+
+- **Visibilidade.** Uma linha que só tem título em aberto continua "sem movimento" pelo
+  critério da 9815 (só o pago). Ela aparece **só com o Provisionado ligado** (`ComAberto`);
+  desligado, a tela e o Excel têm exatamente as linhas de antes.
+- **Baixa estornada na lista em aberto.** O checkbox "Ocultar baixas estornadas e da rotina
+  737" não vale na lista dos títulos em aberto e nem aparece nela: título com baixa estornada
+  está em aberto de novo, e é justamente quem se cobra.
+
 ### O que fica de fora nesta versão
 
 - **Totalizadores** (`Sub-Total`, `RESULTADO OPERACIONAL`, `LUCRO LIQUIDO`): sem

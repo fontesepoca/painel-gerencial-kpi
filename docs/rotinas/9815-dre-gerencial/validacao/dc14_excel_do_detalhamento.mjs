@@ -230,6 +230,26 @@ eq(aberto.matriz[1][5].v, "20/07/2026", "o vencimento em dd/mm/aaaa");
 eq(aberto.matriz[0].length, 28, "uma coluna a mais que os 27 de sempre");
 eq(aberto.larguras.length, 28, "e uma largura a mais");
 
+// Título cuja BAIXA foi estornada volta a estar em aberto: na lista do Provisionado ele é
+// justamente quem se cobra, e o filtro de baixas estornadas não pode escondê-lo — nem com
+// o checkbox marcado (o padrão).
+const reaberto = planilhaDoDetalhe({
+  titulo: "ADMINISTRATIVO · Julho/2026 · Títulos em aberto",
+  periodo,
+  linha: { descricao: "ADMINISTRATIVO", valor: -70 },
+  ocultarBaixas: true,
+  dados: {
+    ...vazio,
+    tipo: "lancamentos",
+    provisionado: true,
+    lancamentos: [
+      { recNum: 9, vPago: -40, historico: "X", codCcPrinc: "1001", codConta: 1 },
+      { recNum: 10, vPago: -30, historico: "Y", codCcPrinc: "1001", codConta: 1, dtEstornoBaixa: "2026-07-25T00:00:00" },
+    ],
+  },
+});
+eq(reaberto.matriz.length - 1, 2, "em aberto: o título com baixa estornada continua na lista");
+
 // ── O nome do arquivo ───────────────────────────────────────────────────────────────────
 eq(
   nomeDoArquivoDetalhe({
