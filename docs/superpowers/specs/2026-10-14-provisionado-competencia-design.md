@@ -41,14 +41,21 @@ paralelo** com a de hoje e só quando `regime == competencia`:
 - o `WHERE DTPAGTO IS NOT NULL` do subselect `FIN` vira `WHERE DTPAGTO IS NULL`;
 - o ramo `union all … from pcnfsaid nf, pcprest fin` sai.
 
-A troca não pode ser um `Replace` cego no texto: as quatro consultas de despesa ganham um
-**ponto de troca explícito** (placeholder do `string.Format`, ao lado dos `{0}`…`{5}` de hoje)
-para o predicado de pagamento e outro para o ramo de venda de ativo. Sem provisionado, os dois
-expandem para **o texto de hoje, caractere por caractere** — o dc86 é quem confere.
+A versão em aberto é **derivada** do texto de hoje por `DreGerencialQueries.EmAberto(sql)`, que
+troca dois trechos que aparecem **exatamente uma vez** em cada consulta — e lança se a
+contagem for outra, em vez de seguir com uma troca parcial:
 
-O fornecedor entra igual: `{4}`/`{5}` e os binds na mesma ordem. Os binds de datas e filiais
-continuam os mesmos; o ramo de venda de ativo some **com** os binds `:dtIni2`/`:dtFim2`/
-`filialB*` — a lista de parâmetros da versão em aberto não os adiciona. (ODP.NET é posicional.)
+- `WHERE DTPAGTO IS NOT NULL` → `WHERE DTPAGTO IS NULL`;
+- `nf.codfilial IN ({3})` → `nf.codfilial IN ({3}) AND 1 = 0` (o ramo de venda de ativo fica
+  vazio).
+
+O texto das constantes **não muda**: dc86 e dc76 continuam valendo sem reapontar. O ramo é
+desligado, e não removido, para que **a lista de parâmetros seja idêntica nas duas versões**
+— o ODP.NET liga por posição, e duas listas diferentes são o jeito mais fácil de errar a
+ordem sem nenhum erro de compilação. O fornecedor entra igual (`{4}`/`{5}`).
+
+O detalhamento usa o mesmo mecanismo sobre `DreDetalheQueries.Lancamentos`
+(`WHERE DTPAGTO IS NOT NULL) FIN` e `nf.codfilial IN ({2})`).
 
 ### 3.2 API — o montador
 
