@@ -177,6 +177,10 @@ function corpoDoDetalhe(
   }
 
   const rateando = temRateio(dados);
+  // Os títulos EM ABERTO (célula de Provisionado): o vencimento entra logo depois do
+  // dinheiro, como na tela. Os dias de atraso não — mudam todo dia, e numa planilha
+  // guardada viram um número velho; o Excel calcula a partir do vencimento se precisar.
+  const aberto = dados.provisionado === true;
 
   return {
     // As 25 da 9815, na ordem dela, mais as duas do agrupamento que a tela desenha como
@@ -191,6 +195,7 @@ function corpoDoDetalhe(
       // mesma história da tela, inclusive em quantas colunas tem. Ver
       // `lib/rateioDoDetalhe.ts`.
       ...(rateando ? ["No DRE", "Exclusivo"] : []),
+      ...(aberto ? ["Dt. Vencto."] : []),
       "Dt.Lançamento",
       "Dt. Pagto.",
       "Dt.Competência",
@@ -217,6 +222,7 @@ function corpoDoDetalhe(
     larguras: [
       28, 32, 10, 44, 16,
       ...(rateando ? [16, 11] : []),
+      ...(aberto ? [14] : []),
       14, 14, 14, 14, 8, 12, 8, 12, 36, 20, 20, 10, 10, 14, 12, 12, 12,
       14, 16, 16, 14, 18,
     ],
@@ -234,6 +240,7 @@ function corpoDoDetalhe(
       ...(rateando
         ? [num(valorNoDre(l, dados.participacao)), txt(l.exclusivo ? "sim" : "")]
         : []),
+      ...(aberto ? [data(l.dtVenc ?? null)] : []),
       data(l.dtLanc),
       data(l.dtPagto),
       data(l.dtCompetencia),

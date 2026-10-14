@@ -213,6 +213,23 @@ eq(comEstornada(undefined).matriz.length - 1, 1, "sem dizer nada, oculta — o p
 eq(comEstornada(true).matriz.length - 1, 1, "marcado: só a baixa comum");
 eq(comEstornada(false).matriz.length - 1, 3, "desmarcado: as três");
 
+// ── Os títulos em aberto (célula de Provisionado): o vencimento entra depois do V. Pago ──
+const aberto = planilhaDoDetalhe({
+  titulo: "ADMINISTRATIVO · Julho/2026 · Títulos em aberto",
+  periodo,
+  linha: { descricao: "ADMINISTRATIVO", valor: -40 },
+  dados: {
+    ...vazio,
+    tipo: "lancamentos",
+    provisionado: true,
+    lancamentos: [{ recNum: 9, vPago: -40, historico: "X", codCcPrinc: "1001", codConta: 1, dtVenc: "2026-07-20T00:00:00" }],
+  },
+});
+eq(aberto.matriz[0][5].v, "Dt. Vencto.", "em aberto: Dt. Vencto. logo depois do V. Pago");
+eq(aberto.matriz[1][5].v, "20/07/2026", "o vencimento em dd/mm/aaaa");
+eq(aberto.matriz[0].length, 28, "uma coluna a mais que os 27 de sempre");
+eq(aberto.larguras.length, 28, "e uma largura a mais");
+
 // ── O nome do arquivo ───────────────────────────────────────────────────────────────────
 eq(
   nomeDoArquivoDetalhe({
