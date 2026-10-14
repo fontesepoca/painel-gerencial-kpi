@@ -736,7 +736,7 @@ export function TabelaDre({
   // Provisionado e Total entram SÓ nos meses com título em aberto (spec D8): mês todo pago
   // fica como sempre foi. Por isso a largura passou a ser por período.
   const provisionadoNoMes = (p: PeriodoDre) => mostrarProvisionado && p.temProvisionado === true;
-  // Vl. Realizado / Vl. Provisionado / Total (R + P) em competência; "Valor" em caixa. Os
+  // Vl. Realizado / Provisionado / Total (R + P) em competência; "Valor" em caixa. Os
   // mesmos nomes do Excel — ver `lib/rotulosDoDinheiro.ts`.
   const nomes = rotulosDoDinheiro(filtro.regime);
   // O bloco do período as ganha se algum mês tiver — e não no modo de variação, onde o

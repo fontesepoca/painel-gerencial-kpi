@@ -107,7 +107,7 @@ export function matrizDaApuracao(
   // O bloco do período só existe com mais de um mês; com um só, o mês é o período.
   const provNoFim = multiMes && provisionadoNoFim(dados, colunas);
 
-  // Os MESMOS nomes da tela — Vl. Realizado / Vl. Provisionado / Total (R + P) em competência.
+  // Os MESMOS nomes da tela — Vl. Realizado / Provisionado / Total (R + P) em competência.
   const nomes = rotulosDoDinheiro(dados.regime);
   const faixaMeses: Celula[] = [txt("")];
   const rotulos: Celula[] = [txt("Descrição")];

@@ -1479,7 +1479,7 @@ Total / `%AV` / Média / `%AH` (ordem pedida em 14/10/2026, para o dinheiro fica
 - **Total** — Valor + Provisionado.
 
 **Os nomes, em competência** (pedido de 14/10/2026): **Vl. Realizado** (o Valor de sempre,
-o pago), **Vl. Provisionado** e **Total (R + P)** — em todos os meses e no bloco do período,
+o pago), **Provisionado** e **Total (R + P)** — em todos os meses e no bloco do período,
 na tela e no Excel (`lib/rotulosDoDinheiro.ts`). Em caixa a coluna continua "Valor".
 
 **É acréscimo, não troca.** O Valor, o `%AV`, o `%AH` e todos os totalizadores continuam os

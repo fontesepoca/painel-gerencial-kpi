@@ -78,12 +78,12 @@ const v = (c) => c?.v ?? null;
 const m = matrizDaApuracao(dados, dados.linhas, { av: true, ah: true, provisionado: true });
 // A ORDEM pedida pelo Gabriel em 14/10/2026: o dinheiro junto — Valor, Provisionado, Total —
 // e a análise depois. No período: Valor / Provisionado / Total / AV / Média / AH.
-// E os NOMES de competência (14/10/2026): Vl. Realizado, Vl. Provisionado, Total (R + P).
+// E os NOMES de competência (14/10/2026): Vl. Realizado, Provisionado, Total (R + P).
 eq(m[1].map(v), [
   "Descrição",
-  "Vl. Realizado", "Vl. Provisionado", "Total (R + P)", "AV %", "AH %",          // julho
+  "Vl. Realizado", "Provisionado", "Total (R + P)", "AV %", "AH %",          // julho
   "Vl. Realizado", "AV %", "AH %",                                              // agosto
-  "Vl. Realizado", "Vl. Provisionado", "Total (R + P)", "AV %", "Média", "AH %", // período
+  "Vl. Realizado", "Provisionado", "Total (R + P)", "AV %", "Média", "AH %", // período
 ], "cabeçalho: Realizado, Provisionado e Total juntos, a análise depois");
 
 const adm = m[2].map(v);
