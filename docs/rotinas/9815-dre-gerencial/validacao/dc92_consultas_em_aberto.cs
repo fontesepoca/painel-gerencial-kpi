@@ -45,7 +45,7 @@ var despesas = new (string Nome, string Sql)[]
 
 foreach (var (nome, sql) in despesas)
 {
-    var aberto = DreGerencialQueries.EmAberto(sql);
+    var aberto = ConsultasEmAberto.Despesas(sql);
     Afirmar(Vezes(aberto, "DTPAGTO IS NULL") == 1 && Vezes(aberto, "DTPAGTO IS NOT NULL") == 0,
         $"{nome}: só o aberto — DTPAGTO IS NULL uma vez, IS NOT NULL nenhuma");
     Afirmar(Vezes(aberto, "nf.codfilial IN ({3}) AND 1 = 0") == 1,
@@ -56,7 +56,7 @@ foreach (var (nome, sql) in despesas)
 }
 
 var lanc = DreDetalheQueries.Lancamentos;
-var lancAberto = DreDetalheQueries.EmAberto(lanc);
+var lancAberto = ConsultasEmAberto.Lancamentos(lanc);
 Afirmar(Vezes(lancAberto, "WHERE DTPAGTO IS NULL) FIN") == 1 && Vezes(lancAberto, "DTPAGTO IS NOT NULL") == 0,
     "Lancamentos: só o aberto");
 Afirmar(Vezes(lancAberto, "nf.codfilial IN ({2}) AND 1 = 0") == 1, "Lancamentos: o ramo de venda de ativo vazio");
@@ -64,12 +64,12 @@ Afirmar(Binds(lancAberto) == Binds(lanc), "Lancamentos: os MESMOS binds, na mesm
 
 // Uma consulta que mudou e perdeu o trecho não pode virar "aberto pela metade".
 var lancou = false;
-try { DreGerencialQueries.EmAberto("SELECT 1 FROM DUAL WHERE DTPAGTO IS NOT NULL"); }
+try { ConsultasEmAberto.Despesas("SELECT 1 FROM DUAL WHERE DTPAGTO IS NOT NULL"); }
 catch (InvalidOperationException) { lancou = true; }
 Afirmar(lancou, "sem o ramo de venda de ativo, lança");
 
 lancou = false;
-try { DreGerencialQueries.EmAberto("WHERE DTPAGTO IS NOT NULL WHERE DTPAGTO IS NOT NULL nf.codfilial IN ({3})"); }
+try { ConsultasEmAberto.Despesas("WHERE DTPAGTO IS NOT NULL WHERE DTPAGTO IS NOT NULL nf.codfilial IN ({3})"); }
 catch (InvalidOperationException) { lancou = true; }
 Afirmar(lancou, "com o trecho DUAS vezes, lança");
 

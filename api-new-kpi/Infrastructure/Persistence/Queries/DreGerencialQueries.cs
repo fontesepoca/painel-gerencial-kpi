@@ -7,43 +7,6 @@ namespace Epoca.Kpi.Api.Infrastructure.Persistence.Queries;
 public static class DreGerencialQueries
 {
     /// <summary>
-    /// A versão EM ABERTO de uma consulta de despesas — a coluna PROVISIONADO (14/10/2026).
-    ///
-    /// <para><b>A mesma consulta, trocando só o pagamento</b>: <c>DTPAGTO IS NOT NULL</c> vira
-    /// <c>DTPAGTO IS NULL</c>, e o ramo de venda de ativo (<c>PCNFSAID</c>/<c>PCPREST</c>,
-    /// receita já recebida) fica vazio com <c>AND 1 = 0</c>. Filtros, rateio e marcadores da
-    /// base continuam os mesmos — um título pago sai do Provisionado e entra no Valor da
-    /// mesma linha.</para>
-    ///
-    /// <para><b>Derivada, e não uma constante a mais.</b> Uma cópia das quatro consultas
-    /// divergiria da original na primeira correção feita só em uma. E o ramo é desligado, não
-    /// removido, para a <b>lista de binds ser idêntica</b> nas duas versões: o ODP.NET liga por
-    /// posição. A dc92 confere as duas coisas.</para>
-    /// </summary>
-    public static string EmAberto(string sqlDespesas) =>
-        TrocarUmaVez(
-            TrocarUmaVez(sqlDespesas, "WHERE DTPAGTO IS NOT NULL", "WHERE DTPAGTO IS NULL"),
-            "nf.codfilial IN ({3})",
-            "nf.codfilial IN ({3}) AND 1 = 0");
-
-    /// <summary>
-    /// Troca um trecho que tem de aparecer <b>exatamente uma vez</b>. Zero ou duas vezes
-    /// lança: a consulta mudou, e seguir com a troca pela metade daria um provisionado com
-    /// pagos dentro, sem erro nenhum.
-    /// </summary>
-    internal static string TrocarUmaVez(string sql, string de, string para)
-    {
-        var primeira = sql.IndexOf(de, StringComparison.Ordinal);
-        if (primeira < 0 || sql.IndexOf(de, primeira + de.Length, StringComparison.Ordinal) >= 0)
-        {
-            throw new InvalidOperationException(
-                $"A versão em aberto espera '{de}' exatamente uma vez na consulta.");
-        }
-
-        return string.Concat(sql.AsSpan(0, primeira), para, sql.AsSpan(primeira + de.Length));
-    }
-
-    /// <summary>
     /// Filiais disponíveis para o filtro.
     ///
     /// Adaptada do trace da 9815 (`docs/rotinas/9815-dre-gerencial/referencia-oficial/`).

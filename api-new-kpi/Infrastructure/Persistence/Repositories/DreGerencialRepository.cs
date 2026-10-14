@@ -233,9 +233,9 @@ public sealed class DreGerencialRepository : IDreGerencialRepository
         }
 
         var sql = string.Format(
-            // O PROVISIONADO é a MESMA consulta trocando só o pagamento — ver `DreGerencialQueries.EmAberto`.
+            // O PROVISIONADO é a MESMA consulta trocando só o pagamento — ver `ConsultasEmAberto`.
             // A lista de binds abaixo vale para as duas versões, de propósito.
-            emAberto ? DreGerencialQueries.EmAberto(analise.SqlDespesas) : analise.SqlDespesas,
+            emAberto ? ConsultasEmAberto.Despesas(analise.SqlDespesas) : analise.SqlDespesas,
             placeholdersA,
             regime.ExpressaoBucket,
             regime.ExpressaoFiltro,

@@ -41,7 +41,7 @@ public interface IDreGerencialRepository
     /// </param>
     /// <param name="emAberto">
     /// Os títulos EM ABERTO (<c>DTPAGTO IS NULL</c>) em vez dos pagos — a coluna PROVISIONADO.
-    /// Mesma consulta, mesmos binds; ver <c>DreGerencialQueries.EmAberto</c>.
+    /// Mesma consulta, mesmos binds; ver <c>ConsultasEmAberto</c>.
     /// </param>
     Task<IReadOnlyList<DespesaDre>> ObterDespesasAsync(
         IReadOnlyList<string> filiais,
