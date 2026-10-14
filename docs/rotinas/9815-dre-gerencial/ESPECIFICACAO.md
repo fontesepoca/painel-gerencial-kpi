@@ -163,7 +163,9 @@ título em aberto, logo depois do Valor (Valor / Provisionado / Total / `AV %` /
 período, com a Média antes do `AH %`). Provisionado é a mesma consulta de despesas com
 `DTPAGTO IS NULL`; Total é Valor + Provisionado. Só nas linhas de conta; `%AV` e `%AH`
 continuam sobre o Valor. O checkbox "Provisionado" esconde as duas, e o duplo clique no
-Provisionado abre os títulos em aberto com vencimento e dias de atraso.
+Provisionado abre os títulos em aberto com vencimento e dias de atraso. Em competência as três
+colunas de dinheiro se chamam **Vl. Realizado**, **Vl. Provisionado** e **Total (R + P)**; em caixa,
+"Valor".
 
 **A cor do `AH %` julga o efeito no resultado, não o sinal do número.** Decisão do Gabriel
 em 11/09/2026, replicando o que a 9815 sempre fez:

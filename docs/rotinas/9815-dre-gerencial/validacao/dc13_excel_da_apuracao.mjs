@@ -213,8 +213,15 @@ eq(colunasDe(matrizDaApuracao(dados, dados.linhas, { av: false, ah: false })), 5
 // cada número, e uma célula a mais ou a menos aqui desloca tudo.
 eq(
   matrizDaApuracao(dados, dados.linhas, { av: false, ah: false })[1].map((c) => c.v),
-  ["Descrição", "Valor", "Valor", "Valor", "Média"],
+  // Em competência o valor é o REALIZADO — o pago —, para não se confundir com o
+  // Provisionado ao lado (14/10/2026). Em caixa continua "Valor".
+  ["Descrição", "Vl. Realizado", "Vl. Realizado", "Vl. Realizado", "Média"],
   "sem as duas, sobra o dinheiro: a Média continua, porque não é análise",
+);
+eq(
+  matrizDaApuracao({ ...dados, regime: "caixa" }, dados.linhas, { av: false, ah: false })[1].map((c) => c.v),
+  ["Descrição", "Valor", "Valor", "Valor", "Média"],
+  "em caixa o nome continua Valor",
 );
 
 // E a FAIXA DE MÊS acompanha: uma célula com o rótulo e as demais vazias, tantas quantas

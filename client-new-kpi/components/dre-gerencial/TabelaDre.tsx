@@ -36,6 +36,7 @@ import {
   mesmosValores,
   recalcular,
 } from "@/lib/recalculoDoDre";
+import { rotulosDoDinheiro, type RotulosDoDinheiro } from "@/lib/rotulosDoDinheiro";
 import type {
   FiltroApuracao,
   LinhaDre,
@@ -735,6 +736,9 @@ export function TabelaDre({
   // Provisionado e Total entram SÓ nos meses com título em aberto (spec D8): mês todo pago
   // fica como sempre foi. Por isso a largura passou a ser por período.
   const provisionadoNoMes = (p: PeriodoDre) => mostrarProvisionado && p.temProvisionado === true;
+  // Vl. Realizado / Vl. Provisionado / Total (R + P) em competência; "Valor" em caixa. Os
+  // mesmos nomes do Excel — ver `lib/rotulosDoDinheiro.ts`.
+  const nomes = rotulosDoDinheiro(filtro.regime);
   // O bloco do período as ganha se algum mês tiver — e não no modo de variação, onde o
   // bloco é Δ entre duas colunas e não uma soma.
   const provisionadoNoFim = !variacaoNoFim && periodos.some(provisionadoNoMes);
@@ -931,6 +935,7 @@ export function TabelaDre({
                   mostrarAv={mostrarAv}
                   mostrarAh={mostrarAh}
                   provisionado={provisionadoNoMes(p)}
+                  nomes={nomes}
                 />
               ))}
               {multiMes &&
@@ -941,6 +946,7 @@ export function TabelaDre({
                     mostrarAv={mostrarAv}
                     mostrarAh={mostrarAh}
                     provisionado={provisionadoNoFim}
+                    nomes={nomes}
                     total
                   />
                 ))}
@@ -1063,18 +1069,21 @@ function ColunasCabecalho({
   mostrarAv,
   mostrarAh,
   provisionado,
+  nomes,
   total,
 }: {
   mostrarAv: boolean;
   mostrarAh?: boolean;
-  /** As colunas Provisionado e Total, depois da análise. */
+  /** As colunas Provisionado e Total, logo depois do Valor. */
   provisionado?: boolean;
+  /** Os nomes das três colunas de dinheiro, que dependem do regime. */
+  nomes: RotulosDoDinheiro;
   total?: boolean;
 }) {
   return (
     <>
       {/* O Valor abre o bloco (linha grossa); as outras colunas, linha fina. */}
-      <Th className="col-bloco text-right">Valor</Th>
+      <Th className="col-bloco text-right">{nomes.valor}</Th>
       {/* O DINHEIRO JUNTO, e a análise depois — pedido do Gabriel em 14/10/2026:
           Valor / Provisionado / Total / AV % (/ Média) / AH %. Lado a lado, o Total se
           confere sem os olhos saltarem os percentuais. %AV e %AH continuam falando só do
@@ -1085,10 +1094,13 @@ function ColunasCabecalho({
             className="col-interna text-right"
             title="Títulos lançados no mês e ainda não pagos"
           >
-            Provisionado
+            {nomes.provisionado}
           </Th>
-          <Th className="col-interna text-right" title="Valor + Provisionado">
-            Total
+          <Th
+            className="col-interna text-right"
+            title={`${nomes.valor} + ${nomes.provisionado}`}
+          >
+            {nomes.total}
           </Th>
         </>
       )}

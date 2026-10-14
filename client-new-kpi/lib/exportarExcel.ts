@@ -9,6 +9,7 @@ import {
   type Planilha,
 } from "@/lib/excel";
 import { somaDosAh } from "@/lib/ahDoTotal";
+import { rotulosDoDinheiro } from "@/lib/rotulosDoDinheiro";
 import { mostraVariacao, rotuloDaVariacao, variacao } from "@/lib/modosDePeriodo";
 import type { Apuracao, LinhaDre, PeriodoDre } from "@/types/dre-gerencial";
 
@@ -106,6 +107,8 @@ export function matrizDaApuracao(
   // O bloco do período só existe com mais de um mês; com um só, o mês é o período.
   const provNoFim = multiMes && provisionadoNoFim(dados, colunas);
 
+  // Os MESMOS nomes da tela — Vl. Realizado / Vl. Provisionado / Total (R + P) em competência.
+  const nomes = rotulosDoDinheiro(dados.regime);
   const faixaMeses: Celula[] = [txt("")];
   const rotulos: Celula[] = [txt("Descrição")];
 
@@ -115,8 +118,8 @@ export function matrizDaApuracao(
     // inteira a partir do segundo mês.
     faixaMeses.push(txt(p.rotulo), ...Array.from({ length: porMes(p) - 1 }, () => txt("")));
     // O dinheiro junto — Valor, Provisionado, Total — e a análise depois (14/10/2026).
-    rotulos.push(txt("Valor"));
-    if (provisionadoNoMes(p, colunas)) rotulos.push(txt("Provisionado"), txt("Total"));
+    rotulos.push(txt(nomes.valor));
+    if (provisionadoNoMes(p, colunas)) rotulos.push(txt(nomes.provisionado), txt(nomes.total));
     if (colunas.av) rotulos.push(txt("AV %"));
     if (comAh) rotulos.push(txt("AH %"));
   }
@@ -127,8 +130,8 @@ export function matrizDaApuracao(
       ...(fim.variacao
         ? [txt("Δ Valor"), txt("Δ %")]
         : [
-            txt("Valor"),
-            ...(provNoFim ? [txt("Provisionado"), txt("Total")] : []),
+            txt(nomes.valor),
+            ...(provNoFim ? [txt(nomes.provisionado), txt(nomes.total)] : []),
             ...(colunas.av ? [txt("AV %")] : []),
             txt("Média"),
             // A soma dos %AH fecha a linha, como na tela.
