@@ -144,7 +144,12 @@ public record PeriodoDto(
     /// <c>0</c> nos outros modos. A tela usa para separar visualmente os dois intervalos e
     /// para somar o subtotal de cada um.
     /// </summary>
-    int Bloco = 0);
+    int Bloco = 0,
+    /// <summary>
+    /// A coluna tem algum título EM ABERTO, em qualquer linha (competência). É o que faz a
+    /// tela desenhar Provisionado e Total nesta coluna — mês todo pago fica como sempre foi.
+    /// </summary>
+    bool TemProvisionado = false);
 
 /// <summary>Valor de uma linha em um mês.</summary>
 public record ValorMesDto(
@@ -153,10 +158,20 @@ public record ValorMesDto(
     /// <summary>Base: RECEITA BRUTA nas cinco deduções, RECEITAS LIQUIDAS no resto.</summary>
     decimal? PercentualAv,
     /// <summary>Variação sobre o mês anterior. Nulo no primeiro mês e quando o anterior é zero.</summary>
-    decimal? PercentualAh);
+    decimal? PercentualAh,
+    /// <summary>
+    /// O que está EM ABERTO nesta linha e coluna (<c>DTPAGTO IS NULL</c>), já rateado como o
+    /// Valor. Nulo em caixa, em linha calculada (totalizadores, receita, CMV) e quando a
+    /// coluna não tem nenhum aberto. %AV e %AH não o consideram.
+    /// </summary>
+    decimal? Provisionado = null);
 
 /// <summary>Bloco TOTAL da linha, somando os meses do período.</summary>
-public record TotalLinhaDto(decimal Valor, decimal Media, decimal? PercentualAv);
+/// <param name="Provisionado">
+/// A soma dos <see cref="ValorMesDto.Provisionado"/> das colunas, já arredondados. Nulo
+/// quando nenhuma coluna tem.
+/// </param>
+public record TotalLinhaDto(decimal Valor, decimal Media, decimal? PercentualAv, decimal? Provisionado = null);
 
 /// <summary>
 /// O detalhamento que esta linha abre com duplo clique, ou `null` se ela não abre nenhum.

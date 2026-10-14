@@ -62,6 +62,10 @@ namespace Epoca.Kpi.Api.Application.Features.DreGerencial;
 /// <para>Nos modos <c>meses</c> e <c>anos</c> todas as colunas ficam no bloco <c>0</c>: lá
 /// a sequência é contínua de propósito, e é assim que o ano compara com o ano anterior.</para>
 /// </param>
+/// <param name="Abertos">
+/// As despesas EM ABERTO do recorte (<c>DTPAGTO IS NULL</c>) — a coluna PROVISIONADO.
+/// <c>null</c> em caixa, onde não existe; lista vazia quando a coluna está toda paga.
+/// </param>
 public sealed record ColunaApuracao(
     string Chave,
     string Rotulo,
@@ -69,4 +73,5 @@ public sealed record ColunaApuracao(
     DateOnly DataFim,
     IReadOnlyList<DespesaDre> Despesas,
     FaturamentoDre? Faturamento,
-    int Bloco = 0);
+    int Bloco = 0,
+    IReadOnlyList<DespesaDre>? Abertos = null);

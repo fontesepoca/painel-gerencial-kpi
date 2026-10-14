@@ -364,6 +364,17 @@ public sealed class DreGerencialService
         // que as consultas terminam, então o resultado é idêntico nos dois modos.
         var porRecorte = await Task.WhenAll(recortes.Select(async recorte =>
         {
+            // O PROVISIONADO (14/10/2026): os títulos em aberto do mesmo recorte, só em
+            // competência — em caixa a data do filtro é a do pagamento, e título em aberto
+            // não tem mês. Começa ANTES de esperar os pagos: é outra varredura de PCLANC, e
+            // em paralelo ela custa quase nada a mais no tempo total. Cada chamada abre a
+            // própria conexão, como os recortes já fazem.
+            var abertosTask = regime == RegimeDre.Competencia
+                ? _repositorio.ObterDespesasAsync(
+                    filtro.Filiais, recorte.DataInicio, recorte.DataFim, regime, analise,
+                    filtro.Fornecedores, emAberto: true, cancellationToken: cancellationToken)
+                : null;
+
             var despesas = await _repositorio.ObterDespesasAsync(
                 filtro.Filiais, recorte.DataInicio, recorte.DataFim, regime, analise,
                 filtro.Fornecedores, cancellationToken: cancellationToken);
@@ -372,7 +383,9 @@ public sealed class DreGerencialService
                 filtro.Filiais, recorte.DataInicio, recorte.DataFim, filtro.Fornecedores,
                 cancellationToken);
 
-            return recorte.EmColunas(despesas, faturamento);
+            var abertos = abertosTask is null ? null : await abertosTask;
+
+            return recorte.EmColunas(despesas, faturamento, abertos);
         }));
 
         var colunas = porRecorte.SelectMany(c => c).ToList();

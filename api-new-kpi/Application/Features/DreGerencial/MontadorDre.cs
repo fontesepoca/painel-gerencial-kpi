@@ -230,8 +230,10 @@ public static class MontadorDre
 
         // O que cada conta subida segura na própria linha: as chaves da análise que não
         // acharam linha operacional. É o recorte do duplo clique nela — ver `ResolverDetalhe`.
+        // Pagos E abertos: um centro sem linha que só tem título em aberto também sobra, e o
+        // duplo clique no Provisionado da conta tem de recortá-lo.
         var sobras = colunas
-            .SelectMany(c => c.Despesas)
+            .SelectMany(c => c.Despesas.Concat(c.Abertos ?? []))
             .Where(d => d.ContaSubida is not null && !operacionaisDaEstrutura.Contains(d.GrupoConta))
             .GroupBy(d => d.ContaSubida!, StringComparer.Ordinal)
             .ToDictionary(
@@ -273,11 +275,30 @@ public static class MontadorDre
                 g => (Valor: g.Sum(x => x.Despesa.VlRealizado),
                       Exclusivo: g.Sum(x => x.Despesa.VpagoExclusivoFornec)));
 
+        // O PROVISIONADO, indexado EXATAMENTE como o Valor: mesma tupla, mesmo `Destino`
+        // (contas subidas e sobra incluídas), mesmo par (Valor, Exclusivo) para o rateio por
+        // fornecedor. Um título pago amanhã sai daqui e entra em `valorDespesa` na mesma
+        // chave — e é isso que mantém o TOTAL da tela estável.
+        var valorAberto = colunas
+            .SelectMany(c => (c.Abertos ?? []).Select(d => (Coluna: c.Chave, Despesa: d)))
+            .GroupBy(x =>
+            {
+                var (chave, ro, ll, lf) = Destino(x.Despesa, subidas, operacionaisDaEstrutura);
+                return (chave, ro, ll, lf, x.Coluna);
+            })
+            .ToDictionary(
+                g => g.Key,
+                g => (Valor: g.Sum(x => x.Despesa.VlRealizado),
+                      Exclusivo: g.Sum(x => x.Despesa.VpagoExclusivoFornec)));
+
         // Quantos lancamentos cada linha tem em TODAS as colunas. E o que decide se a linha
         // aparece com "Mostrar Contas Zeradas" desmarcada — a 9815 esconde por AUSENCIA DE
         // MOVIMENTO, nao por valor zero. Sem a coluna na chave: a visibilidade e da linha.
+        //
+        // Os ABERTOS contam: uma linha sem nada pago e com título em aberto tem movimento —
+        // escondê-la sumiria justamente com o Provisionado que a coluna existe para mostrar.
         var qtdDespesa = colunas
-            .SelectMany(c => c.Despesas)
+            .SelectMany(c => c.Despesas.Concat(c.Abertos ?? []))
             .GroupBy(d => Destino(d, subidas, operacionaisDaEstrutura))
             .ToDictionary(g => g.Key, g => g.Sum(d => d.QdeReg));
 
@@ -312,6 +333,23 @@ public static class MontadorDre
         // ADMINISTRATIVO e não fecharia com a célula. Sem sobra, não há o que abrir.
         // `Valido: false` = a linha não é de conta subida, e o detalhamento segue o caminho
         // de sempre.
+        // O PROVISIONADO de uma célula (14/10/2026). Nulo em três casos, e de propósito:
+        //   · linha calculada — totalizadores, receita e CMV não têm (opção 2 do Gabriel;
+        //     a extensão está na §8 da spec);
+        //   · coluna sem a lista de abertos — regime caixa;
+        //   · coluna competência sem NENHUM aberto — mês todo pago não ganha colunas.
+        // No resto, o mesmo rateio e o mesmo arredondamento do Valor.
+        decimal? Provisionado(LinhaEmMontagem l, ColunaApuracao c)
+        {
+            if (l.Calculada || c.Abertos is not { Count: > 0 }) return null;
+
+            var (aberto, exclusivo) = valorAberto.GetValueOrDefault(
+                (l.Estrutura.CodGruConta, l.Estrutura.AntesRo, l.Estrutura.AntesLl,
+                 l.Estrutura.AntesLf, c.Chave));
+
+            return Arredondar(Ratear(aberto, exclusivo, c.Faturamento?.Participacao ?? 1m));
+        }
+
         (bool Valido, IReadOnlyList<string>? Chaves) DetalheDaSobra(LinhaEmMontagem l) =>
             redistribui && !l.Calculada && subidas.Contains(l.Estrutura.CodGruConta)
                 ? (true, sobras.GetValueOrDefault(l.Estrutura.CodGruConta))
@@ -342,10 +380,18 @@ public static class MontadorDre
                     MesAno: c.Chave,
                     Valor: valor,
                     PercentualAv: CalcularAv(l, valor, c.Faturamento),
-                    PercentualAh: CalcularAh(valor, anterior));
+                    PercentualAh: CalcularAh(valor, anterior),
+                    Provisionado: Provisionado(l, c));
             }).ToList();
 
             var somaPeriodo = valores.Sum(v => v.Valor);
+
+            // Soma das colunas JÁ arredondadas, como o Valor. Nula quando nenhuma coluna tem
+            // provisionado — "nada em aberto" e "não se aplica" não são zero.
+            var provisionados = valores.Where(v => v.Provisionado is not null).ToList();
+            decimal? provisionadoPeriodo = provisionados.Count == 0
+                ? null
+                : provisionados.Sum(v => v.Provisionado!.Value);
 
             // Quantos lancamentos de PCLANC a linha tem no periodo. Decide a visibilidade
             // com "Mostrar contas zeradas" desmarcada — junto com o valor, ver abaixo.
@@ -364,7 +410,8 @@ public static class MontadorDre
                     Valor: somaPeriodo,
                     Media: colunas.Count == 0 ? 0m : Arredondar(somaPeriodo / colunas.Count),
                     PercentualAv: CalcularAvTotal(
-                        l, somaPeriodo, colunas.Select(c => c.Faturamento))),
+                        l, somaPeriodo, colunas.Select(c => c.Faturamento)),
+                    Provisionado: provisionadoPeriodo),
                 Totalizadora: l.Estrutura.InfContas == "S",
                 Calculada: l.Calculada,
                 NaoSoma: EhNaoSoma(l),
@@ -405,7 +452,9 @@ public static class MontadorDre
             // detalhamento. Derivar do mês da coluna deixa de funcionar quando a coluna é um
             // ano ou um trecho dele.
             Periodos: colunas
-                .Select(c => new PeriodoDto(c.Chave, c.Rotulo, c.DataInicio, c.DataFim, c.Bloco))
+                .Select(c => new PeriodoDto(
+                    c.Chave, c.Rotulo, c.DataInicio, c.DataFim, c.Bloco,
+                    TemProvisionado: c.Abertos is { Count: > 0 }))
                 .ToList(),
             Linhas: resultado,
             Avisos: avisos,
