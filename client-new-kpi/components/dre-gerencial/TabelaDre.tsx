@@ -1642,11 +1642,14 @@ function CelulasDoProvisionado({
   corValor: (v: number) => string;
   onDetalhe: (() => void) | null;
 }) {
+  // Sem provisionado (receita, deduções, CMV, LUCRO BRUTO): o MESMO traço do %AV e do %AH
+  // quando não há valor — pedido de 14/10/2026. Em branco parecia célula esquecida, e "0,00"
+  // afirmaria um zero que não existe: essas linhas não têm conta a pagar.
   if (provisionado === null) {
     return (
       <>
-        <td className={classe} />
-        <td className={classe} />
+        <td className={cn(classe, "text-[var(--text-muted)]")}>—</td>
+        <td className={cn(classe, "text-[var(--text-muted)]")}>—</td>
       </>
     );
   }
