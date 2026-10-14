@@ -1471,7 +1471,9 @@ original se perde, como no `ULanc.pas`.
 
 **Pedido do Gabriel.** Em competência, o DRE de um mês recente só mostra o que já foi
 **pago**: uma despesa lançada e ainda em aberto não aparece em lugar nenhum, e o mês parece
-mais barato do que é. Cada mês que tem título em aberto ganha duas colunas depois do `%AH`:
+mais barato do que é. Cada mês que tem título em aberto ganha duas colunas **logo depois do Valor** — a ordem é
+Valor / Provisionado / Total / `%AV` / `%AH`, e no bloco do período Valor / Provisionado /
+Total / `%AV` / Média / `%AH` (ordem pedida em 14/10/2026, para o dinheiro ficar junto):
 
 - **Provisionado** — o que está em aberto naquela linha e mês;
 - **Total** — Valor + Provisionado.

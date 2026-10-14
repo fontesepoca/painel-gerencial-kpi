@@ -1075,6 +1075,23 @@ function ColunasCabecalho({
     <>
       {/* O Valor abre o bloco (linha grossa); as outras colunas, linha fina. */}
       <Th className="col-bloco text-right">Valor</Th>
+      {/* O DINHEIRO JUNTO, e a análise depois — pedido do Gabriel em 14/10/2026:
+          Valor / Provisionado / Total / AV % (/ Média) / AH %. Lado a lado, o Total se
+          confere sem os olhos saltarem os percentuais. %AV e %AH continuam falando só do
+          Valor (o pago, fiel à 9815): o title dos dois cabeçalhos novos diz o que são. */}
+      {provisionado && (
+        <>
+          <Th
+            className="col-interna text-right"
+            title="Títulos lançados no mês e ainda não pagos"
+          >
+            Provisionado
+          </Th>
+          <Th className="col-interna text-right" title="Valor + Provisionado">
+            Total
+          </Th>
+        </>
+      )}
       {mostrarAv && <Th className="col-interna w-[9rem] text-right">AV %</Th>}
       {/* A coluna some de verdade quando desligada — não fica uma `th` vazia ocupando
           largura. Era assim que o mês único desenhava a casa do `%AH`, e a casa vazia
@@ -1090,21 +1107,6 @@ function ColunasCabecalho({
       ) : mostrarAh ? (
         <Th className="col-interna text-right">AH %</Th>
       ) : null}
-      {/* Depois da análise, e não junto do Valor: %AV e %AH falam do Valor (o pago, fiel à
-          9815), e encostá-los no Total faria parecer que são percentuais dele. */}
-      {provisionado && (
-        <>
-          <Th
-            className="col-interna text-right"
-            title="Títulos lançados no mês e ainda não pagos"
-          >
-            Provisionado
-          </Th>
-          <Th className="col-interna text-right" title="Valor + Provisionado">
-            Total
-          </Th>
-        </>
-      )}
     </>
   );
 }
@@ -1553,6 +1555,17 @@ function BlocoMes({
         )}
       </td>
 
+      {/* Logo depois do Valor, na mesma ordem do cabeçalho (ColunasCabecalho). */}
+      {comProvisionado && (
+        <CelulasDoProvisionado
+          valor={valor}
+          provisionado={provisionado ?? null}
+          classe={cn(celula, "col-interna text-right", total && "bg-[var(--surface-2)]")}
+          corValor={corValor}
+          onDetalhe={onDetalheProvisionado ?? null}
+        />
+      )}
+
       {mostrarAv && (
         <td className={cn(CELULA, "col-interna", total && "bg-[var(--surface-2)]")}>
           <BarraAv percentual={av} maior={maiorAv} participacao={participacao} />
@@ -1578,16 +1591,6 @@ function BlocoMes({
           <Variacao percentual={ah ?? null} valorDaLinha={totalDaLinha} />
         </td>
       ) : null}
-
-      {comProvisionado && (
-        <CelulasDoProvisionado
-          valor={valor}
-          provisionado={provisionado ?? null}
-          classe={cn(celula, "col-interna text-right", total && "bg-[var(--surface-2)]")}
-          corValor={corValor}
-          onDetalhe={onDetalheProvisionado ?? null}
-        />
-      )}
     </>
   );
 }

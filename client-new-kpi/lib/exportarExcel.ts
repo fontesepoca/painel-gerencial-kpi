@@ -114,10 +114,11 @@ export function matrizDaApuracao(
     // junta depois. Uma a menos aqui com uma a mais no merge desalinharia a planilha
     // inteira a partir do segundo mês.
     faixaMeses.push(txt(p.rotulo), ...Array.from({ length: porMes(p) - 1 }, () => txt("")));
+    // O dinheiro junto — Valor, Provisionado, Total — e a análise depois (14/10/2026).
     rotulos.push(txt("Valor"));
+    if (provisionadoNoMes(p, colunas)) rotulos.push(txt("Provisionado"), txt("Total"));
     if (colunas.av) rotulos.push(txt("AV %"));
     if (comAh) rotulos.push(txt("AH %"));
-    if (provisionadoNoMes(p, colunas)) rotulos.push(txt("Provisionado"), txt("Total"));
   }
 
   if (multiMes) {
@@ -127,11 +128,11 @@ export function matrizDaApuracao(
         ? [txt("Δ Valor"), txt("Δ %")]
         : [
             txt("Valor"),
+            ...(provNoFim ? [txt("Provisionado"), txt("Total")] : []),
             ...(colunas.av ? [txt("AV %")] : []),
             txt("Média"),
             // A soma dos %AH fecha a linha, como na tela.
             ...(comAh ? [txt("AH %")] : []),
-            ...(provNoFim ? [txt("Provisionado"), txt("Total")] : []),
           ]),
     );
   }
@@ -142,11 +143,11 @@ export function matrizDaApuracao(
     for (const p of dados.periodos) {
       const v = linha.valores.find((x) => x.mesAno === p.mesAno);
       celulas.push(num(v?.valor ?? null, MOEDA));
-      if (colunas.av) celulas.push(num(v?.percentualAv ?? null, PERCENTUAL_3));
-      if (comAh) celulas.push(num(v?.percentualAh ?? null, PERCENTUAL_3));
       if (provisionadoNoMes(p, colunas)) {
         celulas.push(...celulasDoProvisionado(v?.valor ?? 0, linha.calculada ? null : v?.provisionado));
       }
+      if (colunas.av) celulas.push(num(v?.percentualAv ?? null, PERCENTUAL_3));
+      if (comAh) celulas.push(num(v?.percentualAh ?? null, PERCENTUAL_3));
     }
 
     if (multiMes && fim.variacao) {
@@ -154,16 +155,16 @@ export function matrizDaApuracao(
       celulas.push(num(v?.absoluta ?? null, MOEDA), num(v?.percentual ?? null, PERCENTUAL_3));
     } else if (multiMes) {
       celulas.push(num(linha.total.valor, MOEDA));
-      if (colunas.av) celulas.push(num(linha.total.percentualAv, PERCENTUAL_3));
-      celulas.push(num(linha.total.media, MOEDA));
-      // A MESMA função da tela, e não uma soma escrita de novo aqui: duas somas do mesmo
-      // número divergem no primeiro dia em que alguém mudar o tratamento do nulo.
-      if (comAh) celulas.push(num(somaDosAh(linha.valores), PERCENTUAL_3));
       if (provNoFim) {
         celulas.push(
           ...celulasDoProvisionado(linha.total.valor, linha.calculada ? null : linha.total.provisionado),
         );
       }
+      if (colunas.av) celulas.push(num(linha.total.percentualAv, PERCENTUAL_3));
+      celulas.push(num(linha.total.media, MOEDA));
+      // A MESMA função da tela, e não uma soma escrita de novo aqui: duas somas do mesmo
+      // número divergem no primeiro dia em que alguém mudar o tratamento do nulo.
+      if (comAh) celulas.push(num(somaDosAh(linha.valores), PERCENTUAL_3));
     }
 
     return celulas;

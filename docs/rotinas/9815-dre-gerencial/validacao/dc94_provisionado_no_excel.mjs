@@ -76,20 +76,22 @@ const v = (c) => c?.v ?? null;
 
 // ── 1. Com o checkbox ligado ────────────────────────────────────────────────────────────────
 const m = matrizDaApuracao(dados, dados.linhas, { av: true, ah: true, provisionado: true });
+// A ORDEM pedida pelo Gabriel em 14/10/2026: o dinheiro junto — Valor, Provisionado, Total —
+// e a análise depois. No período: Valor / Provisionado / Total / AV / Média / AH.
 eq(m[1].map(v), [
   "Descrição",
-  "Valor", "AV %", "AH %", "Provisionado", "Total",      // julho: tem aberto
-  "Valor", "AV %", "AH %",                              // agosto: todo pago
-  "Valor", "AV %", "Média", "AH %", "Provisionado", "Total", // período
-], "cabeçalho: colunas novas só em julho e no período");
+  "Valor", "Provisionado", "Total", "AV %", "AH %",          // julho: tem aberto
+  "Valor", "AV %", "AH %",                                  // agosto: todo pago
+  "Valor", "Provisionado", "Total", "AV %", "Média", "AH %", // período
+], "cabeçalho: Valor, Provisionado e Total juntos, a análise depois");
 
 const adm = m[2].map(v);
-eq(adm.slice(1, 6), [-100, 1, 0, -40, -140], "julho: Valor, AV, AH, Provisionado, Total = Valor + Provisionado");
+eq(adm.slice(1, 6), [-100, -40, -140, 1, 0], "julho: Valor, Provisionado, Total = Valor + Provisionado, AV, AH");
 eq(adm.slice(6, 9), [-50, 1, -50], "agosto sem as colunas novas");
-eq(adm.slice(-2), [-40, -190], "período: Provisionado e Total");
+eq(adm.slice(9, 12), [-150, -40, -190], "período: Valor, Provisionado, Total");
 
 const sub = m[3].map(v);
-eq([sub[4], sub[5], sub.at(-2), sub.at(-1)], [null, null, null, null], "linha calculada: Provisionado e Total vazios");
+eq([sub[2], sub[3], sub[10], sub[11]], [null, null, null, null], "linha calculada: Provisionado e Total vazios");
 
 eq(m[0].length, m[1].length, "a faixa dos meses tem a mesma largura do cabeçalho");
 
