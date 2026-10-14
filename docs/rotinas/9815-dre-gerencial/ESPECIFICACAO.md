@@ -158,6 +158,12 @@ Usar a receita líquida nas cinco deduções daria 8,659 no lugar de 7,742 em AB
 
 **`AH %`:** compara com o mês anterior do período; com um mês só, `0,00`.
 
+**`Provisionado` e `Total`** (competência, 14/10/2026 — DIVERGENCIAS nº 19): nos meses com
+título em aberto, depois do `AH %`. Provisionado é a mesma consulta de despesas com
+`DTPAGTO IS NULL`; Total é Valor + Provisionado. Só nas linhas de conta; `%AV` e `%AH`
+continuam sobre o Valor. O checkbox "Provisionado" esconde as duas, e o duplo clique no
+Provisionado abre os títulos em aberto com vencimento e dias de atraso.
+
 **A cor do `AH %` julga o efeito no resultado, não o sinal do número.** Decisão do Gabriel
 em 11/09/2026, replicando o que a 9815 sempre fez:
 

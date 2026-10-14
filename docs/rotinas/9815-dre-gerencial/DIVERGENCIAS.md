@@ -39,6 +39,7 @@ linha no índice.
 | [16](#16-a-coluna-ah--no-bloco-de-total--06102026) | Coluna `AH %` no total — soma dos `%AH`, **não** a variação do período | todas, só com mais de um mês | **nenhum valor muda** — coluna nova | **a pedido** em 06/10/2026 · dc13 43/43 |
 | [17](#17-minas-rural-a-seção-sem-custo-é-a-1401--07102026) | Minas Rural: a seção tirada da venda e da devolução passa de `1601` para `1401` | todas, só no Minas Rural | **nenhum valor** nos meses medidos — jul a set/2026 | **ligada** em 07/10/2026 pela prova do trace · dc86 46/46 |
 | [18](#18-minas-rural-as-contas-de-icms-viram-a-3003007--07102026) | Minas Rural: conta de ICMS do grupo 303 vira a `3003007` na despesa e no detalhamento | todas, só no Minas Rural | **R$ 38.054,11** no lucro de agosto/2026 na filial 10 | **ligada** em 07/10/2026 · dc89 bate ao centavo |
+| [19](#19-as-colunas-provisionado-e-total-no-regime-competência--14102026) | Colunas **Provisionado** (títulos em aberto) e **Total** nos meses com aberto | todas, só em competência | **nenhum valor muda** — colunas novas | **a pedido** em 14/10/2026 · dc92, dc93, dc94 |
 
 ---
 
@@ -1463,6 +1464,51 @@ traz 32 lançamentos somando 82.051,22. A conta `Icms [3003007]` soma 69.841,06 
 (`Icms Mrural F10`) + 31.786,95 (`Icms Parcel`, 3 parcelas) + 349,42 (`Icms Diferencial De
 Aliquota F10`, 3 notas). No detalhe os lançamentos aparecem com a conta **remapeada** — o nome
 original se perde, como no `ULanc.pas`.
+
+---
+
+## 19. As colunas PROVISIONADO e TOTAL, no regime competência — 14/10/2026
+
+**Pedido do Gabriel.** Em competência, o DRE de um mês recente só mostra o que já foi
+**pago**: uma despesa lançada e ainda em aberto não aparece em lugar nenhum, e o mês parece
+mais barato do que é. Cada mês que tem título em aberto ganha duas colunas depois do `%AH`:
+
+- **Provisionado** — o que está em aberto naquela linha e mês;
+- **Total** — Valor + Provisionado.
+
+**É acréscimo, não troca.** O Valor, o `%AV`, o `%AH` e todos os totalizadores continuam os
+da 9815, ao centavo. A 9815 não tem nada disso.
+
+### A regra
+
+**A mesma consulta de despesas, trocando só `DTPAGTO IS NOT NULL` por `DTPAGTO IS NULL`**
+(`ConsultasEmAberto`). Mesmos filtros, mesmo rateio, mesmos marcadores da base, a mesma
+distribuição das contas subidas (§14) e o mesmo rateio por fornecedor (§15). Um título que é
+pago sai do Provisionado e entra no Valor da mesma linha. O ramo de `RECEITA VENDA ATIVO`
+fica vazio (`AND 1 = 0`): é receita já recebida.
+
+**Sem filtro de "lixo", de propósito.** Título esquecido, duplicado ou que nunca vai ser pago
+aparece — é para quem o cadastrou ser cobrado. Por isso o duplo clique no Provisionado abre
+os títulos em aberto com **Vencimento** e **Dias em atraso**, ao lado do **Func.Lanc** (quem
+lançou).
+
+### O que fica de fora nesta versão
+
+- **Totalizadores** (`Sub-Total`, `RESULTADO OPERACIONAL`, `LUCRO LIQUIDO`): sem
+  Provisionado — opção 2 do Gabriel. A extensão está descrita na §8 da spec
+  (`docs/superpowers/specs/2026-10-14-provisionado-competencia-design.md`): o contrato já
+  comporta, e ela teria de entrar também no recálculo da reordenação.
+- **Caixa**: não existe — o mês é o do pagamento.
+- **`%AV`/`%AH` sobre Provisionado ou Total**: não existem; os percentuais são do Valor.
+- **Modo de variação (anos)**: o bloco final é Δ, e não ganha as duas colunas.
+
+### Provas
+
+dc92 (24, a troca do SQL e os binds idênticos), dc93 (17, o montador), dc94 (11, Excel e
+reordenação), dc14 (36, Excel do detalhe). O SQL das constantes não mudou — dc86 60/60.
+**Com a API, pendentes:** dc34 (o `LUCRO LIQUIDO` não muda), dc6 `--provisionado` (cada
+célula fecha com o detalhe dos títulos em aberto), dc78 (com fornecedor) e a medição de tempo
+de um e de três meses.
 
 ---
 

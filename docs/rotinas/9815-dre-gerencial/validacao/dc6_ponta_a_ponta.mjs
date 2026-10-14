@@ -23,6 +23,10 @@
  * (DIVERGENCIAS.md §14) têm de passar aqui — é o que prova que a linha ADMINISTRATIVO abre a
  * manutenção do 1001 e que a linha da conta abre só a sobra.
  *
+ * Com `--provisionado` (14/10/2026) confere a coluna PROVISIONADO: competência, setembro/2026,
+ * e cada linha de conta com título em aberto pede os títulos em aberto e cobra que somem o
+ * Provisionado da linha. A análise continua sendo o primeiro argumento que não é opção.
+ *
  * Leva alguns minutos: a apuração sozinha demora, e a receita por cliente foi medida em
  * 116,9 s. As linhas de lançamento respondem entre 0,2 s e 2,3 s.
  */
@@ -30,13 +34,26 @@
 const API = process.env.API ?? "http://localhost:5207";
 
 /** O cenário do print de 01/09/2026 — o único com referência exportada da 9815. */
-const FILTRO = {
-  filiais: ["7", "12", "25"],
-  dataInicio: "2026-08-01",
-  dataFim: "2026-08-31",
-  regime: "caixa",
-  analise: process.argv[2] ?? "ccusto-principal",
-};
+const PROVISIONADO = process.argv.includes("--provisionado");
+const ANALISE = process.argv.slice(2).find((a) => !a.startsWith("--")) ?? "ccusto-principal";
+
+// O provisionado só existe em competência, e precisa de um mês com título em aberto —
+// setembro/2026 ainda tem, agosto já quase não.
+const FILTRO = PROVISIONADO
+  ? {
+      filiais: ["7", "12", "25"],
+      dataInicio: "2026-09-01",
+      dataFim: "2026-09-30",
+      regime: "competencia",
+      analise: ANALISE,
+    }
+  : {
+      filiais: ["7", "12", "25"],
+      dataInicio: "2026-08-01",
+      dataFim: "2026-08-31",
+      regime: "caixa",
+      analise: ANALISE,
+    };
 
 const dinheiro = (n) =>
   n.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -100,7 +117,13 @@ console.log(
   `  ${apuracao.linhas.length} linhas em ${(apuracao.duracaoMs / 1000).toFixed(1)} s\n`,
 );
 
-const comDetalhe = apuracao.linhas.filter((l) => l.detalhe !== null);
+// No modo provisionado, só as linhas de conta com aberto: totalizador não tem a coluna, e
+// uma linha com 0,00 em aberto não abre detalhe (a tela também não abre).
+const comDetalhe = apuracao.linhas.filter((l) =>
+  PROVISIONADO
+    ? l.detalhe?.tipo === "lancamentos" && !l.calculada && (l.total.provisionado ?? 0) !== 0
+    : l.detalhe !== null,
+);
 console.log(`${comDetalhe.length} linhas abrem detalhamento.\n`);
 
 // As duas linhas de receita usam a mesma consulta; uma chamada serve para as duas, e
@@ -110,7 +133,7 @@ const resultados = [];
 
 for (const linha of comDetalhe) {
   const nome = linha.descricao.trim();
-  const esperado = cent(linha.total.valor);
+  const esperado = cent(PROVISIONADO ? linha.total.provisionado : linha.total.valor);
 
   try {
     let dados;
@@ -125,6 +148,7 @@ for (const linha of comDetalhe) {
         // A sobra de uma conta subida, devolvida como o front devolve. Sem ela a linha da
         // conta listaria também o que já está nas linhas dos centros.
         ...(linha.detalhe.sobra ? { sobra: linha.detalhe.sobra } : {}),
+        ...(PROVISIONADO ? { provisionado: true } : {}),
       });
       if (linha.detalhe.tipo === "receita-por-cliente") receita = dados;
     }
