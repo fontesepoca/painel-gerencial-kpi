@@ -768,6 +768,7 @@ public sealed class DreGerencialRepository : IDreGerencialRepository
         string chave,
         IReadOnlyList<decimal>? fornecedores = null,
         IReadOnlyList<string>? sobra = null,
+        bool emAberto = false,
         CancellationToken cancellationToken = default)
     {
         if (filiais.Count == 0)
@@ -808,7 +809,9 @@ public sealed class DreGerencialRepository : IDreGerencialRepository
         }
 
         var sql = string.Format(
-            DreDetalheQueries.Lancamentos,
+            // Os títulos EM ABERTO da célula de Provisionado: a mesma consulta, trocando só o
+            // pagamento — ver `ConsultasEmAberto`. Os binds abaixo valem para as duas versões.
+            emAberto ? ConsultasEmAberto.Lancamentos(DreDetalheQueries.Lancamentos) : DreDetalheQueries.Lancamentos,
             DreDetalheQueries.PredicadoDoBloco(antesRo, antesLl),
             placeholdersA,
             placeholdersB,

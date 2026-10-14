@@ -321,7 +321,12 @@ public record DetalheFiltroDto(
     string? Chave,
     IReadOnlyList<decimal>? Fornecedores = null,
     /// <summary>A <see cref="DetalheDisponivelDto.Sobra"/> da linha clicada, devolvida pelo front.</summary>
-    IReadOnlyList<string>? Sobra = null);
+    IReadOnlyList<string>? Sobra = null,
+    /// <summary>
+    /// Os títulos EM ABERTO da célula de Provisionado, em vez dos pagos. Só em competência
+    /// e só em lançamentos.
+    /// </summary>
+    bool Provisionado = false);
 
 /// <summary>Uma linha da tela "Receita por Cliente".</summary>
 public record DetalheClienteDto(
@@ -403,7 +408,9 @@ public record DetalheLancamentoDto(
     DateTime? DtReclassific,
     decimal? CodFuncReclassific,
     DateTime? DtEstornoBaixa,
-    string? CodRotinaBaixa);
+    string? CodRotinaBaixa,
+    /// <summary>Vencimento — a tela dos títulos em aberto calcula daqui os dias de atraso.</summary>
+    DateTime? DtVenc = null);
 
 /// <summary>
 /// Resposta do detalhamento. **Uma coleção preenchida por vez**, conforme
@@ -437,7 +444,9 @@ public record DetalhamentoDto(
     IReadOnlyList<DetalheNotaDto>? Notas = null,
     IReadOnlyList<decimal>? Fornecedores = null,
     decimal Participacao = 1m,
-    BaseDto? Base = null)
+    BaseDto? Base = null,
+    /// <summary>Eco do pedido: a lista é dos títulos EM ABERTO. A tela muda o título e as colunas.</summary>
+    bool Provisionado = false)
 {
     /// <summary>
     /// <b>Quando esta apuração foi feita</b> — a hora do SERVIDOR, não a do navegador.

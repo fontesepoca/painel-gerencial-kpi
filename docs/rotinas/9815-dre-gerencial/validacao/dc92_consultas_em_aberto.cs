@@ -62,6 +62,12 @@ Afirmar(Vezes(lancAberto, "WHERE DTPAGTO IS NULL) FIN") == 1 && Vezes(lancAberto
 Afirmar(Vezes(lancAberto, "nf.codfilial IN ({2}) AND 1 = 0") == 1, "Lancamentos: o ramo de venda de ativo vazio");
 Afirmar(Binds(lancAberto) == Binds(lanc), "Lancamentos: os MESMOS binds, na mesma ordem");
 
+// O vencimento, para a cobrança: na projeção externa e nos DOIS ramos do UNION ALL — um ramo
+// sem a coluna derruba a consulta inteira com ORA-01789.
+Afirmar(Regex.IsMatch(lanc, @"CODROTINABAIXA,\s*DTVENC\s*\n\s*FROM \("), "Lancamentos: DTVENC na projeção externa");
+Afirmar(Regex.IsMatch(lanc, @"AS CODROTINABAIXA,(\s*--[^\n]*)*\s*FIN\.DTVENC"), "Lancamentos: FIN.DTVENC no ramo do PCLANC");
+Afirmar(Regex.IsMatch(lanc, @"NULL, NULL,\s*fin\.dtvenc\s*\n\s*FROM pcnfsaid"), "Lancamentos: fin.dtvenc no ramo de venda de ativo");
+
 // Uma consulta que mudou e perdeu o trecho não pode virar "aberto pela metade".
 var lancou = false;
 try { ConsultasEmAberto.Despesas("SELECT 1 FROM DUAL WHERE DTPAGTO IS NOT NULL"); }

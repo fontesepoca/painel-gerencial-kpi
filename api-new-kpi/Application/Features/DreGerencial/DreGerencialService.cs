@@ -536,9 +536,18 @@ public sealed class DreGerencialService
                         "A sobra do detalhamento tem de ser de 1 a 200 códigos, só com dígitos e ponto.");
                 }
 
+                // Títulos em aberto só existem em competência: em caixa o mês é o do
+                // pagamento, e um título não pago não tem mês para estar.
+                if (filtro.Provisionado && regime != RegimeDre.Competencia)
+                {
+                    return Result<DetalhamentoDto>.Invalido(
+                        "O provisionado só existe no regime competência.");
+                }
+
                 var linhas = await _repositorio.ObterDetalheLancamentosAsync(
                     filtro.Filiais, filtro.DataInicio, filtro.DataFim, regime, analise,
-                    filtro.Bloco, filtro.Chave, fornecedores, filtro.Sobra, cancellationToken);
+                    filtro.Bloco, filtro.Chave, fornecedores, filtro.Sobra,
+                    emAberto: filtro.Provisionado, cancellationToken: cancellationToken);
 
                 // ── A PARTICIPAÇÃO, QUE É O QUE FAZ A TELA FECHAR COM A CÉLULA ──────
                 //
@@ -578,8 +587,9 @@ public sealed class DreGerencialService
                         l.NumSeqBordero, l.NumCheque2, l.NumCar, l.Localizacao,
                         l.NomeFunc, l.NomeFuncBaixa, l.DtReclassific,
                         l.CodFuncReclassific, l.DtEstornoBaixa,
-                        l.CodRotinaBaixa)).ToList(),
-                    null, cronometro.ElapsedMilliseconds, Fornecedores: eco, Participacao: participacao));
+                        l.CodRotinaBaixa, l.DtVenc)).ToList(),
+                    null, cronometro.ElapsedMilliseconds, Fornecedores: eco, Participacao: participacao,
+                    Provisionado: filtro.Provisionado));
             }
 
             case "imposto-por-produto":
