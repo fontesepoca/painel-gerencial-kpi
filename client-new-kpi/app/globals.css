@@ -472,6 +472,35 @@ body {
   max-width: none !important;
 }
 
+/* A medição imita o PAPEL, e não a tela (14/10/2026). Ela acontece na tela, no
+   `beforeprint`, e o que só o `@media print` esconde ou encolhe entrava na conta: os 32rem
+   da descrição (512px de uma coluna só), a barra do %AV, o punho de arraste. A tabela
+   media mais larga do que sai no papel, e a fonte calculada saía menor que a que cabe.
+   As mesmas regras do bloco de impressão, só durante a medição. */
+.calibrando .celula-descricao {
+  min-width: 0 !important;
+  max-width: 18rem !important;
+  white-space: normal !important;
+}
+
+.calibrando .descricao-conta {
+  overflow: visible !important;
+  text-overflow: clip !important;
+  white-space: normal !important;
+}
+
+.calibrando .barra-av,
+.calibrando .puxador,
+.calibrando .puxador-vazio,
+.calibrando .nao-imprime,
+.calibrando .so-na-tela {
+  display: none !important;
+}
+
+.calibrando .so-no-papel {
+  display: revert !important;
+}
+
 /* Números tabulares: dígitos de mesma largura, colunas alinhadas. */
 .tabular {
   font-family: var(--font-data);
@@ -1378,6 +1407,17 @@ tr:has(.valor-clicavel:focus-visible) .tem-detalhe .valor-clicavel {
      numa folha onde 12px decidem se a última coluna sai ou é cortada. */
   main {
     padding: 0 !important;
+  }
+
+  /* O contêiner da página é centralizado na tela (`mx-auto max-w-[110rem]`). No papel isso
+     abria uma margem à esquerda (PDFs de 14/10/2026): quando a tabela não cabe, o Chrome
+     encolhe a página para tentar caber, a página fica mais larga por dentro, e o contêiner
+     centralizado escorrega para o meio dela. Encostado à esquerda e sem teto, ele começa
+     na margem da folha, com ou sem encolhimento. */
+  main > div {
+    max-width: none !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
   }
 
   .tabela-rolagem {

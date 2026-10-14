@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AppShell } from "@/components/layout/AppShell";
 import { FiltrosDre } from "@/components/dre-gerencial/FiltrosDre";
 import { TabelaDre } from "@/components/dre-gerencial/TabelaDre";
@@ -12,6 +12,7 @@ import { aplicarOrdem } from "@/lib/ordemLinhas";
 import { recalcular } from "@/lib/recalculoDoDre";
 import { useApuracao, useFiliais } from "@/hooks/useDreGerencial";
 import { useSessao } from "@/hooks/useSessao";
+import { useEscalaDeImpressao } from "@/hooks/useEscalaDeImpressao";
 import { cn } from "@/lib/cn";
 import { formatarDataIso, formatarDuracao } from "@/lib/formato";
 import { descreverFiliais } from "@/lib/filiaisApuradas";
@@ -157,6 +158,14 @@ export default function DreGerencialPage() {
 
   const dados = apuracao.data;
 
+  // A FOLHA E A FONTE DA IMPRESSÃO, medidas na tabela real antes de imprimir — o mesmo hook
+  // do detalhamento. Até 14/10/2026 esta tela escolhia por número de meses (classes
+  // folha-media/larga/cheia, calibradas com TRÊS colunas por mês); o Provisionado leva um
+  // mês a cinco colunas e o período a seis, e três meses com aberto saíam cortados. As
+  // classes continuam como valor de partida; o hook escreve por cima, inline e important.
+  const secao = useRef<HTMLElement | null>(null);
+  useEscalaDeImpressao(secao, dados !== undefined);
+
   // As filiais da APURAÇÃO, não as do formulário: mexer no filtro depois de apurar não
   // pode reescrever o cabeçalho do que já está na tela — é o mesmo cuidado que o
   // detalhamento toma ao usar `dados` em vez de `filtro`.
@@ -241,6 +250,7 @@ export default function DreGerencialPage() {
             />
 
             <section
+              ref={secao}
               className={cn(
                 "flex min-h-0 flex-1 flex-col rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface-1)] shadow-[var(--shadow-card)]",
                 expandida && "tabela-expandida",
