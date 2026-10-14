@@ -24,7 +24,7 @@ nunca pagos ficam visíveis para que quem os cadastrou seja cobrado. Nenhum filt
 | D3 | Sem exclusão de "lixo" (vencidos antigos, valor zero…). | Visibilidade para cobrança (pedido do Gabriel). |
 | D4 | Valor do título em aberto = `VALOR` (o `nvl(VPAGO, VALOR)` da consulta já cai nele). | `VPAGO` só existe depois do pagamento. |
 | D5 | O ramo `RECEITA VENDA ATIVO` (`PCNFSAID`/`PCPREST`, chave `85`/`400`/`8501`) **não entra** no aberto. | É receita já recebida (`fin.dtpag`); entraria duas vezes. |
-| D6 | **Só as linhas de despesa** ganham Provisionado. Totalizadores, receita e CMV não. | Opção 2 do Gabriel. Ver §8 para a evolução. |
+| D6 | ~~**Só as linhas de despesa** ganham Provisionado.~~ — **revista em 14/10/2026**: os totalizadores que somam despesa também (a §8 foi feita). Receita, CMV e LUCRO BRUTO não. | Pedido do Gabriel: o %AV R + P do Sub-Total tem de bater com o das contas. |
 | D7 | ~~**%AV e %AH continuam só sobre o Valor**~~ — **revista em 14/10/2026**: com o Provisionado ligado, %AV e %AH das contas são sobre R + P; desligado, sobre o Valor (fiéis à 9815). | Pedido do Gabriel depois de ver a tela: o percentual tem de falar do mesmo número que o Total mostra. |
 | D8 | As colunas aparecem **só nos meses com algo em aberto**; o bloco do período as ganha se algum mês tiver. | Pedido: "neste mês deve existir colunas diferentes". |
 | D9 | Checkbox **"Mostrar provisionado"**, marcado por padrão, ao lado de AV% e AH%; só aparece em competência com algo em aberto. Desmarcado, a tela é idêntica à de hoje. | Pedido. |
@@ -129,7 +129,11 @@ divergência a pedido, com a medição de um mês.
 | Consulta para o Gabriel | o Provisionado de um mês bate com o `PCLANC` em aberto, por centro |
 | Tela | checkbox liga/desliga; meses sem aberto sem colunas; Excel e impressão; dois temas |
 
-## 8. Fora desta versão (evolução documentada)
+## 8. Evolução: Provisionado nos totalizadores — **FEITA em 14/10/2026**
+
+> Implementada no mesmo dia, a pedido (opção 1): `MontadorDre.MontarMesProvisionado` no
+> servidor, os deltas do provisionado em `recalculoDoDre` no front, e os percentuais R + P
+> também nos totalizadores. Ver DIVERGENCIAS.md nº 19. O texto abaixo é o registro original.
 
 **Provisionado e Total nos totalizadores** (opção 1 da conversa de 14/10): o Provisionado do
 `Sub-Total` seria a soma dos provisionados das despesas operacionais, e o TOTAL do `LUCRO

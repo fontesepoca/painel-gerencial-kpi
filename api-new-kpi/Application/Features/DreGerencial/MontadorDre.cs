@@ -333,33 +333,23 @@ public static class MontadorDre
 
         var chavesOrdem = GerarChavesOrdem(linhas);
 
+        // O PROVISIONADO de cada célula, coluna a coluna, como o Valor — ver
+        // `MontarMesProvisionado`. Os totalizadores que somam despesa têm o seu (opção 1,
+        // 14/10/2026); receita, deduções, CMV e LUCRO BRUTO, não.
+        var provisionadoPorColuna = colunas.ToDictionary(
+            c => c.Chave,
+            c => MontarMesProvisionado(linhas, valorAberto, c));
+
+        // A versão R + P dos percentuais só existe quando ALGUMA coluna tem aberto — sem
+        // nenhum, a tela nem mostra o Provisionado, e os percentuais são os de sempre.
+        var comVersaoRp = colunas.Any(c => c.Abertos is { Count: > 0 });
+
         // A linha de uma conta subida, fora da Conta Gerencial, guarda só a SOBRA: os
         // lançamentos cujo centro (ou grupo) não tem linha operacional. O duplo clique tem de
         // recortar exatamente isso — senão a tela listaria de novo o que já está na linha
         // ADMINISTRATIVO e não fecharia com a célula. Sem sobra, não há o que abrir.
         // `Valido: false` = a linha não é de conta subida, e o detalhamento segue o caminho
         // de sempre.
-        // O PROVISIONADO de uma célula (14/10/2026). Nulo em três casos, e de propósito:
-        //   · linha calculada — totalizadores, receita e CMV não têm (opção 2 do Gabriel;
-        //     a extensão está na §8 da spec);
-        //   · coluna sem a lista de abertos — regime caixa;
-        //   · coluna competência sem NENHUM aberto — mês todo pago não ganha colunas.
-        // No resto, o mesmo rateio e o mesmo arredondamento do Valor.
-        // A versão R + P dos percentuais só existe quando ALGUMA coluna tem aberto — sem
-        // nenhum, a tela nem mostra o Provisionado, e os percentuais são os de sempre.
-        var comVersaoRp = colunas.Any(c => c.Abertos is { Count: > 0 });
-
-        decimal? Provisionado(LinhaEmMontagem l, ColunaApuracao c)
-        {
-            if (l.Calculada || c.Abertos is not { Count: > 0 }) return null;
-
-            var (aberto, exclusivo) = valorAberto.GetValueOrDefault(
-                (l.Estrutura.CodGruConta, l.Estrutura.AntesRo, l.Estrutura.AntesLl,
-                 l.Estrutura.AntesLf, c.Chave));
-
-            return Arredondar(Ratear(aberto, exclusivo, c.Faturamento?.Participacao ?? 1m));
-        }
-
         (bool Valido, IReadOnlyList<string>? Chaves) DetalheDaSobra(LinhaEmMontagem l) =>
             redistribui && !l.Calculada && subidas.Contains(l.Estrutura.CodGruConta)
                 ? (true, sobras.GetValueOrDefault(l.Estrutura.CodGruConta))
@@ -386,19 +376,24 @@ public static class MontadorDre
                     ? (decimal?)null
                     : Arredondar(valoresPorColuna[colunas[i - 1].Chave][indice]);
 
-                var provisionado = Provisionado(l, c);
+                var provisionado = provisionadoPorColuna[c.Chave][indice];
 
                 // %AV e %AH sobre R + P (14/10/2026, opção 1 — a tela usa estes só com o
                 // Provisionado ligado; desligado, os de sempre, fiéis à 9815). A coluna sem
                 // aberto entra com P = 0: comparar agosto todo pago com julho que tinha aberto
                 // é R de agosto contra R + P de julho, que é o que o Total (R + P) mostra.
+                //
+                // TODAS as linhas, inclusive as calculadas: nos totalizadores que somam despesa
+                // o P é a soma dos das contas, e é isso que faz o %AV R + P do Sub-Total bater
+                // com o das contas (pedido de 14/10/2026). Em receita, CMV e LUCRO BRUTO o P é
+                // nulo, e a versão R + P sai igual à de sempre.
                 decimal? avRp = null, ahRp = null;
-                if (comVersaoRp && !l.Calculada)
+                if (comVersaoRp)
                 {
                     var rp = valor + (provisionado ?? 0m);
                     var anteriorRp = anterior is null
                         ? (decimal?)null
-                        : anterior.Value + (Provisionado(l, colunas[i - 1]) ?? 0m);
+                        : anterior.Value + (provisionadoPorColuna[colunas[i - 1].Chave][indice] ?? 0m);
                     avRp = CalcularAv(l, rp, c.Faturamento);
                     ahRp = CalcularAh(rp, anteriorRp);
                 }
@@ -441,7 +436,7 @@ public static class MontadorDre
                     PercentualAv: CalcularAvTotal(
                         l, somaPeriodo, colunas.Select(c => c.Faturamento)),
                     Provisionado: provisionadoPeriodo,
-                    PercentualAvComProvisionado: comVersaoRp && !l.Calculada
+                    PercentualAvComProvisionado: comVersaoRp
                         ? CalcularAvTotal(
                             l, somaPeriodo + (provisionadoPeriodo ?? 0m),
                             colunas.Select(c => c.Faturamento))
@@ -1077,6 +1072,78 @@ public static class MontadorDre
     /// </summary>
     private static decimal Ratear(decimal valor, decimal exclusivo, decimal participacao) =>
         (valor - exclusivo) * participacao + exclusivo;
+
+    /// <summary>
+    /// O PROVISIONADO de cada linha numa coluna — gêmeo de <see cref="MontarMes"/>, com as
+    /// MESMAS somas (opção 1, 14/10/2026; a evolução da §8 da spec).
+    ///
+    /// <list type="bullet">
+    ///   <item>conta: o aberto da tupla, rateado como o Valor;</item>
+    ///   <item><c>SUBTOTAL POSITIVO</c>: os créditos promovidos (o LUCRO BRUTO não tem P);</item>
+    ///   <item><c>Sub-Total</c>: as operacionais;</item>
+    ///   <item><c>RESULTADO OPERACIONAL</c>: SUBTOTAL POSITIVO + Sub-Total;</item>
+    ///   <item><c>TOTAL DAS DESPESAS</c> e <c>LUCRO LIQUIDO</c>: operacionais e
+    ///   pós-operacionais (os promovidos já estão nas pós-operacionais, como no Valor);</item>
+    ///   <item>receita, deduções, CMV, LUCRO BRUTO e o que não somar: nulo.</item>
+    /// </list>
+    ///
+    /// <para>Informativa fica de fora das somas, como no Valor — ela "não soma". A coluna sem
+    /// nenhum aberto devolve tudo nulo: mês todo pago não ganha colunas.</para>
+    ///
+    /// <para><b>Arredondamento como o Valor</b>: a conta é arredondada sozinha, e o
+    /// totalizador é a soma em precisão cheia, arredondada no fim.</para>
+    /// </summary>
+    private static decimal?[] MontarMesProvisionado(
+        List<LinhaEmMontagem> linhas,
+        Dictionary<(string, string, string, string, string), (decimal Valor, decimal Exclusivo)>
+            valorAberto,
+        ColunaApuracao c)
+    {
+        var p = new decimal?[linhas.Count];
+        if (c.Abertos is not { Count: > 0 }) return p;
+
+        var participacao = c.Faturamento?.Participacao ?? 1m;
+        decimal operacional = 0m, posOperacional = 0m, promovida = 0m;
+
+        for (var i = 0; i < linhas.Count; i++)
+        {
+            var l = linhas[i];
+            if (l.Calculada) continue;
+
+            var (aberto, exclusivo) = valorAberto.GetValueOrDefault(
+                (l.Estrutura.CodGruConta, l.Estrutura.AntesRo, l.Estrutura.AntesLl,
+                 l.Estrutura.AntesLf, c.Chave));
+            var v = Ratear(aberto, exclusivo, participacao);
+            p[i] = Arredondar(v);
+
+            if (!l.Informativa)
+            {
+                if (l.Estrutura.AntesRo == "S") operacional += v;
+                else if (l.Estrutura.AntesLl == "S") posOperacional += v;
+            }
+
+            if (l.Promovida) promovida += v;
+        }
+
+        for (var i = 0; i < linhas.Count; i++)
+        {
+            var l = linhas[i];
+            if (!l.Calculada) continue;
+
+            decimal? total = l.Rotulo switch
+            {
+                SubtotalPositivo => promovida,
+                SubTotal => operacional,
+                ResultadoOperacional => promovida + operacional,
+                TotalDespesas => operacional + posOperacional,
+                LucroLiquido => operacional + posOperacional,
+                _ => null,
+            };
+            p[i] = total is null ? null : Arredondar(total.Value);
+        }
+
+        return p;
+    }
 
     private static decimal[] MontarMes(
         List<LinhaEmMontagem> linhas,

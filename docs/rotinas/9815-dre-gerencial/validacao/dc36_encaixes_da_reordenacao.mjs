@@ -291,6 +291,42 @@ function mover(linhas, chave, destino) {
 eq(media(-1222.39, 2), -611.2, "−611,195 vai para o par: −611,20");
 eq(media(2175422.55, 2), 1087711.28, "1.087.711,275 vai para o par: ,28");
 eq(media(-1222.41, 2), -611.2, "−611,205 vai para o par: −611,20");
+// ── o PROVISIONADO acompanha o arraste (14/10/2026) ──────────────────────────
+// DESPESA A tem −20 em aberto. Os totalizadores que somam despesa trazem esse P da API
+// (MontadorDre.MontarMesProvisionado). Arrastá-la para o bloco pós-operacional tem de tirar
+// o P do Sub-Total e do RESULTADO OPERACIONAL, pôr no bloco de baixo, e o LUCRO LIQUIDO,
+// que soma os dois blocos, conserva. E os %AV sobre R + P se refazem com o P novo.
+{
+  const comP = (l) => {
+    const p = { despA: -20, "sub-total": -20, "resultado-operacional": -20, "total-despesas": -20, "lucro-liquido": -20 }[l.chaveOrdem];
+    // Linhas sem P ficam com `provisionado: null`, como a API manda numa coluna com aberto.
+    const prov = p ?? (l.calculada ? null : 0);
+    const rp = l.valores[0].valor + (prov ?? 0);
+    return {
+      ...l,
+      valores: [{ ...l.valores[0], provisionado: prov, percentualAvComProvisionado: (rp / 850) * 100, percentualAhComProvisionado: null }],
+      total: { ...l.total, provisionado: prov, percentualAvComProvisionado: (rp / 850) * 100 },
+    };
+  };
+  const DRE_P = DRE.map(comP);
+  const pDe = (linhas, chave) => linhas.find((l) => l.chaveOrdem === chave)?.valores[0].provisionado;
+  const avRpDe = (linhas, chave) => linhas.find((l) => l.chaveOrdem === chave)?.valores[0].percentualAvComProvisionado;
+
+  const igual = recalcular(DRE_P, DRE_P);
+  eq(pDe(igual, "sub-total"), -20, "ordem do cadastro: o P do Sub-Total não se mexe");
+
+  const r = recalcular(mover(DRE_P, "despA", "resultado-operacional"), DRE_P);
+  eq(pDe(r, "sub-total"), 0, "a despesa saiu do Sub-Total, e o P dela junto");
+  eq(pDe(r, "resultado-operacional"), 0, "o RESULTADO OPERACIONAL perde o P");
+  eq(pDe(r, "total-despesas"), -20, "o Total das Despesas continua com ele — ela só mudou de bloco");
+  eq(pDe(r, "lucro-liquido"), -20, "e o LUCRO LIQUIDO conserva o P");
+  eq(pDe(r, "despA"), -20, "a conta leva o próprio P, que não muda");
+  eq(pDe(r, "receitas-liquidas"), null, "receita segue sem P");
+  // Sub-Total depois: R = −90, P = 0 → (−90 / 850) × 100.
+  eq(Math.round(avRpDe(r, "sub-total") * 1e6), Math.round((-90 / 850) * 100 * 1e6), "o %AV R + P do Sub-Total se refaz com R e P novos");
+  eq(r.find((l) => l.chaveOrdem === "sub-total").total.provisionado, 0, "e o total do período também");
+}
+
 eq(media(300, 2), 150, "sem resto, sem arredondamento");
 eq(media(100, 3), 33.33, "33,333… trunca para baixo");
 eq(media(0, 0), 0, "sem coluna nenhuma, zero — e sem dividir por zero");

@@ -65,7 +65,10 @@ const provisionadoNoMes = (p: PeriodoDre, colunas: ColunasDeAnalise) =>
 const provisionadoNoFim = (dados: Apuracao, colunas: ColunasDeAnalise) =>
   dados.periodos.some((p) => provisionadoNoMes(p, colunas));
 
-/** Provisionado e Total de uma célula: vazios onde não se aplica (linha calculada). */
+/**
+ * Provisionado e Total de uma célula: vazios onde não se aplica — receita, deduções, CMV e
+ * LUCRO BRUTO, que a API manda com provisionado nulo. Os totalizadores que somam despesa têm.
+ */
 function celulasDoProvisionado(valor: number, provisionado: number | null | undefined): Celula[] {
   return provisionado === null || provisionado === undefined
     ? [num(null, MOEDA), num(null, MOEDA)]
@@ -152,7 +155,7 @@ export function matrizDaApuracao(
       const v = linha.valores.find((x) => x.mesAno === p.mesAno);
       celulas.push(num(v?.valor ?? null, MOEDA));
       if (provisionadoNoMes(p, colunas)) {
-        celulas.push(...celulasDoProvisionado(v?.valor ?? 0, linha.calculada ? null : v?.provisionado));
+        celulas.push(...celulasDoProvisionado(v?.valor ?? 0, v?.provisionado));
       }
       if (colunas.av) celulas.push(num(v?.percentualAv ?? null, PERCENTUAL_3));
       if (comAh) celulas.push(num(v?.percentualAh ?? null, PERCENTUAL_3));
@@ -165,7 +168,7 @@ export function matrizDaApuracao(
       celulas.push(num(linha.total.valor, MOEDA));
       if (provNoFim) {
         celulas.push(
-          ...celulasDoProvisionado(linha.total.valor, linha.calculada ? null : linha.total.provisionado),
+          ...celulasDoProvisionado(linha.total.valor, linha.total.provisionado),
         );
       }
       if (colunas.av) celulas.push(num(linha.total.percentualAv, PERCENTUAL_3));

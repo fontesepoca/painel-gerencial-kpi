@@ -9,11 +9,14 @@ import type { LinhaDre } from "@/types/dre-gerencial";
  * base zero dos percentuais de sempre; aqui só se escolhe qual mostrar. Um lugar só, para a
  * tela e o Excel nunca discordarem sobre de qual campo saiu cada célula.
  *
- * Linha calculada (totalizadores, receita, CMV) não tem provisionado e não muda. Campo
- * ausente — API anterior a esta mudança — também não: fica o percentual de sempre.
+ * Vale também para as linhas calculadas: os totalizadores que somam despesa têm P (SUBTOTAL
+ * POSITIVO, Sub-Total, RESULTADO OPERACIONAL, LUCRO LIQUIDO), e é por isso que o %AV R + P do
+ * Sub-Total bate com o das contas. Receita, CMV e LUCRO BRUTO não têm P, e a versão R + P
+ * deles sai da API igual à de sempre. Campo ausente — API anterior a esta mudança — fica com
+ * o percentual de sempre.
  */
 export function comPercentuaisRp(linha: LinhaDre, usar: boolean): LinhaDre {
-  if (!usar || linha.calculada) return linha;
+  if (!usar) return linha;
 
   return {
     ...linha,
@@ -42,7 +45,7 @@ export function comPercentuaisRp(linha: LinhaDre, usar: boolean): LinhaDre {
  * provisionado pintaria o %AH com a cor errada.
  */
 export function sentidoDaLinha(linha: LinhaDre, usar: boolean): number {
-  return usar && !linha.calculada
+  return usar
     ? linha.total.valor + (linha.total.provisionado ?? 0)
     : linha.total.valor;
 }

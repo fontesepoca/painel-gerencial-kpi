@@ -79,10 +79,16 @@ Afirmar(V(a, "ADMINISTRATIVO", "08/2026").Provisionado is null, "agosto sem aber
 Afirmar(a.Periodos.Single(p => p.MesAno == "07/2026").TemProvisionado, "julho TEM provisionado");
 Afirmar(!a.Periodos.Single(p => p.MesAno == "08/2026").TemProvisionado, "agosto NÃO tem");
 Afirmar(L(a, "ADMINISTRATIVO").Total.Provisionado == -40m, "o total do período soma os provisionados");
-Afirmar(V(a, "Sub-Total -> Despesas Operacionais", "07/2026").Provisionado is null,
-    "totalizador sem Provisionado (opção 2)");
+// Os totalizadores que somam despesa têm Provisionado pelas MESMAS somas do valor (opção 1,
+// 14/10/2026 — a evolução da §8 da spec): ADMINISTRATIVO −40 + TRANSPORTES −7.
+Afirmar(V(a, "Sub-Total -> Despesas Operacionais", "07/2026").Provisionado == -47m,
+    "o Sub-Total soma os provisionados das operacionais", $"{V(a, "Sub-Total -> Despesas Operacionais", "07/2026").Provisionado}");
+Afirmar(V(a, "RESULTADO OPERACIONAL", "07/2026").Provisionado == -47m, "o RESULTADO OPERACIONAL também");
+Afirmar(V(a, "LUCRO LIQUIDO", "07/2026").Provisionado == -47m, "e o LUCRO LIQUIDO");
+Afirmar(V(a, "Sub-Total -> Despesas Operacionais", "08/2026").Provisionado is null, "agosto sem aberto: nem o totalizador");
+Afirmar(L(a, "Sub-Total -> Despesas Operacionais").Total.Provisionado == -47m, "o total do período do Sub-Total");
 Afirmar(V(a, "Sub-Total -> Despesas Operacionais", "07/2026").Valor == -100m,
-    "o Sub-Total soma só o pago", $"{V(a, "Sub-Total -> Despesas Operacionais", "07/2026").Valor}");
+    "o Valor do Sub-Total continua só o pago", $"{V(a, "Sub-Total -> Despesas Operacionais", "07/2026").Valor}");
 
 // TRANSPORTES MATRIZ só tem aberto: tem de aparecer.
 Afirmar(V(a, "TRANSPORTES MATRIZ", "07/2026").Valor == 0m && V(a, "TRANSPORTES MATRIZ", "07/2026").Provisionado == -7m,
@@ -136,8 +142,11 @@ Afirmar(ago.PercentualAhComProvisionado is { } ah && Math.Round(ah, 6) == Math.R
 Afirmar(jul.PercentualAhComProvisionado == 0m, "primeiro mês: 0, como o %AH de sempre");
 Afirmar(L(p, "ADMINISTRATIVO").Total.PercentualAvComProvisionado == -9.5m,
     "o %AV do período sobre R + P: −190 / 2.000", $"{L(p, "ADMINISTRATIVO").Total.PercentualAvComProvisionado}");
-Afirmar(V(p, "Sub-Total -> Despesas Operacionais", "07/2026").PercentualAvComProvisionado is null,
-    "totalizador não tem a versão R + P");
+// O PEDIDO: o %AV R + P das contas bate com o do Sub-Total. Aqui só há uma conta
+// operacional, então os dois têm de ser iguais: −140 / 1.000.
+Afirmar(V(p, "Sub-Total -> Despesas Operacionais", "07/2026").PercentualAvComProvisionado == -14m,
+    "o %AV R + P do Sub-Total bate com o das contas", $"{V(p, "Sub-Total -> Despesas Operacionais", "07/2026").PercentualAvComProvisionado}");
+Afirmar(V(p, "Sub-Total -> Despesas Operacionais", "07/2026").PercentualAv == -10m, "e o de sempre segue sobre o pago");
 
 // Sem nenhum aberto na apuração, não há versão R + P — a tela usa a de sempre.
 var semP = Montar(Coluna("07/2026", [Despesa("07/2026", "1001", -100m)], [], rl("07/2026")));

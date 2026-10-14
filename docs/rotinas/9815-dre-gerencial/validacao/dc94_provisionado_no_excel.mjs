@@ -51,14 +51,28 @@ const linha = (descricao, extra = {}) => ({
   ...extra,
 });
 
+// O Sub-Total soma o P das contas (opção 1, 14/10/2026), e tem os percentuais R + P.
 const calculada = linha("Sub-Total -> Despesas Operacionais", {
   papel: "sub-total",
   calculada: true,
   valores: [
-    { mesAno: "07/2026", valor: -100, percentualAv: 1, percentualAh: 0, provisionado: null },
-    { mesAno: "08/2026", valor: -50, percentualAv: 1, percentualAh: -50, provisionado: null },
+    { mesAno: "07/2026", valor: -100, percentualAv: 1, percentualAh: 0, provisionado: -40,
+      percentualAvComProvisionado: 1.4, percentualAhComProvisionado: 0 },
+    { mesAno: "08/2026", valor: -50, percentualAv: 1, percentualAh: -50, provisionado: null,
+      percentualAvComProvisionado: 0.5, percentualAhComProvisionado: -64 },
   ],
-  total: { valor: -150, media: -75, percentualAv: 1, provisionado: null },
+  total: { valor: -150, media: -75, percentualAv: 1, provisionado: -40, percentualAvComProvisionado: 0.95 },
+});
+
+// A RECEITA não tem P: as duas colunas novas ficam vazias.
+const receita = linha("(+) RECEITA BRUTA", {
+  papel: "receita-bruta",
+  calculada: true,
+  valores: [
+    { mesAno: "07/2026", valor: 1000, percentualAv: null, percentualAh: 0, provisionado: null },
+    { mesAno: "08/2026", valor: 1000, percentualAv: null, percentualAh: 0, provisionado: null },
+  ],
+  total: { valor: 2000, media: 1000, percentualAv: null, provisionado: null },
 });
 
 const dados = {
@@ -69,7 +83,7 @@ const dados = {
   dataFim: "2026-08-31",
   filiais: ["7"],
   periodos,
-  linhas: [linha("ADMINISTRATIVO"), calculada],
+  linhas: [linha("ADMINISTRATIVO"), calculada, receita],
   avisos: [],
   fornecedores: [],
   apuradoEm: "2026-10-14T12:00:00Z",
@@ -97,7 +111,10 @@ eq(adm.slice(6, 9), [-50, 0.5, -64], "agosto: sem as colunas novas, mas AV e AH 
 eq(adm.slice(9, 15), [-150, -40, -190, 0.95, -75, -64], "período: Valor, Provisionado, Total, AV R + P, Média, soma dos AH R + P");
 
 const sub = m[3].map(v);
-eq([sub[2], sub[3], sub[10], sub[11]], [null, null, null, null], "linha calculada: Provisionado e Total vazios");
+eq(sub.slice(1, 6), [-100, -40, -140, 1.4, 0], "Sub-Total: P das contas, Total (R + P) e %AV R + P — bate com o das contas");
+eq(sub.slice(9, 12), [-150, -40, -190], "Sub-Total no período");
+const rec = m[4].map(v);
+eq([rec[2], rec[3], rec[10], rec[11]], [null, null, null, null], "receita: Provisionado e Total vazios");
 
 eq(m[0].length, m[1].length, "a faixa dos meses tem a mesma largura do cabeçalho");
 

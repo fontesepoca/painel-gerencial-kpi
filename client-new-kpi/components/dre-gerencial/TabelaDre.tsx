@@ -1452,7 +1452,7 @@ function Linha({
           destaque={linha.totalizadora}
           onDetalhe={onDetalhe ? () => onDetalhe(v.mesAno) : null}
           comProvisionado={periodos.some((p) => p.mesAno === v.mesAno && provisionadoNoMes(p))}
-          provisionado={linha.calculada ? null : v.provisionado}
+          provisionado={v.provisionado}
           onDetalheProvisionado={
             onDetalheProvisionado ? () => onDetalheProvisionado(v.mesAno) : null
           }
@@ -1485,7 +1485,7 @@ function Linha({
             destaque={linha.totalizadora}
             onDetalhe={onDetalhe ? () => onDetalhe(null) : null}
             comProvisionado={provisionadoNoFim}
-            provisionado={linha.calculada ? null : linha.total.provisionado}
+            provisionado={linha.total.provisionado}
             onDetalheProvisionado={
               onDetalheProvisionado ? () => onDetalheProvisionado(null) : null
             }

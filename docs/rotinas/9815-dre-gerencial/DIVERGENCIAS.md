@@ -39,7 +39,7 @@ linha no índice.
 | [16](#16-a-coluna-ah--no-bloco-de-total--06102026) | Coluna `AH %` no total — soma dos `%AH`, **não** a variação do período | todas, só com mais de um mês | **nenhum valor muda** — coluna nova | **a pedido** em 06/10/2026 · dc13 43/43 |
 | [17](#17-minas-rural-a-seção-sem-custo-é-a-1401--07102026) | Minas Rural: a seção tirada da venda e da devolução passa de `1601` para `1401` | todas, só no Minas Rural | **nenhum valor** nos meses medidos — jul a set/2026 | **ligada** em 07/10/2026 pela prova do trace · dc86 46/46 |
 | [18](#18-minas-rural-as-contas-de-icms-viram-a-3003007--07102026) | Minas Rural: conta de ICMS do grupo 303 vira a `3003007` na despesa e no detalhamento | todas, só no Minas Rural | **R$ 38.054,11** no lucro de agosto/2026 na filial 10 | **ligada** em 07/10/2026 · dc89 bate ao centavo |
-| [19](#19-as-colunas-provisionado-e-total-no-regime-competência--14102026) | Colunas **Provisionado** (títulos em aberto) e **Total** nos meses com aberto | todas, só em competência | colunas novas; com o Provisionado ligado, **%AV e %AH das contas sobre R + P** | **a pedido** em 14/10/2026 · dc92, dc93, dc94 |
+| [19](#19-as-colunas-provisionado-e-total-no-regime-competência--14102026) | Colunas **Provisionado** (títulos em aberto) e **Total** nos meses com aberto | todas, só em competência | colunas novas, também nos totalizadores de despesa; com o Provisionado ligado, **%AV e %AH sobre R + P** | **a pedido** em 14/10/2026 · dc92, dc93, dc94 |
 
 ---
 
@@ -1490,11 +1490,37 @@ o `%AV` passa a ser (R + P) ÷ base — a mesma base, porque receita não tem pr
 `%AH` compara o R + P do mês com o R + P do anterior (P = 0 onde não há aberto). No bloco do
 período, o `%AV` é o do Total (R + P), e a soma dos `%AH` acompanha. A cor do `%AH` julga
 pelo Total (R + P). **Com o Provisionado desligado**, os percentuais voltam a ser os de sempre,
-sobre o Realizado, e a tela é a da 9815. Totalizadores, receita e CMV não mudam: não têm
-provisionado. Consequência aceita: com o Provisionado ligado, a soma dos `%AV` das contas
-operacionais deixa de bater com o do Sub-Total, que soma só o realizado. Quem calcula é o
-servidor (`PercentualAvComProvisionado`/`PercentualAhComProvisionado`); a tela e o Excel só
-escolhem (`lib/percentuaisComProvisionado.ts`).
+sobre o Realizado, e a tela é a da 9815. Quem calcula é o servidor
+(`PercentualAvComProvisionado`/`PercentualAhComProvisionado`); a tela e o Excel só escolhem
+(`lib/percentuaisComProvisionado.ts`).
+
+### Os totalizadores também têm Provisionado (14/10/2026, mesmo dia)
+
+Com só as contas sobre R + P, a soma dos `%AV` delas deixava de bater com o do Sub-Total, que
+somava só o realizado. **Pedido do Gabriel: que batam** — escolhida a forma completa (opção 1),
+a evolução que a §8 da spec já descrevia. Os totalizadores que somam despesa ganham
+Provisionado e Total (R + P) pelas **mesmas somas do Valor**
+(`MontadorDre.MontarMesProvisionado`):
+
+| Totalizador | Provisionado |
+|---|---|
+| `SUBTOTAL POSITIVO` | P dos créditos promovidos (o LUCRO BRUTO não tem) |
+| `Sub-Total` | P das contas operacionais |
+| `RESULTADO OPERACIONAL` | SUBTOTAL POSITIVO + Sub-Total |
+| `LUCRO LIQUIDO` | P das operacionais e das pós-operacionais |
+
+E os `%AV`/`%AH` deles, com o Provisionado ligado, são sobre R + P como os das contas — com
+isso o `%AV` do Sub-Total bate com a soma dos das contas operacionais. O TOTAL (R + P) do
+LUCRO LIQUIDO é o lucro do período **se tudo em aberto for pago**.
+
+Receita, deduções, CMV e LUCRO BRUTO seguem sem Provisionado — não vêm do contas a pagar.
+Informativas não somam, como no Valor. O **Valor** dos totalizadores continua o da 9815; muda
+só o que aparece nas colunas novas e, com o Provisionado ligado, os percentuais.
+
+**A reordenação acompanha**: arrastar uma conta move o P dela entre os totalizadores pelos
+mesmos encaixes do Valor (`recalculoDoDre`, um cálculo de deltas só para os dois), e os
+percentuais R + P se refazem com os números novos. A dc36 cobre o arraste de uma despesa com
+aberto para o bloco pós-operacional.
 
 ### A regra
 
@@ -1520,14 +1546,10 @@ lançou).
 
 ### O que fica de fora nesta versão
 
-- **Totalizadores** (`Sub-Total`, `RESULTADO OPERACIONAL`, `LUCRO LIQUIDO`): sem
-  Provisionado — opção 2 do Gabriel. A extensão está descrita na §8 da spec
-  (`docs/superpowers/specs/2026-10-14-provisionado-competencia-design.md`): o contrato já
-  comporta, e ela teria de entrar também no recálculo da reordenação.
 - **Caixa**: não existe — o mês é o do pagamento.
-- **`%AV`/`%AH` da coluna Provisionado sozinha**: não existem. E a **reordenação de linhas**
-  não refaz os percentuais R + P (o `recalculoDoDre` refaz só os de sempre): arrastar uma
-  conta para outro bloco que mude a base deixa os R + P como a API os mandou.
+- **`%AV`/`%AH` da coluna Provisionado sozinha**: não existem.
+- **Duplo clique no Provisionado de um totalizador**: não abre nada — a composição dele são
+  os provisionados das contas, que já estão na tela.
 - **Modo de variação (anos)**: o bloco final é Δ, e não ganha as duas colunas.
 
 ### Provas
