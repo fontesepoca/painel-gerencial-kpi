@@ -41,6 +41,9 @@ export default function DreGerencialPage() {
    */
   const [mostrarAv, setMostrarAv] = useState(true);
   const [mostrarAh, setMostrarAh] = useState(true);
+  // As colunas Provisionado e Total (competência, 14/10/2026). Marcado ao abrir, como os
+  // outros dois: quem não quer vê-las desmarca.
+  const [mostrarProvisionado, setMostrarProvisionado] = useState(true);
   const [expandida, setExpandida] = useState(false);
 
   /**
@@ -120,7 +123,7 @@ export default function DreGerencialPage() {
       await exportarApuracao(
         apuracao,
         naTela.length > 0 ? naTela : apuracao.linhas,
-        { av: mostrarAv, ah: mostrarAh },
+        { av: mostrarAv, ah: mostrarAh, provisionado: mostrarProvisionado },
         baseDaSessao,
       );
     } catch (e) {
@@ -136,7 +139,7 @@ export default function DreGerencialPage() {
     // primeira renderizacao -- os dois marcados -- e o Excel sairia sempre completo, por
     // mais que a tela mostrasse outra coisa. Um defeito que nao da erro: o arquivo abre, e
     // so quem conferir coluna por coluna percebe.
-  }, [mostrarAv, mostrarAh, baseDaSessao]);
+  }, [mostrarAv, mostrarAh, mostrarProvisionado, baseDaSessao]);
 
   // O mês corrente, em colunas mensais: o recorte que a tela sempre abriu, e que os modos
   // de ano não deslocaram. `anos` começa vazio de propósito — um ano pré-escolhido seria
@@ -181,6 +184,10 @@ export default function DreGerencialPage() {
   // O `%AH` só existe com duas colunas ou mais: ele é a variação sobre a coluna anterior.
   // Sai de `dados`, e não do formulário, porque quem manda na tabela é o que foi apurado.
   const temAh = (dados?.periodos.length ?? 0) > 1;
+  // O checkbox só existe quando há o que mostrar: competência e algum título em aberto no
+  // período. Em caixa, ou com tudo pago, a tela é a de sempre e o controle não aparece —
+  // diferente do %AH, que fica desabilitado, porque aqui não há "ainda não": não existe.
+  const temProvisionado = dados?.periodos.some((p) => p.temProvisionado === true) ?? false;
 
   // Pela mesma razão: a hora é a da apuração que está na tela, não a de agora. Ela congela
   // junto com os números e não anda enquanto a folha espera para ser impressa.
@@ -389,6 +396,21 @@ export default function DreGerencialPage() {
                     AH %
                   </label>
 
+                  {temProvisionado && (
+                    <label
+                      title="Títulos lançados e ainda não pagos no mês, e o Total com eles. Só nas linhas de despesa."
+                      className="flex cursor-pointer items-center gap-2.5 text-[length:var(--fs-apoio)] whitespace-nowrap text-[var(--text-secondary)]"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={mostrarProvisionado}
+                        onChange={(e) => setMostrarProvisionado(e.target.checked)}
+                        className="size-4 accent-[var(--primary)]"
+                      />
+                      Provisionado
+                    </label>
+                  )}
+
                   <BotaoExpandir
                     expandida={expandida}
                     onAlternar={() => setExpandida((e) => !e)}
@@ -432,6 +454,7 @@ export default function DreGerencialPage() {
                 mostrarZeradas={mostrarZeradas}
                 mostrarAv={mostrarAv}
                 mostrarAh={mostrarAh}
+                mostrarProvisionado={mostrarProvisionado && temProvisionado}
                 filtroDeLinhas={filtroDeLinhas}
                 onLimparFiltro={() => setFiltroDeLinhas("")}
                 // Deliberadamente `dados`, e não `filtro`: o detalhamento tem que usar os

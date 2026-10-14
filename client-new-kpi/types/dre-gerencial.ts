@@ -98,6 +98,11 @@ export interface PeriodoDre {
    * intervalo, em vez de comparar Jan/26 com Mar/25.
    */
   bloco: number;
+  /**
+   * A coluna tem algum título EM ABERTO (competência). É o que decide se ela ganha as
+   * colunas Provisionado e Total — mês todo pago fica como sempre foi.
+   */
+  temProvisionado?: boolean;
 }
 
 export interface ValorMes {
@@ -107,12 +112,20 @@ export interface ValorMes {
   percentualAv: number | null;
   /** Variação sobre o mês anterior. Nulo no primeiro mês e quando o anterior é zero. */
   percentualAh: number | null;
+  /**
+   * O que está EM ABERTO nesta linha e coluna (competência), rateado como o Valor. Nulo em
+   * caixa, em linha calculada e em coluna sem nenhum aberto. Opcional: uma API anterior a
+   * 14/10/2026 não manda.
+   */
+  provisionado?: number | null;
 }
 
 export interface TotalLinha {
   valor: number;
   media: number;
   percentualAv: number | null;
+  /** A soma dos provisionados das colunas. Nulo quando nenhuma tem. */
+  provisionado?: number | null;
 }
 
 /**
@@ -238,6 +251,8 @@ export interface FiltroDetalhe extends FiltroApuracao {
   bloco: string | null;
   chave: string | null;
   sobra?: string[] | null;
+  /** Os títulos EM ABERTO da célula de Provisionado, em vez dos pagos. */
+  provisionado?: boolean;
 }
 
 export interface DetalheCliente {
@@ -353,6 +368,8 @@ export interface DetalheLancamento {
    */
   dtEstornoBaixa?: string | null;
   codRotinaBaixa?: string | null;
+  /** Vencimento — a tela dos títulos em aberto calcula daqui os dias de atraso. */
+  dtVenc?: string | null;
 }
 
 /**
@@ -365,6 +382,8 @@ export interface Detalhamento {
    * à bifurcação não a manda — mas `exigirMesmaBase` recusa a resposta que não a traz.
    */
   base?: { id: string; rotulo: string } | null;
+  /** Eco do pedido: a lista é dos títulos EM ABERTO (célula de Provisionado). */
+  provisionado?: boolean;
   tipo: TipoDetalhe;
   dataInicio: string;
   dataFim: string;

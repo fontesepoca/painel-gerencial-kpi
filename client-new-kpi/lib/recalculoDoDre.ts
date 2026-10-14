@@ -317,7 +317,11 @@ export function recalcular(
     return {
       ...l,
       valores: novosValores,
+      // `...l.total` primeiro: o que a reordenação não recalcula — o PROVISIONADO, que não
+      // entra em totalizador nenhum (opção 2, 14/10/2026) — atravessa intacto. Montar o
+      // objeto do zero jogava o campo fora, e a coluna do período sumia ao arrastar.
       total: {
+        ...l.total,
         valor: soma,
         media: media(soma, novosValores.length),
         percentualAv: calcularAvTotal(

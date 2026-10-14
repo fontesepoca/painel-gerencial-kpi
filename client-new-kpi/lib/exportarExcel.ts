@@ -10,7 +10,7 @@ import {
 } from "@/lib/excel";
 import { somaDosAh } from "@/lib/ahDoTotal";
 import { mostraVariacao, rotuloDaVariacao, variacao } from "@/lib/modosDePeriodo";
-import type { Apuracao, LinhaDre } from "@/types/dre-gerencial";
+import type { Apuracao, LinhaDre, PeriodoDre } from "@/types/dre-gerencial";
 
 /**
  * A apuração do DRE em `.xlsx`.
@@ -45,9 +45,30 @@ import type { Apuracao, LinhaDre } from "@/types/dre-gerencial";
 export interface ColunasDeAnalise {
   av: boolean;
   ah: boolean;
+  /**
+   * As colunas Provisionado e Total (competência, 14/10/2026). Opcional: ausente vale
+   * `true`, o estado inicial da tela — e mesmo ligado, só entram nos meses que têm
+   * título em aberto (`PeriodoDre.temProvisionado`).
+   */
+  provisionado?: boolean;
 }
 
-const TUDO: ColunasDeAnalise = { av: true, ah: true };
+const TUDO: ColunasDeAnalise = { av: true, ah: true, provisionado: true };
+
+/** Este mês ganha Provisionado e Total: o checkbox ligado E título em aberto nele. */
+const provisionadoNoMes = (p: PeriodoDre, colunas: ColunasDeAnalise) =>
+  (colunas.provisionado ?? true) && p.temProvisionado === true;
+
+/** O bloco do período ganha as duas se algum mês tiver — senão a soma não teria de onde vir. */
+const provisionadoNoFim = (dados: Apuracao, colunas: ColunasDeAnalise) =>
+  dados.periodos.some((p) => provisionadoNoMes(p, colunas));
+
+/** Provisionado e Total de uma célula: vazios onde não se aplica (linha calculada). */
+function celulasDoProvisionado(valor: number, provisionado: number | null | undefined): Celula[] {
+  return provisionado === null || provisionado === undefined
+    ? [num(null, MOEDA), num(null, MOEDA)]
+    : [num(provisionado, MOEDA), num(valor + provisionado, MOEDA)];
+}
 
 /**
  * Quantas colunas o bloco final ocupa, já descontada a análise desligada.
@@ -60,7 +81,11 @@ function blocoFinal(dados: Apuracao, colunas: ColunasDeAnalise = TUDO) {
     ? { variacao: true as const, largura: 2, rotulo: rotuloDaVariacao(dados.modo, dados.periodos) }
     : {
         variacao: false as const,
-        largura: 2 + (colunas.av ? 1 : 0) + (colunas.ah ? 1 : 0),
+        largura:
+          2 +
+          (colunas.av ? 1 : 0) +
+          (colunas.ah ? 1 : 0) +
+          (provisionadoNoFim(dados, colunas) ? 2 : 0),
         rotulo: "Total",
       };
 }
@@ -76,7 +101,10 @@ export function matrizDaApuracao(
   // O `%AH` só existe com duas colunas ou mais — ele compara com a anterior. É a mesma
   // regra da tela, e por isso a planilha de um mês nunca teve a coluna.
   const comAh = multiMes && colunas.ah;
-  const porMes = 1 + (colunas.av ? 1 : 0) + (comAh ? 1 : 0);
+  const porMes = (p: PeriodoDre) =>
+    1 + (colunas.av ? 1 : 0) + (comAh ? 1 : 0) + (provisionadoNoMes(p, colunas) ? 2 : 0);
+  // O bloco do período só existe com mais de um mês; com um só, o mês é o período.
+  const provNoFim = multiMes && provisionadoNoFim(dados, colunas);
 
   const faixaMeses: Celula[] = [txt("")];
   const rotulos: Celula[] = [txt("Descrição")];
@@ -85,10 +113,11 @@ export function matrizDaApuracao(
     // A faixa do mês é o rótulo numa célula e vazias nas demais: são elas que o `merge`
     // junta depois. Uma a menos aqui com uma a mais no merge desalinharia a planilha
     // inteira a partir do segundo mês.
-    faixaMeses.push(txt(p.rotulo), ...Array.from({ length: porMes - 1 }, () => txt("")));
+    faixaMeses.push(txt(p.rotulo), ...Array.from({ length: porMes(p) - 1 }, () => txt("")));
     rotulos.push(txt("Valor"));
     if (colunas.av) rotulos.push(txt("AV %"));
     if (comAh) rotulos.push(txt("AH %"));
+    if (provisionadoNoMes(p, colunas)) rotulos.push(txt("Provisionado"), txt("Total"));
   }
 
   if (multiMes) {
@@ -102,6 +131,7 @@ export function matrizDaApuracao(
             txt("Média"),
             // A soma dos %AH fecha a linha, como na tela.
             ...(comAh ? [txt("AH %")] : []),
+            ...(provNoFim ? [txt("Provisionado"), txt("Total")] : []),
           ]),
     );
   }
@@ -114,6 +144,9 @@ export function matrizDaApuracao(
       celulas.push(num(v?.valor ?? null, MOEDA));
       if (colunas.av) celulas.push(num(v?.percentualAv ?? null, PERCENTUAL_3));
       if (comAh) celulas.push(num(v?.percentualAh ?? null, PERCENTUAL_3));
+      if (provisionadoNoMes(p, colunas)) {
+        celulas.push(...celulasDoProvisionado(v?.valor ?? 0, linha.calculada ? null : v?.provisionado));
+      }
     }
 
     if (multiMes && fim.variacao) {
@@ -126,6 +159,11 @@ export function matrizDaApuracao(
       // A MESMA função da tela, e não uma soma escrita de novo aqui: duas somas do mesmo
       // número divergem no primeiro dia em que alguém mudar o tratamento do nulo.
       if (comAh) celulas.push(num(somaDosAh(linha.valores), PERCENTUAL_3));
+      if (provNoFim) {
+        celulas.push(
+          ...celulasDoProvisionado(linha.total.valor, linha.calculada ? null : linha.total.provisionado),
+        );
+      }
     }
 
     return celulas;
@@ -182,7 +220,7 @@ export function planilhaDaApuracao(
   const comAh = dados.periodos.length > 1 && analise.ah;
   const fim = blocoFinal(dados, { ...analise, ah: comAh });
   const larguras = dados.periodos.map(
-    () => 1 + (analise.av ? 1 : 0) + (comAh ? 1 : 0),
+    (p) => 1 + (analise.av ? 1 : 0) + (comAh ? 1 : 0) + (provisionadoNoMes(p, analise) ? 2 : 0),
   );
   if (dados.periodos.length > 1) larguras.push(fim.largura);
 

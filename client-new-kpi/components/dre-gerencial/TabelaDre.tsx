@@ -62,6 +62,8 @@ interface PedidoDetalhe {
   titulo: string;
   periodo: { dataInicio: string; dataFim: string };
   linha: { descricao: string; valor: number };
+  /** Os títulos EM ABERTO da célula de Provisionado, em vez dos pagos. */
+  provisionado?: boolean;
 }
 
 /** Dias de um recorte, inclusive as duas pontas. */
@@ -87,6 +89,7 @@ export function TabelaDre({
   mostrarZeradas,
   mostrarAv,
   mostrarAh: mostrarAhPedido,
+  mostrarProvisionado = false,
   filtroDeLinhas,
   onLimparFiltro,
   filtro,
@@ -104,6 +107,11 @@ export function TabelaDre({
    * para comparar, e a tabela ignora este pedido: quem o desabilita na barra é a página.
    */
   mostrarAh: boolean;
+  /**
+   * As colunas Provisionado e Total (competência, 14/10/2026), nos meses com título em
+   * aberto. A página só liga quando existe algum — ver `temProvisionado` lá.
+   */
+  mostrarProvisionado?: boolean;
   /**
    * A apuração foi filtrada por fornecedor.
    *
@@ -416,6 +424,7 @@ export function TabelaDre({
         // Sem isto a linha que sobrou de Manutencao De Veiculos listaria TODOS os
         // lançamentos da conta, inclusive os que já estão na linha ADMINISTRATIVO.
         sobra: pedido.tipo.sobra ?? null,
+        provisionado: pedido.provisionado ?? false,
       });
     },
     [filtro, consultaDetalhe],
@@ -436,7 +445,7 @@ export function TabelaDre({
    * nulo e o recorte é o período todo.
    */
   const abrirDetalhe = useCallback(
-    (linha: LinhaDre, mesAno: string | null) => {
+    (linha: LinhaDre, mesAno: string | null, provisionado = false) => {
       if (!linha.detalhe) return;
 
       const coluna = mesAno ? periodos.find((pp) => pp.mesAno === mesAno) : null;
@@ -450,15 +459,22 @@ export function TabelaDre({
         : { dataInicio: filtro.dataInicio, dataFim: filtro.dataFim };
 
       // O valor da célula vai junto: é contra ele que o resumo do cálculo se confere.
-      const valorDaLinha = mesAno
-        ? (linha.valores.find((v) => v.mesAno === mesAno)?.valor ?? 0)
-        : linha.total.valor;
+      // No Provisionado, a célula é o aberto — é contra ELE que o rodapé tem de fechar.
+      const celula = mesAno ? linha.valores.find((v) => v.mesAno === mesAno) : null;
+      const valorDaLinha = provisionado
+        ? ((mesAno ? celula?.provisionado : linha.total.provisionado) ?? 0)
+        : mesAno
+          ? (celula?.valor ?? 0)
+          : linha.total.valor;
 
       const pedido = {
         tipo: linha.detalhe,
-        titulo: `${linha.descricao.trim()} · ${coluna?.rotulo ?? "Total do período"}`,
+        titulo:
+          `${linha.descricao.trim()} · ${coluna?.rotulo ?? "Total do período"}` +
+          (provisionado ? " · Títulos em aberto" : ""),
         periodo,
         linha: { descricao: linha.descricao.trim(), valor: valorDaLinha },
+        provisionado,
       };
 
       // Recorte longo pergunta antes. Ver `ModalConfirmarDetalhe`: com colunas de ano, um
@@ -709,7 +725,14 @@ export function TabelaDre({
    * um número fixo faria a faixa colorida do mês cobrir células de outro mês — e o
    * cabeçalho passaria a mentir sobre a que período pertence cada valor.
    */
-  const colunasPorMes = 1 + (mostrarAv ? 1 : 0) + (mostrarAh ? 1 : 0);
+  // Provisionado e Total entram SÓ nos meses com título em aberto (spec D8): mês todo pago
+  // fica como sempre foi. Por isso a largura passou a ser por período.
+  const provisionadoNoMes = (p: PeriodoDre) => mostrarProvisionado && p.temProvisionado === true;
+  // O bloco do período as ganha se algum mês tiver — e não no modo de variação, onde o
+  // bloco é Δ entre duas colunas e não uma soma.
+  const provisionadoNoFim = !variacaoNoFim && periodos.some(provisionadoNoMes);
+  const colunasPorMes = (p: PeriodoDre) =>
+    1 + (mostrarAv ? 1 : 0) + (mostrarAh ? 1 : 0) + (provisionadoNoMes(p) ? 2 : 0);
 
   // O bloco final: variação são duas colunas; o total é valor, %AV e média — e a média
   // fica, porque não é análise, é o valor médio das colunas.
@@ -718,7 +741,7 @@ export function TabelaDre({
   // que está lá. A média fica sempre: não é análise, é o valor médio das colunas.
   const colunasDoFim = variacaoNoFim
     ? 2
-    : 2 + (mostrarAv ? 1 : 0) + (mostrarAh ? 1 : 0);
+    : 2 + (mostrarAv ? 1 : 0) + (mostrarAh ? 1 : 0) + (provisionadoNoFim ? 2 : 0);
 
   // Dois lados do comparativo podem cair no mesmo mês — 28/08–03/09 contra 05/09–11/09 põe
   // `Setembro/2026` duas vezes no cabeçalho. Aí, e só aí, o rótulo passa a levar os dias.
@@ -859,7 +882,7 @@ export function TabelaDre({
                 {periodos.map((p, i) => (
                   <th
                     key={p.mesAno}
-                    colSpan={colunasPorMes}
+                    colSpan={colunasPorMes(p)}
                     className={cn(
                       "px-[var(--celula-x)] pt-3 pb-1 text-center text-[length:var(--fs-rotulo)] font-semibold tracking-[0.14em] text-[var(--text-secondary)] uppercase",
                       // Uma cor por mês, para o olho não perder de vista a que coluna
@@ -901,13 +924,19 @@ export function TabelaDre({
                   key={p.mesAno}
                   mostrarAv={mostrarAv}
                   mostrarAh={mostrarAh}
+                  provisionado={provisionadoNoMes(p)}
                 />
               ))}
               {multiMes &&
                 (variacaoNoFim ? (
                   <ColunasCabecalhoVariacao />
                 ) : (
-                  <ColunasCabecalho mostrarAv={mostrarAv} mostrarAh={mostrarAh} total />
+                  <ColunasCabecalho
+                    mostrarAv={mostrarAv}
+                    mostrarAh={mostrarAh}
+                    provisionado={provisionadoNoFim}
+                    total
+                  />
                 ))}
             </tr>
           </thead>
@@ -945,6 +974,14 @@ export function TabelaDre({
                     ponteiroY.current = null;
                   }}
                   onTeclado={(direcao) => moverPorTeclado(indice, direcao)}
+                  provisionadoNoMes={provisionadoNoMes}
+                  provisionadoNoFim={provisionadoNoFim}
+                  // Só linha de conta tem títulos em aberto — totalizador não tem Provisionado.
+                  onDetalheProvisionado={
+                    linha.detalhe && !linha.calculada
+                      ? (mesAno) => abrirDetalhe(linha, mesAno, true)
+                      : null
+                  }
                   onDetalhe={
                     linha.detalhe
                       ? (mesAno) => abrirDetalhe(linha, mesAno)
@@ -1019,10 +1056,13 @@ export function TabelaDre({
 function ColunasCabecalho({
   mostrarAv,
   mostrarAh,
+  provisionado,
   total,
 }: {
   mostrarAv: boolean;
   mostrarAh?: boolean;
+  /** As colunas Provisionado e Total, depois da análise. */
+  provisionado?: boolean;
   total?: boolean;
 }) {
   return (
@@ -1045,6 +1085,21 @@ function ColunasCabecalho({
       ) : mostrarAh ? (
         <Th className="text-right">AH %</Th>
       ) : null}
+      {/* Depois da análise, e não junto do Valor: %AV e %AH falam do Valor (o pago, fiel à
+          9815), e encostá-los no Total faria parecer que são percentuais dele. */}
+      {provisionado && (
+        <>
+          <Th
+            className="text-right"
+            title="Títulos lançados no mês e ainda não pagos"
+          >
+            Provisionado
+          </Th>
+          <Th className="text-right" title="Valor + Provisionado">
+            Total
+          </Th>
+        </>
+      )}
     </>
   );
 }
@@ -1149,9 +1204,18 @@ function faixaDoMes(indice: number): string {
   return `faixa-mes-${(indice % 4) + 1}`;
 }
 
-function Th({ className, children }: { className?: string; children?: React.ReactNode }) {
+function Th({
+  className,
+  title,
+  children,
+}: {
+  className?: string;
+  title?: string;
+  children?: React.ReactNode;
+}) {
   return (
     <th
+      title={title}
       className={cn(
         "px-[var(--celula-x)] py-[var(--celula-y)] text-[length:var(--fs-rotulo)] font-medium tracking-[0.14em] text-[var(--text-muted)] uppercase",
         className,
@@ -1183,6 +1247,9 @@ function Linha({
   onArrastarFim,
   onTeclado,
   onDetalhe,
+  provisionadoNoMes,
+  provisionadoNoFim,
+  onDetalheProvisionado,
 }: {
   linha: LinhaDre;
   indice: number;
@@ -1209,6 +1276,11 @@ function Linha({
   onTeclado: (direcao: -1 | 1) => void;
   /** `null` no bloco TOTAL: detalha o periodo inteiro. */
   onDetalhe: ((mesAno: string | null) => void) | null;
+  /** O mês ganha Provisionado e Total — decidido na tabela, para cabeçalho e corpo baterem. */
+  provisionadoNoMes: (p: PeriodoDre) => boolean;
+  provisionadoNoFim: boolean;
+  /** Os títulos em aberto da célula. `null` em totalizador. */
+  onDetalheProvisionado: ((mesAno: string | null) => void) | null;
 }) {
   // Metade de cima da linha solta antes dela; metade de baixo, depois.
   const destinoDoPonteiro = (e: React.DragEvent<HTMLTableRowElement>) => {
@@ -1348,6 +1420,11 @@ function Linha({
           maiorAv={maiorAv}
           destaque={linha.totalizadora}
           onDetalhe={onDetalhe ? () => onDetalhe(v.mesAno) : null}
+          comProvisionado={periodos.some((p) => p.mesAno === v.mesAno && provisionadoNoMes(p))}
+          provisionado={linha.calculada ? null : v.provisionado}
+          onDetalheProvisionado={
+            onDetalheProvisionado ? () => onDetalheProvisionado(v.mesAno) : null
+          }
         />
       ))}
 
@@ -1376,6 +1453,11 @@ function Linha({
             totalDaLinha={linha.total.valor}
             destaque={linha.totalizadora}
             onDetalhe={onDetalhe ? () => onDetalhe(null) : null}
+            comProvisionado={provisionadoNoFim}
+            provisionado={linha.calculada ? null : linha.total.provisionado}
+            onDetalheProvisionado={
+              onDetalheProvisionado ? () => onDetalheProvisionado(null) : null
+            }
             total
           />
         ))}
@@ -1396,6 +1478,9 @@ function BlocoMes({
   totalDaLinha,
   onDetalhe,
   participacao,
+  comProvisionado,
+  provisionado,
+  onDetalheProvisionado,
 }: {
   valor: number;
   av: number | null;
@@ -1417,6 +1502,11 @@ function BlocoMes({
    */
   totalDaLinha: number;
   onDetalhe: (() => void) | null;
+  /** Esta coluna desenha Provisionado e Total. */
+  comProvisionado?: boolean;
+  /** O aberto da célula; `null` deixa as duas células vazias (linha calculada). */
+  provisionado?: number | null;
+  onDetalheProvisionado?: (() => void) | null;
 }) {
   const celula = cn(CELULA, "whitespace-nowrap tabular", destaque && "font-semibold");
   const corValor = (v: number) =>
@@ -1481,6 +1571,76 @@ function BlocoMes({
           <Variacao percentual={ah ?? null} valorDaLinha={totalDaLinha} />
         </td>
       ) : null}
+
+      {comProvisionado && (
+        <CelulasDoProvisionado
+          valor={valor}
+          provisionado={provisionado ?? null}
+          classe={cn(celula, "text-right", total && "bg-[var(--surface-2)]")}
+          corValor={corValor}
+          onDetalhe={onDetalheProvisionado ?? null}
+        />
+      )}
+    </>
+  );
+}
+
+/**
+ * Provisionado e Total de uma célula (competência, 14/10/2026).
+ *
+ * <b>O Provisionado abre os títulos em aberto</b> com duplo clique, como o Valor abre os
+ * pagos — é por ele que se cobra quem lançou e não pagou. O Total não abre nada: é a soma
+ * de duas células que já estão na tela, como o bloco de variação dos modos de ano.
+ *
+ * Linha calculada (totalizadores, receita, CMV) fica com as duas vazias: o Provisionado
+ * não entra em totalizador nenhum nesta versão (opção 2 da spec, §8 para a evolução).
+ */
+function CelulasDoProvisionado({
+  valor,
+  provisionado,
+  classe,
+  corValor,
+  onDetalhe,
+}: {
+  valor: number;
+  provisionado: number | null;
+  classe: string;
+  corValor: (v: number) => string;
+  onDetalhe: (() => void) | null;
+}) {
+  if (provisionado === null) {
+    return (
+      <>
+        <td className={classe} />
+        <td className={classe} />
+      </>
+    );
+  }
+
+  const total = valor + provisionado;
+  // O detalhe só abre quando há o que listar: zero em aberto daria uma tela vazia.
+  const abre = onDetalhe !== null && provisionado !== 0;
+
+  return (
+    <>
+      <td
+        onDoubleClick={abre ? onDetalhe : undefined}
+        className={cn(classe, corValor(provisionado), abre && "tem-detalhe")}
+      >
+        {abre ? (
+          <button
+            type="button"
+            onClick={onDetalhe}
+            title="Ver os títulos em aberto"
+            className="valor-clicavel"
+          >
+            {formatarValor(provisionado)}
+          </button>
+        ) : (
+          formatarValor(provisionado)
+        )}
+      </td>
+      <td className={cn(classe, corValor(total))}>{formatarValor(total)}</td>
     </>
   );
 }
