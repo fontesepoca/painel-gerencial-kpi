@@ -10,6 +10,7 @@ import {
   igual,
   nomeDaLinha,
   rotuloDaColuna,
+  rotuloNaTela,
 } from "@/lib/colunaDoTotal";
 import { semEstornosQueSeAnulam } from "@/lib/estornosQueSeAnulam";
 import { semBaixasEstornadas } from "@/lib/baixasEstornadas";
@@ -379,7 +380,11 @@ export function CorpoDoDetalhe({
   return (
     <>
       <ResumoDoCalculo dados={dados} linha={linha} />
-      <OrigemDoTotal linha={linha} coluna={coluna} />
+      {/* O nome que a pessoa VÊ na tabela — "V. a Pagar" nos títulos em aberto. */}
+      <OrigemDoTotal
+        linha={linha}
+        coluna={coluna === null ? null : rotuloNaTela(coluna, dados.provisionado === true)}
+      />
       <Conteudo
         dados={dados}
         coluna={coluna}
@@ -1511,6 +1516,7 @@ function TabelaLancamentos({
             <ThDetalhe
               key={c.rotulo}
               rotulo={c.rotulo}
+              exibir={rotuloNaTela(c.rotulo, provisionado)}
               tipo={c.bruto && c.rotulo === "V. Pago" ? "numero" : c.numerica ? "numero" : "texto"}
               numerica={c.numerica}
               coluna={colunaQueFecha}

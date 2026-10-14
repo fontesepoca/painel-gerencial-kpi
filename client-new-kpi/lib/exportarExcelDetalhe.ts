@@ -11,7 +11,7 @@ import {
   type Celula,
   type Planilha,
 } from "@/lib/excel";
-import { colunaDoTotal, nomeDaLinha, rotuloDaColuna } from "@/lib/colunaDoTotal";
+import { colunaDoTotal, nomeDaLinha, rotuloDaColuna, rotuloNaTela } from "@/lib/colunaDoTotal";
 import { temRateio, valorNoDre } from "@/lib/rateioDoDetalhe";
 import { semEstornosQueSeAnulam } from "@/lib/estornosQueSeAnulam";
 import { semBaixasEstornadas } from "@/lib/baixasEstornadas";
@@ -190,7 +190,8 @@ function corpoDoDetalhe(
       "Conta",
       "Rec.Num.",
       "Histórico",
-      "V. Pago",
+      // "V. a Pagar" na lista dos títulos em aberto — ver `rotuloNaTela`.
+      rotuloNaTela("V. Pago", aberto),
       // A coluna do rateio só existe quando a apuração foi filtrada — o arquivo conta a
       // mesma história da tela, inclusive em quantas colunas tem. Ver
       // `lib/rateioDoDetalhe.ts`.
@@ -276,7 +277,9 @@ export function planilhaDoDetalhe(detalhe: DetalheParaExportar): Planilha {
     detalhe.ocultarBaixas ?? true,
   );
   const nome = nomeDaLinha(detalhe.linha);
-  const coluna = colunaDoTotal(detalhe.dados.tipo, nome);
+  // Traduzida como o rótulo, senão a coluna do total não se reconheceria no cabeçalho.
+  const bruta = colunaDoTotal(detalhe.dados.tipo, nome);
+  const coluna = bruta === null ? null : rotuloNaTela(bruta, detalhe.dados.provisionado === true);
 
   return {
     aba: "Detalhamento",

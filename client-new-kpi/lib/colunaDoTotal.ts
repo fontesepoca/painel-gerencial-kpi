@@ -66,3 +66,15 @@ export function colunaDoTotal(tipo: TipoDetalhe, nome: string | null): string | 
 export function rotuloDaColuna(coluna: string, nome: string | null): string {
   return nome === null || igual(nome, coluna) ? coluna : `(${nome}) ${coluna}`;
 }
+
+/**
+ * O nome que a coluna MOSTRA, quando difere da chave interna.
+ *
+ * Na lista dos títulos EM ABERTO (célula de Provisionado, 14/10/2026) nada foi pago, e
+ * "V. Pago" diria o contrário: lá a coluna se chama **V. a Pagar**. A chave continua
+ * `V. Pago` — é por ela que a tela pinta o valor, acha a coluna que fecha o total e ordena;
+ * trocar a chave quebraria essas regras em silêncio. Só o texto muda.
+ */
+export function rotuloNaTela(rotulo: string, provisionado: boolean): string {
+  return provisionado && rotulo === "V. Pago" ? "V. a Pagar" : rotulo;
+}

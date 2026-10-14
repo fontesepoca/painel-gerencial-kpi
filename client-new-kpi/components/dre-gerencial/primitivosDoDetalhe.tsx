@@ -192,6 +192,7 @@ export function ThDetalhe<T>({
   ordem,
   onOrdenar,
   className,
+  exibir,
 }: {
   rotulo: string;
   /** Como a coluna compara. Decide a direção do primeiro clique. */
@@ -205,6 +206,11 @@ export function ThDetalhe<T>({
   ordem?: Ordem;
   onOrdenar?: (rotulo: string, tipo: TipoDaColuna) => void;
   className?: string;
+  /**
+   * O texto mostrado, quando difere do `rotulo` — que continua sendo a chave da ordenação e
+   * da coluna do total. Ver `rotuloNaTela` (V. Pago vira V. a Pagar nos títulos em aberto).
+   */
+  exibir?: string;
 }) {
   const eOTotal = coluna != null && coluna === rotulo;
   const prefixo =
@@ -215,7 +221,7 @@ export function ThDetalhe<T>({
   const conteudo = (
     <>
       {prefixo && <span className="block">{prefixo}</span>}
-      {rotulo}
+      {exibir ?? rotulo}
       {ativa && (
         <span aria-hidden className="ml-1 inline-block">
           {ordem.direcao === "asc" ? "▲" : "▼"}

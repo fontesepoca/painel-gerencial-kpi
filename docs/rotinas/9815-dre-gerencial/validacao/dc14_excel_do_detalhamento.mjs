@@ -225,7 +225,10 @@ const aberto = planilhaDoDetalhe({
     lancamentos: [{ recNum: 9, vPago: -40, historico: "X", codCcPrinc: "1001", codConta: 1, dtVenc: "2026-07-20T00:00:00" }],
   },
 });
-eq(aberto.matriz[0][5].v, "Dt. Vencto.", "em aberto: Dt. Vencto. logo depois do V. Pago");
+eq(aberto.matriz[0][5].v, "Dt. Vencto.", "em aberto: Dt. Vencto. logo depois do valor");
+// Nada ali foi pago: o valor do título se chama "V. a Pagar" (pedido de 14/10/2026), e
+// continua sendo a coluna que fecha com a célula — com o nome da linha na frente.
+eq(aberto.matriz[0][4].v, "(ADMINISTRATIVO) V. a Pagar", "em aberto: V. a Pagar, anunciada como a coluna do total");
 eq(aberto.matriz[1][5].v, "20/07/2026", "o vencimento em dd/mm/aaaa");
 eq(aberto.matriz[0].length, 28, "uma coluna a mais que os 27 de sempre");
 eq(aberto.larguras.length, 28, "e uma largura a mais");
