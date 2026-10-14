@@ -956,8 +956,13 @@ tbody tr.linha-totalizadora > .celula-descricao {
   cursor: pointer;
 }
 
+/* A linha inteira sublinhada é ajuda de TECLADO: quem navega por tabulação vê de uma vez o
+   que a linha abre. Era `tr:focus-within`, que também liga com o MOUSE — o botão clicado
+   fica com o foco, o modal o devolve a ele ao fechar, e a linha seguia sublinhada até o
+   próximo clique em outro lugar (reportado em 14/10/2026, quando o Provisionado pôs mais
+   uma célula clicável por mês). `:focus-visible` só liga quando o foco veio do teclado. */
 .tem-detalhe:hover .valor-clicavel,
-tr:focus-within .tem-detalhe .valor-clicavel {
+tr:has(.valor-clicavel:focus-visible) .tem-detalhe .valor-clicavel {
   text-decoration: underline dotted;
   text-underline-offset: 3px;
 }
