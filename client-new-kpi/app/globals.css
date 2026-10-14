@@ -21,6 +21,12 @@
   /* ── Bordas ── */
   --border: rgb(255 255 255 / 0.06);
   --border-strong: rgb(255 255 255 / 0.11);
+  /* As divisões verticais da tabela do DRE (14/10/2026): a fina separa COLUNAS dentro de um
+     bloco (Valor, AV %, AH %…); a grossa separa BLOCOS (cada mês, o total). Diferentes de
+     propósito — em espessura E em contraste —, para o olho achar primeiro o mês e depois a
+     coluna dentro dele. Ver .col-interna e .col-bloco. */
+  --divisor-coluna: rgb(255 255 255 / 0.08);
+  --divisor-bloco: rgb(255 255 255 / 0.24);
   --border-focus: rgb(255 255 255 / 0.18);
 
   /* ── Acento único — Cobalt Blue ── */
@@ -126,6 +132,8 @@ html[data-tema="claro"] {
 
   --border: rgb(15 23 42 / 0.08);
   --border-strong: rgb(15 23 42 / 0.14);
+  --divisor-coluna: rgb(15 23 42 / 0.1);
+  --divisor-bloco: rgb(15 23 42 / 0.3);
   --border-focus: rgb(15 23 42 / 0.22);
 
   --text-primary: #0f172a;
@@ -203,6 +211,8 @@ html[data-leitura="ampliada"] {
   --text-muted: #94a3b8;
   --border: rgb(255 255 255 / 0.1);
   --border-strong: rgb(255 255 255 / 0.2);
+  --divisor-coluna: rgb(255 255 255 / 0.16);
+  --divisor-bloco: rgb(255 255 255 / 0.4);
 
   --positive: #34d399;
   --negative: #fb7185;
@@ -218,6 +228,8 @@ html[data-tema="claro"][data-leitura="ampliada"] {
   --text-muted: #475569;
   --border: rgb(15 23 42 / 0.14);
   --border-strong: rgb(15 23 42 / 0.24);
+  --divisor-coluna: rgb(15 23 42 / 0.18);
+  --divisor-bloco: rgb(15 23 42 / 0.45);
 
   /* Repetidas de propósito, apesar de o bloco do tema claro já as definir. O bloco
      `[data-leitura="ampliada"]` acima clareia estas três para o fundo escuro, tem a
@@ -466,6 +478,70 @@ body {
   font-variant-numeric: tabular-nums;
   font-feature-settings: "tnum";
   font-weight: var(--peso-numero);
+}
+
+/* ── As divisões verticais da tabela do DRE (14/10/2026) ──────────────────────────────
+   Pedido do Gabriel: sem linha entre as colunas, quem lê confundia o Valor de um mês com
+   o AV % ao lado, ou o Total de um mês com o Valor do seguinte. Duas linhas, e DIFERENTES:
+     · .col-bloco   — abre cada bloco (cada mês, o total): 2px, contraste alto;
+     · .col-interna — separa as colunas dentro do bloco: 1px, contraste baixo.
+   A diferença é de espessura e de contraste ao mesmo tempo, para continuar distinguível
+   em tela com pouco brilho e no papel. A virada do comparativo (.col-intervalo) é a única
+   mais forte que um bloco: ali muda o intervalo inteiro.
+   Os tokens existem nos quatro temas (escuro, claro e as duas leituras ampliadas).
+
+   SOMBRA POR DENTRO, E NÃO `border`. A tabela é `border-collapse: collapse`, e aí a
+   faixa da borda é da TABELA: no cabeçalho fixo o texto do corpo passaria por baixo da
+   linha translúcida a partir de 125% de escala — o defeito de 02/09/2026 descrito em
+   "A costura das faixas fixas", mais abaixo. Com `inset` a linha compõe sobre o fundo da
+   própria célula. O preço: box-shadow não soma entre regras, então onde uma célula já
+   tem sombra (as duas linhas do cabeçalho, o alvo do arraste) as duas são repetidas
+   juntas nas regras combinadas logo abaixo. */
+.col-bloco {
+  box-shadow: inset 2px 0 0 var(--divisor-bloco);
+}
+
+.col-interna {
+  box-shadow: inset 1px 0 0 var(--divisor-coluna);
+}
+
+.col-intervalo {
+  box-shadow: inset 4px 0 0 var(--divisor-bloco);
+}
+
+/* Faixa dos meses: divisão do bloco + o separador de baixo dela. */
+.tabela-rolagem thead tr:not(:last-child) > th.col-bloco {
+  box-shadow: inset 2px 0 0 var(--divisor-bloco), inset 0 -1px 0 var(--border);
+}
+
+.tabela-rolagem thead tr:not(:last-child) > th.col-intervalo {
+  box-shadow: inset 4px 0 0 var(--divisor-bloco), inset 0 -1px 0 var(--border);
+}
+
+/* Rótulos das colunas: divisão + o separador do corpo. */
+.tabela-rolagem thead tr:last-child > th.col-bloco {
+  box-shadow: inset 2px 0 0 var(--divisor-bloco), inset 0 -1px 0 var(--border-strong);
+}
+
+.tabela-rolagem thead tr:last-child > th.col-interna {
+  box-shadow: inset 1px 0 0 var(--divisor-coluna), inset 0 -1px 0 var(--border-strong);
+}
+
+/* O alvo do arraste não apaga as divisões da linha enquanto ela é alvo. */
+.alvo-acima > td.col-bloco {
+  box-shadow: inset 0 2px 0 0 var(--primary), inset 2px 0 0 var(--divisor-bloco);
+}
+
+.alvo-acima > td.col-interna {
+  box-shadow: inset 0 2px 0 0 var(--primary), inset 1px 0 0 var(--divisor-coluna);
+}
+
+.alvo-abaixo > td.col-bloco {
+  box-shadow: inset 0 -2px 0 0 var(--primary), inset 2px 0 0 var(--divisor-bloco);
+}
+
+.alvo-abaixo > td.col-interna {
+  box-shadow: inset 0 -2px 0 0 var(--primary), inset 1px 0 0 var(--divisor-coluna);
 }
 
 /* Alvo de clique de no mínimo 44px em qualquer controle do modo ampliado —

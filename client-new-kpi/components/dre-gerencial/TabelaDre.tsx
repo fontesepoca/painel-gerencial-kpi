@@ -897,12 +897,11 @@ export function TabelaDre({
                       // COLUNA em globals.css. O ciclo de quatro recomeça longe o bastante
                       // para duas faixas iguais nunca se compararem na mesma tela.
                       faixaDoMes(i),
-                      // A virada de intervalo ganha a MESMA borda do bloco de total: é uma
-                      // divisão da mesma natureza, e sem ela os dois lados da comparação se
-                      // misturam num campo contínuo de colunas.
-                      abreBloco(periodos, i)
-                        ? "border-l-2 border-[var(--border-strong)]"
-                        : "border-l border-[var(--border)]",
+                      // Cada mês abre um BLOCO (.col-bloco); a virada de intervalo do
+                      // comparativo é a única divisão mais forte que essa — sem ela os dois
+                      // lados da comparação se misturam num campo contínuo de colunas. Ver
+                      // "As divisões verticais" em globals.css.
+                      i > 0 && abreBloco(periodos, i) ? "col-intervalo" : "col-bloco",
                     )}
                   >
                     {rotulos[i]}
@@ -910,7 +909,7 @@ export function TabelaDre({
                 ))}
                 <th
                   colSpan={colunasDoFim}
-                  className="border-l border-[var(--border-strong)] bg-[var(--surface-2)] px-[var(--celula-x)] pt-3 pb-1 text-center text-[length:var(--fs-rotulo)] font-semibold tracking-[0.14em] text-[var(--text-primary)] uppercase"
+                  className="col-bloco bg-[var(--surface-2)] px-[var(--celula-x)] pt-3 pb-1 text-center text-[length:var(--fs-rotulo)] font-semibold tracking-[0.14em] text-[var(--text-primary)] uppercase"
                 >
                   {/* `Jan–Mar/2025 → Jun–Set/2026` em vez de "Variação": no comparativo os
                       dois lados são intervalos INTEIROS, e sem o rótulo quem olha a coluna Δ
@@ -1074,35 +1073,34 @@ function ColunasCabecalho({
 }) {
   return (
     <>
-      <Th className={cn("text-right", total && "border-l border-[var(--border-strong)]")}>
-        Valor
-      </Th>
-      {mostrarAv && <Th className="w-[9rem] text-right">AV %</Th>}
+      {/* O Valor abre o bloco (linha grossa); as outras colunas, linha fina. */}
+      <Th className="col-bloco text-right">Valor</Th>
+      {mostrarAv && <Th className="col-interna w-[9rem] text-right">AV %</Th>}
       {/* A coluna some de verdade quando desligada — não fica uma `th` vazia ocupando
           largura. Era assim que o mês único desenhava a casa do `%AH`, e a casa vazia
           custava espaço numa tabela que já rola na horizontal. */}
       {total ? (
         <>
-          <Th className="text-right">Média</Th>
+          <Th className="col-interna text-right">Média</Th>
           {/* A SOMA DOS %AH, no fim do bloco de total. Depois da Média e não antes dela:
               a Média acompanha o Valor que está à esquerda — as duas falam de dinheiro —,
               e a análise fecha a linha. */}
-          {mostrarAh && <Th className="text-right">AH %</Th>}
+          {mostrarAh && <Th className="col-interna text-right">AH %</Th>}
         </>
       ) : mostrarAh ? (
-        <Th className="text-right">AH %</Th>
+        <Th className="col-interna text-right">AH %</Th>
       ) : null}
       {/* Depois da análise, e não junto do Valor: %AV e %AH falam do Valor (o pago, fiel à
           9815), e encostá-los no Total faria parecer que são percentuais dele. */}
       {provisionado && (
         <>
           <Th
-            className="text-right"
+            className="col-interna text-right"
             title="Títulos lançados no mês e ainda não pagos"
           >
             Provisionado
           </Th>
-          <Th className="text-right" title="Valor + Provisionado">
+          <Th className="col-interna text-right" title="Valor + Provisionado">
             Total
           </Th>
         </>
@@ -1115,8 +1113,8 @@ function ColunasCabecalho({
 function ColunasCabecalhoVariacao() {
   return (
     <>
-      <Th className="border-l border-[var(--border-strong)] text-right">Δ Valor</Th>
-      <Th className="text-right">Δ %</Th>
+      <Th className="col-bloco text-right">Δ Valor</Th>
+      <Th className="col-interna text-right">Δ %</Th>
     </>
   );
 }
@@ -1163,10 +1161,10 @@ function BlocoVariacao({
   if (!v) {
     return (
       <>
-        <td className={cn(celula, "border-l border-[var(--border-strong)] text-[var(--text-muted)]")}>
+        <td className={cn(celula, "col-bloco text-[var(--text-muted)]")}>
           —
         </td>
-        <td className={cn(celula, "text-[var(--text-muted)]")}>—</td>
+        <td className={cn(celula, "col-interna text-[var(--text-muted)]")}>—</td>
       </>
     );
   }
@@ -1186,11 +1184,11 @@ function BlocoVariacao({
     <>
       <td
         title={descreverVariacao(leitura)}
-        className={cn(celula, "border-l border-[var(--border-strong)]", cor)}
+        className={cn(celula, "col-bloco", cor)}
       >
         {formatarValor(v.absoluta)}
       </td>
-      <td className={celula}>
+      <td className={cn(celula, "col-interna")}>
         {/* Sem percentual quando a base é zero: uma conta que saiu de nada para alguma
             coisa não tem proporção que a descreva, e o valor ao lado já diz o quanto. */}
         <Variacao percentual={v.percentual} valorDaLinha={totalDaLinha} />
@@ -1533,7 +1531,9 @@ function BlocoMes({
           celula,
           "text-right",
           corValor(valor),
-          total && "border-l border-[var(--border-strong)] bg-[var(--surface-2)]",
+          // Toda célula de Valor abre um bloco — de cada mês e do total.
+          "col-bloco",
+          total && "bg-[var(--surface-2)]",
           onDetalhe && "tem-detalhe",
         )}
       >
@@ -1554,18 +1554,18 @@ function BlocoMes({
       </td>
 
       {mostrarAv && (
-        <td className={cn(CELULA, total && "bg-[var(--surface-2)]")}>
+        <td className={cn(CELULA, "col-interna", total && "bg-[var(--surface-2)]")}>
           <BarraAv percentual={av} maior={maiorAv} participacao={participacao} />
         </td>
       )}
 
       {total ? (
         <>
-          <td className={cn(celula, "bg-[var(--surface-2)] text-right", corValor(media ?? 0))}>
+          <td className={cn(celula, "col-interna bg-[var(--surface-2)] text-right", corValor(media ?? 0))}>
             {formatarValor(media ?? 0)}
           </td>
           {mostrarAh && (
-            <td className={cn(celula, "bg-[var(--surface-2)] text-right")}>
+            <td className={cn(celula, "col-interna bg-[var(--surface-2)] text-right")}>
               {/* O MESMO componente das colunas de mês, e de propósito: a soma é um %AH
                   como os outros, e lê-la com outra cor ou outro sinal faria o olho
                   procurar uma diferença que não existe. */}
@@ -1574,7 +1574,7 @@ function BlocoMes({
           )}
         </>
       ) : mostrarAh ? (
-        <td className={cn(celula, "text-right")}>
+        <td className={cn(celula, "col-interna text-right")}>
           <Variacao percentual={ah ?? null} valorDaLinha={totalDaLinha} />
         </td>
       ) : null}
@@ -1583,7 +1583,7 @@ function BlocoMes({
         <CelulasDoProvisionado
           valor={valor}
           provisionado={provisionado ?? null}
-          classe={cn(celula, "text-right", total && "bg-[var(--surface-2)]")}
+          classe={cn(celula, "col-interna text-right", total && "bg-[var(--surface-2)]")}
           corValor={corValor}
           onDetalhe={onDetalheProvisionado ?? null}
         />
