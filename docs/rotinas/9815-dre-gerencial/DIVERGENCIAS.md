@@ -39,7 +39,7 @@ linha no índice.
 | [16](#16-a-coluna-ah--no-bloco-de-total--06102026) | Coluna `AH %` no total — soma dos `%AH`, **não** a variação do período | todas, só com mais de um mês | **nenhum valor muda** — coluna nova | **a pedido** em 06/10/2026 · dc13 43/43 |
 | [17](#17-minas-rural-a-seção-sem-custo-é-a-1401--07102026) | Minas Rural: a seção tirada da venda e da devolução passa de `1601` para `1401` | todas, só no Minas Rural | **nenhum valor** nos meses medidos — jul a set/2026 | **ligada** em 07/10/2026 pela prova do trace · dc86 46/46 |
 | [18](#18-minas-rural-as-contas-de-icms-viram-a-3003007--07102026) | Minas Rural: conta de ICMS do grupo 303 vira a `3003007` na despesa e no detalhamento | todas, só no Minas Rural | **R$ 38.054,11** no lucro de agosto/2026 na filial 10 | **ligada** em 07/10/2026 · dc89 bate ao centavo |
-| [19](#19-as-colunas-provisionado-e-total-no-regime-competência--14102026) | Colunas **Provisionado** (títulos em aberto) e **Total** nos meses com aberto | todas, só em competência | **nenhum valor muda** — colunas novas | **a pedido** em 14/10/2026 · dc92, dc93, dc94 |
+| [19](#19-as-colunas-provisionado-e-total-no-regime-competência--14102026) | Colunas **Provisionado** (títulos em aberto) e **Total** nos meses com aberto | todas, só em competência | colunas novas; com o Provisionado ligado, **%AV e %AH das contas sobre R + P** | **a pedido** em 14/10/2026 · dc92, dc93, dc94 |
 
 ---
 
@@ -1482,8 +1482,19 @@ Total / `%AV` / Média / `%AH` (ordem pedida em 14/10/2026, para o dinheiro fica
 o pago), **Provisionado** e **Total (R + P)** — em todos os meses e no bloco do período,
 na tela e no Excel (`lib/rotulosDoDinheiro.ts`). Em caixa a coluna continua "Valor".
 
-**É acréscimo, não troca.** O Valor, o `%AV`, o `%AH` e todos os totalizadores continuam os
-da 9815, ao centavo. A 9815 não tem nada disso.
+**O Valor e todos os totalizadores continuam os da 9815, ao centavo.** A 9815 não tem nada
+disso.
+
+**Os percentuais das contas mudam com o Provisionado ligado** (pedido de 14/10/2026, opção 1):
+o `%AV` passa a ser (R + P) ÷ base — a mesma base, porque receita não tem provisionado — e o
+`%AH` compara o R + P do mês com o R + P do anterior (P = 0 onde não há aberto). No bloco do
+período, o `%AV` é o do Total (R + P), e a soma dos `%AH` acompanha. A cor do `%AH` julga
+pelo Total (R + P). **Com o Provisionado desligado**, os percentuais voltam a ser os de sempre,
+sobre o Realizado, e a tela é a da 9815. Totalizadores, receita e CMV não mudam: não têm
+provisionado. Consequência aceita: com o Provisionado ligado, a soma dos `%AV` das contas
+operacionais deixa de bater com o do Sub-Total, que soma só o realizado. Quem calcula é o
+servidor (`PercentualAvComProvisionado`/`PercentualAhComProvisionado`); a tela e o Excel só
+escolhem (`lib/percentuaisComProvisionado.ts`).
 
 ### A regra
 
@@ -1514,7 +1525,9 @@ lançou).
   (`docs/superpowers/specs/2026-10-14-provisionado-competencia-design.md`): o contrato já
   comporta, e ela teria de entrar também no recálculo da reordenação.
 - **Caixa**: não existe — o mês é o do pagamento.
-- **`%AV`/`%AH` sobre Provisionado ou Total**: não existem; os percentuais são do Valor.
+- **`%AV`/`%AH` da coluna Provisionado sozinha**: não existem. E a **reordenação de linhas**
+  não refaz os percentuais R + P (o `recalculoDoDre` refaz só os de sempre): arrastar uma
+  conta para outro bloco que mude a base deixa os R + P como a API os mandou.
 - **Modo de variação (anos)**: o bloco final é Δ, e não ganha as duas colunas.
 
 ### Provas

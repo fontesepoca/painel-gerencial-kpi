@@ -32,10 +32,14 @@ const linha = (descricao, extra = {}) => ({
   descricao,
   papel: null,
   valores: [
-    { mesAno: "07/2026", valor: -100, percentualAv: 1, percentualAh: 0, provisionado: -40 },
-    { mesAno: "08/2026", valor: -50, percentualAv: 1, percentualAh: -50, provisionado: null },
+    // As versões R + P dos percentuais vêm da API (MontadorDre) — aqui só valores marcados,
+    // para o teste saber de qual campo cada célula saiu.
+    { mesAno: "07/2026", valor: -100, percentualAv: 1, percentualAh: 0, provisionado: -40,
+      percentualAvComProvisionado: 1.4, percentualAhComProvisionado: 0 },
+    { mesAno: "08/2026", valor: -50, percentualAv: 1, percentualAh: -50, provisionado: null,
+      percentualAvComProvisionado: 0.5, percentualAhComProvisionado: -64 },
   ],
-  total: { valor: -150, media: -75, percentualAv: 1, provisionado: -40 },
+  total: { valor: -150, media: -75, percentualAv: 1, provisionado: -40, percentualAvComProvisionado: 0.95 },
   totalizadora: false,
   calculada: false,
   naoSoma: false,
@@ -87,9 +91,10 @@ eq(m[1].map(v), [
 ], "cabeçalho: Realizado, Provisionado e Total juntos, a análise depois");
 
 const adm = m[2].map(v);
-eq(adm.slice(1, 6), [-100, -40, -140, 1, 0], "julho: Valor, Provisionado, Total = Valor + Provisionado, AV, AH");
-eq(adm.slice(6, 9), [-50, 1, -50], "agosto sem as colunas novas");
-eq(adm.slice(9, 12), [-150, -40, -190], "período: Valor, Provisionado, Total");
+// Com o Provisionado ligado, %AV e %AH da conta são os de R + P (opção 1, 14/10/2026).
+eq(adm.slice(1, 6), [-100, -40, -140, 1.4, 0], "julho: Valor, Provisionado, Total, AV e AH sobre R + P");
+eq(adm.slice(6, 9), [-50, 0.5, -64], "agosto: sem as colunas novas, mas AV e AH sobre R + P");
+eq(adm.slice(9, 15), [-150, -40, -190, 0.95, -75, -64], "período: Valor, Provisionado, Total, AV R + P, Média, soma dos AH R + P");
 
 const sub = m[3].map(v);
 eq([sub[2], sub[3], sub[10], sub[11]], [null, null, null, null], "linha calculada: Provisionado e Total vazios");
@@ -100,6 +105,8 @@ eq(m[0].length, m[1].length, "a faixa dos meses tem a mesma largura do cabeçalh
 const sem = matrizDaApuracao(dados, dados.linhas, { av: true, ah: true, provisionado: false });
 eq(sem[1].map(v).includes("Provisionado"), false, "desligado: nenhuma coluna nova");
 eq(sem[1].length, 1 + 3 + 3 + 4, "desligado: a largura de sempre");
+eq(sem[2].map(v).slice(1, 7), [-100, 1, 0, -50, 1, -50], "desligado: %AV e %AH de sempre, sobre o Realizado");
+eq(sem[2].map(v).at(-3), 1, "desligado: %AV do período de sempre");
 
 // ── 3. Caixa ou sem nenhum aberto: nem com o checkbox ligado ──────────────────────────────
 const semAberto = { ...dados, periodos: periodos.map((p) => ({ ...p, temProvisionado: false })) };

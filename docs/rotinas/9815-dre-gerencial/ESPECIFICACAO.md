@@ -161,8 +161,8 @@ Usar a receita líquida nas cinco deduções daria 8,659 no lugar de 7,742 em AB
 **`Provisionado` e `Total`** (competência, 14/10/2026 — DIVERGENCIAS nº 19): nos meses com
 título em aberto, logo depois do Valor (Valor / Provisionado / Total / `AV %` / `AH %`; no
 período, com a Média antes do `AH %`). Provisionado é a mesma consulta de despesas com
-`DTPAGTO IS NULL`; Total é Valor + Provisionado. Só nas linhas de conta; `%AV` e `%AH`
-continuam sobre o Valor. O checkbox "Provisionado" esconde as duas, e o duplo clique no
+`DTPAGTO IS NULL`; Total é Valor + Provisionado. Só nas linhas de conta; com o Provisionado ligado, `%AV` e
+`%AH` das contas são sobre R + P (desligado, sobre o Valor, como a 9815). O checkbox "Provisionado" esconde as duas, e o duplo clique no
 Provisionado abre os títulos em aberto com vencimento e dias de atraso. Em competência as três
 colunas de dinheiro se chamam **Vl. Realizado**, **Provisionado** e **Total (R + P)**; em caixa,
 "Valor".

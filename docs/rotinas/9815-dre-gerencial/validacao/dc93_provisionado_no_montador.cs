@@ -119,6 +119,30 @@ Afirmar(V(c, "ADMINISTRATIVO", "07/2026").Provisionado is null && L(c, "ADMINIST
     "sem abertos (caixa): Provisionado nulo");
 Afirmar(!c.Periodos[0].TemProvisionado, "e a coluna não tem provisionado");
 
+// ── 4b. %AV e %AH sobre R + P (14/10/2026, opção 1: a tela usa só com o Provisionado ligado) ──
+// Julho: R −100, P −40; agosto: R −50, sem aberto. Receita líquida 1.000 nos dois meses.
+var rl = (string mes) => new FaturamentoDre { MesAno = mes, ReceitaLiquida = 1000m, ReceitaLiquidaTotal = 1000m };
+var p = Montar(
+    Coluna("07/2026", [Despesa("07/2026", "1001", -100m)], [Despesa("07/2026", "1001", -40m)], rl("07/2026")),
+    Coluna("08/2026", [Despesa("08/2026", "1001", -50m)], [], rl("08/2026")));
+var jul = V(p, "ADMINISTRATIVO", "07/2026");
+var ago = V(p, "ADMINISTRATIVO", "08/2026");
+Afirmar(jul.PercentualAv == -10m, "o %AV de sempre segue sobre o Realizado (−100 / 1.000)", $"{jul.PercentualAv}");
+Afirmar(jul.PercentualAvComProvisionado == -14m, "o %AV sobre R + P: −140 / 1.000", $"{jul.PercentualAvComProvisionado}");
+Afirmar(ago.PercentualAh == -50m, "o %AH de sempre: −50 contra −100", $"{ago.PercentualAh}");
+// Agosto não tem aberto, mas o mês ANTERIOR tem: compara −50 com −140.
+Afirmar(ago.PercentualAhComProvisionado is { } ah && Math.Round(ah, 6) == Math.Round((-50m / -140m - 1m) * 100m, 6),
+    "o %AH sobre R + P compara com o R + P do mês anterior", $"{ago.PercentualAhComProvisionado}");
+Afirmar(jul.PercentualAhComProvisionado == 0m, "primeiro mês: 0, como o %AH de sempre");
+Afirmar(L(p, "ADMINISTRATIVO").Total.PercentualAvComProvisionado == -9.5m,
+    "o %AV do período sobre R + P: −190 / 2.000", $"{L(p, "ADMINISTRATIVO").Total.PercentualAvComProvisionado}");
+Afirmar(V(p, "Sub-Total -> Despesas Operacionais", "07/2026").PercentualAvComProvisionado is null,
+    "totalizador não tem a versão R + P");
+
+// Sem nenhum aberto na apuração, não há versão R + P — a tela usa a de sempre.
+var semP = Montar(Coluna("07/2026", [Despesa("07/2026", "1001", -100m)], [], rl("07/2026")));
+Afirmar(V(semP, "ADMINISTRATIVO", "07/2026").PercentualAvComProvisionado is null, "sem aberto: nada de R + P");
+
 // ── 5. Arredondamento por coluna, como o Valor ────────────────────────────────────────────
 var r = Montar(
     Coluna("07/2026", [], [Despesa("07/2026", "1001", -0.125m)]),

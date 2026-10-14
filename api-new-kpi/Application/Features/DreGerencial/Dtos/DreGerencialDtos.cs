@@ -164,14 +164,31 @@ public record ValorMesDto(
     /// Valor. Nulo em caixa, em linha calculada (totalizadores, receita, CMV) e quando a
     /// coluna não tem nenhum aberto. %AV e %AH não o consideram.
     /// </summary>
-    decimal? Provisionado = null);
+    decimal? Provisionado = null,
+    /// <summary>
+    /// %AV sobre <b>R + P</b> (Valor + Provisionado), mesma base. A tela usa no lugar do
+    /// <see cref="PercentualAv"/> quando o Provisionado está ligado (14/10/2026, opção 1).
+    /// Nulo em linha calculada e em apuração sem nenhum aberto.
+    /// </summary>
+    decimal? PercentualAvComProvisionado = null,
+    /// <summary>
+    /// %AH sobre <b>R + P</b>: o R + P desta coluna contra o da anterior (P = 0 onde não
+    /// há aberto). Mesmas regras do <see cref="PercentualAh"/> e mesmos nulos do campo acima.
+    /// </summary>
+    decimal? PercentualAhComProvisionado = null);
 
 /// <summary>Bloco TOTAL da linha, somando os meses do período.</summary>
 /// <param name="Provisionado">
 /// A soma dos <see cref="ValorMesDto.Provisionado"/> das colunas, já arredondados. Nulo
 /// quando nenhuma coluna tem.
 /// </param>
-public record TotalLinhaDto(decimal Valor, decimal Media, decimal? PercentualAv, decimal? Provisionado = null);
+public record TotalLinhaDto(
+    decimal Valor,
+    decimal Media,
+    decimal? PercentualAv,
+    decimal? Provisionado = null,
+    /// <summary>%AV do período sobre o Total (R + P). Ver <see cref="ValorMesDto.PercentualAvComProvisionado"/>.</summary>
+    decimal? PercentualAvComProvisionado = null);
 
 /// <summary>
 /// O detalhamento que esta linha abre com duplo clique, ou `null` se ela não abre nenhum.

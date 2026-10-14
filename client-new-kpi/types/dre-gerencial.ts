@@ -118,6 +118,12 @@ export interface ValorMes {
    * 14/10/2026 não manda.
    */
   provisionado?: number | null;
+  /**
+   * %AV e %AH sobre R + P (Valor + Provisionado). A tela os usa no lugar dos de sempre só
+   * com o Provisionado ligado — ver `lib/percentuaisComProvisionado.ts`.
+   */
+  percentualAvComProvisionado?: number | null;
+  percentualAhComProvisionado?: number | null;
 }
 
 export interface TotalLinha {
@@ -126,6 +132,8 @@ export interface TotalLinha {
   percentualAv: number | null;
   /** A soma dos provisionados das colunas. Nulo quando nenhuma tem. */
   provisionado?: number | null;
+  /** %AV do período sobre o Total (R + P). */
+  percentualAvComProvisionado?: number | null;
 }
 
 /**

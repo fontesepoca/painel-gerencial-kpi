@@ -25,7 +25,7 @@ nunca pagos ficam visíveis para que quem os cadastrou seja cobrado. Nenhum filt
 | D4 | Valor do título em aberto = `VALOR` (o `nvl(VPAGO, VALOR)` da consulta já cai nele). | `VPAGO` só existe depois do pagamento. |
 | D5 | O ramo `RECEITA VENDA ATIVO` (`PCNFSAID`/`PCPREST`, chave `85`/`400`/`8501`) **não entra** no aberto. | É receita já recebida (`fin.dtpag`); entraria duas vezes. |
 | D6 | **Só as linhas de despesa** ganham Provisionado. Totalizadores, receita e CMV não. | Opção 2 do Gabriel. Ver §8 para a evolução. |
-| D7 | **%AV e %AH continuam só sobre o Valor**, fiéis à 9815. Provisionado e Total não têm percentual. | Um %AH sobre Total misturaria pago com não pago. |
+| D7 | ~~**%AV e %AH continuam só sobre o Valor**~~ — **revista em 14/10/2026**: com o Provisionado ligado, %AV e %AH das contas são sobre R + P; desligado, sobre o Valor (fiéis à 9815). | Pedido do Gabriel depois de ver a tela: o percentual tem de falar do mesmo número que o Total mostra. |
 | D8 | As colunas aparecem **só nos meses com algo em aberto**; o bloco do período as ganha se algum mês tiver. | Pedido: "neste mês deve existir colunas diferentes". |
 | D9 | Checkbox **"Mostrar provisionado"**, marcado por padrão, ao lado de AV% e AH%; só aparece em competência com algo em aberto. Desmarcado, a tela é idêntica à de hoje. | Pedido. |
 | D10 | Duplo clique em **Provisionado** abre os títulos em aberto da linha e do mês, com **Vencimento**, **Dias em atraso** e **Lançado por**. Valor continua abrindo os pagos; Total não abre nada. | Cobrança. Total é soma de duas células já na tela. |

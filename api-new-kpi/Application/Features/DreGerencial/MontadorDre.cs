@@ -345,6 +345,10 @@ public static class MontadorDre
         //   · coluna sem a lista de abertos — regime caixa;
         //   · coluna competência sem NENHUM aberto — mês todo pago não ganha colunas.
         // No resto, o mesmo rateio e o mesmo arredondamento do Valor.
+        // A versão R + P dos percentuais só existe quando ALGUMA coluna tem aberto — sem
+        // nenhum, a tela nem mostra o Provisionado, e os percentuais são os de sempre.
+        var comVersaoRp = colunas.Any(c => c.Abertos is { Count: > 0 });
+
         decimal? Provisionado(LinhaEmMontagem l, ColunaApuracao c)
         {
             if (l.Calculada || c.Abertos is not { Count: > 0 }) return null;
@@ -382,12 +386,31 @@ public static class MontadorDre
                     ? (decimal?)null
                     : Arredondar(valoresPorColuna[colunas[i - 1].Chave][indice]);
 
+                var provisionado = Provisionado(l, c);
+
+                // %AV e %AH sobre R + P (14/10/2026, opção 1 — a tela usa estes só com o
+                // Provisionado ligado; desligado, os de sempre, fiéis à 9815). A coluna sem
+                // aberto entra com P = 0: comparar agosto todo pago com julho que tinha aberto
+                // é R de agosto contra R + P de julho, que é o que o Total (R + P) mostra.
+                decimal? avRp = null, ahRp = null;
+                if (comVersaoRp && !l.Calculada)
+                {
+                    var rp = valor + (provisionado ?? 0m);
+                    var anteriorRp = anterior is null
+                        ? (decimal?)null
+                        : anterior.Value + (Provisionado(l, colunas[i - 1]) ?? 0m);
+                    avRp = CalcularAv(l, rp, c.Faturamento);
+                    ahRp = CalcularAh(rp, anteriorRp);
+                }
+
                 return new ValorMesDto(
                     MesAno: c.Chave,
                     Valor: valor,
                     PercentualAv: CalcularAv(l, valor, c.Faturamento),
                     PercentualAh: CalcularAh(valor, anterior),
-                    Provisionado: Provisionado(l, c));
+                    Provisionado: provisionado,
+                    PercentualAvComProvisionado: avRp,
+                    PercentualAhComProvisionado: ahRp);
             }).ToList();
 
             var somaPeriodo = valores.Sum(v => v.Valor);
@@ -417,7 +440,12 @@ public static class MontadorDre
                     Media: colunas.Count == 0 ? 0m : Arredondar(somaPeriodo / colunas.Count),
                     PercentualAv: CalcularAvTotal(
                         l, somaPeriodo, colunas.Select(c => c.Faturamento)),
-                    Provisionado: provisionadoPeriodo),
+                    Provisionado: provisionadoPeriodo,
+                    PercentualAvComProvisionado: comVersaoRp && !l.Calculada
+                        ? CalcularAvTotal(
+                            l, somaPeriodo + (provisionadoPeriodo ?? 0m),
+                            colunas.Select(c => c.Faturamento))
+                        : null),
                 Totalizadora: l.Estrutura.InfContas == "S",
                 Calculada: l.Calculada,
                 NaoSoma: EhNaoSoma(l),

@@ -37,6 +37,7 @@ import {
   recalcular,
 } from "@/lib/recalculoDoDre";
 import { rotulosDoDinheiro, type RotulosDoDinheiro } from "@/lib/rotulosDoDinheiro";
+import { comPercentuaisRp, sentidoDaLinha } from "@/lib/percentuaisComProvisionado";
 import type {
   FiltroApuracao,
   LinhaDre,
@@ -961,7 +962,9 @@ export function TabelaDre({
                   mostrarAv={mostrarAv}
                   mostrarAh={mostrarAh}
                   key={linha.chaveOrdem}
-                  linha={linha}
+                  // Com o Provisionado ligado, %AV e %AH da conta são os de R + P (opção 1, 14/10/2026).
+                  linha={comPercentuaisRp(linha, mostrarProvisionado)}
+                  percentuaisRp={mostrarProvisionado}
                   indice={indice}
                   foraDoBloco={deslocadas.has(linha.chaveOrdem)}
                   maiorAv={maiorAv}
@@ -1268,6 +1271,7 @@ function Linha({
   onDetalhe,
   provisionadoNoMes,
   provisionadoNoFim,
+  percentuaisRp,
   onDetalheProvisionado,
 }: {
   linha: LinhaDre;
@@ -1298,6 +1302,12 @@ function Linha({
   /** O mês ganha Provisionado e Total — decidido na tabela, para cabeçalho e corpo baterem. */
   provisionadoNoMes: (p: PeriodoDre) => boolean;
   provisionadoNoFim: boolean;
+  /**
+   * %AV e %AH sobre R + P (o Provisionado está ligado): a linha já chega com os percentuais
+   * trocados, e a COR do %AH passa a julgar pelo Total (R + P). Ver
+   * `lib/percentuaisComProvisionado.ts`.
+   */
+  percentuaisRp: boolean;
   /** Os títulos em aberto da célula. `null` em totalizador. */
   onDetalheProvisionado: ((mesAno: string | null) => void) | null;
 }) {
@@ -1308,6 +1318,8 @@ function Linha({
   };
 
   const nome = linha.descricao.trim();
+  // De onde sai a cor do %AH: o Total (R + P) quando os percentuais são sobre R + P.
+  const sentido = sentidoDaLinha(linha, percentuaisRp);
 
   return (
     <tr
@@ -1435,7 +1447,7 @@ function Linha({
           ah={v.percentualAh}
           mostrarAv={mostrarAv}
           mostrarAh={mostrarAh}
-          totalDaLinha={linha.total.valor}
+          totalDaLinha={sentido}
           maiorAv={maiorAv}
           destaque={linha.totalizadora}
           onDetalhe={onDetalhe ? () => onDetalhe(v.mesAno) : null}
@@ -1469,7 +1481,7 @@ function Linha({
             ah={somaDosAh(linha.valores)}
             media={linha.total.media}
             maiorAv={maiorAv}
-            totalDaLinha={linha.total.valor}
+            totalDaLinha={sentido}
             destaque={linha.totalizadora}
             onDetalhe={onDetalhe ? () => onDetalhe(null) : null}
             comProvisionado={provisionadoNoFim}

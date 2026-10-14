@@ -10,6 +10,7 @@ import {
 } from "@/lib/excel";
 import { somaDosAh } from "@/lib/ahDoTotal";
 import { rotulosDoDinheiro } from "@/lib/rotulosDoDinheiro";
+import { comPercentuaisRp } from "@/lib/percentuaisComProvisionado";
 import { mostraVariacao, rotuloDaVariacao, variacao } from "@/lib/modosDePeriodo";
 import type { Apuracao, LinhaDre, PeriodoDre } from "@/types/dre-gerencial";
 
@@ -140,7 +141,11 @@ export function matrizDaApuracao(
     );
   }
 
-  const corpo = linhas.map((linha) => {
+  // Com o Provisionado ligado (e algum aberto), %AV e %AH das contas são os de R + P — os
+  // MESMOS que a tela mostra. Desligado, os de sempre. Ver `lib/percentuaisComProvisionado.ts`.
+  const usarRp = provisionadoNoFim(dados, colunas);
+  const corpo = linhas.map((original) => {
+    const linha = comPercentuaisRp(original, usarRp);
     const celulas: Celula[] = [txt(linha.descricao.trim())];
 
     for (const p of dados.periodos) {
