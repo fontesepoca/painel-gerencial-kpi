@@ -517,18 +517,44 @@ body {
 /* A DESCRIÇÃO TEM LARGURA FIXA no papel do DRE (15/10/2026). O teto antigo era `max-width`,
    que navegador IGNORA em célula de tabela: quando o respiro dos valores diminuiu, a sobra
    foi toda para a descrição (~300px, as contas numa linha só) e os números não ganharam
-   nada. `width` a tabela respeita; nome longo quebra em duas linhas. */
+   nada. `width` a tabela respeita; nome longo quebra em duas linhas.
+
+   EM `em`, E NÃO EM `rem` (15/10/2026, PDF `apurado`): a fonte da descrição cresce quando
+   há poucas colunas, e os 12rem fixos ficavam para trás — `TRIANGULO/UBERLÂNDIA` passava da
+   borda e `TRANSPORTES - CD 3 CORAÇÕES/SUL MG` quebrava em quatro linhas. 14em acompanham a
+   fonte: os nomes do cadastro cabem em duas linhas em qualquer tamanho. E uma palavra que
+   ainda assim não caiba quebra DENTRO da célula (`overflow-wrap: break-word`), nunca por cima
+   da coluna vizinha. `break-word`, e não `anywhere`: o `anywhere` entra na largura mínima da
+   coluna, e com seis meses a tabela apertada encolheu a descrição até uma letra por linha.
+   O piso de 12rem vale pelo mesmo motivo: 14em a 7pt seriam 91px. */
 .calibrando.numeros-ampliados .tabela-rolagem .celula-descricao {
-  width: 12rem !important;
-  max-width: 12rem !important;
-  min-width: 0 !important;
+  width: max(12rem, 14em) !important;
+  max-width: max(12rem, 14em) !important;
+  min-width: 12rem !important;
+}
+
+.calibrando.numeros-ampliados .tabela-rolagem .descricao-conta {
+  overflow-wrap: break-word !important;
 }
 
 @media print {
   .numeros-ampliados .tabela-rolagem .celula-descricao {
-    width: 12rem !important;
-    max-width: 12rem !important;
-    min-width: 0 !important;
+    width: max(12rem, 14em) !important;
+    max-width: max(12rem, 14em) !important;
+    min-width: 12rem !important;
+  }
+
+  .numeros-ampliados .tabela-rolagem .descricao-conta {
+    overflow-wrap: break-word !important;
+  }
+
+  /* A TABELA DO DRE ENCHE A FOLHA (15/10/2026). A calibragem mede na tela uns 3% mais largo
+     do que o papel sai, e esse resto virava uma faixa branca à direita (PDFs `ultima_2` e
+     `apurado`). Com a descrição de largura fixa, `width: 100%` reparte a sobra entre as
+     colunas de valor — o vão entre nome e número que motivou o `width: auto` abaixo não
+     volta, porque a descrição não cresce mais. */
+  .numeros-ampliados .tabela-rolagem table {
+    width: 100% !important;
   }
 }
 

@@ -149,13 +149,15 @@ export function tokensDaFonte(basePt: number): Record<string, string> {
 const MAX_PT_NUMEROS = 20;
 
 /**
- * O piso da fonte dos números: 10pt, mesmo que a tabela passe da folha — pedido do Gabriel em
- * 15/10/2026, "só aumente a fonte por enquanto para visualizarmos". Com três meses de
- * Provisionado (21 colunas de número na A3), o que cabe na largura é ~7,5pt: a busca devolvia
- * praticamente o piso antigo, e o número não crescia. A 10pt as últimas colunas podem passar da
- * margem; é a prova visual antes de decidir o que sai do papel (centavos, milhares, colunas).
+ * O piso da fonte dos números: 7pt, o mesmo da tabela — e a busca NUNCA passa da folha.
+ *
+ * Teve 10pt por algumas horas em 15/10/2026, a pedido ("só aumente a fonte para
+ * visualizarmos"), e a bancada de impressão mostrou o custo: com seis meses e Provisionado o
+ * AH % do Total saía da folha. Com a descrição acompanhando a fonte (`14em`, globals.css), o
+ * cenário que motivou o pedido — três meses com Provisionado — já chega a 11,5pt sem piso
+ * nenhum; o piso alto só servia para cortar os casos que não cabem.
  */
-export const PISO_DOS_NUMEROS = 10;
+export const PISO_DOS_NUMEROS = 7;
 
 /**
  * A maior fonte dos NÚMEROS que cabe na LARGURA da folha — pedido do Gabriel em 15/10/2026.

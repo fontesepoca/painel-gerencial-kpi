@@ -11,9 +11,9 @@
  * nos PDFs de 15/10/2026 os números saíram do mesmo tamanho. A busca agora cobre a faixa toda,
  * e pode inclusive escolher MENOS que a fonte da tabela, se é o que cabe.
  *
- * PISO DE 10pt (15/10/2026, segunda rodada): com 21 colunas de número na A3 o que cabe é
- * ~7,5pt, e a busca devolvia o piso antigo de 7. O Gabriel pediu a fonte maior mesmo assim,
- * "para visualizarmos" — a 10pt as últimas colunas podem passar da margem.
+ * O PISO TEVE 10pt por algumas horas (15/10/2026) e voltou a 7: a bancada de impressão mostrou
+ * seis meses com Provisionado saindo da folha. A busca nunca escolhe uma fonte que não cabe;
+ * o caso "7,5pt cabia" abaixo é o que trava isso.
  */
 import assert from "node:assert/strict";
 import { LARGURA_UTIL, PISO_DOS_NUMEROS, maiorFonteDosNumeros } from "../../../../client-new-kpi/lib/escalaDeImpressao.ts";
@@ -49,17 +49,17 @@ const tabela = (fixo, porPonto) => (pt) => fixo + pt * porPonto;
 // 3. Teto: tabela estreita não leva os números a 40pt.
 eq(maiorFonteDosNumeros(() => 100, "a3-deitada"), 20, "o teto dos números é 20pt");
 
-// 4. Nem o piso cabe: fica em 10pt mesmo assim — o caso dos três meses com Provisionado.
-eq(PISO_DOS_NUMEROS, 10, "o piso dos números é 10pt");
-eq(maiorFonteDosNumeros(() => limite * 2, "a3-deitada"), 10, "nem o piso cabe: 10pt mesmo assim");
+// 4. Nem o piso cabe: fica no piso, 7pt — melhor apertado que sem número.
+eq(PISO_DOS_NUMEROS, 7, "o piso dos números é 7pt");
+eq(maiorFonteDosNumeros(() => limite * 2, "a3-deitada"), 7, "nem o piso cabe: 7pt");
 
-// 4b. O caso real do PDF ultima_2: cabia ~7,5pt. Antes saía 7; agora sai 10.
+// 4b. Cabia ~7,5pt: sai 7,5, e não mais que isso — passar da folha corta coluna.
 {
   const medir = tabela(190, (limite - 190) / 7.6);
-  eq(maiorFonteDosNumeros(medir, "a3-deitada"), 10, "cabia 7,5pt: sai o piso de 10pt");
+  eq(maiorFonteDosNumeros(medir, "a3-deitada"), 7.5, "cabia 7,5pt: sai 7,5pt, sem cortar");
 }
 
 // 5. Medição quebrada (NaN): o piso, sem arriscar.
-eq(maiorFonteDosNumeros(() => Number.NaN, "a3-deitada"), 10, "medida inválida: o piso");
+eq(maiorFonteDosNumeros(() => Number.NaN, "a3-deitada"), 7, "medida inválida: o piso");
 
 console.log(`✓ dc95 passou — ${n} conferências`);
