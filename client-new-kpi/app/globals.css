@@ -514,10 +514,25 @@ body {
   font-size: var(--fs-numero, var(--fs-base)) !important;
 }
 
+/* E quase sem respiro lateral nas células de valor (pedido de 15/10/2026): cada px de
+   padding vezes 22 colunas é largura que a fonte dos números não pode usar. Fica 2px, só
+   para o número não encostar na linha divisória — que é sombra por dentro da célula. */
+.calibrando.numeros-ampliados .tabela-rolagem tbody td:not(.celula-descricao),
+.calibrando.numeros-ampliados .tabela-rolagem thead tr:last-child > th:not(.celula-descricao) {
+  padding-left: 2px !important;
+  padding-right: 2px !important;
+}
+
 @media print {
   .numeros-ampliados .tabela-rolagem tbody td:not(.celula-descricao),
   .numeros-ampliados .tabela-rolagem tbody td:not(.celula-descricao) * {
     font-size: var(--fs-numero, var(--fs-base)) !important;
+  }
+
+  .numeros-ampliados .tabela-rolagem tbody td:not(.celula-descricao),
+  .numeros-ampliados .tabela-rolagem thead tr:last-child > th:not(.celula-descricao) {
+    padding-left: 2px !important;
+    padding-right: 2px !important;
   }
 }
 
