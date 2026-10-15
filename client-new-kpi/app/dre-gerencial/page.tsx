@@ -17,7 +17,8 @@ import { cn } from "@/lib/cn";
 import { formatarDataIso, formatarDuracao } from "@/lib/formato";
 import { descreverFiliais } from "@/lib/filiaisApuradas";
 import { descreverFornecedores } from "@/lib/fornecedoresApurados";
-import { estimativaDeTempo, impedimento } from "@/lib/modosDePeriodo";
+import { estimativaDeTempo, impedimento, mostraVariacao } from "@/lib/modosDePeriodo";
+import { MenuDeExibicao } from "@/components/dre-gerencial/MenuDeExibicao";
 import { dataHoraBr, periodoPadrao } from "@/lib/periodos";
 import type { Apuracao, FiltroApuracao } from "@/types/dre-gerencial";
 
@@ -45,6 +46,10 @@ export default function DreGerencialPage() {
   // As colunas Provisionado e Total (competência, 14/10/2026). Marcado ao abrir, como os
   // outros dois: quem não quer vê-las desmarca.
   const [mostrarProvisionado, setMostrarProvisionado] = useState(true);
+  // O recorte das colunas (15/10/2026): sem o bloco Total no fim, ou só ele. Os dois se
+  // excluem — marcar um desmarca o outro, no `MenuDeExibicao`.
+  const [semTotal, setSemTotal] = useState(false);
+  const [soTotal, setSoTotal] = useState(false);
   const [expandida, setExpandida] = useState(false);
 
   /**
@@ -197,6 +202,11 @@ export default function DreGerencialPage() {
   // período. Em caixa, ou com tudo pago, a tela é a de sempre e o controle não aparece —
   // diferente do %AH, que fica desabilitado, porque aqui não há "ainda não": não existe.
   const temProvisionado = dados?.periodos.some((p) => p.temProvisionado === true) ?? false;
+  // "Só o Total" vale com MAIS DE DOIS meses — pedido do Gabriel — e só quando o bloco do fim
+  // é um total: nos modos de ano ele pode ser a variação entre colunas, e a variação sozinha
+  // não é o DRE de período nenhum.
+  const variacaoNoFim = dados ? mostraVariacao(dados.modo, dados.periodos) : false;
+  const podeSoTotal = (dados?.periodos.length ?? 0) > 2 && !variacaoNoFim;
 
   // Pela mesma razão: a hora é a da apuração que está na tela, não a de agora. Ela congela
   // junto com os números e não anda enquanto a folha espera para ser impressa.
@@ -355,73 +365,90 @@ export default function DreGerencialPage() {
                     onMudar={setFiltroDeLinhas}
                   />
 
-                  <label className="flex cursor-pointer items-center gap-2.5 text-[length:var(--fs-apoio)] whitespace-nowrap text-[var(--text-secondary)]">
-                    <input
-                      type="checkbox"
-                      checked={mostrarZeradas}
-                      onChange={(e) => setMostrarZeradas(e.target.checked)}
-                      className="size-4 accent-[var(--primary)]"
-                    />
-                    Mostrar zeradas
-                  </label>
+                  {/* O QUE A TABELA MOSTRA, num menu só (15/10/2026). Eram quatro
+                    checkboxes soltos na barra, e com o Total entrando nas opções a barra
+                    virava uma fileira de caixinhas. Ao lado do filtro de linhas pelo
+                    mesmo critério de antes: estes decidem O QUE A TELA MOSTRA, e os da
+                    direita, o que fazer com o que ela mostra.
 
-                  {/* AS DUAS COLUNAS DE ANÁLISE.
-
-                    Ao lado do `Mostrar zeradas` pelo mesmo critério que pôs o
-                    filtro de linhas ali: estes controles decidem O QUE A TELA MOSTRA, e
-                    os da direita decidem o que fazer com o que ela mostra.
-
-                    O `%AH` fica DESABILITADO quando a apuração tem uma coluna só — ele
-                    compara um mês com o anterior, e sem anterior não há o que comparar.
-                    Desabilitado e não escondido: um controle que some da barra conforme
-                    o período faz procurar o que não sumiu, e o `title` diz o motivo. */}
-                  <label className="flex cursor-pointer items-center gap-2.5 text-[length:var(--fs-apoio)] whitespace-nowrap text-[var(--text-secondary)]">
-                    <input
-                      type="checkbox"
-                      checked={mostrarAv}
-                      onChange={(e) => setMostrarAv(e.target.checked)}
-                      className="size-4 accent-[var(--primary)]"
-                    />
-                    AV %
-                  </label>
-
-                  <label
-                    title={
-                      temAh
-                        ? undefined
-                        : "A análise horizontal compara uma coluna com a anterior — ela aparece a partir de dois meses."
-                    }
-                    className={cn(
-                      "flex items-center gap-2.5 text-[length:var(--fs-apoio)] whitespace-nowrap",
-                      temAh
-                        ? "cursor-pointer text-[var(--text-secondary)]"
-                        : "cursor-not-allowed text-[var(--text-muted)]",
-                    )}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={mostrarAh && temAh}
-                      disabled={!temAh}
-                      onChange={(e) => setMostrarAh(e.target.checked)}
-                      className="size-4 accent-[var(--primary)] disabled:opacity-50"
-                    />
-                    AH %
-                  </label>
-
-                  {temProvisionado && (
-                    <label
-                      title="Títulos lançados e ainda não pagos no mês, e o Total com eles. Só nas linhas de despesa."
-                      className="flex cursor-pointer items-center gap-2.5 text-[length:var(--fs-apoio)] whitespace-nowrap text-[var(--text-secondary)]"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={mostrarProvisionado}
-                        onChange={(e) => setMostrarProvisionado(e.target.checked)}
-                        className="size-4 accent-[var(--primary)]"
-                      />
-                      Provisionado
-                    </label>
-                  )}
+                    Opção que não se aplica fica DESABILITADA, com o motivo escrito — ver
+                    `MenuDeExibicao`. O Provisionado é a exceção que já existia: em caixa,
+                    ou com tudo pago, ele não tem "ainda não", não existe. */}
+                  <MenuDeExibicao
+                    grupos={[
+                      {
+                        titulo: "Linhas e análise",
+                        opcoes: [
+                          {
+                            id: "zeradas",
+                            rotulo: "Mostrar zeradas",
+                            apoio: "Contas sem movimento no período",
+                            marcada: mostrarZeradas,
+                            onMudar: setMostrarZeradas,
+                          },
+                          {
+                            id: "av",
+                            rotulo: "AV %",
+                            apoio: "Análise vertical: o peso de cada linha na receita",
+                            marcada: mostrarAv,
+                            onMudar: setMostrarAv,
+                          },
+                          {
+                            id: "ah",
+                            rotulo: "AH %",
+                            apoio: "Análise horizontal: a variação sobre a coluna anterior",
+                            marcada: mostrarAh,
+                            onMudar: setMostrarAh,
+                            motivo: temAh
+                              ? null
+                              : "Aparece a partir de dois meses: compara uma coluna com a anterior.",
+                          },
+                          {
+                            id: "provisionado",
+                            rotulo: "Provisionado",
+                            apoio: "Títulos lançados e ainda não pagos, e o Total (R + P)",
+                            marcada: mostrarProvisionado,
+                            onMudar: setMostrarProvisionado,
+                            oculta: !temProvisionado,
+                          },
+                        ],
+                      },
+                      {
+                        titulo: "Colunas",
+                        opcoes: [
+                          {
+                            id: "sem-total",
+                            rotulo: "Sem a coluna Total",
+                            apoio: "Só os meses, sem o bloco do período no fim",
+                            marcada: semTotal,
+                            // Os dois recortes se excluem: marcar um desmarca o outro.
+                            onMudar: (m) => {
+                              setSemTotal(m);
+                              if (m) setSoTotal(false);
+                            },
+                            motivo: temAh
+                              ? null
+                              : "Com um mês só, não há coluna Total.",
+                          },
+                          {
+                            id: "so-total",
+                            rotulo: "Só o Total",
+                            apoio: "Esconde os meses e deixa o bloco do período",
+                            marcada: soTotal,
+                            onMudar: (m) => {
+                              setSoTotal(m);
+                              if (m) setSemTotal(false);
+                            },
+                            motivo: podeSoTotal
+                              ? null
+                              : variacaoNoFim
+                                ? "Neste modo o bloco do fim é a variação entre as colunas, não um total."
+                                : "Disponível com mais de dois meses.",
+                          },
+                        ],
+                      },
+                    ]}
+                  />
 
                   <BotaoExpandir
                     expandida={expandida}
@@ -467,6 +494,8 @@ export default function DreGerencialPage() {
                 mostrarAv={mostrarAv}
                 mostrarAh={mostrarAh}
                 mostrarProvisionado={mostrarProvisionado && temProvisionado}
+                mostrarTotal={!semTotal}
+                soTotal={soTotal && podeSoTotal}
                 filtroDeLinhas={filtroDeLinhas}
                 onLimparFiltro={() => setFiltroDeLinhas("")}
                 // Deliberadamente `dados`, e não `filtro`: o detalhamento tem que usar os

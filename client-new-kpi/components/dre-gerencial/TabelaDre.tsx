@@ -92,6 +92,8 @@ export function TabelaDre({
   mostrarAv,
   mostrarAh: mostrarAhPedido,
   mostrarProvisionado = false,
+  mostrarTotal = true,
+  soTotal = false,
   filtroDeLinhas,
   onLimparFiltro,
   filtro,
@@ -114,6 +116,13 @@ export function TabelaDre({
    * aberto. A página só liga quando existe algum — ver `temProvisionado` lá.
    */
   mostrarProvisionado?: boolean;
+  /** O bloco do período no fim da tabela (Total ou variação). Desligável desde 15/10/2026. */
+  mostrarTotal?: boolean;
+  /**
+   * Só o bloco do período, sem os meses (15/10/2026). A página só liga com mais de dois
+   * meses e quando o bloco é um total — ver `podeSoTotal` lá.
+   */
+  soTotal?: boolean;
   /**
    * A apuração foi filtrada por fornecedor.
    *
@@ -726,6 +735,10 @@ export function TabelaDre({
    * o controle marcado ou não.
    */
   const mostrarAh = multiMes && mostrarAhPedido;
+  // O recorte das colunas (15/10/2026): os meses somem com "Só o Total"; o bloco do fim, com
+  // "Sem a coluna Total". "Só o Total" vence: sem meses e sem total não sobraria tabela.
+  const mostrarMeses = !(multiMes && soTotal);
+  const blocoNoFim = multiMes && (soTotal || mostrarTotal);
 
   /**
    * Quantas colunas cada mês ocupa, para o `colSpan` do cabeçalho de período.
@@ -891,7 +904,7 @@ export function TabelaDre({
             {multiMes && (
               <tr className="border-b border-[var(--border)]">
                 <th className="celula-descricao" />
-                {periodos.map((p, i) => (
+                {mostrarMeses && periodos.map((p, i) => (
                   <th
                     key={p.mesAno}
                     colSpan={colunasPorMes(p)}
@@ -912,6 +925,7 @@ export function TabelaDre({
                     {rotulos[i]}
                   </th>
                 ))}
+                {blocoNoFim && (
                 <th
                   colSpan={colunasDoFim}
                   className="col-bloco bg-[var(--surface-2)] px-[var(--celula-x)] pt-3 pb-1 text-center text-[length:var(--fs-rotulo)] font-semibold tracking-[0.14em] text-[var(--text-primary)] uppercase"
@@ -922,6 +936,7 @@ export function TabelaDre({
                       coluna `AH %`. */}
                   {variacaoNoFim ? rotuloDaVariacao(modo, periodos) : "Total"}
                 </th>
+                )}
               </tr>
             )}
             <tr className="border-b border-[var(--border-strong)]">
@@ -929,17 +944,18 @@ export function TabelaDre({
                   Sem isto, só as linhas com selo truncam — e truncar justamente a linha
                   que a tela está sinalizando esconde o que ela quer mostrar. A tabela já
                   rola na horizontal, então a folga aqui não custa nada. */}
-              <Th className="celula-descricao min-w-[32rem] text-left">Descrição</Th>
-              {periodos.map((p) => (
+              <Th className="celula-descricao min-w-[32rem]" aEsquerda>Descrição</Th>
+              {mostrarMeses && periodos.map((p, i) => (
                 <ColunasCabecalho
                   key={p.mesAno}
+                  faixa={faixaDoMes(i)}
                   mostrarAv={mostrarAv}
                   mostrarAh={mostrarAh}
                   provisionado={provisionadoNoMes(p)}
                   nomes={nomes}
                 />
               ))}
-              {multiMes &&
+              {blocoNoFim &&
                 (variacaoNoFim ? (
                   <ColunasCabecalhoVariacao />
                 ) : (
@@ -969,6 +985,8 @@ export function TabelaDre({
                   foraDoBloco={deslocadas.has(linha.chaveOrdem)}
                   maiorAv={maiorAv}
                   multiMes={multiMes}
+                  mostrarMeses={mostrarMeses}
+                  blocoNoFim={blocoNoFim}
                   variacaoNoFim={variacaoNoFim}
                   periodos={periodos}
                   modo={modo}
@@ -1069,12 +1087,15 @@ export function TabelaDre({
 }
 
 function ColunasCabecalho({
+  faixa,
   mostrarAv,
   mostrarAh,
   provisionado,
   nomes,
   total,
 }: {
+  /** A cor do mês, a mesma da linha de cima — ver `faixaDoMes`. */
+  faixa?: string;
   mostrarAv: boolean;
   mostrarAh?: boolean;
   /** As colunas Provisionado e Total, logo depois do Valor. */
@@ -1086,7 +1107,7 @@ function ColunasCabecalho({
   return (
     <>
       {/* O Valor abre o bloco (linha grossa); as outras colunas, linha fina. */}
-      <Th className="col-bloco text-right">{nomes.valor}</Th>
+      <Th className={cn("col-bloco", faixa)}>{nomes.valor}</Th>
       {/* O DINHEIRO JUNTO, e a análise depois — pedido do Gabriel em 14/10/2026:
           Valor / Provisionado / Total / AV % (/ Média) / AH %. Lado a lado, o Total se
           confere sem os olhos saltarem os percentuais. %AV e %AH continuam falando só do
@@ -1094,33 +1115,33 @@ function ColunasCabecalho({
       {provisionado && (
         <>
           <Th
-            className="col-interna text-right"
+            className={cn("col-interna", faixa)}
             title="Títulos lançados no mês e ainda não pagos"
           >
             {nomes.provisionado}
           </Th>
           <Th
-            className="col-interna text-right"
+            className={cn("col-interna", faixa)}
             title={`${nomes.valor} + ${nomes.provisionado}`}
           >
             {nomes.total}
           </Th>
         </>
       )}
-      {mostrarAv && <Th className="col-interna w-[9rem] text-right">AV %</Th>}
+      {mostrarAv && <Th className={cn("col-interna w-[9rem]", faixa)}>AV %</Th>}
       {/* A coluna some de verdade quando desligada — não fica uma `th` vazia ocupando
           largura. Era assim que o mês único desenhava a casa do `%AH`, e a casa vazia
           custava espaço numa tabela que já rola na horizontal. */}
       {total ? (
         <>
-          <Th className="col-interna text-right">Média</Th>
+          <Th className="col-interna">Média</Th>
           {/* A SOMA DOS %AH, no fim do bloco de total. Depois da Média e não antes dela:
               a Média acompanha o Valor que está à esquerda — as duas falam de dinheiro —,
               e a análise fecha a linha. */}
-          {mostrarAh && <Th className="col-interna text-right">AH %</Th>}
+          {mostrarAh && <Th className="col-interna">AH %</Th>}
         </>
       ) : mostrarAh ? (
-        <Th className="col-interna text-right">AH %</Th>
+        <Th className={cn("col-interna", faixa)}>AH %</Th>
       ) : null}
     </>
   );
@@ -1130,8 +1151,8 @@ function ColunasCabecalho({
 function ColunasCabecalhoVariacao() {
   return (
     <>
-      <Th className="col-bloco text-right">Δ Valor</Th>
-      <Th className="col-interna text-right">Δ %</Th>
+      <Th className="col-bloco">Δ Valor</Th>
+      <Th className="col-interna">Δ %</Th>
     </>
   );
 }
@@ -1170,7 +1191,7 @@ function BlocoVariacao({
   const celula = cn(
     CELULA,
     "whitespace-nowrap tabular bg-[var(--surface-2)] text-right",
-    destaque && "font-semibold",
+    destaque && "font-bold",
   );
 
   const v = variacao(valores, periodos, modo);
@@ -1229,10 +1250,13 @@ function faixaDoMes(indice: number): string {
 function Th({
   className,
   title,
+  aEsquerda,
   children,
 }: {
   className?: string;
   title?: string;
+  /** Só a Descrição. Prop, e não `text-left` na classe: `cn` não resolve conflito. */
+  aEsquerda?: boolean;
   children?: React.ReactNode;
 }) {
   return (
@@ -1240,6 +1264,8 @@ function Th({
       title={title}
       className={cn(
         "px-[var(--celula-x)] py-[var(--celula-y)] text-[length:var(--fs-rotulo)] font-medium tracking-[0.14em] text-[var(--text-muted)] uppercase",
+        // Títulos das colunas CENTRALIZADOS (15/10/2026); só a Descrição à esquerda.
+        aEsquerda ? "text-left" : "text-center",
         className,
       )}
     >
@@ -1255,6 +1281,8 @@ function Linha({
   foraDoBloco,
   maiorAv,
   multiMes,
+  mostrarMeses,
+  blocoNoFim,
   mostrarAv,
   mostrarAh,
   variacaoNoFim,
@@ -1281,6 +1309,10 @@ function Linha({
   maiorAv: number;
   comFornecedor: boolean;
   multiMes: boolean;
+  /** Os meses aparecem — some com "Só o Total". */
+  mostrarMeses: boolean;
+  /** O bloco do fim aparece — some com "Sem a coluna Total". */
+  blocoNoFim: boolean;
   /** As colunas de analise que a barra de controles deixou ligadas. */
   mostrarAv: boolean;
   mostrarAh: boolean;
@@ -1352,6 +1384,10 @@ function Linha({
         // alcançar a coluna fixa e o bloco de total, que têm fundo próprio, e um utilitário
         // de `background-color` na linha não chega lá.
         linha.totalizadora && "linha-totalizadora bg-[var(--surface-2)]",
+        // RESULTADO OPERACIONAL e LUCRO LIQUIDO são os dois resultados do DRE: borda grossa
+        // em cima e embaixo, para se destacarem dos outros totalizadores (15/10/2026).
+        (linha.papel === "resultado-operacional" || linha.papel === "lucro-liquido") &&
+          "linha-resultado",
         arrastando && "linha-arrastando",
         indicadorAcima && "alvo-acima",
         indicadorAbaixo && "alvo-abaixo",
@@ -1420,7 +1456,7 @@ function Linha({
               // desligar o corte e deixar o nome quebrar em duas linhas.
               "descricao-conta truncate",
               linha.totalizadora
-                ? "font-semibold text-[var(--text-primary)]"
+                ? "font-bold text-[var(--text-primary)]"
                 : "text-[var(--text-secondary)]",
               // Linha informativa recua em vez de desbotar. Reduzir opacidade seria
               // reduzir contraste — o oposto do que a leitura ampliada existe para
@@ -1436,9 +1472,10 @@ function Linha({
         </div>
       </td>
 
-      {linha.valores.map((v) => (
+      {mostrarMeses && linha.valores.map((v, i) => (
         <BlocoMes
           key={v.mesAno}
+          faixa={faixaDoMes(i)}
           valor={v.valor}
           av={v.percentualAv}
           // A célula do %AV vira participação na linha das RECEITAS LIQUIDAS, quando há
@@ -1459,7 +1496,7 @@ function Linha({
         />
       ))}
 
-      {multiMes &&
+      {blocoNoFim &&
         (variacaoNoFim ? (
           <BlocoVariacao
             valores={linha.valores}
@@ -1497,6 +1534,7 @@ function Linha({
 }
 
 function BlocoMes({
+  faixa,
   valor,
   av,
   ah,
@@ -1513,6 +1551,8 @@ function BlocoMes({
   provisionado,
   onDetalheProvisionado,
 }: {
+  /** A classe da cor do mês (`faixa-mes-N`), aplicada a todas as células dele. */
+  faixa?: string;
   valor: number;
   av: number | null;
   /** Ver `BarraAv`: a célula do %AV vira `P.xx,xxx%` na linha das RECEITAS LIQUIDAS. */
@@ -1539,13 +1579,19 @@ function BlocoMes({
   provisionado?: number | null;
   onDetalheProvisionado?: (() => void) | null;
 }) {
-  const celula = cn(CELULA, "whitespace-nowrap tabular", destaque && "font-semibold");
+  // Totalizador em NEGRITO, e não semibold — pedido de 15/10/2026: o resultado tem de saltar
+  // da coluna sem precisar ler a descrição.
+  const celula = cn(CELULA, "whitespace-nowrap tabular", destaque && "font-bold");
+  // O SINAL EM COR, dos dois lados (15/10/2026): negativo vermelho, positivo verde, zero
+  // apagado. Antes só o negativo tinha cor, e o positivo saía na cor do texto.
   const corValor = (v: number) =>
     v < 0
       ? "text-[var(--negative)]"
       : v === 0
         ? "text-[var(--text-muted)]"
-        : "text-[var(--text-primary)]";
+        : "text-[var(--positive)]";
+  // A cor do mês desce pela coluna inteira — ver FAIXA DE COR POR COLUNA em globals.css.
+  const f = total ? undefined : faixa;
 
   return (
     <>
@@ -1559,6 +1605,7 @@ function BlocoMes({
           corValor(valor),
           // Toda célula de Valor abre um bloco — de cada mês e do total.
           "col-bloco",
+          f,
           total && "bg-[var(--surface-2)]",
           onDetalhe && "tem-detalhe",
         )}
@@ -1584,14 +1631,14 @@ function BlocoMes({
         <CelulasDoProvisionado
           valor={valor}
           provisionado={provisionado ?? null}
-          classe={cn(celula, "col-interna text-right", total && "bg-[var(--surface-2)]")}
+          classe={cn(celula, "col-interna text-right", f, total && "bg-[var(--surface-2)]")}
           corValor={corValor}
           onDetalhe={onDetalheProvisionado ?? null}
         />
       )}
 
       {mostrarAv && (
-        <td className={cn(CELULA, "col-interna", total && "bg-[var(--surface-2)]")}>
+        <td className={cn(CELULA, "col-interna", f, total && "bg-[var(--surface-2)]")}>
           <BarraAv percentual={av} maior={maiorAv} participacao={participacao} />
         </td>
       )}
@@ -1611,7 +1658,7 @@ function BlocoMes({
           )}
         </>
       ) : mostrarAh ? (
-        <td className={cn(celula, "col-interna text-right")}>
+        <td className={cn(celula, "col-interna text-right", f)}>
           <Variacao percentual={ah ?? null} valorDaLinha={totalDaLinha} />
         </td>
       ) : null}

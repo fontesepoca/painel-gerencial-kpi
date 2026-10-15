@@ -586,6 +586,14 @@ body {
   font-weight: var(--peso-numero);
 }
 
+/* O NEGRITO DOS TOTALIZADORES (15/10/2026). A regra acima fixa o peso de todo número, e
+   vinha DEPOIS das utilitárias: o `font-semibold` das linhas totalizadoras nunca pegou — o
+   número saía com o peso comum, e só a descrição engrossava. `.tabular.font-bold` empata a
+   disputa pela especificidade (0,2,0) em vez de depender da ordem da folha. */
+.tabular.font-bold {
+  font-weight: 700;
+}
+
 /* ── As divisões verticais da tabela do DRE (14/10/2026) ──────────────────────────────
    Pedido do Gabriel: sem linha entre as colunas, quem lê confundia o Valor de um mês com
    o AV % ao lado, ou o Total de um mês com o Valor do seguinte. Duas linhas, e DIFERENTES:
@@ -1717,6 +1725,41 @@ html[data-tema="claro"] .tabela-rolagem thead th.faixa-mes-4 {
     rgb(230 172 0 / 0.09),
     rgb(230 172 0 / 0.09)
   );
+}
+
+/* ── A FAIXA DESCE PELA COLUNA (15/10/2026) ──
+   Pedido do Gabriel: a cor do mês "perpetua por todas as linhas" — agosto inteiro de uma
+   cor, setembro de outra. As células do mês (`BlocoMes`, com a classe `faixa-mes-N`)
+   ganham a mesma cor do título.
+
+   Como `background-COLOR`, e não `-image` como no cabeçalho: o realce do ponteiro é um
+   `background-image` na célula (ver A LINHA SOB O PONTEIRO), e os dois na mesma
+   propriedade se apagariam. Translúcida, a cor da célula compõe por cima do fundo da linha
+   — zebra ou totalizadora — e o realce, por cima dela. O bloco Total não leva faixa: ele
+   tem o fundo próprio `--surface-2`. */
+.tabela-rolagem tbody td.faixa-mes-1 { background-color: rgb(239 108 152 / 0.07); }
+.tabela-rolagem tbody td.faixa-mes-2 { background-color: rgb(108 239 163 / 0.07); }
+.tabela-rolagem tbody td.faixa-mes-3 { background-color: rgb(108 152 239 / 0.07); }
+.tabela-rolagem tbody td.faixa-mes-4 { background-color: rgb(239 206 108 / 0.07); }
+html[data-tema="claro"] .tabela-rolagem tbody td.faixa-mes-1 { background-color: rgb(230 0 76 / 0.05); }
+html[data-tema="claro"] .tabela-rolagem tbody td.faixa-mes-2 { background-color: rgb(0 230 96 / 0.05); }
+html[data-tema="claro"] .tabela-rolagem tbody td.faixa-mes-3 { background-color: rgb(0 77 230 / 0.05); }
+html[data-tema="claro"] .tabela-rolagem tbody td.faixa-mes-4 { background-color: rgb(230 172 0 / 0.05); }
+
+@media print {
+  .tabela-rolagem tbody td[class*="faixa-mes-"] {
+    background-color: transparent !important;
+  }
+}
+
+/* ── OS DOIS RESULTADOS (15/10/2026) ──
+   RESULTADO OPERACIONAL e LUCRO LIQUIDO ganham borda grossa em cima e embaixo, para se
+   separarem dos outros totalizadores. Na célula, e não na linha: com `border-collapse` a
+   borda mais grossa vence a fina de 1px das vizinhas, e a coluna fixa da descrição leva a
+   sua junto. Vale na tela e no papel. */
+.tabela-rolagem tbody tr.linha-resultado > td {
+  border-top: 2px solid var(--text-muted);
+  border-bottom: 2px solid var(--text-muted);
 }
 
 /* No papel a faixa sai: a impressão já separa os meses por borda, e retângulos de
