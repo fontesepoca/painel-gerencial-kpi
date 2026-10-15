@@ -1746,11 +1746,6 @@ html[data-tema="claro"] .tabela-rolagem tbody td.faixa-mes-2 { background-color:
 html[data-tema="claro"] .tabela-rolagem tbody td.faixa-mes-3 { background-color: rgb(0 77 230 / 0.05); }
 html[data-tema="claro"] .tabela-rolagem tbody td.faixa-mes-4 { background-color: rgb(230 172 0 / 0.05); }
 
-@media print {
-  .tabela-rolagem tbody td[class*="faixa-mes-"] {
-    background-color: transparent !important;
-  }
-}
 
 /* ── OS DOIS RESULTADOS (15/10/2026) ──
    RESULTADO OPERACIONAL e LUCRO LIQUIDO ganham borda grossa em cima e embaixo, para se
@@ -1762,13 +1757,23 @@ html[data-tema="claro"] .tabela-rolagem tbody td.faixa-mes-4 { background-color:
   border-bottom: 2px solid var(--text-muted);
 }
 
-/* No papel a faixa sai: a impressão já separa os meses por borda, e retângulos de
-   cor por folha gastariam tinta para repetir o que a borda diz. `background-image`
-   e não `background`, para não mexer no fundo que o cabeçalho fixo precisa ter. */
+/* NO PAPEL A FAIXA TAMBÉM SAI — pedido do Gabriel em 15/10/2026, revertendo a decisão
+   antiga de poupar tinta: com três meses e Provisionado, a borda sozinha não basta para o
+   olho saber de que mês é o número.
+
+   Cores próprias do papel, e não as da tela: o papel é BRANCO em qualquer tema, e a família
+   do tema escuro (pastéis claros a 7%) some sobre ele. Parte da família do tema claro, um
+   pouco mais forte, porque a impressora clareia o que a tela mostra. O título leva o dobro do
+   corpo, como na tela. `print-color-adjust: exact` já vem herdado da `.tabela-rolagem`. */
 @media print {
-  .tabela-rolagem thead th[class*="faixa-mes-"] {
-    background-image: none !important;
-  }
+  .tabela-rolagem thead th.faixa-mes-1 { background-image: linear-gradient(rgb(230 0 76 / 0.16), rgb(230 0 76 / 0.16)) !important; }
+  .tabela-rolagem thead th.faixa-mes-2 { background-image: linear-gradient(rgb(0 230 96 / 0.16), rgb(0 230 96 / 0.16)) !important; }
+  .tabela-rolagem thead th.faixa-mes-3 { background-image: linear-gradient(rgb(0 77 230 / 0.16), rgb(0 77 230 / 0.16)) !important; }
+  .tabela-rolagem thead th.faixa-mes-4 { background-image: linear-gradient(rgb(230 172 0 / 0.16), rgb(230 172 0 / 0.16)) !important; }
+  .tabela-rolagem tbody td.faixa-mes-1 { background-color: rgb(230 0 76 / 0.08) !important; }
+  .tabela-rolagem tbody td.faixa-mes-2 { background-color: rgb(0 230 96 / 0.08) !important; }
+  .tabela-rolagem tbody td.faixa-mes-3 { background-color: rgb(0 77 230 / 0.08) !important; }
+  .tabela-rolagem tbody td.faixa-mes-4 { background-color: rgb(230 172 0 / 0.08) !important; }
 }
 
 /* ── A LINHA SOB O PONTEIRO ──────────────────────────────────────────────────

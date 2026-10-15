@@ -1199,10 +1199,12 @@ function BlocoVariacao({
   if (!v) {
     return (
       <>
-        <td className={cn(celula, "col-bloco text-[var(--text-muted)]")}>
-          —
+        <td className={cn(celula, "col-bloco")}>
+          <Traco />
         </td>
-        <td className={cn(celula, "col-interna text-[var(--text-muted)]")}>—</td>
+        <td className={cn(celula, "col-interna")}>
+          <Traco />
+        </td>
       </>
     );
   }
@@ -1245,6 +1247,15 @@ function BlocoVariacao({
  */
 function faixaDoMes(indice: number): string {
   return `faixa-mes-${(indice % 4) + 1}`;
+}
+
+/**
+ * A célula sem valor: um traço CENTRALIZADO (15/10/2026). Encostado à direita, como o
+ * número, ele parecia um sinal de menos solto; no meio da célula lê como "não se aplica".
+ * Bloco próprio porque a célula carrega `text-right`, e `cn` não resolve conflito de classe.
+ */
+function Traco() {
+  return <span className="block text-center text-[var(--text-muted)]">—</span>;
 }
 
 function Th({
@@ -1695,8 +1706,12 @@ function CelulasDoProvisionado({
   if (provisionado === null) {
     return (
       <>
-        <td className={cn(classe, "text-[var(--text-muted)]")}>—</td>
-        <td className={cn(classe, "text-[var(--text-muted)]")}>—</td>
+        <td className={classe}>
+          <Traco />
+        </td>
+        <td className={classe}>
+          <Traco />
+        </td>
       </>
     );
   }
@@ -1757,7 +1772,7 @@ function BarraAv({
   participacao?: boolean;
 }) {
   if (percentual === null) {
-    return <div className="text-right text-[var(--text-muted)]">—</div>;
+    return <Traco />;
   }
 
   if (participacao) {
@@ -1837,7 +1852,7 @@ function Variacao({
   valorDaLinha: number;
 }) {
   if (percentual === null) {
-    return <span className="text-[var(--text-muted)]">—</span>;
+    return <Traco />;
   }
 
   const leitura = lerVariacao(percentual, valorDaLinha);
