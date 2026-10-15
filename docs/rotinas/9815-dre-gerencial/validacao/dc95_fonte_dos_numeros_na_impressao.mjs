@@ -10,9 +10,13 @@
  * A PRIMEIRA VERSÃO partia da fonte da tabela inteira — que já enchia a folha — e nunca subia:
  * nos PDFs de 15/10/2026 os números saíram do mesmo tamanho. A busca agora cobre a faixa toda,
  * e pode inclusive escolher MENOS que a fonte da tabela, se é o que cabe.
+ *
+ * PISO DE 10pt (15/10/2026, segunda rodada): com 21 colunas de número na A3 o que cabe é
+ * ~7,5pt, e a busca devolvia o piso antigo de 7. O Gabriel pediu a fonte maior mesmo assim,
+ * "para visualizarmos" — a 10pt as últimas colunas podem passar da margem.
  */
 import assert from "node:assert/strict";
-import { LARGURA_UTIL, maiorFonteDosNumeros } from "../../../../client-new-kpi/lib/escalaDeImpressao.ts";
+import { LARGURA_UTIL, PISO_DOS_NUMEROS, maiorFonteDosNumeros } from "../../../../client-new-kpi/lib/escalaDeImpressao.ts";
 
 let n = 0;
 const eq = (achou, esperado, oque) => {
@@ -37,18 +41,25 @@ const tabela = (fixo, porPonto) => (pt) => fixo + pt * porPonto;
 // 2. O caso dos PDFs de 15/10: a tabela inteira já enchia a folha numa fonte X; com a parte
 //    fixa menor que a dos números, a busca acha a fonte certa mesmo abaixo de X — não desiste.
 {
-  const medir = tabela(200, 140);
+  const medir = tabela(200, 120);
   const pt = maiorFonteDosNumeros(medir, "a3-deitada");
-  eq(pt, Math.floor(((limite - 200) / 140) * 2) / 2, "a maior que cabe, calculada");
+  eq(pt, Math.floor(((limite - 200) / 120) * 2) / 2, "a maior que cabe, calculada");
 }
 
 // 3. Teto: tabela estreita não leva os números a 40pt.
 eq(maiorFonteDosNumeros(() => 100, "a3-deitada"), 20, "o teto dos números é 20pt");
 
-// 4. Nem a menor cabe: fica no piso, 7pt — melhor apertado que sem número.
-eq(maiorFonteDosNumeros(() => limite * 2, "a3-deitada"), 7, "o piso é 7pt");
+// 4. Nem o piso cabe: fica em 10pt mesmo assim — o caso dos três meses com Provisionado.
+eq(PISO_DOS_NUMEROS, 10, "o piso dos números é 10pt");
+eq(maiorFonteDosNumeros(() => limite * 2, "a3-deitada"), 10, "nem o piso cabe: 10pt mesmo assim");
+
+// 4b. O caso real do PDF ultima_2: cabia ~7,5pt. Antes saía 7; agora sai 10.
+{
+  const medir = tabela(190, (limite - 190) / 7.6);
+  eq(maiorFonteDosNumeros(medir, "a3-deitada"), 10, "cabia 7,5pt: sai o piso de 10pt");
+}
 
 // 5. Medição quebrada (NaN): o piso, sem arriscar.
-eq(maiorFonteDosNumeros(() => Number.NaN, "a3-deitada"), 7, "medida inválida: o piso");
+eq(maiorFonteDosNumeros(() => Number.NaN, "a3-deitada"), 10, "medida inválida: o piso");
 
 console.log(`✓ dc95 passou — ${n} conferências`);

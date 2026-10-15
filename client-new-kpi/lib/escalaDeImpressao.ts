@@ -149,10 +149,19 @@ export function tokensDaFonte(basePt: number): Record<string, string> {
 const MAX_PT_NUMEROS = 20;
 
 /**
+ * O piso da fonte dos números: 10pt, mesmo que a tabela passe da folha — pedido do Gabriel em
+ * 15/10/2026, "só aumente a fonte por enquanto para visualizarmos". Com três meses de
+ * Provisionado (21 colunas de número na A3), o que cabe na largura é ~7,5pt: a busca devolvia
+ * praticamente o piso antigo, e o número não crescia. A 10pt as últimas colunas podem passar da
+ * margem; é a prova visual antes de decidir o que sai do papel (centavos, milhares, colunas).
+ */
+export const PISO_DOS_NUMEROS = 10;
+
+/**
  * A maior fonte dos NÚMEROS que cabe na LARGURA da folha — pedido do Gabriel em 15/10/2026.
  *
  * Com muitas colunas (três meses, todos com Provisionado), os valores saíam pequenos. Esta
- * busca procura, de meio em meio ponto entre o piso (`MIN_PT`) e o teto, a maior fonte só
+ * busca procura, de meio em meio ponto entre o piso (`PISO_DOS_NUMEROS`) e o teto, a maior fonte só
  * dos valores com que a tabela ainda cabe na largura útil — com a descrição e os cabeçalhos
  * já fixos. **A altura não entra**: fonte maior é menos linhas por folha, e o resto vai para
  * a próxima página. Foi o que o Gabriel pediu ("se precisar, diminua a quantidade de linhas
@@ -173,9 +182,9 @@ export function maiorFonteDosNumeros(medir: (pt: number) => number, folha: Folha
   };
 
   // Em meios pontos inteiros. Invariante: `baixo` cabe, `alto` não.
-  let baixo = Math.round(MIN_PT * 2);
+  let baixo = Math.round(PISO_DOS_NUMEROS * 2);
   let alto = Math.round(MAX_PT_NUMEROS * 2);
-  if (!cabe(baixo)) return MIN_PT;
+  if (!cabe(baixo)) return PISO_DOS_NUMEROS;
   if (cabe(alto)) return alto / 2;
 
   while (alto - baixo > 1) {
