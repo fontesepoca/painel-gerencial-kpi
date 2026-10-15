@@ -77,7 +77,6 @@ export function useEscalaDeImpressao(
             el.style.setProperty("--fs-numero", `${p}pt`, "important");
             return tabela.getBoundingClientRect().width;
           },
-          pt,
           folha,
         );
         el.classList.remove("calibrando");

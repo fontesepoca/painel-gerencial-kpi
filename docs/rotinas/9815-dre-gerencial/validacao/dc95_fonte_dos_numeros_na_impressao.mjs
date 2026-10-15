@@ -1,13 +1,15 @@
 /**
- * dc95 — a fonte dos NÚMEROS na impressão do DRE cresce até encher a folha (15/10/2026).
+ * dc95 — a fonte dos NÚMEROS na impressão do DRE é a maior que cabe na folha (15/10/2026).
  *
  *   node --experimental-strip-types --import ./docs/rotinas/9815-dre-gerencial/validacao/_alias.mjs docs/rotinas/9815-dre-gerencial/validacao/dc95_fonte_dos_numeros_na_impressao.mjs
  *
- * Com três meses de provisionado a tabela tem ~22 colunas, cabe na A3 deitada com fonte
- * pequena, e a largura de cada coluna sai do CABEÇALHO ("PROVISIONADO", "TOTAL (R + P)") — os
- * números ficam com vão dentro da célula. A impressão passa a ter uma fonte só dos números,
- * a maior que ainda cabe. Este arquivo testa a busca dela, sem navegador: a "tabela" é uma
- * função que diz a largura para cada fonte.
+ * Com três meses de provisionado a tabela tem ~22 colunas. A impressão tem uma fonte só dos
+ * números, buscada entre 7pt e 20pt com a descrição e os cabeçalhos já fixos. Este arquivo
+ * testa a busca, sem navegador: a "tabela" é uma função que diz a largura para cada fonte.
+ *
+ * A PRIMEIRA VERSÃO partia da fonte da tabela inteira — que já enchia a folha — e nunca subia:
+ * nos PDFs de 15/10/2026 os números saíram do mesmo tamanho. A busca agora cobre a faixa toda,
+ * e pode inclusive escolher MENOS que a fonte da tabela, se é o que cabe.
  */
 import assert from "node:assert/strict";
 import { LARGURA_UTIL, maiorFonteDosNumeros } from "../../../../client-new-kpi/lib/escalaDeImpressao.ts";
@@ -18,37 +20,35 @@ const eq = (achou, esperado, oque) => {
   assert.deepEqual(achou, esperado, `${oque}: esperava ${esperado}, veio ${achou}`);
 };
 
-const util = LARGURA_UTIL["a3-deitada"];
+const limite = LARGURA_UTIL["a3-deitada"] * 0.98;
 
-// Uma tabela cuja largura só passa a crescer quando o número fica maior que o cabeçalho —
-// é o caso real: até ~10pt a coluna é a do rótulo, e o número cabe dentro dela.
-const tabela = (fixo, porPonto, apartirDe) => (pt) => fixo + Math.max(0, pt - apartirDe) * porPonto;
+// Largura = parte fixa (descrição, cabeçalhos) + o que cresce com a fonte dos números.
+const tabela = (fixo, porPonto) => (pt) => fixo + pt * porPonto;
 
-// 1. Sobra folha: a fonte sobe até o maior meio ponto que ainda cabe (com a mesma folga de 2%).
+// 1. A maior fonte que cabe, em meio ponto.
 {
-  const medir = tabela(util * 0.8, 40, 8);
-  const pt = maiorFonteDosNumeros(medir, 8, "a3-deitada");
-  eq(medir(pt) <= util * 0.98, true, "a fonte escolhida cabe na largura útil");
-  eq(medir(pt + 0.5) > util * 0.98 || pt === 20, true, "meio ponto a mais já não caberia (ou é o teto)");
-  eq(pt > 8, true, "e é maior que a de partida");
+  const medir = tabela(400, 100);
+  const pt = maiorFonteDosNumeros(medir, "a3-deitada");
+  eq(medir(pt) <= limite, true, "a fonte escolhida cabe");
+  eq(medir(pt + 0.5) > limite, true, "meio ponto a mais já não caberia");
   eq(pt * 2, Math.round(pt * 2), "em meio ponto");
 }
 
-// 2. Já não sobra nada: fica na de partida — nunca diminui por causa desta busca.
+// 2. O caso dos PDFs de 15/10: a tabela inteira já enchia a folha numa fonte X; com a parte
+//    fixa menor que a dos números, a busca acha a fonte certa mesmo abaixo de X — não desiste.
 {
-  const medir = tabela(util * 0.99, 40, 0);
-  eq(maiorFonteDosNumeros(medir, 9, "a3-deitada"), 9, "sem folga, a fonte de partida");
+  const medir = tabela(200, 140);
+  const pt = maiorFonteDosNumeros(medir, "a3-deitada");
+  eq(pt, Math.floor(((limite - 200) / 140) * 2) / 2, "a maior que cabe, calculada");
 }
 
 // 3. Teto: tabela estreita não leva os números a 40pt.
-{
-  const medir = () => 100;
-  eq(maiorFonteDosNumeros(medir, 8, "a3-deitada"), 20, "o teto dos números é 20pt");
-}
+eq(maiorFonteDosNumeros(() => 100, "a3-deitada"), 20, "o teto dos números é 20pt");
 
-// 4. Medição quebrada (0, NaN): não arrisca — fica na de partida.
-{
-  eq(maiorFonteDosNumeros(() => Number.NaN, 8, "a3-deitada"), 8, "medida inválida: a de partida");
-}
+// 4. Nem a menor cabe: fica no piso, 7pt — melhor apertado que sem número.
+eq(maiorFonteDosNumeros(() => limite * 2, "a3-deitada"), 7, "o piso é 7pt");
+
+// 5. Medição quebrada (NaN): o piso, sem arriscar.
+eq(maiorFonteDosNumeros(() => Number.NaN, "a3-deitada"), 7, "medida inválida: o piso");
 
 console.log(`✓ dc95 passou — ${n} conferências`);

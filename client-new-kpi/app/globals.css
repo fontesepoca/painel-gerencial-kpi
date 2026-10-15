@@ -514,6 +514,24 @@ body {
   font-size: var(--fs-numero, var(--fs-base)) !important;
 }
 
+/* A DESCRIÇÃO TEM LARGURA FIXA no papel do DRE (15/10/2026). O teto antigo era `max-width`,
+   que navegador IGNORA em célula de tabela: quando o respiro dos valores diminuiu, a sobra
+   foi toda para a descrição (~300px, as contas numa linha só) e os números não ganharam
+   nada. `width` a tabela respeita; nome longo quebra em duas linhas. */
+.calibrando.numeros-ampliados .tabela-rolagem .celula-descricao {
+  width: 12rem !important;
+  max-width: 12rem !important;
+  min-width: 0 !important;
+}
+
+@media print {
+  .numeros-ampliados .tabela-rolagem .celula-descricao {
+    width: 12rem !important;
+    max-width: 12rem !important;
+    min-width: 0 !important;
+  }
+}
+
 /* E quase sem respiro lateral nas células de valor (pedido de 15/10/2026): cada px de
    padding vezes 22 colunas é largura que a fonte dos números não pode usar. Fica 2px, só
    para o número não encostar na linha divisória — que é sombra por dentro da célula. */
