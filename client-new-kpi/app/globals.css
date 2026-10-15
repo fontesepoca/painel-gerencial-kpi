@@ -521,6 +521,30 @@ body {
   }
 }
 
+/* ── OS CABEÇALHOS NÃO DITAM A LARGURA no papel (15/10/2026) ──
+   A primeira versão da fonte dos números não mudou nada na impressão: quem definia a
+   largura das colunas eram os rótulos — "VL. REALIZADO", "PROVISIONADO", "TOTAL (R + P)",
+   em caixa alta, com 0,14em entre as letras e numa linha só. A coluna era a do rótulo, a
+   fonte da tabela já enchia a folha com ela, e o número não tinha para onde crescer.
+   No papel (e na medição que o imita) o rótulo perde quase todo o espaçamento e pode
+   quebrar em duas linhas: a largura passa a vir dos números. A faixa dos meses fica como
+   está — ela ocupa várias colunas e não aperta nenhuma. */
+.calibrando.numeros-ampliados .tabela-rolagem thead tr:last-child > th {
+  letter-spacing: 0.02em !important;
+  white-space: normal !important;
+  /* O AV % tem 9rem fixos na tela, para a barra caber. No papel a barra some e os 144px
+     ficavam: cinco colunas de AV % eram ~720px de folha vazia. */
+  width: auto !important;
+}
+
+@media print {
+  .numeros-ampliados .tabela-rolagem thead tr:last-child > th {
+    letter-spacing: 0.02em !important;
+    white-space: normal !important;
+    width: auto !important;
+  }
+}
+
 /* Números tabulares: dígitos de mesma largura, colunas alinhadas. */
 .tabular {
   font-family: var(--font-data);
