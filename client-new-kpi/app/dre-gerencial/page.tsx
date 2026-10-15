@@ -129,7 +129,19 @@ export default function DreGerencialPage() {
       await exportarApuracao(
         apuracao,
         naTela.length > 0 ? naTela : apuracao.linhas,
-        { av: mostrarAv, ah: mostrarAh, provisionado: mostrarProvisionado },
+        // O recorte do menu Exibição também: "Sem a coluna Total" e "Só o Total" (15/10/2026).
+        {
+          av: mostrarAv,
+          ah: mostrarAh,
+          provisionado: mostrarProvisionado,
+          total: !semTotal,
+          // A mesma condição de `podeSoTotal`, mas da apuração recebida: o callback vem
+          // antes daquela constante.
+          soTotal:
+            soTotal &&
+            apuracao.periodos.length > 2 &&
+            !mostraVariacao(apuracao.modo, apuracao.periodos),
+        },
         baseDaSessao,
       );
     } catch (e) {
@@ -145,7 +157,7 @@ export default function DreGerencialPage() {
     // primeira renderizacao -- os dois marcados -- e o Excel sairia sempre completo, por
     // mais que a tela mostrasse outra coisa. Um defeito que nao da erro: o arquivo abre, e
     // so quem conferir coluna por coluna percebe.
-  }, [mostrarAv, mostrarAh, mostrarProvisionado, baseDaSessao]);
+  }, [mostrarAv, mostrarAh, mostrarProvisionado, semTotal, soTotal, baseDaSessao]);
 
   // O mês corrente, em colunas mensais: o recorte que a tela sempre abriu, e que os modos
   // de ano não deslocaram. `anos` começa vazio de propósito — um ano pré-escolhido seria
