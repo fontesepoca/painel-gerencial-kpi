@@ -18,6 +18,7 @@
 // Uso, com a API no ar:
 //   node docs/rotinas/9815-dre-gerencial/validacao/dc78_detalhe_fecha_com_a_celula_filtrada.mjs
 //   API=http://localhost:5207 FORNEC=29 LIMITE=12 node docs/rotinas/9815-dre-gerencial/validacao/dc78...
+//   … dc78_detalhe_fecha_com_a_celula_filtrada.mjs --provisionado   (acrescenta a seção 4)
 
 const API = process.env.API ?? "http://localhost:5207";
 const FORNEC = Number(process.env.FORNEC ?? 29);
@@ -260,6 +261,82 @@ if (process.env.RECEITA === "1") {
     `  ok   receita líquida — detalhe ${dinheiro(somaRl)} · célula ` +
       `${dinheiro(linhaRl.valores[0].valor)}`,
   );
+}
+
+// ── 4. O PROVISIONADO COM FILTRO (`--provisionado`, 14/10/2026) ───────────────
+//
+// A célula de Provisionado de uma despesa filtrada segue a MESMA fórmula do Valor —
+// `(aberto − exclusivo) × participação + exclusivo` —, e o duplo clique nela traz os
+// títulos em aberto crus, marcados como exclusivos ou não. Esta seção cobra o que a dc6
+// `--provisionado` não cobre: que, com fornecedor, a lista em aberto também explica a célula.
+//
+// Setembro/2026, e não agosto: é o mês que ainda tem título em aberto. Só as linhas de conta
+// com provisionado diferente de zero — totalizador não abre detalhe, e zero não tem lista.
+if (process.argv.includes("--provisionado")) {
+  const FILTRO_P = { ...FILTRO, dataInicio: "2026-09-01", dataFim: "2026-09-30" };
+  console.log(`\nPROVISIONADO COM FILTRO — fornecedor ${FORNEC}, setembro/2026`);
+
+  const apuracaoP = await postar("/api/dre-gerencial/apuracao", {
+    ...FILTRO_P,
+    fornecedores: [FORNEC],
+  });
+
+  const comAberto = apuracaoP.linhas
+    .filter(
+      (l) =>
+        l.detalhe?.tipo === "lancamentos" &&
+        !l.calculada &&
+        (l.valores[0]?.provisionado ?? 0) !== 0,
+    )
+    .slice(0, LIMITE);
+
+  conferir(
+    comAberto.length > 0,
+    "nenhuma linha com provisionado em setembro/2026 com este fornecedor — o cenário mudou?",
+  );
+
+  for (const linha of comAberto) {
+    const celula = linha.valores[0].provisionado;
+
+    const detalhe = await postar("/api/dre-gerencial/detalhe", {
+      ...FILTRO_P,
+      fornecedores: [FORNEC],
+      tipo: "lancamentos",
+      bloco: linha.detalhe.bloco,
+      chave: linha.detalhe.chave,
+      ...(linha.detalhe.sobra ? { sobra: linha.detalhe.sobra } : {}),
+      provisionado: true,
+    });
+
+    const lancamentos = detalhe.lancamentos ?? [];
+    const calculado = somaNoDre(lancamentos, detalhe.participacao);
+    const difere = Math.abs(calculado - celula) > 0.005;
+    const exclusivos = lancamentos.filter((l) => l.exclusivo).length;
+
+    console.log(
+      `${difere ? "FALHA " : "  ok  "} ${linha.descricao.trim().padEnd(34)} ` +
+        `provisionado ${dinheiro(celula).padStart(14)} · em aberto ${dinheiro(calculado).padStart(14)} ` +
+        `· ${String(lancamentos.length).padStart(4)} títulos (${exclusivos} excl.)`,
+    );
+    if (difere) erros++;
+
+    conferir(detalhe.provisionado === true, `${linha.descricao.trim()}: o detalhe não ecoou provisionado`);
+    conferir(
+      lancamentos.every((l) => l.dtPagto === null),
+      `${linha.descricao.trim()}: veio título PAGO na lista em aberto`,
+    );
+  }
+
+  // O Sub-Total também tem P (opção 1): com fornecedor, ele tem de vir preenchido — se vier
+  // nulo, o rateio do provisionado parou nos totalizadores.
+  const subTotal = apuracaoP.linhas.find((l) => l.papel === "sub-total");
+  conferir(
+    subTotal?.valores[0]?.provisionado !== null && subTotal?.valores[0]?.provisionado !== undefined,
+    "com fornecedor, o Sub-Total veio sem provisionado",
+  );
+  if (subTotal) {
+    console.log(`  Sub-Total: provisionado ${dinheiro(subTotal.valores[0].provisionado ?? 0)}`);
+  }
 }
 
 console.log(

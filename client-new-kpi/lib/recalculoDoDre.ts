@@ -249,10 +249,15 @@ export function recalcular(
     });
 
   // ── os deltas, coluna a coluna ─────────────────────────────────────────────
+  //
+  // Uma função, e não um laço: o mesmo cálculo serve ao Valor e ao PROVISIONADO (14/10/2026,
+  // opção 1 — os totalizadores que somam despesa têm P, pelas mesmas somas). Arrastar uma
+  // conta move os dois juntos, pelos mesmos encaixes.
+  const deltasPor = (lerDaConta: (l: LinhaDre, c: number) => number) => {
   const acumulado = new Map<PapelDaLinha, number[]>();
   for (const [papel] of PROPAGACAO) acumulado.set(papel, new Array<number>(colunas).fill(0));
 
-  const valorDaConta = (l: LinhaDre, c: number) => (l.naoSoma ? 0 : (l.valores[c]?.valor ?? 0));
+  const valorDaConta = (l: LinhaDre, c: number) => (l.naoSoma ? 0 : lerDaConta(l, c));
 
   for (let c = 0; c < colunas; c++) {
     /** O que entrou menos o que saiu do encaixe de cada âncora. */
@@ -283,6 +288,11 @@ export function recalcular(
       acumulado.get(papel)![c] = total;
     }
   }
+  return acumulado;
+  };
+
+  const acumulado = deltasPor((l, c) => l.valores[c]?.valor ?? 0);
+  const acumuladoP = deltasPor((l, c) => l.valores[c]?.provisionado ?? 0);
 
   // ── aplicar ────────────────────────────────────────────────────────────────
   const valorDaAncora = (papel: PapelDaLinha, c: number): number | null => {
@@ -293,12 +303,42 @@ export function recalcular(
 
   return ordenadas.map((l) => {
     const delta = l.calculada && l.papel ? acumulado.get(l.papel) : undefined;
+    const deltaP = l.calculada && l.papel ? acumuladoP.get(l.papel) : undefined;
+
+    // O R e o P de uma coluna depois do arraste. P nulo continua nulo: receita, CMV e coluna
+    // sem aberto não ganham provisionado por causa de um arraste.
+    const rDe = (c: number) => {
+      const v = l.valores[c];
+      return v === undefined ? 0 : delta ? arredondar(v.valor + (delta[c] ?? 0)) : v.valor;
+    };
+    const pDe = (c: number): number | null | undefined => {
+      const v = l.valores[c];
+      if (v === undefined || v.provisionado === null || v.provisionado === undefined) {
+        return v?.provisionado;
+      }
+      return deltaP ? arredondar(v.provisionado + (deltaP[c] ?? 0)) : v.provisionado;
+    };
 
     const novosValores: ValorMes[] = l.valores.map((v, c) => {
       const valor = delta ? arredondar(v.valor + (delta[c] ?? 0)) : v.valor;
+      const provisionado = pDe(c);
+      const rp = valor + (provisionado ?? 0);
       return {
         ...v,
         valor,
+        provisionado,
+        // As versões R + P se refazem só onde a API as mandou — ausente fica ausente.
+        ...(v.percentualAvComProvisionado !== undefined
+          ? { percentualAvComProvisionado: calcularAv(l, rp, c, valorDaAncora, v.percentualAvComProvisionado) }
+          : {}),
+        ...(v.percentualAhComProvisionado !== undefined
+          ? {
+              percentualAhComProvisionado:
+                c === 0 || v.percentualAhComProvisionado === null
+                  ? v.percentualAhComProvisionado
+                  : calcularAh(rp, rDe(c - 1) + (pDe(c - 1) ?? 0)),
+            }
+          : {}),
         percentualAv: calcularAv(l, valor, c, valorDaAncora, v.percentualAv),
         // A coluna anterior do MESMO bloco. No comparativo a primeira coluna do segundo
         // intervalo não tem anterior, e a API já mandou `null` ali — este `=== null`
@@ -313,11 +353,28 @@ export function recalcular(
     // O total é a soma das colunas JÁ arredondadas, como o servidor faz. Somar em precisão
     // cheia e arredondar no fim erra o último centavo — divergência 8.
     const soma = novosValores.reduce((s, v) => s + v.valor, 0);
+    const comP = novosValores.filter((v) => v.provisionado !== null && v.provisionado !== undefined);
+    const somaP = comP.length === 0 ? l.total.provisionado : comP.reduce((s, v) => s + (v.provisionado ?? 0), 0);
 
     return {
       ...l,
       valores: novosValores,
+      // `...l.total` primeiro, para nada que a API mande e este arquivo não conheça sumir no
+      // arraste — foi assim que a coluna do período sumia na primeira versão.
       total: {
+        ...l.total,
+        provisionado: somaP,
+        ...(l.total.percentualAvComProvisionado !== undefined
+          ? {
+              percentualAvComProvisionado: calcularAvTotal(
+                l,
+                soma + (somaP ?? 0),
+                novosValores.length,
+                valorDaAncora,
+                l.total.percentualAvComProvisionado,
+              ),
+            }
+          : {}),
         valor: soma,
         media: media(soma, novosValores.length),
         percentualAv: calcularAvTotal(

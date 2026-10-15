@@ -333,7 +333,7 @@ public static class DreDetalheQueries
                NUMBANCO, NUMCHEQUE, NUMBORDERO, NUMSEQBORDERO, NUMCHEQUE2,
                LOCALIZACAO, NOMEFUNC, NOMEFUNCBAIXA, NUMCAR,
                DTRECLASSIFIC, CODFUNCRECLASSIFIC,
-               DTESTORNOBAIXA, CODROTINABAIXA
+               DTESTORNOBAIXA, CODROTINABAIXA, DTVENC
           FROM (
                 SELECT FIN.RECNUM, {5} FIN.INDICE, FIN.CODFILIAL,
                        CCPrinc.codccprinc AS CODCCPRINC,
@@ -367,7 +367,10 @@ public static class DreDetalheQueries
                        -- "Ocultar baixas estornadas e da rotina 737" do modal decide o que
                        -- some, e a consulta continua trazendo tudo o que a linha do DRE soma.
                        FIN.DTESTORNOBAIXA,
-                       TO_CHAR(FIN.CODROTINABAIXA) AS CODROTINABAIXA
+                       TO_CHAR(FIN.CODROTINABAIXA) AS CODROTINABAIXA,
+                       -- O vencimento, para a tela dos títulos EM ABERTO (Provisionado,
+                       -- 14/10/2026): é dele que sai a coluna "Dias em atraso".
+                       FIN.DTVENC
                   FROM PCCONTA CT, PCGRUPO GR, PCCENTROCUSTO CC, @@RATEIO_RC@@ RC,
                        (SELECT RECNUM, CODFILIAL, numtrans, NUMNOTA, Duplic, codprojeto,
                                dtcompetencia, dtlanc, DTVENC, DTPAGTO, nvl(VPAGO,VALOR) AS VPAGO,
@@ -421,7 +424,8 @@ public static class DreDetalheQueries
                        fin.valor, nf.codcli, fin.dtemissao, fin.dtpag,
                        fin.codbanco, NULL, NULL, NULL, NULL,
                        NULL, UPPER(fin.funclanc), nf.cliente, NULL, NULL, NULL,
-                       NULL, NULL
+                       NULL, NULL,
+                       fin.dtvenc
                   FROM pcnfsaid nf, pcprest fin, PCCONTA CT, PCGRUPO GR
                  WHERE nf.numnota = fin.duplic
                    AND nf.numtransvenda = fin.numtransvenda

@@ -117,6 +117,9 @@ public class DetalheLancamentoDre
 
     /// <summary>A rotina que baixou o título, em texto. Só a tela usa (a rotina 737).</summary>
     public string? CodRotinaBaixa { get; init; }
+
+    /// <summary>Vencimento do título. A tela dos títulos em aberto calcula os dias de atraso dele.</summary>
+    public DateTime? DtVenc { get; init; }
 }
 
 /// <summary>

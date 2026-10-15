@@ -41,6 +41,15 @@ const BASE = {
   modo: "meses",
 };
 
+// Agosto e setembro/2026 ainda têm título em aberto: é o cenário que exercita o PROVISIONADO
+// (14/10/2026) — o P das contas e dos totalizadores e os %AV/%AH sobre R + P, que o
+// `recalcular` também refaz. Em junho e julho quase tudo já foi pago, e conferir o
+// provisionado lá seria conferir nulo contra nulo.
+const CENARIOS = [
+  { rotulo: "jun–jul/2026", filtro: BASE, exigeProvisionado: false },
+  { rotulo: "ago–set/2026", filtro: { ...BASE, dataInicio: "2026-08-01", dataFim: "2026-09-30" }, exigeProvisionado: true },
+];
+
 let falhas = 0;
 const ok = (condicao, oque) => {
   if (!condicao) {
@@ -61,18 +70,20 @@ const bate = (a, b, tol) => {
   return Math.abs(a - b) <= tol;
 };
 
-async function apurar(analise) {
-  const r = await postar(API, { ...BASE, analise });
+async function apurar(filtro, analise) {
+  const r = await postar(API, { ...filtro, analise });
   if (!r?.sucesso) throw new Error(`${analise}: ${r?.mensagem ?? "resposta sem sucesso"}`);
   return r.dados;
 }
 
+for (const cenario of CENARIOS)
 for (const analise of ["grupo-contas", "conta-gerencial", "ccusto-principal"]) {
-  const d = await apurar(analise);
+  const d = await apurar(cenario.filtro, analise);
   const daApi = d.linhas;
   const refeito = recalcular(daApi, daApi);
 
-  console.log(`\n${analise.toUpperCase()} — ${daApi.length} linhas, ${daApi[0].valores.length} colunas`);
+  console.log(`\n${analise.toUpperCase()} · ${cenario.rotulo} — ${daApi.length} linhas, ${daApi[0].valores.length} colunas`);
+  let comProvisionado = 0;
 
   ok(refeito.length === daApi.length, `${analise}: a contagem de linhas mudou`);
 
@@ -93,19 +104,32 @@ for (const analise of ["grupo-contas", "conta-gerencial", "ccusto-principal"]) {
       ok(bate(v.valor, n?.valor, 0.005), `${analise} / ${nome} / ${coluna}: valor ${fmt(n?.valor)} ≠ ${fmt(v.valor)}`);
       ok(bate(v.percentualAv, n?.percentualAv, 0.001), `${analise} / ${nome} / ${coluna}: %AV ${fmt(n?.percentualAv)} ≠ ${fmt(v.percentualAv)}`);
       ok(bate(v.percentualAh, n?.percentualAh, 0.001), `${analise} / ${nome} / ${coluna}: %AH ${fmt(n?.percentualAh)} ≠ ${fmt(v.percentualAh)}`);
-      conferidas += 3;
+      // O PROVISIONADO e os percentuais sobre R + P: o `recalcular` os refaz (deltas do P e
+      // calcularAv/Ah sobre R + P), e na ordem do cadastro tem de devolver os da API.
+      ok(bate(v.provisionado, n?.provisionado, 0.005), `${analise} / ${nome} / ${coluna}: provisionado ${fmt(n?.provisionado)} ≠ ${fmt(v.provisionado)}`);
+      ok(bate(v.percentualAvComProvisionado, n?.percentualAvComProvisionado, 0.001), `${analise} / ${nome} / ${coluna}: %AV R+P ${fmt(n?.percentualAvComProvisionado)} ≠ ${fmt(v.percentualAvComProvisionado)}`);
+      ok(bate(v.percentualAhComProvisionado, n?.percentualAhComProvisionado, 0.001), `${analise} / ${nome} / ${coluna}: %AH R+P ${fmt(n?.percentualAhComProvisionado)} ≠ ${fmt(v.percentualAhComProvisionado)}`);
+      if (v.provisionado !== null && v.provisionado !== undefined) comProvisionado++;
+      conferidas += 6;
     }
 
     ok(bate(esperada.total.valor, achou.total.valor, 0.005), `${analise} / ${nome}: total ${fmt(achou.total.valor)} ≠ ${fmt(esperada.total.valor)}`);
     ok(bate(esperada.total.media, achou.total.media, 0.005), `${analise} / ${nome}: média ${fmt(achou.total.media)} ≠ ${fmt(esperada.total.media)}`);
     ok(bate(esperada.total.percentualAv, achou.total.percentualAv, 0.001), `${analise} / ${nome}: %AV do total ${fmt(achou.total.percentualAv)} ≠ ${fmt(esperada.total.percentualAv)}`);
-    conferidas += 3;
+    ok(bate(esperada.total.provisionado, achou.total.provisionado, 0.005), `${analise} / ${nome}: provisionado do total ${fmt(achou.total.provisionado)} ≠ ${fmt(esperada.total.provisionado)}`);
+    ok(bate(esperada.total.percentualAvComProvisionado, achou.total.percentualAvComProvisionado, 0.001), `${analise} / ${nome}: %AV R+P do total ${fmt(achou.total.percentualAvComProvisionado)} ≠ ${fmt(esperada.total.percentualAvComProvisionado)}`);
+    conferidas += 5;
   }
 
   // Sem âncora reconhecida, `recalcular` devolveria as linhas intactas e este arquivo
   // passaria sem conferir nada — o pior tipo de teste verde.
   ok(ancoras >= 8, `${analise}: só ${ancoras} linhas com papel; a API não está mandando o campo?`);
-  console.log(`  ${conferidas} comparações · ${ancoras} âncoras reconhecidas`);
+  // Sem nenhuma célula de provisionado, o cenário de agosto–setembro passaria conferindo nulo
+  // contra nulo — o mesmo teste verde vazio que a linha acima evita para as âncoras.
+  if (cenario.exigeProvisionado) {
+    ok(comProvisionado > 0, `${analise} · ${cenario.rotulo}: nenhuma célula com provisionado — a API não manda o campo, ou tudo já foi pago?`);
+  }
+  console.log(`  ${conferidas} comparações · ${ancoras} âncoras reconhecidas · ${comProvisionado} células com provisionado`);
 }
 
 console.log(falhas === 0 ? "\n✓ dc35 passou — as duas aritméticas dão o mesmo DRE" : `\n✗ ${falhas} falha(s)`);

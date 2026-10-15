@@ -21,6 +21,12 @@
   /* ── Bordas ── */
   --border: rgb(255 255 255 / 0.06);
   --border-strong: rgb(255 255 255 / 0.11);
+  /* As divisões verticais da tabela do DRE (14/10/2026): a fina separa COLUNAS dentro de um
+     bloco (Valor, AV %, AH %…); a grossa separa BLOCOS (cada mês, o total). Diferentes de
+     propósito — em espessura E em contraste —, para o olho achar primeiro o mês e depois a
+     coluna dentro dele. Ver .col-interna e .col-bloco. */
+  --divisor-coluna: rgb(255 255 255 / 0.08);
+  --divisor-bloco: rgb(255 255 255 / 0.24);
   --border-focus: rgb(255 255 255 / 0.18);
 
   /* ── Acento único — Cobalt Blue ── */
@@ -126,6 +132,8 @@ html[data-tema="claro"] {
 
   --border: rgb(15 23 42 / 0.08);
   --border-strong: rgb(15 23 42 / 0.14);
+  --divisor-coluna: rgb(15 23 42 / 0.1);
+  --divisor-bloco: rgb(15 23 42 / 0.3);
   --border-focus: rgb(15 23 42 / 0.22);
 
   --text-primary: #0f172a;
@@ -203,6 +211,8 @@ html[data-leitura="ampliada"] {
   --text-muted: #94a3b8;
   --border: rgb(255 255 255 / 0.1);
   --border-strong: rgb(255 255 255 / 0.2);
+  --divisor-coluna: rgb(255 255 255 / 0.16);
+  --divisor-bloco: rgb(255 255 255 / 0.4);
 
   --positive: #34d399;
   --negative: #fb7185;
@@ -218,6 +228,8 @@ html[data-tema="claro"][data-leitura="ampliada"] {
   --text-muted: #475569;
   --border: rgb(15 23 42 / 0.14);
   --border-strong: rgb(15 23 42 / 0.24);
+  --divisor-coluna: rgb(15 23 42 / 0.18);
+  --divisor-bloco: rgb(15 23 42 / 0.45);
 
   /* Repetidas de propósito, apesar de o bloco do tema claro já as definir. O bloco
      `[data-leitura="ampliada"]` acima clareia estas três para o fundo escuro, tem a
@@ -460,12 +472,216 @@ body {
   max-width: none !important;
 }
 
+/* A medição imita o PAPEL, e não a tela (14/10/2026). Ela acontece na tela, no
+   `beforeprint`, e o que só o `@media print` esconde ou encolhe entrava na conta: os 32rem
+   da descrição (512px de uma coluna só), a barra do %AV, o punho de arraste. A tabela
+   media mais larga do que sai no papel, e a fonte calculada saía menor que a que cabe.
+   As mesmas regras do bloco de impressão, só durante a medição. */
+.calibrando .celula-descricao {
+  min-width: 0 !important;
+  max-width: 18rem !important;
+  white-space: normal !important;
+}
+
+.calibrando .descricao-conta {
+  overflow: visible !important;
+  text-overflow: clip !important;
+  white-space: normal !important;
+}
+
+.calibrando .barra-av,
+.calibrando .puxador,
+.calibrando .puxador-vazio,
+.calibrando .nao-imprime,
+.calibrando .so-na-tela {
+  display: none !important;
+}
+
+.calibrando .so-no-papel {
+  display: revert !important;
+}
+
+/* ── A FONTE DOS NÚMEROS no papel (15/10/2026) ──
+   Com muitas colunas, a largura de cada uma sai do cabeçalho ("PROVISIONADO", "TOTAL
+   (R + P)"), e o número ficava pequeno, com vão dentro da célula. Na tabela do DRE
+   (`.numeros-ampliados`) TODOS os valores — Realizado, Provisionado, Total, AV %, AH %,
+   Média — ganham uma fonte própria, `--fs-numero`, que `useEscalaDeImpressao` escolhe como
+   a maior que ainda cabe na folha. A descrição e os cabeçalhos não mudam.
+   Vale durante a medição (`.calibrando`) e no papel; na tela, nunca. Sem a variável, cai
+   na fonte da tabela. */
+.calibrando.numeros-ampliados .tabela-rolagem tbody td:not(.celula-descricao),
+.calibrando.numeros-ampliados .tabela-rolagem tbody td:not(.celula-descricao) * {
+  font-size: var(--fs-numero, var(--fs-base)) !important;
+}
+
+/* A DESCRIÇÃO TEM LARGURA FIXA no papel do DRE (15/10/2026). O teto antigo era `max-width`,
+   que navegador IGNORA em célula de tabela: quando o respiro dos valores diminuiu, a sobra
+   foi toda para a descrição (~300px, as contas numa linha só) e os números não ganharam
+   nada. `width` a tabela respeita; nome longo quebra em duas linhas.
+
+   EM `em`, E NÃO EM `rem` (15/10/2026, PDF `apurado`): a fonte da descrição cresce quando
+   há poucas colunas, e os 12rem fixos ficavam para trás — `TRIANGULO/UBERLÂNDIA` passava da
+   borda e `TRANSPORTES - CD 3 CORAÇÕES/SUL MG` quebrava em quatro linhas. 14em acompanham a
+   fonte: os nomes do cadastro cabem em duas linhas em qualquer tamanho. E uma palavra que
+   ainda assim não caiba quebra DENTRO da célula (`overflow-wrap: break-word`), nunca por cima
+   da coluna vizinha. `break-word`, e não `anywhere`: o `anywhere` entra na largura mínima da
+   coluna, e com seis meses a tabela apertada encolheu a descrição até uma letra por linha.
+   O piso de 12rem vale pelo mesmo motivo: 14em a 7pt seriam 91px. */
+.calibrando.numeros-ampliados .tabela-rolagem .celula-descricao {
+  width: max(12rem, 14em) !important;
+  max-width: max(12rem, 14em) !important;
+  min-width: 12rem !important;
+}
+
+.calibrando.numeros-ampliados .tabela-rolagem .descricao-conta {
+  overflow-wrap: break-word !important;
+}
+
+@media print {
+  .numeros-ampliados .tabela-rolagem .celula-descricao {
+    width: max(12rem, 14em) !important;
+    max-width: max(12rem, 14em) !important;
+    min-width: 12rem !important;
+  }
+
+  .numeros-ampliados .tabela-rolagem .descricao-conta {
+    overflow-wrap: break-word !important;
+  }
+
+  /* A TABELA DO DRE ENCHE A FOLHA (15/10/2026). A calibragem mede na tela uns 3% mais largo
+     do que o papel sai, e esse resto virava uma faixa branca à direita (PDFs `ultima_2` e
+     `apurado`). Com a descrição de largura fixa, `width: 100%` reparte a sobra entre as
+     colunas de valor — o vão entre nome e número que motivou o `width: auto` abaixo não
+     volta, porque a descrição não cresce mais. */
+  .numeros-ampliados .tabela-rolagem table {
+    width: 100% !important;
+  }
+}
+
+/* E quase sem respiro lateral nas células de valor (pedido de 15/10/2026): cada px de
+   padding vezes 22 colunas é largura que a fonte dos números não pode usar. Fica 2px, só
+   para o número não encostar na linha divisória — que é sombra por dentro da célula. */
+.calibrando.numeros-ampliados .tabela-rolagem tbody td:not(.celula-descricao),
+.calibrando.numeros-ampliados .tabela-rolagem thead tr:last-child > th:not(.celula-descricao) {
+  padding-left: 2px !important;
+  padding-right: 2px !important;
+}
+
+@media print {
+  .numeros-ampliados .tabela-rolagem tbody td:not(.celula-descricao),
+  .numeros-ampliados .tabela-rolagem tbody td:not(.celula-descricao) * {
+    font-size: var(--fs-numero, var(--fs-base)) !important;
+  }
+
+  .numeros-ampliados .tabela-rolagem tbody td:not(.celula-descricao),
+  .numeros-ampliados .tabela-rolagem thead tr:last-child > th:not(.celula-descricao) {
+    padding-left: 2px !important;
+    padding-right: 2px !important;
+  }
+}
+
+/* ── OS CABEÇALHOS NÃO DITAM A LARGURA no papel (15/10/2026) ──
+   A primeira versão da fonte dos números não mudou nada na impressão: quem definia a
+   largura das colunas eram os rótulos — "VL. REALIZADO", "PROVISIONADO", "TOTAL (R + P)",
+   em caixa alta, com 0,14em entre as letras e numa linha só. A coluna era a do rótulo, a
+   fonte da tabela já enchia a folha com ela, e o número não tinha para onde crescer.
+   No papel (e na medição que o imita) o rótulo perde quase todo o espaçamento e pode
+   quebrar em duas linhas: a largura passa a vir dos números. A faixa dos meses fica como
+   está — ela ocupa várias colunas e não aperta nenhuma. */
+.calibrando.numeros-ampliados .tabela-rolagem thead tr:last-child > th {
+  letter-spacing: 0.02em !important;
+  white-space: normal !important;
+  /* O AV % tem 9rem fixos na tela, para a barra caber. No papel a barra some e os 144px
+     ficavam: cinco colunas de AV % eram ~720px de folha vazia. */
+  width: auto !important;
+}
+
+@media print {
+  .numeros-ampliados .tabela-rolagem thead tr:last-child > th {
+    letter-spacing: 0.02em !important;
+    white-space: normal !important;
+    width: auto !important;
+  }
+}
+
 /* Números tabulares: dígitos de mesma largura, colunas alinhadas. */
 .tabular {
   font-family: var(--font-data);
   font-variant-numeric: tabular-nums;
   font-feature-settings: "tnum";
   font-weight: var(--peso-numero);
+}
+
+/* O NEGRITO DOS TOTALIZADORES (15/10/2026). A regra acima fixa o peso de todo número, e
+   vinha DEPOIS das utilitárias: o `font-semibold` das linhas totalizadoras nunca pegou — o
+   número saía com o peso comum, e só a descrição engrossava. `.tabular.font-bold` empata a
+   disputa pela especificidade (0,2,0) em vez de depender da ordem da folha. */
+.tabular.font-bold {
+  font-weight: 700;
+}
+
+/* ── As divisões verticais da tabela do DRE (14/10/2026) ──────────────────────────────
+   Pedido do Gabriel: sem linha entre as colunas, quem lê confundia o Valor de um mês com
+   o AV % ao lado, ou o Total de um mês com o Valor do seguinte. Duas linhas, e DIFERENTES:
+     · .col-bloco   — abre cada bloco (cada mês, o total): 2px, contraste alto;
+     · .col-interna — separa as colunas dentro do bloco: 1px, contraste baixo.
+   A diferença é de espessura e de contraste ao mesmo tempo, para continuar distinguível
+   em tela com pouco brilho e no papel. A virada do comparativo (.col-intervalo) é a única
+   mais forte que um bloco: ali muda o intervalo inteiro.
+   Os tokens existem nos quatro temas (escuro, claro e as duas leituras ampliadas).
+
+   SOMBRA POR DENTRO, E NÃO `border`. A tabela é `border-collapse: collapse`, e aí a
+   faixa da borda é da TABELA: no cabeçalho fixo o texto do corpo passaria por baixo da
+   linha translúcida a partir de 125% de escala — o defeito de 02/09/2026 descrito em
+   "A costura das faixas fixas", mais abaixo. Com `inset` a linha compõe sobre o fundo da
+   própria célula. O preço: box-shadow não soma entre regras, então onde uma célula já
+   tem sombra (as duas linhas do cabeçalho, o alvo do arraste) as duas são repetidas
+   juntas nas regras combinadas logo abaixo. */
+.col-bloco {
+  box-shadow: inset 2px 0 0 var(--divisor-bloco);
+}
+
+.col-interna {
+  box-shadow: inset 1px 0 0 var(--divisor-coluna);
+}
+
+.col-intervalo {
+  box-shadow: inset 4px 0 0 var(--divisor-bloco);
+}
+
+/* Faixa dos meses: divisão do bloco + o separador de baixo dela. */
+.tabela-rolagem thead tr:not(:last-child) > th.col-bloco {
+  box-shadow: inset 2px 0 0 var(--divisor-bloco), inset 0 -1px 0 var(--border);
+}
+
+.tabela-rolagem thead tr:not(:last-child) > th.col-intervalo {
+  box-shadow: inset 4px 0 0 var(--divisor-bloco), inset 0 -1px 0 var(--border);
+}
+
+/* Rótulos das colunas: divisão + o separador do corpo. */
+.tabela-rolagem thead tr:last-child > th.col-bloco {
+  box-shadow: inset 2px 0 0 var(--divisor-bloco), inset 0 -1px 0 var(--border-strong);
+}
+
+.tabela-rolagem thead tr:last-child > th.col-interna {
+  box-shadow: inset 1px 0 0 var(--divisor-coluna), inset 0 -1px 0 var(--border-strong);
+}
+
+/* O alvo do arraste não apaga as divisões da linha enquanto ela é alvo. */
+.alvo-acima > td.col-bloco {
+  box-shadow: inset 0 2px 0 0 var(--primary), inset 2px 0 0 var(--divisor-bloco);
+}
+
+.alvo-acima > td.col-interna {
+  box-shadow: inset 0 2px 0 0 var(--primary), inset 1px 0 0 var(--divisor-coluna);
+}
+
+.alvo-abaixo > td.col-bloco {
+  box-shadow: inset 0 -2px 0 0 var(--primary), inset 2px 0 0 var(--divisor-bloco);
+}
+
+.alvo-abaixo > td.col-interna {
+  box-shadow: inset 0 -2px 0 0 var(--primary), inset 1px 0 0 var(--divisor-coluna);
 }
 
 /* Alvo de clique de no mínimo 44px em qualquer controle do modo ampliado —
@@ -880,8 +1096,13 @@ tbody tr.linha-totalizadora > .celula-descricao {
   cursor: pointer;
 }
 
+/* A linha inteira sublinhada é ajuda de TECLADO: quem navega por tabulação vê de uma vez o
+   que a linha abre. Era `tr:focus-within`, que também liga com o MOUSE — o botão clicado
+   fica com o foco, o modal o devolve a ele ao fechar, e a linha seguia sublinhada até o
+   próximo clique em outro lugar (reportado em 14/10/2026, quando o Provisionado pôs mais
+   uma célula clicável por mês). `:focus-visible` só liga quando o foco veio do teclado. */
 .tem-detalhe:hover .valor-clicavel,
-tr:focus-within .tem-detalhe .valor-clicavel {
+tr:has(.valor-clicavel:focus-visible) .tem-detalhe .valor-clicavel {
   text-decoration: underline dotted;
   text-underline-offset: 3px;
 }
@@ -1299,6 +1520,17 @@ tr:focus-within .tem-detalhe .valor-clicavel {
     padding: 0 !important;
   }
 
+  /* O contêiner da página é centralizado na tela (`mx-auto max-w-[110rem]`). No papel isso
+     abria uma margem à esquerda (PDFs de 14/10/2026): quando a tabela não cabe, o Chrome
+     encolhe a página para tentar caber, a página fica mais larga por dentro, e o contêiner
+     centralizado escorrega para o meio dela. Encostado à esquerda e sem teto, ele começa
+     na margem da folha, com ou sem encolhimento. */
+  main > div {
+    max-width: none !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+  }
+
   .tabela-rolagem {
     overflow: visible !important;
     height: auto !important;
@@ -1521,13 +1753,53 @@ html[data-tema="claro"] .tabela-rolagem thead th.faixa-mes-4 {
   );
 }
 
-/* No papel a faixa sai: a impressão já separa os meses por borda, e retângulos de
-   cor por folha gastariam tinta para repetir o que a borda diz. `background-image`
-   e não `background`, para não mexer no fundo que o cabeçalho fixo precisa ter. */
+/* ── A FAIXA DESCE PELA COLUNA (15/10/2026) ──
+   Pedido do Gabriel: a cor do mês "perpetua por todas as linhas" — agosto inteiro de uma
+   cor, setembro de outra. As células do mês (`BlocoMes`, com a classe `faixa-mes-N`)
+   ganham a mesma cor do título.
+
+   Como `background-COLOR`, e não `-image` como no cabeçalho: o realce do ponteiro é um
+   `background-image` na célula (ver A LINHA SOB O PONTEIRO), e os dois na mesma
+   propriedade se apagariam. Translúcida, a cor da célula compõe por cima do fundo da linha
+   — zebra ou totalizadora — e o realce, por cima dela. O bloco Total não leva faixa: ele
+   tem o fundo próprio `--surface-2`. */
+.tabela-rolagem tbody td.faixa-mes-1 { background-color: rgb(239 108 152 / 0.07); }
+.tabela-rolagem tbody td.faixa-mes-2 { background-color: rgb(108 239 163 / 0.07); }
+.tabela-rolagem tbody td.faixa-mes-3 { background-color: rgb(108 152 239 / 0.07); }
+.tabela-rolagem tbody td.faixa-mes-4 { background-color: rgb(239 206 108 / 0.07); }
+html[data-tema="claro"] .tabela-rolagem tbody td.faixa-mes-1 { background-color: rgb(230 0 76 / 0.05); }
+html[data-tema="claro"] .tabela-rolagem tbody td.faixa-mes-2 { background-color: rgb(0 230 96 / 0.05); }
+html[data-tema="claro"] .tabela-rolagem tbody td.faixa-mes-3 { background-color: rgb(0 77 230 / 0.05); }
+html[data-tema="claro"] .tabela-rolagem tbody td.faixa-mes-4 { background-color: rgb(230 172 0 / 0.05); }
+
+
+/* ── OS DOIS RESULTADOS (15/10/2026) ──
+   RESULTADO OPERACIONAL e LUCRO LIQUIDO ganham borda grossa em cima e embaixo, para se
+   separarem dos outros totalizadores. Na célula, e não na linha: com `border-collapse` a
+   borda mais grossa vence a fina de 1px das vizinhas, e a coluna fixa da descrição leva a
+   sua junto. Vale na tela e no papel. */
+.tabela-rolagem tbody tr.linha-resultado > td {
+  border-top: 2px solid var(--text-muted);
+  border-bottom: 2px solid var(--text-muted);
+}
+
+/* NO PAPEL A FAIXA TAMBÉM SAI — pedido do Gabriel em 15/10/2026, revertendo a decisão
+   antiga de poupar tinta: com três meses e Provisionado, a borda sozinha não basta para o
+   olho saber de que mês é o número.
+
+   Cores próprias do papel, e não as da tela: o papel é BRANCO em qualquer tema, e a família
+   do tema escuro (pastéis claros a 7%) some sobre ele. Parte da família do tema claro, um
+   pouco mais forte, porque a impressora clareia o que a tela mostra. O título leva o dobro do
+   corpo, como na tela. `print-color-adjust: exact` já vem herdado da `.tabela-rolagem`. */
 @media print {
-  .tabela-rolagem thead th[class*="faixa-mes-"] {
-    background-image: none !important;
-  }
+  .tabela-rolagem thead th.faixa-mes-1 { background-image: linear-gradient(rgb(230 0 76 / 0.16), rgb(230 0 76 / 0.16)) !important; }
+  .tabela-rolagem thead th.faixa-mes-2 { background-image: linear-gradient(rgb(0 230 96 / 0.16), rgb(0 230 96 / 0.16)) !important; }
+  .tabela-rolagem thead th.faixa-mes-3 { background-image: linear-gradient(rgb(0 77 230 / 0.16), rgb(0 77 230 / 0.16)) !important; }
+  .tabela-rolagem thead th.faixa-mes-4 { background-image: linear-gradient(rgb(230 172 0 / 0.16), rgb(230 172 0 / 0.16)) !important; }
+  .tabela-rolagem tbody td.faixa-mes-1 { background-color: rgb(230 0 76 / 0.08) !important; }
+  .tabela-rolagem tbody td.faixa-mes-2 { background-color: rgb(0 230 96 / 0.08) !important; }
+  .tabela-rolagem tbody td.faixa-mes-3 { background-color: rgb(0 77 230 / 0.08) !important; }
+  .tabela-rolagem tbody td.faixa-mes-4 { background-color: rgb(230 172 0 / 0.08) !important; }
 }
 
 /* ── A LINHA SOB O PONTEIRO ──────────────────────────────────────────────────

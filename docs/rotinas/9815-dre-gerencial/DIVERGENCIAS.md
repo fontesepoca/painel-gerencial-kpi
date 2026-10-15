@@ -39,6 +39,7 @@ linha no índice.
 | [16](#16-a-coluna-ah--no-bloco-de-total--06102026) | Coluna `AH %` no total — soma dos `%AH`, **não** a variação do período | todas, só com mais de um mês | **nenhum valor muda** — coluna nova | **a pedido** em 06/10/2026 · dc13 43/43 |
 | [17](#17-minas-rural-a-seção-sem-custo-é-a-1401--07102026) | Minas Rural: a seção tirada da venda e da devolução passa de `1601` para `1401` | todas, só no Minas Rural | **nenhum valor** nos meses medidos — jul a set/2026 | **ligada** em 07/10/2026 pela prova do trace · dc86 46/46 |
 | [18](#18-minas-rural-as-contas-de-icms-viram-a-3003007--07102026) | Minas Rural: conta de ICMS do grupo 303 vira a `3003007` na despesa e no detalhamento | todas, só no Minas Rural | **R$ 38.054,11** no lucro de agosto/2026 na filial 10 | **ligada** em 07/10/2026 · dc89 bate ao centavo |
+| [19](#19-as-colunas-provisionado-e-total-no-regime-competência--14102026) | Colunas **Provisionado** (títulos em aberto) e **Total** nos meses com aberto | todas, só em competência | colunas novas, também nos totalizadores de despesa; com o Provisionado ligado, **%AV e %AH sobre R + P** | **a pedido** em 14/10/2026 · dc92, dc93, dc94 |
 
 ---
 
@@ -1463,6 +1464,101 @@ traz 32 lançamentos somando 82.051,22. A conta `Icms [3003007]` soma 69.841,06 
 (`Icms Mrural F10`) + 31.786,95 (`Icms Parcel`, 3 parcelas) + 349,42 (`Icms Diferencial De
 Aliquota F10`, 3 notas). No detalhe os lançamentos aparecem com a conta **remapeada** — o nome
 original se perde, como no `ULanc.pas`.
+
+---
+
+## 19. As colunas PROVISIONADO e TOTAL, no regime competência — 14/10/2026
+
+**Pedido do Gabriel.** Em competência, o DRE de um mês recente só mostra o que já foi
+**pago**: uma despesa lançada e ainda em aberto não aparece em lugar nenhum, e o mês parece
+mais barato do que é. Cada mês que tem título em aberto ganha duas colunas **logo depois do Valor** — a ordem é
+Valor / Provisionado / Total / `%AV` / `%AH`, e no bloco do período Valor / Provisionado /
+Total / `%AV` / Média / `%AH` (ordem pedida em 14/10/2026, para o dinheiro ficar junto):
+
+- **Provisionado** — o que está em aberto naquela linha e mês;
+- **Total** — Valor + Provisionado.
+
+**Os nomes, em competência** (pedido de 14/10/2026): **Vl. Realizado** (o Valor de sempre,
+o pago), **Provisionado** e **Total (R + P)** — em todos os meses e no bloco do período,
+na tela e no Excel (`lib/rotulosDoDinheiro.ts`). Em caixa a coluna continua "Valor".
+
+**O Valor e todos os totalizadores continuam os da 9815, ao centavo.** A 9815 não tem nada
+disso.
+
+**Os percentuais das contas mudam com o Provisionado ligado** (pedido de 14/10/2026, opção 1):
+o `%AV` passa a ser (R + P) ÷ base — a mesma base, porque receita não tem provisionado — e o
+`%AH` compara o R + P do mês com o R + P do anterior (P = 0 onde não há aberto). No bloco do
+período, o `%AV` é o do Total (R + P), e a soma dos `%AH` acompanha. A cor do `%AH` julga
+pelo Total (R + P). **Com o Provisionado desligado**, os percentuais voltam a ser os de sempre,
+sobre o Realizado, e a tela é a da 9815. Quem calcula é o servidor
+(`PercentualAvComProvisionado`/`PercentualAhComProvisionado`); a tela e o Excel só escolhem
+(`lib/percentuaisComProvisionado.ts`).
+
+### Os totalizadores também têm Provisionado (14/10/2026, mesmo dia)
+
+Com só as contas sobre R + P, a soma dos `%AV` delas deixava de bater com o do Sub-Total, que
+somava só o realizado. **Pedido do Gabriel: que batam** — escolhida a forma completa (opção 1),
+a evolução que a §8 da spec já descrevia. Os totalizadores que somam despesa ganham
+Provisionado e Total (R + P) pelas **mesmas somas do Valor**
+(`MontadorDre.MontarMesProvisionado`):
+
+| Totalizador | Provisionado |
+|---|---|
+| `SUBTOTAL POSITIVO` | P dos créditos promovidos (o LUCRO BRUTO não tem) |
+| `Sub-Total` | P das contas operacionais |
+| `RESULTADO OPERACIONAL` | SUBTOTAL POSITIVO + Sub-Total |
+| `LUCRO LIQUIDO` | P das operacionais e das pós-operacionais |
+
+E os `%AV`/`%AH` deles, com o Provisionado ligado, são sobre R + P como os das contas — com
+isso o `%AV` do Sub-Total bate com a soma dos das contas operacionais. O TOTAL (R + P) do
+LUCRO LIQUIDO é o lucro do período **se tudo em aberto for pago**.
+
+Receita, deduções, CMV e LUCRO BRUTO seguem sem Provisionado — não vêm do contas a pagar.
+Informativas não somam, como no Valor. O **Valor** dos totalizadores continua o da 9815; muda
+só o que aparece nas colunas novas e, com o Provisionado ligado, os percentuais.
+
+**A reordenação acompanha**: arrastar uma conta move o P dela entre os totalizadores pelos
+mesmos encaixes do Valor (`recalculoDoDre`, um cálculo de deltas só para os dois), e os
+percentuais R + P se refazem com os números novos. A dc36 cobre o arraste de uma despesa com
+aberto para o bloco pós-operacional.
+
+### A regra
+
+**A mesma consulta de despesas, trocando só `DTPAGTO IS NOT NULL` por `DTPAGTO IS NULL`**
+(`ConsultasEmAberto`). Mesmos filtros, mesmo rateio, mesmos marcadores da base, a mesma
+distribuição das contas subidas (§14) e o mesmo rateio por fornecedor (§15). Um título que é
+pago sai do Provisionado e entra no Valor da mesma linha. O ramo de `RECEITA VENDA ATIVO`
+fica vazio (`AND 1 = 0`): é receita já recebida.
+
+**Sem filtro de "lixo", de propósito.** Título esquecido, duplicado ou que nunca vai ser pago
+aparece — é para quem o cadastrou ser cobrado. Por isso o duplo clique no Provisionado abre
+os títulos em aberto com **Vencimento** e **Dias em atraso**, ao lado do **Func.Lanc** (quem
+lançou).
+
+### Duas regras que a revisão da branch acertou
+
+- **Visibilidade.** Uma linha que só tem título em aberto continua "sem movimento" pelo
+  critério da 9815 (só o pago). Ela aparece **só com o Provisionado ligado** (`ComAberto`);
+  desligado, a tela e o Excel têm exatamente as linhas de antes.
+- **Baixa estornada na lista em aberto.** O checkbox "Ocultar baixas estornadas e da rotina
+  737" não vale na lista dos títulos em aberto e nem aparece nela: título com baixa estornada
+  está em aberto de novo, e é justamente quem se cobra.
+
+### O que fica de fora nesta versão
+
+- **Caixa**: não existe — o mês é o do pagamento.
+- **`%AV`/`%AH` da coluna Provisionado sozinha**: não existem.
+- **Duplo clique no Provisionado de um totalizador**: não abre nada — a composição dele são
+  os provisionados das contas, que já estão na tela.
+- **Modo de variação (anos)**: o bloco final é Δ, e não ganha as duas colunas.
+
+### Provas
+
+dc92 (24, a troca do SQL e os binds idênticos), dc93 (17, o montador), dc94 (11, Excel e
+reordenação), dc14 (36, Excel do detalhe). O SQL das constantes não mudou — dc86 60/60.
+**Com a API, pendentes:** dc34 (o `LUCRO LIQUIDO` não muda), dc6 `--provisionado` (cada
+célula fecha com o detalhe dos títulos em aberto), dc78 (com fornecedor) e a medição de tempo
+de um e de três meses.
 
 ---
 

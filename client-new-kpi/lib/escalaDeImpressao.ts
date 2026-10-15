@@ -144,3 +144,55 @@ export function tokensDaFonte(basePt: number): Record<string, string> {
     "--celula-y": `${Math.max(2, Math.round(basePt * 0.25))}px`,
   };
 }
+
+/** O teto da fonte dos números: acima disso a coluna vira cartaz, não relatório. */
+const MAX_PT_NUMEROS = 20;
+
+/**
+ * O piso da fonte dos números: 7pt, o mesmo da tabela — e a busca NUNCA passa da folha.
+ *
+ * Teve 10pt por algumas horas em 15/10/2026, a pedido ("só aumente a fonte para
+ * visualizarmos"), e a bancada de impressão mostrou o custo: com seis meses e Provisionado o
+ * AH % do Total saía da folha. Com a descrição acompanhando a fonte (`14em`, globals.css), o
+ * cenário que motivou o pedido — três meses com Provisionado — já chega a 11,5pt sem piso
+ * nenhum; o piso alto só servia para cortar os casos que não cabem.
+ */
+export const PISO_DOS_NUMEROS = 7;
+
+/**
+ * A maior fonte dos NÚMEROS que cabe na LARGURA da folha — pedido do Gabriel em 15/10/2026.
+ *
+ * Com muitas colunas (três meses, todos com Provisionado), os valores saíam pequenos. Esta
+ * busca procura, de meio em meio ponto entre o piso (`PISO_DOS_NUMEROS`) e o teto, a maior fonte só
+ * dos valores com que a tabela ainda cabe na largura útil — com a descrição e os cabeçalhos
+ * já fixos. **A altura não entra**: fonte maior é menos linhas por folha, e o resto vai para
+ * a próxima página. Foi o que o Gabriel pediu ("se precisar, diminua a quantidade de linhas
+ * por folha").
+ *
+ * **A primeira versão partia da fonte da tabela inteira** — que já enchia a folha — e nunca
+ * subia: nos PDFs de 15/10/2026 os números saíram do mesmo tamanho. Por isso a busca cobre a
+ * faixa toda, e não "a partir de".
+ *
+ * `medir(pt)` aplica a fonte dos números e devolve a largura da tabela. Busca binária: cada
+ * medida é um reflow, e são no máximo seis. Se nem o piso couber, fica no piso.
+ */
+export function maiorFonteDosNumeros(medir: (pt: number) => number, folha: Folha): number {
+  const limite = LARGURA_UTIL[folha] * FOLGA;
+  const cabe = (meiosPontos: number) => {
+    const largura = medir(meiosPontos / 2);
+    return Number.isFinite(largura) && largura > 0 && largura <= limite;
+  };
+
+  // Em meios pontos inteiros. Invariante: `baixo` cabe, `alto` não.
+  let baixo = Math.round(PISO_DOS_NUMEROS * 2);
+  let alto = Math.round(MAX_PT_NUMEROS * 2);
+  if (!cabe(baixo)) return PISO_DOS_NUMEROS;
+  if (cabe(alto)) return alto / 2;
+
+  while (alto - baixo > 1) {
+    const meio = Math.floor((baixo + alto) / 2);
+    if (cabe(meio)) baixo = meio;
+    else alto = meio;
+  }
+  return baixo / 2;
+}

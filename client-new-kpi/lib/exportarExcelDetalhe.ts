@@ -11,7 +11,7 @@ import {
   type Celula,
   type Planilha,
 } from "@/lib/excel";
-import { colunaDoTotal, nomeDaLinha, rotuloDaColuna } from "@/lib/colunaDoTotal";
+import { colunaDoTotal, nomeDaLinha, rotuloDaColuna, rotuloNaTela } from "@/lib/colunaDoTotal";
 import { temRateio, valorNoDre } from "@/lib/rateioDoDetalhe";
 import { semEstornosQueSeAnulam } from "@/lib/estornosQueSeAnulam";
 import { semBaixasEstornadas } from "@/lib/baixasEstornadas";
@@ -177,6 +177,10 @@ function corpoDoDetalhe(
   }
 
   const rateando = temRateio(dados);
+  // Os títulos EM ABERTO (célula de Provisionado): o vencimento entra logo depois do
+  // dinheiro, como na tela. Os dias de atraso não — mudam todo dia, e numa planilha
+  // guardada viram um número velho; o Excel calcula a partir do vencimento se precisar.
+  const aberto = dados.provisionado === true;
 
   return {
     // As 25 da 9815, na ordem dela, mais as duas do agrupamento que a tela desenha como
@@ -186,11 +190,13 @@ function corpoDoDetalhe(
       "Conta",
       "Rec.Num.",
       "Histórico",
-      "V. Pago",
+      // "V. a Pagar" na lista dos títulos em aberto — ver `rotuloNaTela`.
+      rotuloNaTela("V. Pago", aberto),
       // A coluna do rateio só existe quando a apuração foi filtrada — o arquivo conta a
       // mesma história da tela, inclusive em quantas colunas tem. Ver
       // `lib/rateioDoDetalhe.ts`.
       ...(rateando ? ["No DRE", "Exclusivo"] : []),
+      ...(aberto ? ["Dt. Vencto."] : []),
       "Dt.Lançamento",
       "Dt. Pagto.",
       "Dt.Competência",
@@ -217,6 +223,7 @@ function corpoDoDetalhe(
     larguras: [
       28, 32, 10, 44, 16,
       ...(rateando ? [16, 11] : []),
+      ...(aberto ? [14] : []),
       14, 14, 14, 14, 8, 12, 8, 12, 36, 20, 20, 10, 10, 14, 12, 12, 12,
       14, 16, 16, 14, 18,
     ],
@@ -224,7 +231,9 @@ function corpoDoDetalhe(
     // sobre a mesma consulta: as baixas estornadas e da 737 (se o checkbox estava marcado)
     // e os pares de estorno que se anulam.
     linhas: semEstornosQueSeAnulam(
-      semBaixasEstornadas(dados.lancamentos ?? [], ocultarBaixas).visiveis,
+      // Na lista em aberto o filtro não vale: título com baixa estornada é título REABERTO,
+      // e é exatamente quem a lista existe para cobrar.
+      semBaixasEstornadas(dados.lancamentos ?? [], ocultarBaixas && dados.provisionado !== true).visiveis,
     ).visiveis.map((l) => [
       txt(l.descCcPrinc),
       txt(l.conta),
@@ -234,6 +243,7 @@ function corpoDoDetalhe(
       ...(rateando
         ? [num(valorNoDre(l, dados.participacao)), txt(l.exclusivo ? "sim" : "")]
         : []),
+      ...(aberto ? [data(l.dtVenc ?? null)] : []),
       data(l.dtLanc),
       data(l.dtPagto),
       data(l.dtCompetencia),
@@ -267,7 +277,9 @@ export function planilhaDoDetalhe(detalhe: DetalheParaExportar): Planilha {
     detalhe.ocultarBaixas ?? true,
   );
   const nome = nomeDaLinha(detalhe.linha);
-  const coluna = colunaDoTotal(detalhe.dados.tipo, nome);
+  // Traduzida como o rótulo, senão a coluna do total não se reconheceria no cabeçalho.
+  const bruta = colunaDoTotal(detalhe.dados.tipo, nome);
+  const coluna = bruta === null ? null : rotuloNaTela(bruta, detalhe.dados.provisionado === true);
 
   return {
     aba: "Detalhamento",

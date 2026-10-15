@@ -98,6 +98,11 @@ export interface PeriodoDre {
    * intervalo, em vez de comparar Jan/26 com Mar/25.
    */
   bloco: number;
+  /**
+   * A coluna tem algum título EM ABERTO (competência). É o que decide se ela ganha as
+   * colunas Provisionado e Total — mês todo pago fica como sempre foi.
+   */
+  temProvisionado?: boolean;
 }
 
 export interface ValorMes {
@@ -107,12 +112,28 @@ export interface ValorMes {
   percentualAv: number | null;
   /** Variação sobre o mês anterior. Nulo no primeiro mês e quando o anterior é zero. */
   percentualAh: number | null;
+  /**
+   * O que está EM ABERTO nesta linha e coluna (competência), rateado como o Valor. Nulo em
+   * caixa, em linha calculada e em coluna sem nenhum aberto. Opcional: uma API anterior a
+   * 14/10/2026 não manda.
+   */
+  provisionado?: number | null;
+  /**
+   * %AV e %AH sobre R + P (Valor + Provisionado). A tela os usa no lugar dos de sempre só
+   * com o Provisionado ligado — ver `lib/percentuaisComProvisionado.ts`.
+   */
+  percentualAvComProvisionado?: number | null;
+  percentualAhComProvisionado?: number | null;
 }
 
 export interface TotalLinha {
   valor: number;
   media: number;
   percentualAv: number | null;
+  /** A soma dos provisionados das colunas. Nulo quando nenhuma tem. */
+  provisionado?: number | null;
+  /** %AV do período sobre o Total (R + P). */
+  percentualAvComProvisionado?: number | null;
 }
 
 /**
@@ -170,6 +191,11 @@ export interface LinhaDre {
    * `DESCONTO FUNCIONÁRIOS` sai com 0,00 e 16 lançamentos, e ela mostra.
    */
   semMovimento: boolean;
+  /**
+   * Tem título EM ABERTO no período (competência). Não muda `semMovimento`, que é do pago:
+   * a linha só com aberto aparece apenas com o Provisionado ligado.
+   */
+  comAberto?: boolean;
   /** Zero em todos os meses. Não decide visibilidade. */
   zerada: boolean;
   /** `#RRGGBB` vindo do `TColor` do Delphi, já convertido. */
@@ -238,6 +264,8 @@ export interface FiltroDetalhe extends FiltroApuracao {
   bloco: string | null;
   chave: string | null;
   sobra?: string[] | null;
+  /** Os títulos EM ABERTO da célula de Provisionado, em vez dos pagos. */
+  provisionado?: boolean;
 }
 
 export interface DetalheCliente {
@@ -353,6 +381,8 @@ export interface DetalheLancamento {
    */
   dtEstornoBaixa?: string | null;
   codRotinaBaixa?: string | null;
+  /** Vencimento — a tela dos títulos em aberto calcula daqui os dias de atraso. */
+  dtVenc?: string | null;
 }
 
 /**
@@ -365,6 +395,8 @@ export interface Detalhamento {
    * à bifurcação não a manda — mas `exigirMesmaBase` recusa a resposta que não a traz.
    */
   base?: { id: string; rotulo: string } | null;
+  /** Eco do pedido: a lista é dos títulos EM ABERTO (célula de Provisionado). */
+  provisionado?: boolean;
   tipo: TipoDetalhe;
   dataInicio: string;
   dataFim: string;

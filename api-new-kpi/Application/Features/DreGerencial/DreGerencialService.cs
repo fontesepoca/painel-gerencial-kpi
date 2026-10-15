@@ -173,7 +173,7 @@ public sealed class DreGerencialService
 
         var despesas = await _repositorio.ObterDespesasAsync(
             filtro.Filiais, filtro.DataInicio, filtro.DataFim, regime, analise,
-            filtro.Fornecedores, cancellationToken);
+            filtro.Fornecedores, cancellationToken: cancellationToken);
 
         var dtos = despesas
             .Select(d => new DespesaDto(
@@ -364,15 +364,28 @@ public sealed class DreGerencialService
         // que as consultas terminam, então o resultado é idêntico nos dois modos.
         var porRecorte = await Task.WhenAll(recortes.Select(async recorte =>
         {
+            // O PROVISIONADO (14/10/2026): os títulos em aberto do mesmo recorte, só em
+            // competência — em caixa a data do filtro é a do pagamento, e título em aberto
+            // não tem mês. Começa ANTES de esperar os pagos: é outra varredura de PCLANC, e
+            // em paralelo ela custa quase nada a mais no tempo total. Cada chamada abre a
+            // própria conexão, como os recortes já fazem.
+            var abertosTask = regime == RegimeDre.Competencia
+                ? _repositorio.ObterDespesasAsync(
+                    filtro.Filiais, recorte.DataInicio, recorte.DataFim, regime, analise,
+                    filtro.Fornecedores, emAberto: true, cancellationToken: cancellationToken)
+                : null;
+
             var despesas = await _repositorio.ObterDespesasAsync(
                 filtro.Filiais, recorte.DataInicio, recorte.DataFim, regime, analise,
-                filtro.Fornecedores, cancellationToken);
+                filtro.Fornecedores, cancellationToken: cancellationToken);
 
             var faturamento = await _repositorio.ObterFaturamentoPorMesAsync(
                 filtro.Filiais, recorte.DataInicio, recorte.DataFim, filtro.Fornecedores,
                 cancellationToken);
 
-            return recorte.EmColunas(despesas, faturamento);
+            var abertos = abertosTask is null ? null : await abertosTask;
+
+            return recorte.EmColunas(despesas, faturamento, abertos);
         }));
 
         var colunas = porRecorte.SelectMany(c => c).ToList();
@@ -523,9 +536,18 @@ public sealed class DreGerencialService
                         "A sobra do detalhamento tem de ser de 1 a 200 códigos, só com dígitos e ponto.");
                 }
 
+                // Títulos em aberto só existem em competência: em caixa o mês é o do
+                // pagamento, e um título não pago não tem mês para estar.
+                if (filtro.Provisionado && regime != RegimeDre.Competencia)
+                {
+                    return Result<DetalhamentoDto>.Invalido(
+                        "O provisionado só existe no regime competência.");
+                }
+
                 var linhas = await _repositorio.ObterDetalheLancamentosAsync(
                     filtro.Filiais, filtro.DataInicio, filtro.DataFim, regime, analise,
-                    filtro.Bloco, filtro.Chave, fornecedores, filtro.Sobra, cancellationToken);
+                    filtro.Bloco, filtro.Chave, fornecedores, filtro.Sobra,
+                    emAberto: filtro.Provisionado, cancellationToken: cancellationToken);
 
                 // ── A PARTICIPAÇÃO, QUE É O QUE FAZ A TELA FECHAR COM A CÉLULA ──────
                 //
@@ -565,8 +587,9 @@ public sealed class DreGerencialService
                         l.NumSeqBordero, l.NumCheque2, l.NumCar, l.Localizacao,
                         l.NomeFunc, l.NomeFuncBaixa, l.DtReclassific,
                         l.CodFuncReclassific, l.DtEstornoBaixa,
-                        l.CodRotinaBaixa)).ToList(),
-                    null, cronometro.ElapsedMilliseconds, Fornecedores: eco, Participacao: participacao));
+                        l.CodRotinaBaixa, l.DtVenc)).ToList(),
+                    null, cronometro.ElapsedMilliseconds, Fornecedores: eco, Participacao: participacao,
+                    Provisionado: filtro.Provisionado));
             }
 
             case "imposto-por-produto":

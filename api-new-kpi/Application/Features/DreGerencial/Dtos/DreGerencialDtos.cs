@@ -144,7 +144,12 @@ public record PeriodoDto(
     /// <c>0</c> nos outros modos. A tela usa para separar visualmente os dois intervalos e
     /// para somar o subtotal de cada um.
     /// </summary>
-    int Bloco = 0);
+    int Bloco = 0,
+    /// <summary>
+    /// A coluna tem algum título EM ABERTO, em qualquer linha (competência). É o que faz a
+    /// tela desenhar Provisionado e Total nesta coluna — mês todo pago fica como sempre foi.
+    /// </summary>
+    bool TemProvisionado = false);
 
 /// <summary>Valor de uma linha em um mês.</summary>
 public record ValorMesDto(
@@ -153,10 +158,37 @@ public record ValorMesDto(
     /// <summary>Base: RECEITA BRUTA nas cinco deduções, RECEITAS LIQUIDAS no resto.</summary>
     decimal? PercentualAv,
     /// <summary>Variação sobre o mês anterior. Nulo no primeiro mês e quando o anterior é zero.</summary>
-    decimal? PercentualAh);
+    decimal? PercentualAh,
+    /// <summary>
+    /// O que está EM ABERTO nesta linha e coluna (<c>DTPAGTO IS NULL</c>), já rateado como o
+    /// Valor. Nulo em caixa, em linha calculada (totalizadores, receita, CMV) e quando a
+    /// coluna não tem nenhum aberto. %AV e %AH não o consideram.
+    /// </summary>
+    decimal? Provisionado = null,
+    /// <summary>
+    /// %AV sobre <b>R + P</b> (Valor + Provisionado), mesma base. A tela usa no lugar do
+    /// <see cref="PercentualAv"/> quando o Provisionado está ligado (14/10/2026, opção 1).
+    /// Nulo em linha calculada e em apuração sem nenhum aberto.
+    /// </summary>
+    decimal? PercentualAvComProvisionado = null,
+    /// <summary>
+    /// %AH sobre <b>R + P</b>: o R + P desta coluna contra o da anterior (P = 0 onde não
+    /// há aberto). Mesmas regras do <see cref="PercentualAh"/> e mesmos nulos do campo acima.
+    /// </summary>
+    decimal? PercentualAhComProvisionado = null);
 
 /// <summary>Bloco TOTAL da linha, somando os meses do período.</summary>
-public record TotalLinhaDto(decimal Valor, decimal Media, decimal? PercentualAv);
+/// <param name="Provisionado">
+/// A soma dos <see cref="ValorMesDto.Provisionado"/> das colunas, já arredondados. Nulo
+/// quando nenhuma coluna tem.
+/// </param>
+public record TotalLinhaDto(
+    decimal Valor,
+    decimal Media,
+    decimal? PercentualAv,
+    decimal? Provisionado = null,
+    /// <summary>%AV do período sobre o Total (R + P). Ver <see cref="ValorMesDto.PercentualAvComProvisionado"/>.</summary>
+    decimal? PercentualAvComProvisionado = null);
 
 /// <summary>
 /// O detalhamento que esta linha abre com duplo clique, ou `null` se ela não abre nenhum.
@@ -257,7 +289,14 @@ public record LinhaDreDto(
     /// <para>`SUB-TOTAL` referencia as dezenas de linhas do bloco operacional; os outros
     /// quatro têm duas parcelas cada.</para>
     /// </summary>
-    IReadOnlyList<ParcelaDto> Composicao);
+    IReadOnlyList<ParcelaDto> Composicao,
+    /// <summary>
+    /// A linha tem título EM ABERTO no período (competência, 14/10/2026). <b>Não muda o
+    /// <see cref="SemMovimento"/></b>, que continua sendo o critério da 9815, só do pago: com
+    /// o Provisionado desligado a tela tem de ser a de antes (D9). O front mostra uma linha
+    /// sem movimento quando ela tem aberto E o Provisionado está ligado.
+    /// </summary>
+    bool ComAberto = false);
 
 /// <summary>
 /// Uma parcela de uma linha calculada. Ou aponta para outra linha da apuração, ou traz o
@@ -306,7 +345,12 @@ public record DetalheFiltroDto(
     string? Chave,
     IReadOnlyList<decimal>? Fornecedores = null,
     /// <summary>A <see cref="DetalheDisponivelDto.Sobra"/> da linha clicada, devolvida pelo front.</summary>
-    IReadOnlyList<string>? Sobra = null);
+    IReadOnlyList<string>? Sobra = null,
+    /// <summary>
+    /// Os títulos EM ABERTO da célula de Provisionado, em vez dos pagos. Só em competência
+    /// e só em lançamentos.
+    /// </summary>
+    bool Provisionado = false);
 
 /// <summary>Uma linha da tela "Receita por Cliente".</summary>
 public record DetalheClienteDto(
@@ -388,7 +432,9 @@ public record DetalheLancamentoDto(
     DateTime? DtReclassific,
     decimal? CodFuncReclassific,
     DateTime? DtEstornoBaixa,
-    string? CodRotinaBaixa);
+    string? CodRotinaBaixa,
+    /// <summary>Vencimento — a tela dos títulos em aberto calcula daqui os dias de atraso.</summary>
+    DateTime? DtVenc = null);
 
 /// <summary>
 /// Resposta do detalhamento. **Uma coleção preenchida por vez**, conforme
@@ -422,7 +468,9 @@ public record DetalhamentoDto(
     IReadOnlyList<DetalheNotaDto>? Notas = null,
     IReadOnlyList<decimal>? Fornecedores = null,
     decimal Participacao = 1m,
-    BaseDto? Base = null)
+    BaseDto? Base = null,
+    /// <summary>Eco do pedido: a lista é dos títulos EM ABERTO. A tela muda o título e as colunas.</summary>
+    bool Provisionado = false)
 {
     /// <summary>
     /// <b>Quando esta apuração foi feita</b> — a hora do SERVIDOR, não a do navegador.

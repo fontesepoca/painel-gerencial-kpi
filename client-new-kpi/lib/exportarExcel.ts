@@ -9,8 +9,10 @@ import {
   type Planilha,
 } from "@/lib/excel";
 import { somaDosAh } from "@/lib/ahDoTotal";
+import { rotulosDoDinheiro } from "@/lib/rotulosDoDinheiro";
+import { comPercentuaisRp } from "@/lib/percentuaisComProvisionado";
 import { mostraVariacao, rotuloDaVariacao, variacao } from "@/lib/modosDePeriodo";
-import type { Apuracao, LinhaDre } from "@/types/dre-gerencial";
+import type { Apuracao, LinhaDre, PeriodoDre } from "@/types/dre-gerencial";
 
 /**
  * A apuração do DRE em `.xlsx`.
@@ -45,9 +47,51 @@ import type { Apuracao, LinhaDre } from "@/types/dre-gerencial";
 export interface ColunasDeAnalise {
   av: boolean;
   ah: boolean;
+  /**
+   * As colunas Provisionado e Total (competência, 14/10/2026). Opcional: ausente vale
+   * `true`, o estado inicial da tela — e mesmo ligado, só entram nos meses que têm
+   * título em aberto (`PeriodoDre.temProvisionado`).
+   */
+  provisionado?: boolean;
+  /** O bloco do período no fim — "Sem a coluna Total" desliga (15/10/2026). Ausente: ligado. */
+  total?: boolean;
+  /** Só o bloco do período, sem os meses — "Só o Total" (15/10/2026). Vence o `total`. */
+  soTotal?: boolean;
 }
 
-const TUDO: ColunasDeAnalise = { av: true, ah: true };
+/**
+ * O recorte das colunas, com a MESMA regra da tela (`TabelaDre`): os meses somem com "Só o
+ * Total", o bloco do fim com "Sem a coluna Total", e "Só o Total" vence — sem os dois não
+ * sobraria coluna. Com um mês só não há bloco de período, e nada some.
+ */
+function recorte(dados: Apuracao, colunas: ColunasDeAnalise) {
+  const multiMes = dados.periodos.length > 1;
+  const soTotal = multiMes && colunas.soTotal === true;
+  return {
+    meses: soTotal ? [] : dados.periodos,
+    blocoNoFim: multiMes && (soTotal || colunas.total !== false),
+  };
+}
+
+const TUDO: ColunasDeAnalise = { av: true, ah: true, provisionado: true };
+
+/** Este mês ganha Provisionado e Total: o checkbox ligado E título em aberto nele. */
+const provisionadoNoMes = (p: PeriodoDre, colunas: ColunasDeAnalise) =>
+  (colunas.provisionado ?? true) && p.temProvisionado === true;
+
+/** O bloco do período ganha as duas se algum mês tiver — senão a soma não teria de onde vir. */
+const provisionadoNoFim = (dados: Apuracao, colunas: ColunasDeAnalise) =>
+  dados.periodos.some((p) => provisionadoNoMes(p, colunas));
+
+/**
+ * Provisionado e Total de uma célula: vazios onde não se aplica — receita, deduções, CMV e
+ * LUCRO BRUTO, que a API manda com provisionado nulo. Os totalizadores que somam despesa têm.
+ */
+function celulasDoProvisionado(valor: number, provisionado: number | null | undefined): Celula[] {
+  return provisionado === null || provisionado === undefined
+    ? [num(null, MOEDA), num(null, MOEDA)]
+    : [num(provisionado, MOEDA), num(valor + provisionado, MOEDA)];
+}
 
 /**
  * Quantas colunas o bloco final ocupa, já descontada a análise desligada.
@@ -60,7 +104,11 @@ function blocoFinal(dados: Apuracao, colunas: ColunasDeAnalise = TUDO) {
     ? { variacao: true as const, largura: 2, rotulo: rotuloDaVariacao(dados.modo, dados.periodos) }
     : {
         variacao: false as const,
-        largura: 2 + (colunas.av ? 1 : 0) + (colunas.ah ? 1 : 0),
+        largura:
+          2 +
+          (colunas.av ? 1 : 0) +
+          (colunas.ah ? 1 : 0) +
+          (provisionadoNoFim(dados, colunas) ? 2 : 0),
         rotulo: "Total",
       };
 }
@@ -76,28 +124,37 @@ export function matrizDaApuracao(
   // O `%AH` só existe com duas colunas ou mais — ele compara com a anterior. É a mesma
   // regra da tela, e por isso a planilha de um mês nunca teve a coluna.
   const comAh = multiMes && colunas.ah;
-  const porMes = 1 + (colunas.av ? 1 : 0) + (comAh ? 1 : 0);
+  const porMes = (p: PeriodoDre) =>
+    1 + (colunas.av ? 1 : 0) + (comAh ? 1 : 0) + (provisionadoNoMes(p, colunas) ? 2 : 0);
+  // O bloco do período só existe com mais de um mês; com um só, o mês é o período.
+  const provNoFim = multiMes && provisionadoNoFim(dados, colunas);
+  const { meses, blocoNoFim } = recorte(dados, colunas);
 
+  // Os MESMOS nomes da tela — Vl. Realizado / Provisionado / Total (R + P) em competência.
+  const nomes = rotulosDoDinheiro(dados.regime);
   const faixaMeses: Celula[] = [txt("")];
   const rotulos: Celula[] = [txt("Descrição")];
 
-  for (const p of dados.periodos) {
+  for (const p of meses) {
     // A faixa do mês é o rótulo numa célula e vazias nas demais: são elas que o `merge`
     // junta depois. Uma a menos aqui com uma a mais no merge desalinharia a planilha
     // inteira a partir do segundo mês.
-    faixaMeses.push(txt(p.rotulo), ...Array.from({ length: porMes - 1 }, () => txt("")));
-    rotulos.push(txt("Valor"));
+    faixaMeses.push(txt(p.rotulo), ...Array.from({ length: porMes(p) - 1 }, () => txt("")));
+    // O dinheiro junto — Valor, Provisionado, Total — e a análise depois (14/10/2026).
+    rotulos.push(txt(nomes.valor));
+    if (provisionadoNoMes(p, colunas)) rotulos.push(txt(nomes.provisionado), txt(nomes.total));
     if (colunas.av) rotulos.push(txt("AV %"));
     if (comAh) rotulos.push(txt("AH %"));
   }
 
-  if (multiMes) {
+  if (blocoNoFim) {
     faixaMeses.push(...Array.from({ length: fim.largura }, (_, i) => txt(i === 0 ? fim.rotulo : "")));
     rotulos.push(
       ...(fim.variacao
         ? [txt("Δ Valor"), txt("Δ %")]
         : [
-            txt("Valor"),
+            txt(nomes.valor),
+            ...(provNoFim ? [txt(nomes.provisionado), txt(nomes.total)] : []),
             ...(colunas.av ? [txt("AV %")] : []),
             txt("Média"),
             // A soma dos %AH fecha a linha, como na tela.
@@ -106,21 +163,33 @@ export function matrizDaApuracao(
     );
   }
 
-  const corpo = linhas.map((linha) => {
+  // Com o Provisionado ligado (e algum aberto), %AV e %AH das contas são os de R + P — os
+  // MESMOS que a tela mostra. Desligado, os de sempre. Ver `lib/percentuaisComProvisionado.ts`.
+  const usarRp = provisionadoNoFim(dados, colunas);
+  const corpo = linhas.map((original) => {
+    const linha = comPercentuaisRp(original, usarRp);
     const celulas: Celula[] = [txt(linha.descricao.trim())];
 
-    for (const p of dados.periodos) {
+    for (const p of meses) {
       const v = linha.valores.find((x) => x.mesAno === p.mesAno);
       celulas.push(num(v?.valor ?? null, MOEDA));
+      if (provisionadoNoMes(p, colunas)) {
+        celulas.push(...celulasDoProvisionado(v?.valor ?? 0, v?.provisionado));
+      }
       if (colunas.av) celulas.push(num(v?.percentualAv ?? null, PERCENTUAL_3));
       if (comAh) celulas.push(num(v?.percentualAh ?? null, PERCENTUAL_3));
     }
 
-    if (multiMes && fim.variacao) {
+    if (blocoNoFim && fim.variacao) {
       const v = variacao(linha.valores, dados.periodos, dados.modo);
       celulas.push(num(v?.absoluta ?? null, MOEDA), num(v?.percentual ?? null, PERCENTUAL_3));
-    } else if (multiMes) {
+    } else if (blocoNoFim) {
       celulas.push(num(linha.total.valor, MOEDA));
+      if (provNoFim) {
+        celulas.push(
+          ...celulasDoProvisionado(linha.total.valor, linha.total.provisionado),
+        );
+      }
       if (colunas.av) celulas.push(num(linha.total.percentualAv, PERCENTUAL_3));
       celulas.push(num(linha.total.media, MOEDA));
       // A MESMA função da tela, e não uma soma escrita de novo aqui: duas somas do mesmo
@@ -181,10 +250,11 @@ export function planilhaDaApuracao(
   // ter duas colunas em vez de três — daí a largura vir da lista, e não de um passo fixo.
   const comAh = dados.periodos.length > 1 && analise.ah;
   const fim = blocoFinal(dados, { ...analise, ah: comAh });
-  const larguras = dados.periodos.map(
-    () => 1 + (analise.av ? 1 : 0) + (comAh ? 1 : 0),
+  const { meses, blocoNoFim } = recorte(dados, analise);
+  const larguras = meses.map(
+    (p) => 1 + (analise.av ? 1 : 0) + (comAh ? 1 : 0) + (provisionadoNoMes(p, analise) ? 2 : 0),
   );
-  if (dados.periodos.length > 1) larguras.push(fim.largura);
+  if (blocoNoFim) larguras.push(fim.largura);
 
   const merges = [];
   let c = 1;

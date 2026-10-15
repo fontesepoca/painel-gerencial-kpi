@@ -213,8 +213,15 @@ eq(colunasDe(matrizDaApuracao(dados, dados.linhas, { av: false, ah: false })), 5
 // cada número, e uma célula a mais ou a menos aqui desloca tudo.
 eq(
   matrizDaApuracao(dados, dados.linhas, { av: false, ah: false })[1].map((c) => c.v),
-  ["Descrição", "Valor", "Valor", "Valor", "Média"],
+  // Em competência o valor é o REALIZADO — o pago —, para não se confundir com o
+  // Provisionado ao lado (14/10/2026). Em caixa continua "Valor".
+  ["Descrição", "Vl. Realizado", "Vl. Realizado", "Vl. Realizado", "Média"],
   "sem as duas, sobra o dinheiro: a Média continua, porque não é análise",
+);
+eq(
+  matrizDaApuracao({ ...dados, regime: "caixa" }, dados.linhas, { av: false, ah: false })[1].map((c) => c.v),
+  ["Descrição", "Valor", "Valor", "Valor", "Média"],
+  "em caixa o nome continua Valor",
 );
 
 // E a FAIXA DE MÊS acompanha: uma célula com o rótulo e as demais vazias, tantas quantas
@@ -302,5 +309,32 @@ eq(
   "DRE_MinasRural_ccusto-principal_2026-07-01_a_2026-08-27",
   "com base, o id dela entra logo depois do DRE",
 );
+
+// O RECORTE DAS COLUNAS SEGUE A TELA (15/10/2026): "Sem a coluna Total" e "Só o Total", do
+// menu Exibição, saem no arquivo como saem na tabela.
+{
+  const sem = matrizDaApuracao(dados, dados.linhas, { av: true, ah: true, total: false });
+  eq(colunasDe(sem), 7, "sem o Total: descrição + 2 meses × (valor, AV, AH)");
+  eq(sem[0].map((c) => c.v).includes("Total"), false, "sem o Total: a faixa não cita Total");
+  eq(sem.slice(2).every((l) => l.length === 7), true, "sem o Total: o corpo acompanha o cabeçalho");
+  eq(planilhaDaApuracao(dados, dados.linhas, { av: true, ah: true, total: false }).merges.length, 2,
+    "sem o Total: um merge por mês, nenhum no fim");
+
+  const so = matrizDaApuracao(dados, dados.linhas, { av: true, ah: true, soTotal: true });
+  eq(colunasDe(so), 5, "só o Total: descrição + valor, AV, média, AH");
+  eq(so[0].map((c) => c.v)[1], "Total", "só o Total: a faixa começa no Total");
+  eq(so[2][1].v, dados.linhas[0].total.valor, "só o Total: o valor é o do período");
+  eq(planilhaDaApuracao(dados, dados.linhas, { av: true, ah: true, soTotal: true }).merges.length, 1,
+    "só o Total: um merge só");
+
+  // "Só o Total" vence o "Sem": sem os dois não sobraria coluna — o mesmo critério da tela.
+  eq(colunasDe(matrizDaApuracao(dados, dados.linhas, { av: true, ah: true, total: false, soTotal: true })), 5,
+    "só o Total vence o sem Total");
+  // Com um mês só não há bloco de período, e "só o Total" não pode esvaziar a planilha.
+  const umMes = { ...dados, periodos: [dados.periodos[0]] };
+  eq(colunasDe(matrizDaApuracao(umMes, umMes.linhas, { av: true, ah: true, soTotal: true })),
+    colunasDe(matrizDaApuracao(umMes, umMes.linhas, { av: true, ah: true })),
+    "um mês: só o Total não tira o mês");
+}
 
 console.log(`dc13: ${n}/${n} asserções passaram. Arquivo gerado, reaberto e conferido.`);

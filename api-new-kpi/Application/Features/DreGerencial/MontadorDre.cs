@@ -230,8 +230,10 @@ public static class MontadorDre
 
         // O que cada conta subida segura na própria linha: as chaves da análise que não
         // acharam linha operacional. É o recorte do duplo clique nela — ver `ResolverDetalhe`.
+        // Pagos E abertos: um centro sem linha que só tem título em aberto também sobra, e o
+        // duplo clique no Provisionado da conta tem de recortá-lo.
         var sobras = colunas
-            .SelectMany(c => c.Despesas)
+            .SelectMany(c => c.Despesas.Concat(c.Abertos ?? []))
             .Where(d => d.ContaSubida is not null && !operacionaisDaEstrutura.Contains(d.GrupoConta))
             .GroupBy(d => d.ContaSubida!, StringComparer.Ordinal)
             .ToDictionary(
@@ -273,11 +275,36 @@ public static class MontadorDre
                 g => (Valor: g.Sum(x => x.Despesa.VlRealizado),
                       Exclusivo: g.Sum(x => x.Despesa.VpagoExclusivoFornec)));
 
+        // O PROVISIONADO, indexado EXATAMENTE como o Valor: mesma tupla, mesmo `Destino`
+        // (contas subidas e sobra incluídas), mesmo par (Valor, Exclusivo) para o rateio por
+        // fornecedor. Um título pago amanhã sai daqui e entra em `valorDespesa` na mesma
+        // chave — e é isso que mantém o TOTAL da tela estável.
+        var valorAberto = colunas
+            .SelectMany(c => (c.Abertos ?? []).Select(d => (Coluna: c.Chave, Despesa: d)))
+            .GroupBy(x =>
+            {
+                var (chave, ro, ll, lf) = Destino(x.Despesa, subidas, operacionaisDaEstrutura);
+                return (chave, ro, ll, lf, x.Coluna);
+            })
+            .ToDictionary(
+                g => g.Key,
+                g => (Valor: g.Sum(x => x.Despesa.VlRealizado),
+                      Exclusivo: g.Sum(x => x.Despesa.VpagoExclusivoFornec)));
+
         // Quantos lancamentos cada linha tem em TODAS as colunas. E o que decide se a linha
         // aparece com "Mostrar Contas Zeradas" desmarcada — a 9815 esconde por AUSENCIA DE
         // MOVIMENTO, nao por valor zero. Sem a coluna na chave: a visibilidade e da linha.
+        //
+        // SÓ OS PAGOS, como sempre: é o critério da 9815, e com o Provisionado desligado a tela
+        // tem de ser a de antes (D9). Os abertos contam à parte, em `qtdAberto`, e é o front
+        // que decide mostrar a linha só com aberto quando o Provisionado está ligado.
         var qtdDespesa = colunas
             .SelectMany(c => c.Despesas)
+            .GroupBy(d => Destino(d, subidas, operacionaisDaEstrutura))
+            .ToDictionary(g => g.Key, g => g.Sum(d => d.QdeReg));
+
+        var qtdAberto = colunas
+            .SelectMany(c => c.Abertos ?? [])
             .GroupBy(d => Destino(d, subidas, operacionaisDaEstrutura))
             .ToDictionary(g => g.Key, g => g.Sum(d => d.QdeReg));
 
@@ -305,6 +332,17 @@ public static class MontadorDre
             c => MontarMes(linhas, valorDespesa, c.Faturamento, c.Chave, avisos));
 
         var chavesOrdem = GerarChavesOrdem(linhas);
+
+        // O PROVISIONADO de cada célula, coluna a coluna, como o Valor — ver
+        // `MontarMesProvisionado`. Os totalizadores que somam despesa têm o seu (opção 1,
+        // 14/10/2026); receita, deduções, CMV e LUCRO BRUTO, não.
+        var provisionadoPorColuna = colunas.ToDictionary(
+            c => c.Chave,
+            c => MontarMesProvisionado(linhas, valorAberto, c));
+
+        // A versão R + P dos percentuais só existe quando ALGUMA coluna tem aberto — sem
+        // nenhum, a tela nem mostra o Provisionado, e os percentuais são os de sempre.
+        var comVersaoRp = colunas.Any(c => c.Abertos is { Count: > 0 });
 
         // A linha de uma conta subida, fora da Conta Gerencial, guarda só a SOBRA: os
         // lançamentos cujo centro (ou grupo) não tem linha operacional. O duplo clique tem de
@@ -338,14 +376,46 @@ public static class MontadorDre
                     ? (decimal?)null
                     : Arredondar(valoresPorColuna[colunas[i - 1].Chave][indice]);
 
+                var provisionado = provisionadoPorColuna[c.Chave][indice];
+
+                // %AV e %AH sobre R + P (14/10/2026, opção 1 — a tela usa estes só com o
+                // Provisionado ligado; desligado, os de sempre, fiéis à 9815). A coluna sem
+                // aberto entra com P = 0: comparar agosto todo pago com julho que tinha aberto
+                // é R de agosto contra R + P de julho, que é o que o Total (R + P) mostra.
+                //
+                // TODAS as linhas, inclusive as calculadas: nos totalizadores que somam despesa
+                // o P é a soma dos das contas, e é isso que faz o %AV R + P do Sub-Total bater
+                // com o das contas (pedido de 14/10/2026). Em receita, CMV e LUCRO BRUTO o P é
+                // nulo, e a versão R + P sai igual à de sempre.
+                decimal? avRp = null, ahRp = null;
+                if (comVersaoRp)
+                {
+                    var rp = valor + (provisionado ?? 0m);
+                    var anteriorRp = anterior is null
+                        ? (decimal?)null
+                        : anterior.Value + (provisionadoPorColuna[colunas[i - 1].Chave][indice] ?? 0m);
+                    avRp = CalcularAv(l, rp, c.Faturamento);
+                    ahRp = CalcularAh(rp, anteriorRp);
+                }
+
                 return new ValorMesDto(
                     MesAno: c.Chave,
                     Valor: valor,
                     PercentualAv: CalcularAv(l, valor, c.Faturamento),
-                    PercentualAh: CalcularAh(valor, anterior));
+                    PercentualAh: CalcularAh(valor, anterior),
+                    Provisionado: provisionado,
+                    PercentualAvComProvisionado: avRp,
+                    PercentualAhComProvisionado: ahRp);
             }).ToList();
 
             var somaPeriodo = valores.Sum(v => v.Valor);
+
+            // Soma das colunas JÁ arredondadas, como o Valor. Nula quando nenhuma coluna tem
+            // provisionado — "nada em aberto" e "não se aplica" não são zero.
+            var provisionados = valores.Where(v => v.Provisionado is not null).ToList();
+            decimal? provisionadoPeriodo = provisionados.Count == 0
+                ? null
+                : provisionados.Sum(v => v.Provisionado!.Value);
 
             // Quantos lancamentos de PCLANC a linha tem no periodo. Decide a visibilidade
             // com "Mostrar contas zeradas" desmarcada — junto com o valor, ver abaixo.
@@ -364,7 +434,13 @@ public static class MontadorDre
                     Valor: somaPeriodo,
                     Media: colunas.Count == 0 ? 0m : Arredondar(somaPeriodo / colunas.Count),
                     PercentualAv: CalcularAvTotal(
-                        l, somaPeriodo, colunas.Select(c => c.Faturamento))),
+                        l, somaPeriodo, colunas.Select(c => c.Faturamento)),
+                    Provisionado: provisionadoPeriodo,
+                    PercentualAvComProvisionado: comVersaoRp
+                        ? CalcularAvTotal(
+                            l, somaPeriodo + (provisionadoPeriodo ?? 0m),
+                            colunas.Select(c => c.Faturamento))
+                        : null),
                 Totalizadora: l.Estrutura.InfContas == "S",
                 Calculada: l.Calculada,
                 NaoSoma: EhNaoSoma(l),
@@ -391,7 +467,10 @@ public static class MontadorDre
                 Zerada: valores.All(v => v.Valor == 0m),
                 Cor: CorDelphi.ParaCss(l.Estrutura.Cor),
                 Detalhe: ResolverDetalhe(l, DetalheDaSobra(l)),
-                Composicao: ResolverComposicao(l, linhas, chavesOrdem));
+                Composicao: ResolverComposicao(l, linhas, chavesOrdem),
+                ComAberto: !l.Calculada && qtdAberto.GetValueOrDefault(
+                    (l.Estrutura.CodGruConta, l.Estrutura.AntesRo,
+                     l.Estrutura.AntesLl, l.Estrutura.AntesLf)) > 0);
         }).ToList();
 
         return new ApuracaoDto(
@@ -405,7 +484,9 @@ public static class MontadorDre
             // detalhamento. Derivar do mês da coluna deixa de funcionar quando a coluna é um
             // ano ou um trecho dele.
             Periodos: colunas
-                .Select(c => new PeriodoDto(c.Chave, c.Rotulo, c.DataInicio, c.DataFim, c.Bloco))
+                .Select(c => new PeriodoDto(
+                    c.Chave, c.Rotulo, c.DataInicio, c.DataFim, c.Bloco,
+                    TemProvisionado: c.Abertos is { Count: > 0 }))
                 .ToList(),
             Linhas: resultado,
             Avisos: avisos,
@@ -991,6 +1072,78 @@ public static class MontadorDre
     /// </summary>
     private static decimal Ratear(decimal valor, decimal exclusivo, decimal participacao) =>
         (valor - exclusivo) * participacao + exclusivo;
+
+    /// <summary>
+    /// O PROVISIONADO de cada linha numa coluna — gêmeo de <see cref="MontarMes"/>, com as
+    /// MESMAS somas (opção 1, 14/10/2026; a evolução da §8 da spec).
+    ///
+    /// <list type="bullet">
+    ///   <item>conta: o aberto da tupla, rateado como o Valor;</item>
+    ///   <item><c>SUBTOTAL POSITIVO</c>: os créditos promovidos (o LUCRO BRUTO não tem P);</item>
+    ///   <item><c>Sub-Total</c>: as operacionais;</item>
+    ///   <item><c>RESULTADO OPERACIONAL</c>: SUBTOTAL POSITIVO + Sub-Total;</item>
+    ///   <item><c>TOTAL DAS DESPESAS</c> e <c>LUCRO LIQUIDO</c>: operacionais e
+    ///   pós-operacionais (os promovidos já estão nas pós-operacionais, como no Valor);</item>
+    ///   <item>receita, deduções, CMV, LUCRO BRUTO e o que não somar: nulo.</item>
+    /// </list>
+    ///
+    /// <para>Informativa fica de fora das somas, como no Valor — ela "não soma". A coluna sem
+    /// nenhum aberto devolve tudo nulo: mês todo pago não ganha colunas.</para>
+    ///
+    /// <para><b>Arredondamento como o Valor</b>: a conta é arredondada sozinha, e o
+    /// totalizador é a soma em precisão cheia, arredondada no fim.</para>
+    /// </summary>
+    private static decimal?[] MontarMesProvisionado(
+        List<LinhaEmMontagem> linhas,
+        Dictionary<(string, string, string, string, string), (decimal Valor, decimal Exclusivo)>
+            valorAberto,
+        ColunaApuracao c)
+    {
+        var p = new decimal?[linhas.Count];
+        if (c.Abertos is not { Count: > 0 }) return p;
+
+        var participacao = c.Faturamento?.Participacao ?? 1m;
+        decimal operacional = 0m, posOperacional = 0m, promovida = 0m;
+
+        for (var i = 0; i < linhas.Count; i++)
+        {
+            var l = linhas[i];
+            if (l.Calculada) continue;
+
+            var (aberto, exclusivo) = valorAberto.GetValueOrDefault(
+                (l.Estrutura.CodGruConta, l.Estrutura.AntesRo, l.Estrutura.AntesLl,
+                 l.Estrutura.AntesLf, c.Chave));
+            var v = Ratear(aberto, exclusivo, participacao);
+            p[i] = Arredondar(v);
+
+            if (!l.Informativa)
+            {
+                if (l.Estrutura.AntesRo == "S") operacional += v;
+                else if (l.Estrutura.AntesLl == "S") posOperacional += v;
+            }
+
+            if (l.Promovida) promovida += v;
+        }
+
+        for (var i = 0; i < linhas.Count; i++)
+        {
+            var l = linhas[i];
+            if (!l.Calculada) continue;
+
+            decimal? total = l.Rotulo switch
+            {
+                SubtotalPositivo => promovida,
+                SubTotal => operacional,
+                ResultadoOperacional => promovida + operacional,
+                TotalDespesas => operacional + posOperacional,
+                LucroLiquido => operacional + posOperacional,
+                _ => null,
+            };
+            p[i] = total is null ? null : Arredondar(total.Value);
+        }
+
+        return p;
+    }
 
     private static decimal[] MontarMes(
         List<LinhaEmMontagem> linhas,
