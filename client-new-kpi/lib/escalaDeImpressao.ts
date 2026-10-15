@@ -144,3 +144,45 @@ export function tokensDaFonte(basePt: number): Record<string, string> {
     "--celula-y": `${Math.max(2, Math.round(basePt * 0.25))}px`,
   };
 }
+
+/** O teto da fonte dos números: acima disso a coluna vira cartaz, não relatório. */
+const MAX_PT_NUMEROS = 20;
+
+/**
+ * A maior fonte dos NÚMEROS que ainda cabe na folha — pedido do Gabriel em 15/10/2026.
+ *
+ * Com muitas colunas (três meses, todos com Provisionado), a tabela cabe com fonte pequena,
+ * e a largura de cada coluna sai do CABEÇALHO — "PROVISIONADO", "TOTAL (R + P)", em caixa
+ * alta e espaçado. O número fica com vão dentro da célula. Esta busca aumenta só a fonte
+ * dos valores, de meio em meio ponto, enquanto a tabela couber; a descrição e os cabeçalhos
+ * ficam na fonte que `folhaEFonte` escolheu.
+ *
+ * `medir(pt)` aplica a fonte dos números e devolve a largura da tabela. Busca binária: cada
+ * medida é um reflow, e são no máximo cinco ou seis. Nunca devolve menos que `partida` —
+ * se nada couber a mais, ou a medida falhar, fica como estava.
+ */
+export function maiorFonteDosNumeros(
+  medir: (pt: number) => number,
+  partida: number,
+  folha: Folha,
+): number {
+  const limite = LARGURA_UTIL[folha] * FOLGA;
+  const cabe = (pt: number) => {
+    const largura = medir(pt);
+    return Number.isFinite(largura) && largura > 0 && largura <= limite;
+  };
+
+  // Em meios pontos inteiros, para a busca não parar entre dois valores que a tela não usa.
+  let baixo = Math.round(partida * 2);
+  let alto = Math.round(MAX_PT_NUMEROS * 2);
+  if (!cabe(baixo / 2)) return partida;
+  if (cabe(alto / 2)) return alto / 2;
+
+  // Invariante: `baixo` cabe, `alto` não.
+  while (alto - baixo > 1) {
+    const meio = Math.floor((baixo + alto) / 2);
+    if (cabe(meio / 2)) baixo = meio;
+    else alto = meio;
+  }
+  return baixo / 2;
+}

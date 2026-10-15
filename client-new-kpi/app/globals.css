@@ -501,6 +501,26 @@ body {
   display: revert !important;
 }
 
+/* ── A FONTE DOS NÚMEROS no papel (15/10/2026) ──
+   Com muitas colunas, a largura de cada uma sai do cabeçalho ("PROVISIONADO", "TOTAL
+   (R + P)"), e o número ficava pequeno, com vão dentro da célula. Na tabela do DRE
+   (`.numeros-ampliados`) TODOS os valores — Realizado, Provisionado, Total, AV %, AH %,
+   Média — ganham uma fonte própria, `--fs-numero`, que `useEscalaDeImpressao` escolhe como
+   a maior que ainda cabe na folha. A descrição e os cabeçalhos não mudam.
+   Vale durante a medição (`.calibrando`) e no papel; na tela, nunca. Sem a variável, cai
+   na fonte da tabela. */
+.calibrando.numeros-ampliados .tabela-rolagem tbody td:not(.celula-descricao),
+.calibrando.numeros-ampliados .tabela-rolagem tbody td:not(.celula-descricao) * {
+  font-size: var(--fs-numero, var(--fs-base)) !important;
+}
+
+@media print {
+  .numeros-ampliados .tabela-rolagem tbody td:not(.celula-descricao),
+  .numeros-ampliados .tabela-rolagem tbody td:not(.celula-descricao) * {
+    font-size: var(--fs-numero, var(--fs-base)) !important;
+  }
+}
+
 /* Números tabulares: dígitos de mesma largura, colunas alinhadas. */
 .tabular {
   font-family: var(--font-data);

@@ -164,7 +164,7 @@ export default function DreGerencialPage() {
   // mês a cinco colunas e o período a seis, e três meses com aberto saíam cortados. As
   // classes continuam como valor de partida; o hook escreve por cima, inline e important.
   const secao = useRef<HTMLElement | null>(null);
-  useEscalaDeImpressao(secao, dados !== undefined);
+  useEscalaDeImpressao(secao, dados !== undefined, true);
 
   // As filiais da APURAÇÃO, não as do formulário: mexer no filtro depois de apurar não
   // pode reescrever o cabeçalho do que já está na tela — é o mesmo cuidado que o
@@ -252,6 +252,8 @@ export default function DreGerencialPage() {
             <section
               ref={secao}
               className={cn(
+                // Os números ganham fonte própria no papel — ver useEscalaDeImpressao.
+                "numeros-ampliados",
                 "flex min-h-0 flex-1 flex-col rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface-1)] shadow-[var(--shadow-card)]",
                 expandida && "tabela-expandida",
                 // A folha cresce com o número de colunas: um mês em A4 em pé, dois em A3
