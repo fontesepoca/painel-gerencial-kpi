@@ -90,14 +90,14 @@ export function MenuDeExibicao({
         <div
           role="group"
           aria-label="Exibição da tabela"
-          className="absolute top-full right-0 z-30 mt-1 w-[min(21rem,90vw)] rounded-[var(--radius-lg)] border border-[var(--border-strong)] bg-[var(--surface-2)] p-2 shadow-[var(--shadow-float)]"
+          className="absolute top-full right-0 z-30 mt-1 w-max max-w-[90vw] min-w-[13rem] rounded-[var(--radius-lg)] border border-[var(--border-strong)] bg-[var(--surface-2)] p-1.5 shadow-[var(--shadow-float)]"
         >
           {grupos.map((g, i) => (
             <fieldset
               key={g.titulo}
-              className={cn(i > 0 && "mt-2 border-t border-[var(--border)] pt-2")}
+              className={cn(i > 0 && "mt-1.5 border-t border-[var(--border)] pt-1.5")}
             >
-              <legend className="px-3 pt-1 pb-1.5 text-[length:var(--fs-rotulo)] font-semibold tracking-[0.14em] text-[var(--text-muted)] uppercase">
+              <legend className="px-2.5 pt-0.5 pb-1 text-[length:var(--fs-rotulo)] font-semibold tracking-[0.14em] text-[var(--text-muted)] uppercase">
                 {g.titulo}
               </legend>
               {g.opcoes
@@ -118,13 +118,20 @@ function padrao(id: string): boolean {
   return id === "av" || id === "ah" || id === "provisionado";
 }
 
+/**
+ * Uma linha por opção — a lista ficou compacta a pedido do Gabriel (15/10/2026). A explicação
+ * (e o motivo, quando desabilitada) saiu da tela e foi para o `title`: o navegador só o mostra
+ * depois de o ponteiro parar um instante sobre a opção, que é o "hover demorado" pedido. Para
+ * leitor de tela ela continua no texto, escondida da vista (`sr-only`).
+ */
 function ItemDeExibicao({ opcao }: { opcao: OpcaoDeExibicao }) {
   const desabilitada = !!opcao.motivo;
+  const dica = opcao.motivo ?? opcao.apoio;
   return (
     <label
-      title={opcao.motivo ?? undefined}
+      title={dica}
       className={cn(
-        "flex items-start gap-3 rounded-[var(--radius-sm)] px-3 py-[var(--celula-y)]",
+        "flex items-center gap-2.5 rounded-[var(--radius-sm)] px-2.5 py-1 whitespace-nowrap",
         desabilitada ? "cursor-not-allowed" : "cursor-pointer hover:bg-[var(--surface-3)]",
       )}
     >
@@ -133,22 +140,16 @@ function ItemDeExibicao({ opcao }: { opcao: OpcaoDeExibicao }) {
         checked={opcao.marcada && !desabilitada}
         disabled={desabilitada}
         onChange={(e) => opcao.onMudar(e.target.checked)}
-        className="mt-[0.2em] size-4 shrink-0 accent-[var(--primary)] disabled:opacity-50"
+        className="size-4 shrink-0 accent-[var(--primary)] disabled:opacity-50"
       />
-      <span className="flex flex-col gap-0.5">
-        <span
-          className={cn(
-            "text-[length:var(--fs-base)]",
-            desabilitada ? "text-[var(--text-muted)]" : "text-[var(--text-primary)]",
-          )}
-        >
-          {opcao.rotulo}
-        </span>
-        {(opcao.motivo ?? opcao.apoio) && (
-          <span className="text-[length:var(--fs-apoio)] text-[var(--text-muted)]">
-            {opcao.motivo ?? opcao.apoio}
-          </span>
+      <span
+        className={cn(
+          "text-[length:var(--fs-apoio)]",
+          desabilitada ? "text-[var(--text-muted)]" : "text-[var(--text-primary)]",
         )}
+      >
+        {opcao.rotulo}
+        {dica && <span className="sr-only">. {dica}</span>}
       </span>
     </label>
   );
