@@ -9,6 +9,7 @@ import {
   num,
   txt,
   type Celula,
+  type Estilo,
   type Planilha,
 } from "@/lib/excel";
 import { colunaDoTotal, nomeDaLinha, rotuloDaColuna, rotuloNaTela } from "@/lib/colunaDoTotal";
@@ -281,13 +282,83 @@ export function planilhaDoDetalhe(detalhe: DetalheParaExportar): Planilha {
   const bruta = colunaDoTotal(detalhe.dados.tipo, nome);
   const coluna = bruta === null ? null : rotuloNaTela(bruta, detalhe.dados.provisionado === true);
 
+  const titulos = cabecalho(rotulos, coluna, nome);
   return {
     aba: "Detalhamento",
-    matriz: [cabecalho(rotulos, coluna, nome), ...linhas],
+    matriz: estilizarDetalhe(titulos, linhas, rotulos.indexOf(coluna ?? "")),
     larguras,
     // Uma linha de cabeçalho, e as duas primeiras colunas (código e nome) presas.
     congelar: { colunas: 2, linhas: 1 },
   };
+}
+
+/**
+ * A paleta do papel — o tema CLARO de `globals.css`, opaca. A mesma do DRE (`exportarExcel.ts`).
+ */
+const COR = {
+  texto: "#0F172A",
+  apagado: "#64748B",
+  positivo: "#047857",
+  negativo: "#BE123C",
+  /** `--primary`: a coluna que fecha o total da linha do DRE. */
+  destaque: "#2563EB",
+  cabecalho: "#F1F5F9",
+  /** `--zebra` do tema claro (3% de tinta sobre o branco). */
+  zebra: "#F8F9FA",
+  divisor: "#E7E8EA",
+  divisorForte: "#B6B9C0",
+} as const;
+
+/**
+ * Pinta o detalhamento com as regras da TELA DO DETALHAMENTO (16/10/2026) — não as do DRE:
+ * cabeçalho em negrito sobre cinza, a coluna que fecha o total em azul (como `ThNum`), linhas
+ * zebradas, negativo vermelho e positivo na cor do texto, Culpa RCA "Sim" verde e "Não"
+ * vermelho, o código apagado ao lado do nome (`Identidade`).
+ *
+ * Coluna numérica é a que traz formato numérico em alguma linha: a mesma informação que já
+ * decide o formato decide o alinhamento, sem uma lista de nomes para manter.
+ */
+function estilizarDetalhe(titulos: Celula[], linhas: Celula[][], colunaDoTotal: number): Celula[][] {
+  const numerica = titulos.map((_, col) => linhas.some((l) => l[col]?.z !== undefined));
+  const rotulo = (col: number) => titulos[col]?.v;
+  const codigo = (col: number) => rotulo(col) === "Código";
+  const culpa = (col: number) => rotulo(col) === "Culpa RCA";
+  const fina = (cor: string) => ({ peso: "fina" as const, cor });
+
+  const cabecalho = titulos.map((c, col): Celula => ({
+    ...c,
+    s: {
+      negrito: true,
+      cor: col === colunaDoTotal ? COR.destaque : COR.texto,
+      fundo: COR.cabecalho,
+      tamanho: 9,
+      alinhar: numerica[col] ? "direita" : "esquerda",
+      quebrar: true,
+      borda: { baixo: fina(COR.divisorForte) },
+    } satisfies Estilo,
+  }));
+
+  const corpo = linhas.map((celulas, i) =>
+    celulas.map((c, col): Celula => {
+      const valor = typeof c.v === "number" ? c.v : null;
+      let cor: string = COR.texto;
+      if (codigo(col)) cor = COR.apagado;
+      else if (culpa(col)) cor = c.v === "Sim" ? COR.positivo : c.v === "Não" ? COR.negativo : COR.apagado;
+      else if (numerica[col] && valor !== null && valor < 0) cor = COR.negativo;
+      return {
+        ...c,
+        s: {
+          cor,
+          // Zebra nas linhas ímpares do corpo, como `odd:bg-[var(--zebra)]` na tela.
+          fundo: i % 2 === 0 ? COR.zebra : undefined,
+          alinhar: numerica[col] ? "direita" : "esquerda",
+          borda: { baixo: fina(COR.divisor) },
+        },
+      };
+    }),
+  );
+
+  return [cabecalho, ...corpo];
 }
 
 /**

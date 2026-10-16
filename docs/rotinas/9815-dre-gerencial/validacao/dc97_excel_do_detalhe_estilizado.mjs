@@ -1,0 +1,68 @@
+/**
+ * dc97 — o `.xlsx` do detalhamento sai estilizado como a tela do detalhamento (16/10/2026).
+ *
+ *   node --experimental-strip-types --import ./docs/rotinas/9815-dre-gerencial/validacao/_alias.mjs docs/rotinas/9815-dre-gerencial/validacao/dc97_excel_do_detalhe_estilizado.mjs
+ *
+ * As regras são as da tela do duplo clique, não as do DRE: cabeçalho em negrito sobre cinza,
+ * a coluna que fecha o total da linha do DRE em azul, linhas zebradas, negativo em vermelho
+ * (positivo na cor do texto — o verde é do DRE), Culpa RCA "Sim" verde e "Não" vermelho, o
+ * código apagado ao lado do nome. E o dado continua dado.
+ */
+import assert from "node:assert/strict";
+import ExcelJS from "../../../../client-new-kpi/node_modules/exceljs/excel.js";
+import { gerarDetalhe } from "../../../../client-new-kpi/lib/exportarExcelDetalhe.ts";
+
+let n = 0;
+const eq = (achou, esperado, oque) => {
+  n++;
+  assert.deepEqual(achou, esperado, `${oque}: esperava ${JSON.stringify(esperado)}, veio ${JSON.stringify(achou)}`);
+};
+const ok = (cond, oque) => {
+  n++;
+  assert.ok(cond, oque);
+};
+
+const blob = await gerarDetalhe({
+  titulo: "(-) DEVOLUCAO — Agosto/2026",
+  periodo: { dataInicio: "2026-08-01", dataFim: "2026-08-31" },
+  linha: { descricao: "(-) DEVOLUCAO", valor: -150 },
+  dados: {
+    tipo: "devolucao-por-motivo",
+    motivos: [
+      { codMotivo: "1", motivo: "AVARIA", culpaRca: "S", qdeNf: 3, vlDevolucao: -100, pPart: 66.67 },
+      { codMotivo: "2", motivo: "PRECO", culpaRca: "N", qdeNf: 1, vlDevolucao: -50, pPart: 33.33 },
+      { codMotivo: "3", motivo: "ACERTO", culpaRca: null, qdeNf: 1, vlDevolucao: 20, pPart: 0 },
+    ],
+  },
+});
+
+const livro = new ExcelJS.Workbook();
+await livro.xlsx.load(Buffer.from(await blob.arrayBuffer()));
+const aba = livro.getWorksheet("Detalhamento");
+ok(aba !== undefined, "a aba se chama Detalhamento");
+const c = (ref) => aba.getCell(ref);
+const fundo = (ref) => c(ref).fill?.fgColor?.argb ?? null;
+const corTexto = (ref) => c(ref).font?.color?.argb ?? null;
+
+// Colunas: A Código · B Motivo · C Culpa RCA · D Notas · E Devolução · F % part.
+// ── O dado ──
+eq(c("E2").value, -100, "valor cru");
+ok(String(c("E2").numFmt).includes("("), "formato com parênteses");
+eq([aba.views[0]?.xSplit, aba.views[0]?.ySplit], [2, 1], "código, nome e cabeçalho fixos");
+
+// ── Cabeçalho ──
+eq(c("A1").font?.bold, true, "cabeçalho em negrito");
+eq(fundo("A1"), "FFF1F5F9", "cabeçalho sobre cinza");
+eq(corTexto("E1"), "FF2563EB", "a coluna que fecha o total da linha em azul");
+ok(corTexto("D1") !== "FF2563EB", "as outras colunas não");
+eq(c("E1").alignment?.horizontal, "right", "título de coluna numérica à direita, como na tela");
+
+// ── Corpo ──
+eq(corTexto("E2"), "FFBE123C", "negativo em vermelho");
+eq(corTexto("E4"), "FF0F172A", "positivo na cor do texto, não verde");
+eq(corTexto("A2"), "FF64748B", "o código apagado, como na tela");
+eq(corTexto("C2"), "FF047857", "Culpa RCA Sim em verde");
+eq(corTexto("C3"), "FFBE123C", "Culpa RCA Não em vermelho");
+ok(fundo("A2") !== fundo("A3"), "linhas zebradas");
+
+console.log(`✓ dc97 passou — ${n} conferências`);
