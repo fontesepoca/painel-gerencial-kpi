@@ -1317,12 +1317,20 @@ function agrupar(
   linhas: readonly DetalheLancamento[],
   participacao: number | null,
 ): CentroAgrupado[] {
+  // O grupo é ACHADO PELA CHAVE, e não pela vizinhança (16/10/2026). A versão anterior
+  // comparava só com o último grupo — certo enquanto a lista vinha ordenada por centro e conta
+  // da consulta. A lista do Total (R + P) junta pagos e em aberto, e a mesma conta voltava
+  // depois dos pagos como um SEGUNDO grupo de mesma chave (o aviso de key duplicada do React,
+  // e dois subtotais da mesma conta). Achando pela chave, a ordem de entrada não importa; a
+  // ordem dos grupos continua a da primeira aparição.
   const centros: CentroAgrupado[] = [];
+  const porCentro = new Map<string, CentroAgrupado>();
+  const porConta = new Map<string, CentroAgrupado["contas"][number]>();
 
   for (const l of linhas) {
     const chaveCentro = l.codCcPrinc ?? "—";
-    let centro = centros.at(-1);
-    if (!centro || centro.chave !== chaveCentro) {
+    let centro = porCentro.get(chaveCentro);
+    if (!centro) {
       centro = {
         chave: chaveCentro,
         rotulo: l.descCcPrinc ?? "—",
@@ -1331,11 +1339,12 @@ function agrupar(
         contas: [],
       };
       centros.push(centro);
+      porCentro.set(chaveCentro, centro);
     }
 
     const chaveConta = String(l.codConta ?? "—");
-    let conta = centro.contas.at(-1);
-    if (!conta || conta.chave !== chaveConta) {
+    let conta = porConta.get(`${chaveCentro}|${chaveConta}`);
+    if (!conta) {
       conta = {
         chave: chaveConta,
         rotulo: l.conta ?? "—",
@@ -1344,6 +1353,7 @@ function agrupar(
         linhas: [],
       };
       centro.contas.push(conta);
+      porConta.set(`${chaveCentro}|${chaveConta}`, conta);
     }
 
     const noDre = participacao === null ? l.vPago : valorNoDre(l, participacao);
