@@ -158,6 +158,42 @@ grandes, que foram os que motivaram tudo isto.
 > loops em `PCMOV` e paralelizou em volta deles. Ele não trocou a estratégia — que era a
 > certa, como a dc47 provou ao piorar 3,5× forçando hash join —, só dividiu o trabalho.
 
+## Paralelismo entre as consultas da apuração (16/10/2026)
+
+O hint acima divide UMA consulta entre processos do Oracle. Este é o outro nível: quantas
+consultas a API pede ao mesmo tempo.
+
+Até 16/10/2026 a apuração era, no modo mensal (que é **um recorte só**), uma fila:
+
+```
+estrutura (~18 s) → despesas → faturamento        (o em aberto, desde 14/10, ao lado das despesas)
+```
+
+Nenhuma delas lê o resultado de outra — quem junta é o `MontadorDre`, no fim. Agora as quatro
+começam juntas, e o tempo da apuração é o da **mais lenta**, não a soma:
+
+```
+estrutura ┐
+despesas  ├─ ao mesmo tempo → montador
+faturamento│
+em aberto ┘
+```
+
+No detalhamento, a consulta da participação (só com fornecedor filtrado) também deixou de
+esperar a dos lançamentos.
+
+**Conexões ao mesmo tempo, por apuração:** 1 da estrutura + 3 por recorte — 4 no modo mensal,
+7 no comparativo, 16 no teto de cinco anos. O pool do `appsettings.example.json` é 20, e é
+POR PROCESSO: duas apurações de cinco anos simultâneas passariam dele e uma esperaria por
+conexão (até o `Connection Timeout`). Se isso acontecer, o ajuste é o `Max Pool Size`, não
+voltar à fila.
+
+**Os números não podem mudar** — a ordem das colunas vem de `recortes`, e o montador recebe as
+mesmas listas. A dc34 (o `LUCRO LIQUIDO` igual nas três análises) e a dc35 confirmam.
+
+**Como voltar à fila**, se o banco reclamar: em `DreGerencialService.ApurarAsync`, `await` em cada
+`Task` logo depois de criá-la, na ordem estrutura → despesas → faturamento.
+
 ## O que NÃO funcionou, e por quê
 
 Fica registrado para ninguém tentar de novo.

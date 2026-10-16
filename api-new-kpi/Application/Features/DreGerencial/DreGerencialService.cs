@@ -344,7 +344,19 @@ public sealed class DreGerencialService
         // do DRE são as mesmas em qualquer coluna, e o bloco de contas órfãs sai da união —
         // uma conta que só teve movimento em 2025 precisa aparecer quando 2025 é uma das
         // colunas comparadas.
-        var estrutura = await _repositorio.ObterEstruturaAsync(
+        //
+        // TUDO QUE NÃO DEPENDE DE NADA COMEÇA JUNTO (16/10/2026). A estrutura (~18 s medidos,
+        // docs/plataforma/PARALELISMO.md) rodava SOZINHA antes das consultas de valor, e cada
+        // recorte esperava as despesas para só então pedir o faturamento. Nenhuma das quatro
+        // lê o resultado de outra — quem junta é o montador, no fim —, então o tempo da
+        // apuração passa a ser o da MAIS LENTA, e não a soma. Cada chamada abre a própria
+        // conexão do pool (uma consulta por conexão; o ODP.NET não aceita duas ao mesmo tempo
+        // na mesma).
+        //
+        // Conexões ao mesmo tempo, por apuração: 1 da estrutura + 3 por recorte (despesas,
+        // faturamento, em aberto) — 4 no modo mensal, 16 no teto de cinco anos. O pool do
+        // appsettings.example é 20.
+        var estruturaTask = _repositorio.ObterEstruturaAsync(
             filtro.Filiais,
             recortes.Min(r => r.DataInicio),
             recortes.Max(r => r.DataFim),
@@ -363,7 +375,7 @@ public sealed class DreGerencialService
         // `Task.WhenAll` por um `foreach` que aguarde cada recorte antes do próximo. O
         // resto do fluxo não muda — a ordem das colunas vem de `recortes`, não da ordem em
         // que as consultas terminam, então o resultado é idêntico nos dois modos.
-        var porRecorte = await Task.WhenAll(recortes.Select(async recorte =>
+        var porRecorteTask = Task.WhenAll(recortes.Select(async recorte =>
         {
             // O PROVISIONADO (14/10/2026): os títulos em aberto do mesmo recorte, só em
             // competência — em caixa a data do filtro é a do pagamento, e título em aberto
@@ -376,18 +388,28 @@ public sealed class DreGerencialService
                     filtro.Fornecedores, emAberto: true, cancellationToken: cancellationToken)
                 : null;
 
-            var despesas = await _repositorio.ObterDespesasAsync(
+            // Despesas e faturamento também juntos: até 16/10/2026 o faturamento — o mais
+            // caro, 92,5% da apuração — só começava quando as despesas terminavam.
+            var despesasTask = _repositorio.ObterDespesasAsync(
                 filtro.Filiais, recorte.DataInicio, recorte.DataFim, regime, analise,
                 filtro.Fornecedores, cancellationToken: cancellationToken);
 
-            var faturamento = await _repositorio.ObterFaturamentoPorMesAsync(
+            var faturamentoTask = _repositorio.ObterFaturamentoPorMesAsync(
                 filtro.Filiais, recorte.DataInicio, recorte.DataFim, filtro.Fornecedores,
                 cancellationToken);
 
+            var despesas = await despesasTask;
+            var faturamento = await faturamentoTask;
             var abertos = abertosTask is null ? null : await abertosTask;
 
             return recorte.EmColunas(despesas, faturamento, abertos);
         }));
+
+        // Esperar as duas frentes JUNTAS: se a estrutura falhar, o erro aparece sem esperar o
+        // faturamento de cinco anos terminar — e vice-versa.
+        await Task.WhenAll(estruturaTask, porRecorteTask);
+        var estrutura = await estruturaTask;
+        var porRecorte = await porRecorteTask;
 
         var colunas = porRecorte.SelectMany(c => c).ToList();
 
@@ -558,6 +580,16 @@ public sealed class DreGerencialService
                 var nenhum = Task.FromResult<IReadOnlyList<DetalheLancamentoDre>>([]);
                 var pagosTask = ambos || !filtro.Provisionado ? Buscar(false) : nenhum;
                 var abertosTask = ambos || filtro.Provisionado ? Buscar(true) : nenhum;
+
+                // A participação (ver abaixo) também começa já: até 16/10/2026 ela só era
+                // pedida depois dos lançamentos, e com fornecedor filtrado o faturamento é a
+                // consulta mais cara das duas.
+                var faturamentoTask = fornecedores is not null
+                    ? _repositorio.ObterFaturamentoPorMesAsync(
+                        filtro.Filiais, filtro.DataInicio, filtro.DataFim, fornecedores,
+                        cancellationToken)
+                    : null;
+
                 await Task.WhenAll(pagosTask, abertosTask);
 
                 var linhas = pagosTask.Result.Select(l => (Lancamento: l, EmAberto: false))
@@ -578,9 +610,7 @@ public sealed class DreGerencialService
                 var participacao = 1m;
                 if (fornecedores is not null)
                 {
-                    var faturamento = await _repositorio.ObterFaturamentoPorMesAsync(
-                        filtro.Filiais, filtro.DataInicio, filtro.DataFim, fornecedores,
-                        cancellationToken);
+                    var faturamento = await faturamentoTask!;
 
                     var total = faturamento.Sum(f => f.ReceitaLiquidaTotal);
                     participacao = total == 0m
