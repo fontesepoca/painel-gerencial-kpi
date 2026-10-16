@@ -380,7 +380,7 @@ function estilizarDetalhe(titulos: Celula[], linhas: Celula[][], colunaDoTotal: 
  * `01/08 a 27/08`, e dois arquivos do "mesmo agosto" com períodos diferentes se
  * sobrescreveriam na pasta de downloads.
  */
-export function nomeDoArquivoDetalhe(detalhe: DetalheParaExportar): string {
+export function nomeDoArquivoDetalhe(detalhe: Pick<DetalheParaExportar, "titulo" | "periodo">): string {
   // A barra vira hífen ANTES da limpeza, senão `Setembro/2026` sai `Setembro2026`: o
   // `nomeSeguro` remove a barra, que é proibida em nome de arquivo, e o mês perde o
   // separador. Medido na exportação real de 09/09/2026.

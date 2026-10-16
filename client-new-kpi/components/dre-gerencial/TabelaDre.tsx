@@ -4,7 +4,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ModalMoverLinha, type MovimentoPendente } from "./ModalMoverLinha";
 import { ModalDetalhe } from "./ModalDetalhe";
 import { ModalConfirmarDetalhe, type DetalhePendente } from "./ModalConfirmarDetalhe";
-import { useDetalhe } from "@/hooks/useDreGerencial";
+import { pedirDetalhe, useDetalhe } from "@/hooks/useDreGerencial";
+import { useOcultarBaixas } from "@/hooks/useOcultarBaixas";
+import { exportarDetalhesDaLinha } from "@/lib/exportarDetalhesDaLinha";
+import { MenuDaLinha } from "./MenuDaLinha";
 import { useExportarDetalhe } from "@/hooks/useExportarDetalhe";
 import { paraBr } from "@/lib/periodos";
 import {
@@ -192,6 +195,73 @@ export function TabelaDre({
   const { exportar, exportando, erro: erroExcel } = useExportarDetalhe();
 
   const consultaDetalhe = useDetalhe();
+
+  /**
+   * O BOTÃO DIREITO NA DESCRIÇÃO (16/10/2026): um menu de ações da linha, no ponto do
+   * clique. A primeira ação é exportar o detalhamento de TODAS as colunas de uma vez — um
+   * Excel por mês, num `.zip` (`lib/exportarDetalhesDaLinha.ts`).
+   */
+  const [menuDaLinha, setMenuDaLinha] = useState<{ x: number; y: number; linha: LinhaDre } | null>(null);
+  const fecharMenuDaLinha = useCallback(() => setMenuDaLinha(null), []);
+  const [ocultarBaixas] = useOcultarBaixas();
+
+  /**
+   * A exportação em andamento, e o erro dela. Num aviso próprio e não no menu: o menu fecha
+   * ao escolher, e uma exportação de doze meses leva minutos — o andamento precisa continuar
+   * à vista enquanto a pessoa segue usando a tela.
+   */
+  const [exportacao, setExportacao] = useState<{
+    conta: string;
+    feitos: number;
+    total: number;
+    erro: string | null;
+  } | null>(null);
+
+  const exportarTudo = useCallback(
+    async (linha: LinhaDre) => {
+      const destino = linha.detalhe;
+      if (!destino) return;
+      const conta = linha.descricao.trim();
+      setExportacao({ conta, feitos: 0, total: periodos.length, erro: null });
+      try {
+        await exportarDetalhesDaLinha({
+          descricao: conta,
+          colunas: periodos.map((p) => ({
+            rotulo: p.rotulo,
+            dataInicio: p.dataInicio,
+            dataFim: p.dataFim,
+            valor: linha.valores.find((v) => v.mesAno === p.mesAno)?.valor,
+          })),
+          // A MESMA consulta do duplo clique na célula do mês: o arquivo de cada mês é o
+          // que a pessoa exportaria abrindo aquele detalhamento.
+          buscar: (periodo) =>
+            pedirDetalhe(
+              {
+                ...filtro,
+                ...periodo,
+                tipo: destino.tipo,
+                bloco: destino.bloco,
+                chave: destino.chave,
+                sobra: destino.sobra ?? null,
+              },
+              usuario?.base.id,
+            ),
+          ocultarBaixas,
+          onProgresso: (feitos, total) =>
+            setExportacao((e) => (e ? { ...e, feitos, total } : e)),
+        });
+        setExportacao(null);
+      } catch (e) {
+        setExportacao((atual) => ({
+          conta,
+          feitos: atual?.feitos ?? 0,
+          total: periodos.length,
+          erro: `Não foi possível exportar: ${e instanceof Error ? e.message : "erro desconhecido"}`,
+        }));
+      }
+    },
+    [periodos, filtro, ocultarBaixas, usuario],
+  );
   const [detalhe, setDetalhe] = useState<{
     titulo: string;
     periodo: { dataInicio: string; dataFim: string };
@@ -1013,6 +1083,7 @@ export function TabelaDre({
                     ponteiroY.current = null;
                   }}
                   onTeclado={(direcao) => moverPorTeclado(indice, direcao)}
+                  onMenu={(x, y) => setMenuDaLinha({ x, y, linha })}
                   provisionadoNoMes={provisionadoNoMes}
                   provisionadoNoFim={provisionadoNoFim}
                   // Só linha de conta tem títulos em aberto — totalizador não tem Provisionado.
@@ -1048,6 +1119,63 @@ export function TabelaDre({
         onConfirmar={confirmar}
         onCancelar={() => setPendente(null)}
       />
+
+      {menuDaLinha && (
+        <MenuDaLinha
+          x={menuDaLinha.x}
+          y={menuDaLinha.y}
+          titulo={menuDaLinha.linha.descricao.trim()}
+          onFechar={fecharMenuDaLinha}
+          grupos={[
+            {
+              titulo: "Exportar todo o detalhamento",
+              acoes: [
+                {
+                  id: "excel-zip",
+                  rotulo: "Excel (.zip)",
+                  apoio: `Um arquivo por coluna — ${periodos.length} ${periodos.length === 1 ? "arquivo" : "arquivos"}, num .zip`,
+                  // Totalizador é soma de outras linhas, e não tem lançamento próprio.
+                  motivo: !menuDaLinha.linha.detalhe
+                    ? "Esta linha é um total: não tem lançamentos próprios para exportar."
+                    : exportacao && !exportacao.erro
+                      ? "Já há uma exportação em andamento."
+                      : null,
+                  onEscolher: () => void exportarTudo(menuDaLinha.linha),
+                },
+              ],
+            },
+          ]}
+        />
+      )}
+
+      {exportacao && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="nao-imprime fixed right-4 bottom-4 z-50 flex max-w-sm items-start gap-3 rounded-[var(--radius-lg)] border border-[var(--border-strong)] bg-[var(--surface-2)] px-4 py-3 text-[length:var(--fs-apoio)] shadow-[var(--shadow-float)]"
+        >
+          <p className={exportacao.erro ? "text-[var(--negative)]" : "text-[var(--text-primary)]"}>
+            {exportacao.erro ?? (
+              <>
+                Exportando <strong className="font-semibold">{exportacao.conta}</strong>:{" "}
+                <span className="tabular">
+                  {exportacao.feitos} de {exportacao.total}
+                </span>{" "}
+                {exportacao.total === 1 ? "detalhamento" : "detalhamentos"}…
+              </>
+            )}
+          </p>
+          {exportacao.erro && (
+            <button
+              type="button"
+              onClick={() => setExportacao(null)}
+              className="shrink-0 cursor-pointer font-medium text-[var(--text-secondary)] underline underline-offset-4 hover:text-[var(--text-primary)]"
+            >
+              Fechar
+            </button>
+          )}
+        </div>
+      )}
 
       <ModalConfirmarDetalhe
         pendente={detalhePendente?.aviso ?? null}
@@ -1314,6 +1442,7 @@ function Linha({
   onSoltar,
   onArrastarFim,
   onTeclado,
+  onMenu,
   onDetalhe,
   provisionadoNoMes,
   provisionadoNoFim,
@@ -1347,6 +1476,8 @@ function Linha({
   onSoltar: (destino: number) => void;
   onArrastarFim: () => void;
   onTeclado: (direcao: -1 | 1) => void;
+  /** Botão direito na descrição: abre o menu de ações da linha nesse ponto da tela. */
+  onMenu: (x: number, y: number) => void;
   /** `null` no bloco TOTAL: detalha o periodo inteiro. */
   onDetalhe: ((mesAno: string | null) => void) | null;
   /** O mês ganha Provisionado e Total — decidido na tabela, para cabeçalho e corpo baterem. */
@@ -1415,7 +1546,20 @@ function Linha({
           Duas colunas fixas teriam que concordar até o pixel sobre onde uma termina
           e a outra começa, e não concordavam. Ver o bloco TABELA COM CABEÇALHO E
           DESCRIÇÃO FIXOS em globals.css. */}
-      <td className={cn(CELULA, "celula-descricao pl-2")}>
+      <td
+        className={cn(CELULA, "celula-descricao pl-2")}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          // Pela tecla de menu do teclado o evento vem sem coordenada (0, 0): o menu abre
+          // então junto da própria célula.
+          if (e.clientX === 0 && e.clientY === 0) {
+            const r = e.currentTarget.getBoundingClientRect();
+            onMenu(r.left + 24, r.bottom);
+          } else {
+            onMenu(e.clientX, e.clientY);
+          }
+        }}
+      >
         <div className="flex items-center gap-2">
           {/* LINHA CALCULADA NÃO SE MOVE — desde 15/09/2026.
 
