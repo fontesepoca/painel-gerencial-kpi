@@ -327,6 +327,66 @@ eq(media(-1222.41, 2), -611.2, "−611,205 vai para o par: −611,20");
   eq(r.find((l) => l.chaveOrdem === "sub-total").total.provisionado, 0, "e o total do período também");
 }
 
+// ── o aberto que ENTRA nas receitas (16/10/2026) ─────────────────────────────
+// Receita não tem Provisionado (nulo). Uma despesa com aberto arrastada para dentro do bloco
+// das receitas levava o P para lugar nenhum: ele sumia de todo total, e a base do %AV R + P
+// ignorava esse aberto. Agora a linha sem P passa a carregar o que o arraste levou — e só
+// isso: sem arraste ela continua nula, como a API mandou.
+{
+  const comP = (l) => {
+    const p = { despA: -20, "sub-total": -20, "resultado-operacional": -20, "total-despesas": -20, "lucro-liquido": -20 }[l.chaveOrdem];
+    const prov = p ?? (l.calculada ? null : 0);
+    const rp = l.valores[0].valor + (prov ?? 0);
+    return {
+      ...l,
+      valores: [{ ...l.valores[0], provisionado: prov, percentualAvComProvisionado: (rp / 850) * 100, percentualAhComProvisionado: null }],
+      total: { ...l.total, provisionado: prov, percentualAvComProvisionado: (rp / 850) * 100 },
+    };
+  };
+  const DRE_P = DRE.map(comP);
+  const um = (linhas, chave) => linhas.find((l) => l.chaveOrdem === chave);
+
+  const r = recalcular(mover(DRE_P, "despA", "receita-bruta"), DRE_P);
+  eq(um(r, "receitas-liquidas").valores[0].provisionado, -20, "as RECEITAS LIQUIDAS passam a carregar o aberto que entrou");
+  eq(um(r, "lucro-bruto").valores[0].provisionado, -20, "e ele desce para o LUCRO BRUTO, como o realizado");
+  eq(um(r, "sub-total").valores[0].provisionado, 0, "o Sub-Total perde o aberto");
+  eq(um(r, "lucro-liquido").valores[0].provisionado, -20, "o LUCRO LIQUIDO conserva: o aberto só mudou de bloco");
+  eq(um(r, "receitas-liquidas").total.provisionado, -20, "o total do período das receitas também");
+  // RL depois: R = 650, P = −20 → base do %AV R + P = 630. DESPESA A: R + P = −220.
+  eq(Math.round(um(r, "despA").valores[0].percentualAvComProvisionado * 1e6), Math.round((-220 / 630) * 100 * 1e6),
+    "o %AV R + P usa a base R + P das RECEITAS LIQUIDAS");
+  eq(Math.round(um(r, "despA").valores[0].percentualAv * 1e6), Math.round((-200 / 650) * 100 * 1e6),
+    "e o %AV comum continua sobre o realizado");
+  eq(um(r, "cmv").valores[0].provisionado, null, "linha que o arraste não alcança continua sem P");
+  eq(um(recalcular(DRE_P, DRE_P), "receitas-liquidas").valores[0].provisionado, null, "sem arraste, a receita segue nula");
+}
+
+// ── SEM A LINHA "Total das Despesas" na tela (16/10/2026) ──────────────────────
+// Ela saiu da tela em 21/09/2026 e ficou só como PASSO DE CÁLCULO: o LUCRO LIQUIDO é o LUCRO
+// BRUTO mais o Total das Despesas. O `resolverPais` descartava o passo por não achar a linha,
+// e o LUCRO LIQUIDO deixava de herdar o que se movia entre os blocos de despesa: na tela da
+// C. Custo Principal, ADMINISTRATIVO arrastado para baixo do RESULTADO OPERACIONAL tirava
+// 615.883,31 do LUCRO LIQUIDO em junho — a conta contada duas vezes.
+{
+  const SEM_TD = DRE.filter((l) => l.papel !== "total-despesas");
+  const ll = (linhas) => linhas.find((l) => l.papel === "lucro-liquido").total.valor;
+  eq(ll(recalcular(SEM_TD, SEM_TD)), 250, "ordem do cadastro: o LUCRO LIQUIDO é o da API");
+
+  const posRo = recalcular(mover(SEM_TD, "despA", "resultado-operacional"), SEM_TD);
+  eq(valorDe(posRo, "sub-total"), -90, "a despesa sai do Sub-Total");
+  eq(valorDe(posRo, "resultado-operacional"), 420, "o RESULTADO OPERACIONAL perde a despesa");
+  eq(ll(posRo), 250, "e o LUCRO LIQUIDO conserva: ela só mudou de bloco");
+
+  // Entre o Sub-Total e o RESULTADO OPERACIONAL: o mesmo resultado, nenhum total abaixo muda.
+  const meio = recalcular(mover(SEM_TD, "despA", "sub-total"), SEM_TD);
+  eq([valorDe(meio, "sub-total"), valorDe(meio, "resultado-operacional"), ll(meio)], [-90, 220, 250],
+    "logo abaixo do Sub-Total: só o Sub-Total muda");
+
+  // Abaixo do LUCRO LIQUIDO ela não soma em nada — aí o LUCRO LIQUIDO muda, de verdade.
+  const fora = recalcular(mover(SEM_TD, "despA", "orfa"), SEM_TD);
+  eq(ll(fora), 450, "depois do LUCRO LIQUIDO a despesa deixa de entrar nele");
+}
+
 eq(media(300, 2), 150, "sem resto, sem arredondamento");
 eq(media(100, 3), 33.33, "33,333… trunca para baixo");
 eq(media(0, 0), 0, "sem coluna nenhuma, zero — e sem dividir por zero");

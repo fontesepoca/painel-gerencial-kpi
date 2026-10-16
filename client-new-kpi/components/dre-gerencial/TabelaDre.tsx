@@ -366,7 +366,18 @@ export function TabelaDre({
       const nova = mover(ordenadas, indice, destino);
       if (!ordemPersonalizada(ordenadas, nova)) return;
 
-      const refeita = recalcular(nova, linhas);
+      // A PARTIR DAS LINHAS DA APURAÇÃO, e não de `nova` (16/10/2026). `nova` sai de
+      // `ordenadas`, que JÁ TRAZ o recálculo da ordem atual; recalcular por cima aplicava os
+      // deslocamentos duas vezes, e com a ordem já personalizada o aviso prometia mudanças que
+      // não aconteciam (o Sub-Total "passando de 21,29 mi para 19,92 mi" quando ficava igual).
+      // A tela não tinha o defeito: ela sempre refaz de `linhas`, como aqui.
+      const refeita = recalcular(
+        aplicarOrdem(
+          linhas,
+          nova.map((l) => l.chaveOrdem),
+        ),
+        linhas,
+      );
       const nomeCurto = linha.descricao.trim();
       const novoIndice = nova.findIndex((l) => l.chaveOrdem === linha.chaveOrdem);
 

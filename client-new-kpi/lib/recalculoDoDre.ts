@@ -244,6 +244,11 @@ export function recalcular(
   const resolverPais = (pais: readonly PapelDaLinha[]): PapelDaLinha[] =>
     pais.flatMap((p) => {
       if (papeis.has(p)) return [p];
+      // O Total das Despesas é PASSO DE CÁLCULO, não linha da tela desde 21/09/2026 — ver
+      // PROPAGACAO. Descartá-lo por não achar a linha fazia o LUCRO LIQUIDO parar de herdar o
+      // que se move entre os blocos de despesa (16/10/2026: ADMINISTRATIVO arrastado para
+      // baixo do RESULTADO OPERACIONAL era contado duas vezes).
+      if (p === "total-despesas") return [p];
       if (p === "subtotal-positivo") return papeis.has("lucro-bruto") ? ["lucro-bruto" as const] : [];
       return [];
     });
@@ -301,23 +306,43 @@ export function recalcular(
     return arredondar((linha.valores[c]?.valor ?? 0) + (acumulado.get(papel)?.[c] ?? 0));
   };
 
+  /**
+   * O P de uma coluna depois do arraste.
+   *
+   * **P nulo continua nulo — salvo quando o arraste LEVA aberto para a linha** (16/10/2026).
+   * Receita, deduções, CMV e LUCRO BRUTO não têm Provisionado; mas uma despesa com título em
+   * aberto arrastada para dentro das receitas levava esse aberto para lugar nenhum: ele
+   * sumia de todo total, e a base do %AV R + P o ignorava. Agora a linha passa a carregar o
+   * que entrou. Sem arraste o delta é zero, a linha segue nula, e a dc35 continua batendo.
+   */
+  const provisionadoDe = (l: LinhaDre, c: number): number | null | undefined => {
+    const v = l.valores[c];
+    if (v === undefined) return undefined;
+    const d = l.calculada && l.papel ? (acumuladoP.get(l.papel)?.[c] ?? 0) : 0;
+    if (v.provisionado === null || v.provisionado === undefined) {
+      return d !== 0 ? arredondar(d) : v.provisionado;
+    }
+    return d !== 0 ? arredondar(v.provisionado + d) : v.provisionado;
+  };
+
+  /** A âncora em R + P — a base do %AV R + P, com o aberto que um arraste tenha levado a ela. */
+  const valorDaAncoraRp = (papel: PapelDaLinha, c: number): number | null => {
+    const linha = ordenadas.find((l) => l.papel === papel);
+    const r = valorDaAncora(papel, c);
+    if (!linha || r === null) return r;
+    return arredondar(r + (provisionadoDe(linha, c) ?? 0));
+  };
+
   return ordenadas.map((l) => {
     const delta = l.calculada && l.papel ? acumulado.get(l.papel) : undefined;
-    const deltaP = l.calculada && l.papel ? acumuladoP.get(l.papel) : undefined;
 
-    // O R e o P de uma coluna depois do arraste. P nulo continua nulo: receita, CMV e coluna
-    // sem aberto não ganham provisionado por causa de um arraste.
+    // O R e o P de uma coluna depois do arraste. O P segue `provisionadoDe`: nulo só ganha
+    // valor quando o arraste leva aberto para a linha.
     const rDe = (c: number) => {
       const v = l.valores[c];
       return v === undefined ? 0 : delta ? arredondar(v.valor + (delta[c] ?? 0)) : v.valor;
     };
-    const pDe = (c: number): number | null | undefined => {
-      const v = l.valores[c];
-      if (v === undefined || v.provisionado === null || v.provisionado === undefined) {
-        return v?.provisionado;
-      }
-      return deltaP ? arredondar(v.provisionado + (deltaP[c] ?? 0)) : v.provisionado;
-    };
+    const pDe = (c: number) => provisionadoDe(l, c);
 
     const novosValores: ValorMes[] = l.valores.map((v, c) => {
       const valor = delta ? arredondar(v.valor + (delta[c] ?? 0)) : v.valor;
@@ -329,7 +354,7 @@ export function recalcular(
         provisionado,
         // As versões R + P se refazem só onde a API as mandou — ausente fica ausente.
         ...(v.percentualAvComProvisionado !== undefined
-          ? { percentualAvComProvisionado: calcularAv(l, rp, c, valorDaAncora, v.percentualAvComProvisionado) }
+          ? { percentualAvComProvisionado: calcularAv(l, rp, c, valorDaAncoraRp, v.percentualAvComProvisionado) }
           : {}),
         ...(v.percentualAhComProvisionado !== undefined
           ? {
@@ -370,7 +395,7 @@ export function recalcular(
                 l,
                 soma + (somaP ?? 0),
                 novosValores.length,
-                valorDaAncora,
+                valorDaAncoraRp,
                 l.total.percentualAvComProvisionado,
               ),
             }
