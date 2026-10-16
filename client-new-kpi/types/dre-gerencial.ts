@@ -266,6 +266,8 @@ export interface FiltroDetalhe extends FiltroApuracao {
   sobra?: string[] | null;
   /** Os títulos EM ABERTO da célula de Provisionado, em vez dos pagos. */
   provisionado?: boolean;
+  /** A célula de Total (R + P): os pagos E os em aberto numa lista só (16/10/2026). */
+  realizadoEProvisionado?: boolean;
 }
 
 export interface DetalheCliente {
@@ -383,6 +385,8 @@ export interface DetalheLancamento {
   codRotinaBaixa?: string | null;
   /** Vencimento — a tela dos títulos em aberto calcula daqui os dias de atraso. */
   dtVenc?: string | null;
+  /** Título EM ABERTO (veio da consulta do Provisionado). Separa as partes do Total (R + P). */
+  emAberto?: boolean;
 }
 
 /**
@@ -397,6 +401,8 @@ export interface Detalhamento {
   base?: { id: string; rotulo: string } | null;
   /** Eco do pedido: a lista é dos títulos EM ABERTO (célula de Provisionado). */
   provisionado?: boolean;
+  /** Eco do pedido: a lista é a do Total (R + P), pagos e em aberto juntos. */
+  realizadoEProvisionado?: boolean;
   tipo: TipoDetalhe;
   dataInicio: string;
   dataFim: string;

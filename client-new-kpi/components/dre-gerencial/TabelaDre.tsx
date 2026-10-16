@@ -37,6 +37,7 @@ import {
   recalcular,
 } from "@/lib/recalculoDoDre";
 import { rotulosDoDinheiro, type RotulosDoDinheiro } from "@/lib/rotulosDoDinheiro";
+import type { SituacaoDoDetalhe } from "@/lib/colunaDoTotal";
 import { comPercentuaisRp, sentidoDaLinha } from "@/lib/percentuaisComProvisionado";
 import type {
   FiltroApuracao,
@@ -66,6 +67,8 @@ interface PedidoDetalhe {
   linha: { descricao: string; valor: number };
   /** Os títulos EM ABERTO da célula de Provisionado, em vez dos pagos. */
   provisionado?: boolean;
+  /** A célula de Total (R + P): os pagos e os em aberto juntos (16/10/2026). */
+  realizadoEProvisionado?: boolean;
 }
 
 /** Dias de um recorte, inclusive as duas pontas. */
@@ -443,6 +446,7 @@ export function TabelaDre({
         // lançamentos da conta, inclusive os que já estão na linha ADMINISTRATIVO.
         sobra: pedido.tipo.sobra ?? null,
         provisionado: pedido.provisionado ?? false,
+        realizadoEProvisionado: pedido.realizadoEProvisionado ?? false,
       });
     },
     [filtro, consultaDetalhe],
@@ -463,7 +467,9 @@ export function TabelaDre({
    * nulo e o recorte é o período todo.
    */
   const abrirDetalhe = useCallback(
-    (linha: LinhaDre, mesAno: string | null, provisionado = false) => {
+    (linha: LinhaDre, mesAno: string | null, situacao: SituacaoDoDetalhe = "realizado") => {
+      const provisionado = situacao === "provisionado";
+      const ambos = situacao === "ambos";
       if (!linha.detalhe) return;
 
       const coluna = mesAno ? periodos.find((pp) => pp.mesAno === mesAno) : null;
@@ -479,20 +485,20 @@ export function TabelaDre({
       // O valor da célula vai junto: é contra ele que o resumo do cálculo se confere.
       // No Provisionado, a célula é o aberto — é contra ELE que o rodapé tem de fechar.
       const celula = mesAno ? linha.valores.find((v) => v.mesAno === mesAno) : null;
-      const valorDaLinha = provisionado
-        ? ((mesAno ? celula?.provisionado : linha.total.provisionado) ?? 0)
-        : mesAno
-          ? (celula?.valor ?? 0)
-          : linha.total.valor;
+      const realizado = mesAno ? (celula?.valor ?? 0) : linha.total.valor;
+      const aberto = (mesAno ? celula?.provisionado : linha.total.provisionado) ?? 0;
+      // No Total (R + P) a célula é a soma dos dois lados, e é contra ela que o rodapé fecha.
+      const valorDaLinha = ambos ? realizado + aberto : provisionado ? aberto : realizado;
 
       const pedido = {
         tipo: linha.detalhe,
         titulo:
           `${linha.descricao.trim()} · ${coluna?.rotulo ?? "Total do período"}` +
-          (provisionado ? " · Títulos em aberto" : ""),
+          (provisionado ? " · Títulos em aberto" : ambos ? " · Realizado + Provisionado" : ""),
         periodo,
         linha: { descricao: linha.descricao.trim(), valor: valorDaLinha },
         provisionado,
+        realizadoEProvisionado: ambos,
       };
 
       // Recorte longo pergunta antes. Ver `ModalConfirmarDetalhe`: com colunas de ano, um
@@ -1012,7 +1018,8 @@ export function TabelaDre({
                   // Só linha de conta tem títulos em aberto — totalizador não tem Provisionado.
                   onDetalheProvisionado={
                     linha.detalhe && !linha.calculada
-                      ? (mesAno) => abrirDetalhe(linha, mesAno, true)
+                      ? (mesAno, ambos) =>
+                          abrirDetalhe(linha, mesAno, ambos ? "ambos" : "provisionado")
                       : null
                   }
                   onDetalhe={
@@ -1352,7 +1359,7 @@ function Linha({
    */
   percentuaisRp: boolean;
   /** Os títulos em aberto da célula. `null` em totalizador. */
-  onDetalheProvisionado: ((mesAno: string | null) => void) | null;
+  onDetalheProvisionado: ((mesAno: string | null, ambos?: boolean) => void) | null;
 }) {
   // Metade de cima da linha solta antes dela; metade de baixo, depois.
   const destinoDoPonteiro = (e: React.DragEvent<HTMLTableRowElement>) => {
@@ -1504,6 +1511,9 @@ function Linha({
           onDetalheProvisionado={
             onDetalheProvisionado ? () => onDetalheProvisionado(v.mesAno) : null
           }
+          onDetalheRp={
+            onDetalheProvisionado ? () => onDetalheProvisionado(v.mesAno, true) : null
+          }
         />
       ))}
 
@@ -1537,6 +1547,9 @@ function Linha({
             onDetalheProvisionado={
               onDetalheProvisionado ? () => onDetalheProvisionado(null) : null
             }
+            onDetalheRp={
+              onDetalheProvisionado ? () => onDetalheProvisionado(null, true) : null
+            }
             total
           />
         ))}
@@ -1561,6 +1574,7 @@ function BlocoMes({
   comProvisionado,
   provisionado,
   onDetalheProvisionado,
+  onDetalheRp,
 }: {
   /** A classe da cor do mês (`faixa-mes-N`), aplicada a todas as células dele. */
   faixa?: string;
@@ -1589,6 +1603,8 @@ function BlocoMes({
   /** O aberto da célula; `null` deixa as duas células vazias (linha calculada). */
   provisionado?: number | null;
   onDetalheProvisionado?: (() => void) | null;
+  /** O Total (R + P) da célula: pagos e em aberto juntos. */
+  onDetalheRp?: (() => void) | null;
 }) {
   // Totalizador em NEGRITO, e não semibold — pedido de 15/10/2026: o resultado tem de saltar
   // da coluna sem precisar ler a descrição.
@@ -1645,6 +1661,7 @@ function BlocoMes({
           classe={cn(celula, "col-interna text-right", f, total && "bg-[var(--surface-2)]")}
           corValor={corValor}
           onDetalhe={onDetalheProvisionado ?? null}
+          onDetalheTotal={onDetalheRp ?? null}
         />
       )}
 
@@ -1693,12 +1710,15 @@ function CelulasDoProvisionado({
   classe,
   corValor,
   onDetalhe,
+  onDetalheTotal,
 }: {
   valor: number;
   provisionado: number | null;
   classe: string;
   corValor: (v: number) => string;
   onDetalhe: (() => void) | null;
+  /** O Total (R + P) abre os pagos e os em aberto numa lista só (16/10/2026). */
+  onDetalheTotal: (() => void) | null;
 }) {
   // Sem provisionado (receita, deduções, CMV, LUCRO BRUTO): o MESMO traço do %AV e do %AH
   // quando não há valor — pedido de 14/10/2026. Em branco parecia célula esquecida, e "0,00"
@@ -1739,7 +1759,27 @@ function CelulasDoProvisionado({
           formatarValor(provisionado)
         )}
       </td>
-      <td className={cn(classe, corValor(total))}>{formatarValor(total)}</td>
+      {/* O TOTAL (R + P) ABRE OS DOIS LADOS (16/10/2026): os pagos e os títulos em aberto
+          numa lista só, com a coluna Situação dizendo de onde veio cada um, e o rodapé
+          fechando com esta célula. Até aqui ele não abria nada, por ser a soma de duas
+          células já clicáveis. */}
+      <td
+        onDoubleClick={onDetalheTotal ?? undefined}
+        className={cn(classe, corValor(total), onDetalheTotal && "tem-detalhe")}
+      >
+        {onDetalheTotal ? (
+          <button
+            type="button"
+            onClick={onDetalheTotal}
+            title="Ver os lançamentos pagos e os títulos em aberto"
+            className="valor-clicavel"
+          >
+            {formatarValor(total)}
+          </button>
+        ) : (
+          formatarValor(total)
+        )}
+      </td>
     </>
   );
 }

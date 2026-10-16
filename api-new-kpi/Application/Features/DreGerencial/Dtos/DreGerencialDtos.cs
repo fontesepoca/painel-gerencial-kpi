@@ -350,7 +350,13 @@ public record DetalheFiltroDto(
     /// Os títulos EM ABERTO da célula de Provisionado, em vez dos pagos. Só em competência
     /// e só em lançamentos.
     /// </summary>
-    bool Provisionado = false);
+    bool Provisionado = false,
+    /// <summary>
+    /// A célula de Total (R + P), 16/10/2026: os pagos E os em aberto, numa lista só — cada
+    /// lançamento diz de qual lado veio em <see cref="DetalheLancamentoDto.EmAberto"/>. Só em
+    /// competência e só em lançamentos. Vence <see cref="Provisionado"/>.
+    /// </summary>
+    bool RealizadoEProvisionado = false);
 
 /// <summary>Uma linha da tela "Receita por Cliente".</summary>
 public record DetalheClienteDto(
@@ -434,7 +440,12 @@ public record DetalheLancamentoDto(
     DateTime? DtEstornoBaixa,
     string? CodRotinaBaixa,
     /// <summary>Vencimento — a tela dos títulos em aberto calcula daqui os dias de atraso.</summary>
-    DateTime? DtVenc = null);
+    DateTime? DtVenc = null,
+    /// <summary>
+    /// O lançamento é um título EM ABERTO (DTPAGTO nulo): veio da consulta do Provisionado.
+    /// Na lista do Total (R + P) é o que separa as duas partes.
+    /// </summary>
+    bool EmAberto = false);
 
 /// <summary>
 /// Resposta do detalhamento. **Uma coleção preenchida por vez**, conforme
@@ -470,7 +481,9 @@ public record DetalhamentoDto(
     decimal Participacao = 1m,
     BaseDto? Base = null,
     /// <summary>Eco do pedido: a lista é dos títulos EM ABERTO. A tela muda o título e as colunas.</summary>
-    bool Provisionado = false)
+    bool Provisionado = false,
+    /// <summary>Eco do pedido: a lista é a do Total (R + P) — pagos e em aberto juntos.</summary>
+    bool RealizadoEProvisionado = false)
 {
     /// <summary>
     /// <b>Quando esta apuração foi feita</b> — a hora do SERVIDOR, não a do navegador.

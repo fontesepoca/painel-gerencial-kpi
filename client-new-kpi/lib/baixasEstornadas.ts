@@ -32,11 +32,16 @@ export interface LancamentoComBaixa {
   vPago: number;
   /** Ausente quando a API é anterior a 08/10/2026 — aí nada é ocultado. */
   dtEstornoBaixa?: string | null;
+  /** Título em aberto: nunca sai por este filtro. Ver `ocultavel`. */
+  emAberto?: boolean;
   codRotinaBaixa?: string | null;
 }
 
 /** O lançamento sai da tela com o checkbox marcado. */
 export function ocultavel(l: LancamentoComBaixa): boolean {
+  // Título EM ABERTO com baixa estornada é título REABERTO — é quem a lista do Provisionado e
+  // a do Total (R + P) existem para cobrar. O filtro vale só para os pagos (16/10/2026).
+  if (l.emAberto) return false;
   if (l.dtEstornoBaixa) return true;
   return (l.codRotinaBaixa ?? "").includes("737");
 }

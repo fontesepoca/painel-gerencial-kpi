@@ -64,4 +64,15 @@ eq(desligado.ocultos, 0, "desligado: nada oculto");
 eq(desligado.somaOculta, 0, "desligado: soma oculta zero");
 eq(desligado.visiveis[0], caso[0], "desligado: mesmos objetos, mesma ordem");
 
+// ── O título EM ABERTO nunca sai (Total R + P, 16/10/2026) ──────────────────────────────
+// Na lista do Total (R + P) os pagos e os em aberto vêm juntos. Título com baixa estornada é
+// título REABERTO — é quem a lista existe para cobrar —, e o filtro vale só para os pagos.
+{
+  const aberto = { ...lanc(-40, "2026-06-12T00:00:00", "737"), emAberto: true };
+  eq(ocultavel(aberto), false, "em aberto não oculta, mesmo com baixa estornada e da 737");
+  const misto = semBaixasEstornadas([...caso, aberto], true);
+  eq(misto.visiveis.length, 3, "misto: os dois pagos que ficam, mais o em aberto");
+  eq(misto.visiveis.includes(aberto), true, "o em aberto continua na lista");
+}
+
 console.log(`✓ dc90 passou — ${n} conferências`);

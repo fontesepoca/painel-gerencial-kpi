@@ -12,7 +12,13 @@ import {
   type Estilo,
   type Planilha,
 } from "@/lib/excel";
-import { colunaDoTotal, nomeDaLinha, rotuloDaColuna, rotuloNaTela } from "@/lib/colunaDoTotal";
+import {
+  colunaDoTotal,
+  nomeDaLinha,
+  rotuloDaColuna,
+  rotuloNaTela,
+  situacaoDoDetalhe,
+} from "@/lib/colunaDoTotal";
 import { temRateio, valorNoDre } from "@/lib/rateioDoDetalhe";
 import { semEstornosQueSeAnulam } from "@/lib/estornosQueSeAnulam";
 import { semBaixasEstornadas } from "@/lib/baixasEstornadas";
@@ -181,7 +187,10 @@ function corpoDoDetalhe(
   // Os títulos EM ABERTO (célula de Provisionado): o vencimento entra logo depois do
   // dinheiro, como na tela. Os dias de atraso não — mudam todo dia, e numa planilha
   // guardada viram um número velho; o Excel calcula a partir do vencimento se precisar.
-  const aberto = dados.provisionado === true;
+  // No Total (R + P) (16/10/2026) entram os dois lados, e a coluna Situação diz qual é qual.
+  const situacao = situacaoDoDetalhe(dados);
+  const ambos = situacao === "ambos";
+  const aberto = situacao !== "realizado";
 
   return {
     // As 25 da 9815, na ordem dela, mais as duas do agrupamento que a tela desenha como
@@ -192,11 +201,12 @@ function corpoDoDetalhe(
       "Rec.Num.",
       "Histórico",
       // "V. a Pagar" na lista dos títulos em aberto — ver `rotuloNaTela`.
-      rotuloNaTela("V. Pago", aberto),
+      rotuloNaTela("V. Pago", situacao),
       // A coluna do rateio só existe quando a apuração foi filtrada — o arquivo conta a
       // mesma história da tela, inclusive em quantas colunas tem. Ver
       // `lib/rateioDoDetalhe.ts`.
       ...(rateando ? ["No DRE", "Exclusivo"] : []),
+      ...(ambos ? ["Situação"] : []),
       ...(aberto ? ["Dt. Vencto."] : []),
       "Dt.Lançamento",
       "Dt. Pagto.",
@@ -224,6 +234,7 @@ function corpoDoDetalhe(
     larguras: [
       28, 32, 10, 44, 16,
       ...(rateando ? [16, 11] : []),
+      ...(ambos ? [14] : []),
       ...(aberto ? [14] : []),
       14, 14, 14, 14, 8, 12, 8, 12, 36, 20, 20, 10, 10, 14, 12, 12, 12,
       14, 16, 16, 14, 18,
@@ -244,6 +255,7 @@ function corpoDoDetalhe(
       ...(rateando
         ? [num(valorNoDre(l, dados.participacao)), txt(l.exclusivo ? "sim" : "")]
         : []),
+      ...(ambos ? [txt(l.emAberto ? "Provisionado" : "Realizado")] : []),
       ...(aberto ? [data(l.dtVenc ?? null)] : []),
       data(l.dtLanc),
       data(l.dtPagto),
@@ -280,7 +292,7 @@ export function planilhaDoDetalhe(detalhe: DetalheParaExportar): Planilha {
   const nome = nomeDaLinha(detalhe.linha);
   // Traduzida como o rótulo, senão a coluna do total não se reconheceria no cabeçalho.
   const bruta = colunaDoTotal(detalhe.dados.tipo, nome);
-  const coluna = bruta === null ? null : rotuloNaTela(bruta, detalhe.dados.provisionado === true);
+  const coluna = bruta === null ? null : rotuloNaTela(bruta, situacaoDoDetalhe(detalhe.dados));
 
   const titulos = cabecalho(rotulos, coluna, nome);
   return {

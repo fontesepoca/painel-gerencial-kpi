@@ -1,6 +1,7 @@
 using Epoca.Kpi.Api.Application.Common;
 using Epoca.Kpi.Api.Application.Common.Bases;
 using Epoca.Kpi.Api.Application.Features.DreGerencial.Dtos;
+using Epoca.Kpi.Api.Domain.Entities;
 using Epoca.Kpi.Api.Domain.Interfaces;
 
 namespace Epoca.Kpi.Api.Application.Features.DreGerencial;
@@ -538,16 +539,30 @@ public sealed class DreGerencialService
 
                 // Títulos em aberto só existem em competência: em caixa o mês é o do
                 // pagamento, e um título não pago não tem mês para estar.
-                if (filtro.Provisionado && regime != RegimeDre.Competencia)
+                var ambos = filtro.RealizadoEProvisionado;
+                if ((filtro.Provisionado || ambos) && regime != RegimeDre.Competencia)
                 {
                     return Result<DetalhamentoDto>.Invalido(
                         "O provisionado só existe no regime competência.");
                 }
 
-                var linhas = await _repositorio.ObterDetalheLancamentosAsync(
-                    filtro.Filiais, filtro.DataInicio, filtro.DataFim, regime, analise,
-                    filtro.Bloco, filtro.Chave, fornecedores, filtro.Sobra,
-                    emAberto: filtro.Provisionado, cancellationToken: cancellationToken);
+                // Pagos, em aberto, ou os dois (Total R + P, 16/10/2026). Os dois lados são a
+                // MESMA consulta trocando só o filtro de DTPAGTO (`ConsultasEmAberto`), em
+                // paralelo — cada chamada abre a própria conexão, como na apuração.
+                Task<IReadOnlyList<DetalheLancamentoDre>> Buscar(bool emAberto) =>
+                    _repositorio.ObterDetalheLancamentosAsync(
+                        filtro.Filiais, filtro.DataInicio, filtro.DataFim, regime, analise,
+                        filtro.Bloco, filtro.Chave, fornecedores, filtro.Sobra,
+                        emAberto: emAberto, cancellationToken: cancellationToken);
+
+                var nenhum = Task.FromResult<IReadOnlyList<DetalheLancamentoDre>>([]);
+                var pagosTask = ambos || !filtro.Provisionado ? Buscar(false) : nenhum;
+                var abertosTask = ambos || filtro.Provisionado ? Buscar(true) : nenhum;
+                await Task.WhenAll(pagosTask, abertosTask);
+
+                var linhas = pagosTask.Result.Select(l => (Lancamento: l, EmAberto: false))
+                    .Concat(abertosTask.Result.Select(l => (Lancamento: l, EmAberto: true)))
+                    .ToList();
 
                 // ── A PARTICIPAÇÃO, QUE É O QUE FAZ A TELA FECHAR COM A CÉLULA ──────
                 //
@@ -576,7 +591,7 @@ public sealed class DreGerencialService
                 cronometro.Stop();
                 return Result<DetalhamentoDto>.Ok(new DetalhamentoDto(
                     filtro.Tipo, filtro.DataInicio, filtro.DataFim, null, null,
-                    linhas.Select(l => new DetalheLancamentoDto(
+                    linhas.Select(par => { var l = par.Lancamento; return new DetalheLancamentoDto(
                         l.Exclusivo != 0m,
                         l.RecNum, l.CodFilial, l.CodCcPrinc, l.DescCcPrinc,
                         l.CodCentroCusto, l.DescCentroCusto, l.CodGrupo, l.Grupo,
@@ -587,9 +602,10 @@ public sealed class DreGerencialService
                         l.NumSeqBordero, l.NumCheque2, l.NumCar, l.Localizacao,
                         l.NomeFunc, l.NomeFuncBaixa, l.DtReclassific,
                         l.CodFuncReclassific, l.DtEstornoBaixa,
-                        l.CodRotinaBaixa, l.DtVenc)).ToList(),
+                        l.CodRotinaBaixa, l.DtVenc, par.EmAberto); }).ToList(),
                     null, cronometro.ElapsedMilliseconds, Fornecedores: eco, Participacao: participacao,
-                    Provisionado: filtro.Provisionado));
+                    Provisionado: filtro.Provisionado && !ambos,
+                    RealizadoEProvisionado: ambos));
             }
 
             case "imposto-por-produto":

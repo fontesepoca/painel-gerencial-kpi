@@ -185,7 +185,7 @@ export function useDetalhe() {
     // como OBJETOS, e o servidor só quer os códigos. Mandar o objeto inteiro faria a
     // desserialização falhar no primeiro campo que ele não conhece — e o detalhe voltaria
     // sem filtro nenhum, mostrando a filial toda com cara de certo.
-    mutationFn: async ({ tipo, bloco, chave, sobra, provisionado, ...filtro }: FiltroDetalhe) =>
+    mutationFn: async ({ tipo, bloco, chave, sobra, provisionado, realizadoEProvisionado, ...filtro }: FiltroDetalhe) =>
       exigirMesmaBase(
         await apiClient.post<Detalhamento>("/api/dre-gerencial/detalhe", {
           ...paraApi(filtro),
@@ -197,6 +197,8 @@ export function useDetalhe() {
           // Os títulos em aberto da célula de Provisionado. Explícito, como a sobra: o
           // `paraApi` só repassa os campos que conhece, e sem isto a tela pediria os pagos.
           ...(provisionado ? { provisionado: true } : {}),
+          // A célula de Total (R + P): os pagos e os em aberto juntos (16/10/2026).
+          ...(realizadoEProvisionado ? { realizadoEProvisionado: true } : {}),
         }),
         usuario?.base.id,
       ),

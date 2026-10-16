@@ -75,6 +75,23 @@ export function rotuloDaColuna(coluna: string, nome: string | null): string {
  * `V. Pago` — é por ela que a tela pinta o valor, acha a coluna que fecha o total e ordena;
  * trocar a chave quebraria essas regras em silêncio. Só o texto muda.
  */
-export function rotuloNaTela(rotulo: string, provisionado: boolean): string {
-  return provisionado && rotulo === "V. Pago" ? "V. a Pagar" : rotulo;
+export function rotuloNaTela(rotulo: string, situacao: boolean | SituacaoDoDetalhe): string {
+  if (rotulo !== "V. Pago") return rotulo;
+  // Na lista do Total (R + P) a coluna tem pagos e a pagar: nenhum dos dois nomes serve.
+  if (situacao === "ambos") return "Valor (R + P)";
+  return situacao === true || situacao === "provisionado" ? "V. a Pagar" : rotulo;
+}
+
+/**
+ * De que lado da célula veio a lista de lançamentos: o Valor (pagos), o Provisionado (em
+ * aberto) ou o Total (R + P), que junta os dois (16/10/2026).
+ */
+export type SituacaoDoDetalhe = "realizado" | "provisionado" | "ambos";
+
+export function situacaoDoDetalhe(dados: {
+  provisionado?: boolean;
+  realizadoEProvisionado?: boolean;
+}): SituacaoDoDetalhe {
+  if (dados.realizadoEProvisionado === true) return "ambos";
+  return dados.provisionado === true ? "provisionado" : "realizado";
 }

@@ -11,6 +11,8 @@ import {
   nomeDaLinha,
   rotuloDaColuna,
   rotuloNaTela,
+  situacaoDoDetalhe,
+  type SituacaoDoDetalhe,
 } from "@/lib/colunaDoTotal";
 import { semEstornosQueSeAnulam } from "@/lib/estornosQueSeAnulam";
 import { semBaixasEstornadas } from "@/lib/baixasEstornadas";
@@ -383,7 +385,7 @@ export function CorpoDoDetalhe({
       {/* O nome que a pessoa VÊ na tabela — "V. a Pagar" nos títulos em aberto. */}
       <OrigemDoTotal
         linha={linha}
-        coluna={coluna === null ? null : rotuloNaTela(coluna, dados.provisionado === true)}
+        coluna={coluna === null ? null : rotuloNaTela(coluna, situacaoDoDetalhe(dados))}
       />
       <Conteudo
         dados={dados}
@@ -453,8 +455,9 @@ function Conteudo({
       // Com fornecedor filtrado a tela ganha a coluna do valor rateado, e é ELA que
       // fecha com a célula. Ver `lib/rateioDoDetalhe.ts`.
       participacao={temRateio(dados) ? dados.participacao : null}
-      // A célula clicada foi a de Provisionado: a lista é dos títulos em aberto.
-      provisionado={dados.provisionado === true}
+      // A célula clicada foi a de Provisionado (títulos em aberto) ou a de Total (R + P),
+      // que junta os pagos e os em aberto — 16/10/2026.
+      situacao={situacaoDoDetalhe(dados)}
     />
   );
 }
@@ -1197,14 +1200,16 @@ const COLUNAS: ReadonlyArray<{
  * Sem filtro a lista é, item por item, a de sempre: uma coluna a mais mostrando o mesmo
  * número duas vezes seria ruído puro.
  */
-function colunasDeLancamento(participacao: number | null, provisionado = false) {
+function colunasDeLancamento(participacao: number | null, situacao: SituacaoDoDetalhe = "realizado") {
   const base = colunasComRateio(participacao);
-  if (!provisionado) return base;
+  if (situacao === "realizado") return base;
 
   // Logo depois do dinheiro (V. Pago, ou No DRE com fornecedor): é por elas que se cobra
   // — quanto está em aberto, desde quando. "Lançado por" é o Func.Lanc que já existe.
   const i = base.findIndex((c) => c.rotulo === "No DRE") + 1 || base.findIndex((c) => c.rotulo === "V. Pago") + 1;
-  return [...base.slice(0, i), ...COLUNAS_DO_ABERTO, ...base.slice(i)];
+  // No Total (R + P) a Situação vem antes: é ela que diz se a linha foi paga ou está aberta.
+  const extras = situacao === "ambos" ? [COLUNA_SITUACAO, ...COLUNAS_DO_ABERTO] : COLUNAS_DO_ABERTO;
+  return [...base.slice(0, i), ...extras, ...base.slice(i)];
 }
 
 /**
@@ -1221,6 +1226,15 @@ function diasDeAtraso(dtVenc: string | null | undefined): number | null {
   return Math.round((meiaNoite - venc) / 86_400_000);
 }
 
+/**
+ * A lista do Total (R + P) junta pagos e em aberto (16/10/2026): esta coluna diz de que lado
+ * veio cada linha — "Provisionado" é título em aberto, "Realizado" é pago.
+ */
+const COLUNA_SITUACAO: (typeof COLUNAS)[number] = {
+  rotulo: "Situação",
+  ler: (l) => (l.emAberto ? "Provisionado" : "Realizado"),
+};
+
 /** As duas colunas que a tela dos títulos em aberto acrescenta (14/10/2026). */
 const COLUNAS_DO_ABERTO: typeof COLUNAS = [
   {
@@ -1232,11 +1246,13 @@ const COLUNAS_DO_ABERTO: typeof COLUNAS = [
   {
     rotulo: "Dias em atraso",
     numerica: true,
+    // Atraso só existe em título aberto: na lista do Total (R + P) o pago leva traço.
     ler: (l) => {
+      if (l.emAberto === false) return "—";
       const d = diasDeAtraso(l.dtVenc);
       return d !== null && d > 0 ? d : "—";
     },
-    bruto: (l) => diasDeAtraso(l.dtVenc),
+    bruto: (l) => (l.emAberto === false ? null : diasDeAtraso(l.dtVenc)),
   },
 ];
 
@@ -1373,10 +1389,10 @@ const TOTAL_DE_COLUNAS = COLUNAS.length + 1;
  */
 function ordenaveisDeLancamento(
   participacao: number | null,
-  provisionado = false,
+  situacao: SituacaoDoDetalhe = "realizado",
 ): readonly ColunaOrdenavel<DetalheLancamento>[] {
   return [
-    ...colunasDeLancamento(participacao, provisionado).map((c) => ({
+    ...colunasDeLancamento(participacao, situacao).map((c) => ({
       rotulo: c.rotulo,
       tipo: c.numerica && !c.rotulo.startsWith("Dt") ? ("numero" as const) : ("texto" as const),
       ler: c.bruto ?? ((l: DetalheLancamento) => String(c.ler(l) ?? "")),
@@ -1422,15 +1438,18 @@ function TabelaLancamentos({
   coluna,
   nome,
   participacao,
-  provisionado = false,
+  situacao = "realizado",
 }: {
   linhas: readonly DetalheLancamento[];
   coluna: string | null;
   nome: string | null;
   /** A fatia do fornecedor, ou `null` quando a apuração não foi filtrada. */
   participacao: number | null;
-  /** A lista é dos títulos EM ABERTO: entram Vencimento e Dias em atraso. */
-  provisionado?: boolean;
+  /**
+   * De que célula veio a lista: o Valor (pagos), o Provisionado (em aberto: entram Vencimento
+   * e Dias em atraso) ou o Total (R + P), que junta os dois com a coluna Situação.
+   */
+  situacao?: SituacaoDoDetalhe;
 }) {
   const [ordem, setOrdem] = useState<Ordem>(null);
   const ordenar = useCallback((rotulo: string, tipo: TipoDaColuna) => {
@@ -1449,10 +1468,13 @@ function TabelaLancamentos({
    */
   // Na lista em aberto (Provisionado) o filtro não vale: título com baixa estornada é título
   // REABERTO — está em aberto de novo, e é justamente quem a lista existe para cobrar.
+  // O título em aberto nunca sai por este filtro (`ocultavel`), e na lista do Total (R + P)
+  // ele vale só para os pagos.
+  const provisionado = situacao === "provisionado";
   const semBaixas = semBaixasEstornadas(linhas, ocultarBaixas && !provisionado);
   const { visiveis, omitidos } = semEstornosQueSeAnulam(semBaixas.visiveis);
-  const COLS = colunasDeLancamento(participacao, provisionado);
-  const ORDENAVEIS = ordenaveisDeLancamento(participacao, provisionado);
+  const COLS = colunasDeLancamento(participacao, situacao);
+  const ORDENAVEIS = ordenaveisDeLancamento(participacao, situacao);
 
   // Com rateio, quem fecha com a célula clicada é a coluna nova — e é ela que o
   // cabeçalho tem de anunciar. Apontar o V. Pago mandaria a pessoa somar a coluna errada.
@@ -1502,7 +1524,7 @@ function TabelaLancamentos({
       })),
     }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visiveis, ordem, participacao, provisionado]);
+  }, [visiveis, ordem, participacao, situacao]);
 
   // Depois de todos os hooks: um `return` antes do `useMemo` muda a ordem das chamadas
   // entre um detalhamento vazio e um cheio, e o React acusa.
@@ -1516,7 +1538,7 @@ function TabelaLancamentos({
             <ThDetalhe
               key={c.rotulo}
               rotulo={c.rotulo}
-              exibir={rotuloNaTela(c.rotulo, provisionado)}
+              exibir={rotuloNaTela(c.rotulo, situacao)}
               tipo={c.bruto && c.rotulo === "V. Pago" ? "numero" : c.numerica ? "numero" : "texto"}
               numerica={c.numerica}
               coluna={colunaQueFecha}

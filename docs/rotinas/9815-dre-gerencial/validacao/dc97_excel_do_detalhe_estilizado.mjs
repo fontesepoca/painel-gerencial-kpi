@@ -65,4 +65,34 @@ eq(corTexto("C2"), "FF047857", "Culpa RCA Sim em verde");
 eq(corTexto("C3"), "FFBE123C", "Culpa RCA Não em vermelho");
 ok(fundo("A2") !== fundo("A3"), "linhas zebradas");
 
+// ── O TOTAL (R + P): pagos e em aberto juntos (16/10/2026) ──
+{
+  const base = { descCcPrinc: "TRANSPORTES", conta: "FRETE", recNum: 1, historico: "H", dtLanc: "2026-08-03",
+    dtPagto: null, dtCompetencia: "2026-08-01", dtCompensacao: null, codFilial: "7", numNota: "1", duplic: "1",
+    codFornec: "1", fornecedor: "F", nomeFunc: "", nomeFuncBaixa: "", indice: "", numCar: "", numBordero: "",
+    codProjeto: "", numTrans: "", numBanco: "", numCheque: "", numSeqBordero: "", localizacao: "",
+    dtReclassific: null, codFuncReclassific: "", dtEstornoBaixa: null, codRotinaBaixa: "" };
+  const blobRp = await gerarDetalhe({
+    titulo: "FRETE — Agosto/2026 · Realizado + Provisionado",
+    periodo: { dataInicio: "2026-08-01", dataFim: "2026-08-31" },
+    linha: { descricao: "FRETE", valor: -150 },
+    ocultarBaixas: true,
+    dados: { tipo: "lancamentos", realizadoEProvisionado: true, lancamentos: [
+      { ...base, recNum: 1, vPago: -100, dtPagto: "2026-08-10", emAberto: false },
+      // Baixa estornada num título EM ABERTO: é título reaberto, e fica na lista.
+      { ...base, recNum: 2, vPago: -50, dtVenc: "2026-08-20", dtEstornoBaixa: "2026-08-15", emAberto: true },
+    ] },
+  });
+  const l2 = new ExcelJS.Workbook();
+  await l2.xlsx.load(Buffer.from(await blobRp.arrayBuffer()));
+  const a2 = l2.getWorksheet("Detalhamento");
+  const cab = a2.getRow(1).values.slice(1);
+  ok(cab.includes("Situação"), "a coluna Situação existe no Total (R + P)");
+  ok(cab.includes("Dt. Vencto."), "e o vencimento");
+  ok(cab.some((v) => String(v).includes("Valor (R + P)")), "o dinheiro se chama Valor (R + P), não V. Pago");
+  const iSit = cab.indexOf("Situação") + 1;
+  eq([a2.getCell(2, iSit).value, a2.getCell(3, iSit).value], ["Realizado", "Provisionado"], "cada linha diz de que lado veio");
+  eq(a2.rowCount, 3, "o em aberto com baixa estornada continua na lista");
+}
+
 console.log(`✓ dc97 passou — ${n} conferências`);
