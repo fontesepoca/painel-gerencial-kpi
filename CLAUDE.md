@@ -44,7 +44,7 @@ Para abrir a próxima, a skill é `new-rotina`, e o passo a passo está em
 | Estilo | Tailwind CSS 4 (tokens em `app/globals.css`) |
 | Dados do servidor | React Query v5 |
 | HTTP | `services/apiClient.ts` — fetch nativo, sem axios |
-| Excel | SheetJS `xlsx` 0.20.3 — **da CDN oficial**, não do npm |
+| Excel | **ExcelJS** 4.4 para gerar (com estilo de célula, aprovado em 16/10/2026); SheetJS `xlsx` 0.20.3 — **da CDN oficial**, não do npm — para ler |
 | Tipos | TypeScript strict, com `noUncheckedIndexedAccess` |
 
 Toda biblioteca nova passa por aprovação do Gabriel antes de ser instalada.

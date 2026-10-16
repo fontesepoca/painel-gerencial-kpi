@@ -6,11 +6,13 @@ import {
   num,
   txt,
   type Celula,
+  type Estilo,
   type Planilha,
 } from "@/lib/excel";
+import { lerVariacao } from "@/lib/leituraDaVariacao";
 import { somaDosAh } from "@/lib/ahDoTotal";
 import { rotulosDoDinheiro } from "@/lib/rotulosDoDinheiro";
-import { comPercentuaisRp } from "@/lib/percentuaisComProvisionado";
+import { comPercentuaisRp, sentidoDaLinha } from "@/lib/percentuaisComProvisionado";
 import { mostraVariacao, rotuloDaVariacao, variacao } from "@/lib/modosDePeriodo";
 import type { Apuracao, LinhaDre, PeriodoDre } from "@/types/dre-gerencial";
 
@@ -200,7 +202,182 @@ export function matrizDaApuracao(
     return celulas;
   });
 
-  return [faixaMeses, rotulos, ...corpo];
+  return estilizar([faixaMeses, rotulos, ...corpo], linhas, dados, usarRp);
+}
+
+/**
+ * A PALETA DO PAPEL, em cores opacas (16/10/2026). A planilha é fundo branco como a folha
+ * impressa, então as cores saem do tema CLARO e do bloco de impressão de `globals.css` — as
+ * mesmas famílias, já compostas sobre o branco (o Excel não tem transparência).
+ */
+const COR = {
+  texto: "#0F172A",
+  secundario: "#334155",
+  apagado: "#64748B",
+  positivo: "#047857",
+  negativo: "#BE123C",
+  /** `--surface-2`: linha totalizadora e bloco Total. */
+  cinza: "#F1F5F9",
+  /** `--surface-3`: título do bloco Total, e totalizador dentro dele. */
+  cinzaForte: "#E2E8F0",
+  /** `--divisor-bloco` e `--divisor-coluna` do tema claro, sobre branco. */
+  divisorBloco: "#B6B9C0",
+  divisorColuna: "#E7E8EA",
+} as const;
+
+/** As quatro faixas de mês — as MESMAS de `.faixa-mes-N` no papel (título 16%, corpo 8%). */
+const FAIXAS: [number, number, number][] = [
+  [230, 0, 76],
+  [0, 230, 96],
+  [0, 77, 230],
+  [230, 172, 0],
+];
+
+/** `cor` com opacidade `alfa` sobre o fundo `base` — a composição que a tela faz. */
+function misturar(base: string, cor: [number, number, number], alfa: number): string {
+  const b = [1, 3, 5].map((i) => parseInt(base.slice(i, i + 2), 16));
+  return (
+    "#" +
+    b
+      .map((canal, i) => Math.round(canal + (cor[i]! - canal) * alfa))
+      .map((v) => v.toString(16).padStart(2, "0"))
+      .join("")
+      .toUpperCase()
+  );
+}
+
+type TipoDeColuna = "descricao" | "dinheiro" | "av" | "ah";
+
+/**
+ * Pinta a matriz com as regras da TELA (pedido do Gabriel em 16/10/2026: "tão bonito quanto o
+ * DRE na tela, seguindo as mesmas regras").
+ *
+ * A estrutura é LIDA da própria matriz — a faixa da linha 1 diz onde começa cada bloco e os
+ * rótulos da linha 2 dizem o que é cada coluna. Remontá-la aqui seria uma segunda cópia da
+ * lógica de colunas, livre para discordar da primeira no dia em que uma coluna mudar.
+ */
+function estilizar(
+  matriz: Celula[][],
+  linhas: readonly LinhaDre[],
+  dados: Apuracao,
+  usarRp: boolean,
+): Celula[][] {
+  const [faixa = [], rotulos = []] = matriz;
+
+  // Bloco de cada coluna: índice do mês (0, 1, …) ou "total". O bloco do fim é o último
+  // rótulo de faixa quando ele é o Total ou a variação — com um mês só não há bloco do fim.
+  const inicios = faixa.flatMap((c, i) => (i > 0 && c.v !== null ? [i] : []));
+  const temFim = dados.periodos.length > 1 && inicios.length > 0 &&
+    !dados.periodos.some((p) => p.rotulo === faixa[inicios.at(-1)!]?.v);
+  const blocoDe = (col: number): number | "total" | null => {
+    if (col === 0) return null;
+    let bloco = -1;
+    for (const i of inicios) if (col >= i) bloco++;
+    return temFim && bloco === inicios.length - 1 ? "total" : bloco;
+  };
+  const abreBloco = (col: number) => inicios.includes(col);
+
+  // Valor, Provisionado, Total (R + P), Média e Δ Valor são dinheiro; o resto, percentual.
+  const tipoDe = (col: number): TipoDeColuna => {
+    if (col === 0) return "descricao";
+    const r = rotulos[col]?.v;
+    if (r === "AV %") return "av";
+    if (r === "AH %" || r === "Δ %") return "ah";
+    return "dinheiro";
+  };
+
+  /** O fundo de uma célula: a cor do mês sobre o fundo da linha, ou o cinza do Total. */
+  const fundoDe = (col: number, base: string, alfa: number, forteNoTotal: boolean) => {
+    const b = blocoDe(col);
+    if (b === null) return base === "#FFFFFF" ? undefined : base;
+    if (b === "total") return forteNoTotal ? COR.cinzaForte : COR.cinza;
+    return misturar(base, FAIXAS[b % 4]!, alfa);
+  };
+
+  /** A divisória à esquerda: mais forte onde abre um bloco, como `.col-bloco` na tela. */
+  const divisoria = (col: number): Estilo["borda"] =>
+    col === 0
+      ? undefined
+      : { esquerda: { peso: "fina", cor: abreBloco(col) ? COR.divisorBloco : COR.divisorColuna } };
+
+  // ── Linha 1: a faixa de cada mês ──
+  const cabecalho1 = faixa.map((c, col): Celula => ({
+    ...c,
+    s: col === 0 ? undefined : {
+      negrito: true,
+      cor: blocoDe(col) === "total" ? COR.texto : COR.secundario,
+      fundo: fundoDe(col, "#FFFFFF", 0.16, true),
+      alinhar: "centro",
+      tamanho: 10,
+      borda: divisoria(col),
+    },
+  }));
+
+  // ── Linha 2: os títulos das colunas, centralizados (só a Descrição à esquerda) ──
+  const cabecalho2 = rotulos.map((c, col): Celula => ({
+    // O texto fica como está: a tela põe em maiúsculas por CSS, e trocar o VALOR da célula
+    // mudaria o que a planilha diz — e o que os testes conferem.
+    ...c,
+    s: {
+      negrito: false,
+      cor: COR.apagado,
+      tamanho: 9,
+      fundo: fundoDe(col, "#FFFFFF", 0.16, true),
+      alinhar: col === 0 ? "esquerda" : "centro",
+      quebrar: true,
+      borda: { ...divisoria(col), baixo: { peso: "fina", cor: COR.divisorBloco } },
+    },
+  }));
+
+  // ── O corpo ──
+  const corpo = matriz.slice(2).map((celulas, i) => {
+    const linha = linhas[i];
+    if (!linha) return celulas;
+    const tot = linha.totalizadora;
+    const resultado = linha.papel === "resultado-operacional" || linha.papel === "lucro-liquido";
+    const base = tot ? COR.cinza : "#FFFFFF";
+    const sentido = sentidoDaLinha(linha, usarRp);
+    const grossa = { peso: "grossa" as const, cor: COR.apagado };
+
+    return celulas.map((c, col): Celula => {
+      const tipo = tipoDe(col);
+      const valor = typeof c.v === "number" ? c.v : null;
+
+      let cor: string = COR.secundario;
+      if (tipo === "descricao") cor = tot ? COR.texto : COR.secundario;
+      else if (valor === null) cor = COR.apagado;
+      // O sinal em cor, como `corValor` na tela: vermelho, verde, zero apagado.
+      else if (tipo === "dinheiro") cor = valor < 0 ? COR.negativo : valor > 0 ? COR.positivo : COR.apagado;
+      // O %AH julga o EFEITO no resultado, como `Variacao` — não o sinal.
+      else if (tipo === "ah") {
+        const l = lerVariacao(valor, sentido);
+        cor = l === "favoravel" ? COR.positivo : l === "desfavoravel" ? COR.negativo : COR.apagado;
+      }
+
+      const borda: Estilo["borda"] = {
+        ...divisoria(col),
+        baixo: resultado ? grossa : { peso: "fina", cor: COR.divisorColuna },
+        ...(resultado ? { cima: grossa } : {}),
+        // O marcador colorido do cadastro (EPCPARDRE) vira a borda esquerda da descrição.
+        ...(tipo === "descricao" && linha.cor ? { esquerda: { peso: "grossa" as const, cor: linha.cor } } : {}),
+      };
+
+      return {
+        ...c,
+        s: {
+          negrito: tot,
+          cor,
+          fundo: tipo === "descricao" ? (tot ? COR.cinza : undefined) : fundoDe(col, base, 0.08, tot),
+          alinhar: tipo === "descricao" ? "esquerda" : valor === null ? "centro" : "direita",
+          // As contas recuam sob as calculadas, como na tela; a informativa, um nível a mais.
+          recuo: tipo === "descricao" && !linha.calculada ? (linha.naoSoma ? 2 : 1) : undefined,
+          borda,
+        },
+      };
+    });
+  });
+
+  return [cabecalho1, cabecalho2, ...corpo];
 }
 
 /**
