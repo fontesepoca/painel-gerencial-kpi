@@ -234,8 +234,13 @@ public sealed class DreGerencialRepository : IDreGerencialRepository
 
         var sql = string.Format(
             // O PROVISIONADO é a MESMA consulta trocando só o pagamento — ver `ConsultasEmAberto`.
-            // A lista de binds abaixo vale para as duas versões, de propósito.
-            emAberto ? ConsultasEmAberto.Despesas(analise.SqlDespesas) : analise.SqlDespesas,
+            // A lista de binds abaixo vale para as três versões, de propósito. Em competência o
+            // realizado é pago OU confirmado (TIPOLANC = C, 22/10/2026); em caixa, só pago.
+            emAberto
+                ? ConsultasEmAberto.Despesas(analise.SqlDespesas)
+                : regime == RegimeDre.Competencia
+                    ? ConsultasEmAberto.RealizadoEmCompetencia(analise.SqlDespesas)
+                    : analise.SqlDespesas,
             placeholdersA,
             regime.ExpressaoBucket,
             regime.ExpressaoFiltro,
@@ -811,7 +816,12 @@ public sealed class DreGerencialRepository : IDreGerencialRepository
         var sql = string.Format(
             // Os títulos EM ABERTO da célula de Provisionado: a mesma consulta, trocando só o
             // pagamento — ver `ConsultasEmAberto`. Os binds abaixo valem para as duas versões.
-            emAberto ? ConsultasEmAberto.Lancamentos(DreDetalheQueries.Lancamentos) : DreDetalheQueries.Lancamentos,
+            // O realizado do detalhe segue a apuração: em competência, pago OU confirmado.
+            emAberto
+                ? ConsultasEmAberto.Lancamentos(DreDetalheQueries.Lancamentos)
+                : regime == RegimeDre.Competencia
+                    ? ConsultasEmAberto.LancamentosRealizadosEmCompetencia(DreDetalheQueries.Lancamentos)
+                    : DreDetalheQueries.Lancamentos,
             DreDetalheQueries.PredicadoDoBloco(antesRo, antesLl),
             placeholdersA,
             placeholdersB,

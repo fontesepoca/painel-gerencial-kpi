@@ -1483,7 +1483,8 @@ o pago), **Provisionado** e **Total (R + P)** — em todos os meses e no bloco d
 na tela e no Excel (`lib/rotulosDoDinheiro.ts`). Em caixa a coluna continua "Valor".
 
 **O Valor e todos os totalizadores continuam os da 9815, ao centavo.** A 9815 não tem nada
-disso.
+disso. **Revisto em 22/10/2026 — ver §20:** em competência, título não pago com
+`TIPOLANC = 'C'` passou a contar no Valor, e aí o Valor deixa de ser o da 9815.
 
 **Os percentuais das contas mudam com o Provisionado ligado** (pedido de 14/10/2026, opção 1):
 o `%AV` passa a ser (R + P) ÷ base — a mesma base, porque receita não tem provisionado — e o
@@ -1559,6 +1560,62 @@ reordenação), dc14 (36, Excel do detalhe). O SQL das constantes não mudou —
 **Com a API, pendentes:** dc34 (o `LUCRO LIQUIDO` não muda), dc6 `--provisionado` (cada
 célula fecha com o detalhe dos títulos em aberto), dc78 (com fornecedor) e a medição de tempo
 de um e de três meses.
+
+---
+
+## 20. Título confirmado (`TIPOLANC = 'C'`) conta como realizado, em competência — 22/10/2026
+
+**Pedido do Gabriel.** A divisão entre Vl. Realizado e Provisionado olhava só o pagamento. Há
+títulos ainda **não pagos** mas já **confirmados** (`PCLANC.TIPOLANC = 'C'`), e eles iam
+para o Provisionado. A regra passa a ser:
+
+| Título | Vai para |
+|---|---|
+| Pago (`DTPAGTO` preenchido), qualquer `TIPOLANC` | **Vl. Realizado** |
+| Não pago, `TIPOLANC = 'C'` | **Vl. Realizado** |
+| Não pago, `TIPOLANC` diferente de `C` ou nulo | **Provisionado** |
+
+A validação principal continua sendo o pagamento; o `TIPOLANC` só decide entre os não pagos.
+As duas versões se complementam — todo título cai em exatamente uma —, e o Total (R + P) não
+muda: o título só troca de coluna.
+
+### O que diverge da 9815
+
+**O Vl. Realizado, em competência**, nas linhas que têm título não pago com `TIPOLANC = 'C'`
+no mês — e, por consequência, os totalizadores e o `LUCRO LIQUIDO` desse Valor. A 9815 soma
+só o pago (`DTPAGTO IS NOT NULL`, o `GetValorGrupo`). O valor de um título não pago é o
+`VALOR` (a consulta já usa `nvl(VPAGO, VALOR)`), no mês da competência (`nvl(DTCOMPETENCIA,
+DTVENC)`), como qualquer outro.
+
+**Em caixa nada muda:** o realizado continua sendo só o pago, igual à 9815 — caixa é dinheiro
+que saiu, e o Provisionado nem existe nesse regime.
+
+### Como
+
+`ConsultasEmAberto` troca o mesmo trecho de antes, exatamente uma vez em cada consulta:
+
+- realizado em competência: `WHERE (DTPAGTO IS NOT NULL OR TIPOLANC = 'C')`;
+- provisionado: `WHERE DTPAGTO IS NULL AND NVL(TIPOLANC, 'X') <> 'C'` — o `NVL` porque
+  `TIPOLANC` nulo não é `C`, e sem ele o título sumiria das duas colunas.
+
+As constantes de SQL não mudaram (dc86 60/60); a troca é feita pelo repositório conforme o
+regime, nas quatro consultas de despesa e no detalhamento de lançamentos — o duplo clique no
+Valor lista o confirmado não pago junto dos pagos, com a Dt. Pagto. vazia.
+
+### Provas
+
+dc92 (38, as três versões do SQL e os binds idênticos). **Com a API, pendentes:** medir, num
+mês recente, quanto do Provisionado migra para o Valor (consulta abaixo), e o dc6
+`--provisionado` (cada célula fecha com o detalhe).
+
+```sql
+SELECT TIPOLANC, COUNT(*) AS titulos, SUM(NVL(VPAGO, VALOR)) AS valor
+  FROM PCLANC
+ WHERE DTPAGTO IS NULL
+   AND NVL(DTCOMPETENCIA, DTVENC) BETWEEN DATE '2026-09-01' AND DATE '2026-09-30'
+ GROUP BY TIPOLANC
+ ORDER BY TIPOLANC;
+```
 
 ---
 

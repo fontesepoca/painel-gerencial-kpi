@@ -418,7 +418,7 @@ export default function DreGerencialPage() {
                           {
                             id: "provisionado",
                             rotulo: "Provisionado",
-                            apoio: "Títulos lançados e ainda não pagos, e o Total (R + P)",
+                            apoio: "Títulos não pagos e não confirmados, e o Total (R + P)",
                             marcada: mostrarProvisionado,
                             onMudar: setMostrarProvisionado,
                             oculta: !temProvisionado,

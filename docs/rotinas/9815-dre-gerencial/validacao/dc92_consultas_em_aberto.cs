@@ -9,6 +9,11 @@
 // LISTA DE BINDS, que o ODP.NET liga por posição — e que uma consulta sem os trechos lança
 // em vez de seguir pela metade.
 //
+// O TIPOLANC (22/10/2026, decisão do Gabriel): em competência, título NÃO pago com
+// TIPOLANC = 'C' (confirmado) conta como REALIZADO, e não como provisionado. A validação
+// principal continua sendo o pagamento — pago é realizado, qualquer que seja o TIPOLANC. As
+// duas versões se complementam: todo lançamento cai em exatamente uma.
+//
 // Rode da RAIZ do repositório:
 //   dotnet run docs/rotinas/9815-dre-gerencial/validacao/dc92_consultas_em_aberto.cs -p:BaseOutputPath="$TEMP/dc92/"
 //
@@ -46,19 +51,29 @@ var despesas = new (string Nome, string Sql)[]
 foreach (var (nome, sql) in despesas)
 {
     var aberto = ConsultasEmAberto.Despesas(sql);
-    Afirmar(Vezes(aberto, "DTPAGTO IS NULL") == 1 && Vezes(aberto, "DTPAGTO IS NOT NULL") == 0,
-        $"{nome}: só o aberto — DTPAGTO IS NULL uma vez, IS NOT NULL nenhuma");
+    Afirmar(Vezes(aberto, "WHERE DTPAGTO IS NULL AND NVL(TIPOLANC, 'X') <> 'C'") == 1 && Vezes(aberto, "DTPAGTO IS NOT NULL") == 0,
+        $"{nome}: só o aberto NÃO confirmado — sem pagamento e TIPOLANC diferente de C");
+    var realizado = ConsultasEmAberto.RealizadoEmCompetencia(sql);
+    Afirmar(Vezes(realizado, "WHERE (DTPAGTO IS NOT NULL OR TIPOLANC = 'C')") == 1,
+        $"{nome}: o realizado em competência é pago OU confirmado");
+    Afirmar(Binds(realizado) == Binds(sql), $"{nome}: o realizado tem os MESMOS binds");
+    Afirmar(Vezes(realizado, "nf.codfilial IN ({3}) AND 1 = 0") == 0,
+        $"{nome}: o realizado mantém o ramo de venda de ativo");
     Afirmar(Vezes(aberto, "nf.codfilial IN ({3}) AND 1 = 0") == 1,
         $"{nome}: o ramo de venda de ativo vazio");
     Afirmar(Binds(aberto) == Binds(sql), $"{nome}: os MESMOS binds, na mesma ordem");
-    Afirmar(aberto.Length == sql.Length - "NOT ".Length + " AND 1 = 0".Length,
+    Afirmar(aberto.Length == sql.Length - "NOT ".Length + " AND NVL(TIPOLANC, 'X') <> 'C'".Length + " AND 1 = 0".Length,
         $"{nome}: nenhuma outra mudança no texto");
 }
 
 var lanc = DreDetalheQueries.Lancamentos;
 var lancAberto = ConsultasEmAberto.Lancamentos(lanc);
-Afirmar(Vezes(lancAberto, "WHERE DTPAGTO IS NULL) FIN") == 1 && Vezes(lancAberto, "DTPAGTO IS NOT NULL") == 0,
-    "Lancamentos: só o aberto");
+Afirmar(Vezes(lancAberto, "WHERE DTPAGTO IS NULL AND NVL(TIPOLANC, 'X') <> 'C') FIN") == 1 && Vezes(lancAberto, "DTPAGTO IS NOT NULL") == 0,
+    "Lancamentos: só o aberto NÃO confirmado");
+var lancRealizado = ConsultasEmAberto.LancamentosRealizadosEmCompetencia(lanc);
+Afirmar(Vezes(lancRealizado, "WHERE (DTPAGTO IS NOT NULL OR TIPOLANC = 'C')) FIN") == 1,
+    "Lancamentos: o realizado em competência é pago OU confirmado");
+Afirmar(Binds(lancRealizado) == Binds(lanc), "Lancamentos: o realizado tem os MESMOS binds");
 Afirmar(Vezes(lancAberto, "nf.codfilial IN ({2}) AND 1 = 0") == 1, "Lancamentos: o ramo de venda de ativo vazio");
 Afirmar(Binds(lancAberto) == Binds(lanc), "Lancamentos: os MESMOS binds, na mesma ordem");
 

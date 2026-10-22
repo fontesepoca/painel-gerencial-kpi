@@ -1262,7 +1262,7 @@ function ColunasCabecalho({
         <>
           <Th
             className={cn("col-interna", faixa)}
-            title="Títulos lançados no mês e ainda não pagos"
+            title="Títulos do mês ainda não pagos e não confirmados (TIPOLANC diferente de C)"
           >
             {nomes.provisionado}
           </Th>
