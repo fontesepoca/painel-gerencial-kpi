@@ -61,7 +61,14 @@ public sealed class DreGerencialService
     {
         var filiais = await _repositorio.ObterFiliaisAsync(cancellationToken);
 
+        // EM ORDEM CRESCENTE DO NÚMERO DA FILIAL (22/10/2026, pedido do Gabriel): 7, 12, 25…
+        // A consulta ordena por `ORDEM_PROCESSA`, um campo de cadastro que deixava a lista fora
+        // de ordem para quem procura a filial pelo número. A ordem é decidida aqui, e não no
+        // `ORDER BY`, para o SQL continuar o de referência (dc86). O código é texto no banco:
+        // compara como NÚMERO — "12" depois de "7" —, e um código não numérico vai para o fim.
         var dtos = filiais
+            .OrderBy(f => int.TryParse(f.CodFilial, out var numero) ? numero : int.MaxValue)
+            .ThenBy(f => f.CodFilial, StringComparer.Ordinal)
             .Select(f => new FilialDto(
                 f.CodFilial, f.Label, f.Empresa, f.EmpresaCodigo, f.Unidade, f.Uf, f.Ordem))
             .ToList();
