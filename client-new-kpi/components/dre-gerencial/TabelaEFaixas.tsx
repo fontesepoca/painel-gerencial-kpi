@@ -57,6 +57,13 @@ export function TabelaEFaixas({
               // O aviso de totais reordenados sai uma vez, no começo do relatório.
               avisoNoPapel={k === 0}
             />
+            {/* O FIM DA FAIXA (23/10/2026, pedido do Gabriel): uma faixa pode ocupar duas
+                folhas, e sem marca nenhuma a página seguinte parecia continuar o mesmo
+                trecho. A linha tracejada diz onde o período acaba. */}
+            <p className="fim-da-faixa">
+              Fim de {periodos[faixa.inicio]?.rotulo}
+              {faixa.fim - faixa.inicio > 1 && ` a ${periodos[faixa.fim - 1]?.rotulo}`}
+            </p>
           </div>
         ))}
 
@@ -67,6 +74,7 @@ export function TabelaEFaixas({
               <span className="parte-da-faixa"> · parte {partes} de {partes}</span>
             </p>
             <TabelaDre {...propsDaTabela} soPapel soTotal avisoNoPapel={false} />
+            <p className="fim-da-faixa">Fim do relatório</p>
           </div>
         )}
       </div>

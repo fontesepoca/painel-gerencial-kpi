@@ -1682,6 +1682,28 @@ tr:has(.valor-clicavel:focus-visible) .tem-detalhe .valor-clicavel {
   color: var(--text-muted);
 }
 
+/* O fim de cada faixa: linha tracejada com o trecho, centralizado sobre ela. A faixa pode
+   ocupar duas folhas, e é esta linha que diz onde o período acaba. */
+.fim-da-faixa {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0.5rem 0 0;
+  padding: 0 1rem;
+  font-size: var(--fs-rotulo);
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.fim-da-faixa::before,
+.fim-da-faixa::after {
+  content: "";
+  flex: 1;
+  border-top: 2px dashed var(--text-muted);
+}
+
 @media print {
   .faixa-de-impressao + .faixa-de-impressao {
     break-before: page;
@@ -1690,6 +1712,11 @@ tr:has(.valor-clicavel:focus-visible) .tem-detalhe .valor-clicavel {
   /* O título não fica sozinho no pé de uma página, separado da própria tabela. */
   .titulo-da-faixa {
     break-after: avoid;
+  }
+
+  /* Nem a marca de fim sozinha no topo da folha seguinte, longe da última linha. */
+  .fim-da-faixa {
+    break-before: avoid;
   }
 }
 
