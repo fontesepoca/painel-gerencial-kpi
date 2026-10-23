@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AppShell } from "@/components/layout/AppShell";
 import { FiltrosDre } from "@/components/dre-gerencial/FiltrosDre";
-import { TabelaDre } from "@/components/dre-gerencial/TabelaDre";
+import { TabelaEFaixas } from "@/components/dre-gerencial/TabelaEFaixas";
 import { FiltroDeLinhas } from "@/components/dre-gerencial/FiltroDeLinhas";
 import { FolhaDaImpressao } from "@/components/dre-gerencial/impressao";
 import { MenuExportar } from "@/components/dre-gerencial/MenuExportar";
@@ -496,54 +496,57 @@ export default function DreGerencialPage() {
                 </div>
               )}
 
-              <TabelaDre
-                // De `dados`, e não de `filtro`: a leitura da tela acompanha o que foi
-                // apurado, não o que o formulário mostra agora.
-                comFornecedor={dados.fornecedores.length > 0}
-                periodos={dados.periodos}
-                linhas={dados.linhas}
-                mostrarZeradas={mostrarZeradas}
-                mostrarAv={mostrarAv}
-                mostrarAh={mostrarAh}
-                mostrarProvisionado={mostrarProvisionado && temProvisionado}
-                mostrarTotal={!semTotal}
-                soTotal={soTotal && podeSoTotal}
-                filtroDeLinhas={filtroDeLinhas}
-                onLimparFiltro={() => setFiltroDeLinhas("")}
-                // Deliberadamente `dados`, e não `filtro`: o detalhamento tem que usar os
-                // parâmetros que produziram os números na tela. Mexer no formulário depois
-                // de apurar e só então clicar duplo devolveria outro recorte, e o total não
-                // fecharia com a célula clicada.
-                filtro={{
-                  filiais: dados.filiais,
-                  dataInicio: dados.dataInicio,
-                  dataFim: dados.dataFim,
-                  regime: dados.regime,
-                  analise: dados.analise,
-                  // OS FORNECEDORES DA APURAÇÃO, desde 02/10/2026 — antes isto ia vazio, e o
-                  // duplo clique abria os lançamentos de todo mundo numa tela cujo propósito é
-                  // explicar a célula clicada.
-                  //
-                  // Os códigos saem de `dados`, que é a apuração que está na tela; o OBJETO
-                  // vem do formulário quando ainda está lá, só para a tela ter o nome à mão. O
-                  // que viaja para a API é o código, e só ele — ver `paraApi`.
-                  fornecedores: dados.fornecedores.map(
-                    (cod) =>
-                      filtro.fornecedores.find((f) => f.codFornec === cod) ?? {
-                        codFornec: cod,
-                        fornecedor: "",
-                        cgc: null,
-                        codFornecPrinc: null,
-                      },
-                  ),
-                  // O detalhamento é sempre de UMA coluna, e a coluna já traz o próprio
-                  // recorte em datas. Mandar o modo junto faria o servidor reabrir a
-                  // consulta em várias colunas de novo, dentro de um detalhe.
-                  modo: "meses",
-                  anos: [],
+              <TabelaEFaixas
+                propsDaTabela={{
+                  // De `dados`, e não de `filtro`: a leitura da tela acompanha o que foi
+                  // apurado, não o que o formulário mostra agora.
+                  comFornecedor: dados.fornecedores.length > 0,
+                  periodos: dados.periodos,
+                  linhas: dados.linhas,
+                  mostrarZeradas,
+                  mostrarAv,
+                  mostrarAh,
+                  mostrarProvisionado: mostrarProvisionado && temProvisionado,
+                  mostrarTotal: !semTotal,
+                  soTotal: soTotal && podeSoTotal,
+                  filtroDeLinhas,
+                  onLimparFiltro: () => setFiltroDeLinhas(""),
+                  // Deliberadamente `dados`, e não `filtro`: o detalhamento tem que usar os
+                  // parâmetros que produziram os números na tela. Mexer no formulário depois
+                  // de apurar e só então clicar duplo devolveria outro recorte, e o total não
+                  // fecharia com a célula clicada.
+                  filtro: {
+                    filiais: dados.filiais,
+                    dataInicio: dados.dataInicio,
+                    dataFim: dados.dataFim,
+                    regime: dados.regime,
+                    analise: dados.analise,
+                    // OS FORNECEDORES DA APURAÇÃO, desde 02/10/2026 — antes isto ia vazio, e o
+                    // duplo clique abria os lançamentos de todo mundo numa tela cujo propósito
+                    // é explicar a célula clicada.
+                    //
+                    // Os códigos saem de `dados`, que é a apuração que está na tela; o OBJETO
+                    // vem do formulário quando ainda está lá, só para a tela ter o nome à mão.
+                    // O que viaja para a API é o código, e só ele — ver `paraApi`.
+                    fornecedores: dados.fornecedores.map(
+                      (cod) =>
+                        filtro.fornecedores.find((f) => f.codFornec === cod) ?? {
+                          codFornec: cod,
+                          fornecedor: "",
+                          cgc: null,
+                          codFornecPrinc: null,
+                        },
+                    ),
+                    // O detalhamento é sempre de UMA coluna, e a coluna já traz o próprio
+                    // recorte em datas. Mandar o modo junto faria o servidor reabrir a
+                    // consulta em várias colunas de novo, dentro de um detalhe.
+                    modo: "meses",
+                    anos: [],
+                  },
+                  modo: dados.modo,
+                  filiaisApuradas: detalheDasFiliais,
                 }}
-                modo={dados.modo}
-                filiaisApuradas={detalheDasFiliais}
+                variacaoNoFim={variacaoNoFim}
               />
             </section>
           </>

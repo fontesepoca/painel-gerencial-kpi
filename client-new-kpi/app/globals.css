@@ -1660,6 +1660,39 @@ tr:has(.valor-clicavel:focus-visible) .tem-detalhe .valor-clicavel {
   }
 }
 
+/* ── A IMPRESSÃO EM FAIXAS (23/10/2026) ──────────────────────────────────────
+   Com mais de três meses o papel sai em faixas de três meses, uma tabela por faixa, e o
+   Total numa faixa própria no fim — ver `TabelaEFaixas` em app/dre-gerencial/page.tsx. Cada
+   faixa começa numa página nova, com um título que diz o trecho do calendário: sem ele, quem
+   pega a terceira folha não sabe de que meses ela é. O cabeçalho da tabela se repete em cada
+   página da faixa, como em qualquer tabela no papel. */
+.titulo-da-faixa {
+  padding: 0.5rem 1rem 0.25rem;
+  font-size: var(--fs-apoio);
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-primary);
+}
+
+.titulo-da-faixa .parte-da-faixa {
+  font-weight: 400;
+  letter-spacing: normal;
+  text-transform: none;
+  color: var(--text-muted);
+}
+
+@media print {
+  .faixa-de-impressao + .faixa-de-impressao {
+    break-before: page;
+  }
+
+  /* O título não fica sozinho no pé de uma página, separado da própria tabela. */
+  .titulo-da-faixa {
+    break-after: avoid;
+  }
+}
+
 /* ── FAIXA DE COR POR COLUNA ─────────────────────────────────────────────────
 
    Com vários meses lado a lado, a tabela vira um campo de números sem referência
@@ -1792,10 +1825,15 @@ html[data-tema="claro"] .tabela-rolagem tbody td.faixa-mes-4 { background-color:
    pouco mais forte, porque a impressora clareia o que a tela mostra. O título leva o dobro do
    corpo, como na tela. `print-color-adjust: exact` já vem herdado da `.tabela-rolagem`. */
 @media print {
-  .tabela-rolagem thead th.faixa-mes-1 { background-image: linear-gradient(rgb(230 0 76 / 0.16), rgb(230 0 76 / 0.16)) !important; }
-  .tabela-rolagem thead th.faixa-mes-2 { background-image: linear-gradient(rgb(0 230 96 / 0.16), rgb(0 230 96 / 0.16)) !important; }
-  .tabela-rolagem thead th.faixa-mes-3 { background-image: linear-gradient(rgb(0 77 230 / 0.16), rgb(0 77 230 / 0.16)) !important; }
-  .tabela-rolagem thead th.faixa-mes-4 { background-image: linear-gradient(rgb(230 172 0 / 0.16), rgb(230 172 0 / 0.16)) !important; }
+  /* COR SÓLIDA no cabeçalho do papel (23/10/2026), e não o gradiente da tela: com o `thead`
+     repetido a cada página, o Chrome imprimia o gradiente só em algumas células — no PDF de
+     junho a julho, só o "Vl. Realizado" de julho saía rosa. No papel o cabeçalho não é fixo,
+     então não precisa do truque do gradiente sobre o fundo opaco. As cores são as mesmas
+     16% de antes, já compostas sobre o branco. */
+  .tabela-rolagem thead th.faixa-mes-1 { background-image: none !important; background-color: #FBD6E2 !important; }
+  .tabela-rolagem thead th.faixa-mes-2 { background-image: none !important; background-color: #D6FBE6 !important; }
+  .tabela-rolagem thead th.faixa-mes-3 { background-image: none !important; background-color: #D6E3FB !important; }
+  .tabela-rolagem thead th.faixa-mes-4 { background-image: none !important; background-color: #FBF2D6 !important; }
   .tabela-rolagem tbody td.faixa-mes-1 { background-color: rgb(230 0 76 / 0.08) !important; }
   .tabela-rolagem tbody td.faixa-mes-2 { background-color: rgb(0 230 96 / 0.08) !important; }
   .tabela-rolagem tbody td.faixa-mes-3 { background-color: rgb(0 77 230 / 0.08) !important; }

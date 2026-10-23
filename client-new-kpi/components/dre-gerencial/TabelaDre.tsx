@@ -100,6 +100,9 @@ export function TabelaDre({
   mostrarProvisionado = false,
   mostrarTotal = true,
   soTotal = false,
+  faixa,
+  soPapel = false,
+  avisoNoPapel = true,
   filtroDeLinhas,
   onLimparFiltro,
   filtro,
@@ -129,6 +132,20 @@ export function TabelaDre({
    * meses e quando o bloco é um total — ver `podeSoTotal` lá.
    */
   soTotal?: boolean;
+  /**
+   * Só os meses `[inicio, fim)` — uma FAIXA da impressão dividida (23/10/2026). Com mais de três
+   * meses o papel sai em faixas de três, uma tabela por faixa; ver `ImpressaoEmFaixas` na
+   * página. Ausente: todos os meses.
+   */
+  faixa?: { inicio: number; fim: number };
+  /**
+   * A tabela existe só para o papel: sem barra de reordenar, sem modais, sem menu, e as linhas
+   * sem `data-chave` — o Excel lê a ordem do DOM por esse atributo, e linhas repetidas das
+   * faixas entrariam em dobro no arquivo.
+   */
+  soPapel?: boolean;
+  /** O aviso de totais reordenados no papel. Nas faixas, só a primeira o leva. */
+  avisoNoPapel?: boolean;
   /**
    * A apuração foi filtrada por fornecedor.
    *
@@ -825,6 +842,9 @@ export function TabelaDre({
   // O recorte das colunas (15/10/2026): os meses somem com "Só o Total"; o bloco do fim, com
   // "Sem a coluna Total". "Só o Total" vence: sem meses e sem total não sobraria tabela.
   const mostrarMeses = !(multiMes && soTotal);
+  // A faixa da impressão: só os meses dela. O índice é o da apuração inteira, para a cor de
+  // cada mês e a divisão de blocos serem as mesmas da tela.
+  const naFaixa = (i: number) => !faixa || (i >= faixa.inicio && i < faixa.fim);
   const blocoNoFim = multiMes && (soTotal || mostrarTotal);
 
   /**
@@ -870,6 +890,8 @@ export function TabelaDre({
 
   return (
     <>
+      {!soPapel && (
+      <>
       {/* `barra-reordenar` sai em dispositivo de toque: ela explica um gesto de mouse e
           um atalho de teclado, e o celular não tem nenhum dos dois. */}
       <div className="barra-reordenar nao-imprime flex flex-wrap items-center justify-between gap-x-6 gap-y-2 border-b border-[var(--border)] px-4 py-2">
@@ -944,6 +966,9 @@ export function TabelaDre({
         </div>
       </div>
 
+      </>
+      )}
+
       {/* A MARCA QUE VAI PARA O PAPEL.
 
           Na tela o aviso vive na barra acima, que é `nao-imprime` — ela fala de um gesto de
@@ -957,7 +982,7 @@ export function TabelaDre({
 
           Só existe quando algum valor de fato mudou: reordenar dentro do mesmo bloco não
           personaliza total nenhum, e acender o aviso ali o gastaria à toa. */}
-      {(totaisPersonalizados || deslocadas.size > 0) && (
+      {avisoNoPapel && (totaisPersonalizados || deslocadas.size > 0) && (
         <p className="so-no-papel border-b border-[var(--warning)] bg-[var(--warning-glow)] px-4 py-2 text-[length:var(--fs-apoio)] text-[var(--text-primary)]">
           <strong className="font-semibold">Totais reordenados.</strong> Estes números não são
           os da apuração — eles seguem a ordem em que a tabela foi lida.
@@ -991,7 +1016,7 @@ export function TabelaDre({
             {multiMes && (
               <tr className="border-b border-[var(--border)]">
                 <th className="celula-descricao" />
-                {mostrarMeses && periodos.map((p, i) => (
+                {mostrarMeses && periodos.map((p, i) => naFaixa(i) && (
                   <th
                     key={p.mesAno}
                     colSpan={colunasPorMes(p)}
@@ -1032,7 +1057,7 @@ export function TabelaDre({
                   que a tela está sinalizando esconde o que ela quer mostrar. A tabela já
                   rola na horizontal, então a folga aqui não custa nada. */}
               <Th className="celula-descricao min-w-[32rem]" aEsquerda>Descrição</Th>
-              {mostrarMeses && periodos.map((p, i) => (
+              {mostrarMeses && periodos.map((p, i) => naFaixa(i) && (
                 <ColunasCabecalho
                   key={p.mesAno}
                   faixa={faixaDoMes(i)}
@@ -1073,6 +1098,8 @@ export function TabelaDre({
                   maiorAv={maiorAv}
                   multiMes={multiMes}
                   mostrarMeses={mostrarMeses}
+                  naFaixa={naFaixa}
+                  soPapel={soPapel}
                   blocoNoFim={blocoNoFim}
                   variacaoNoFim={variacaoNoFim}
                   periodos={periodos}
@@ -1121,6 +1148,8 @@ export function TabelaDre({
         </table>
       </div>
 
+      {!soPapel && (
+      <>
       <p role="status" aria-live="polite" className="sr-only">
         {anuncio}
       </p>
@@ -1228,6 +1257,8 @@ export function TabelaDre({
         voltarPara={nivelAnterior?.rotulo ?? null}
         onVoltar={nivelAnterior ? voltarUmNivel : undefined}
       />
+      </>
+      )}
     </>
   );
 }
@@ -1439,6 +1470,8 @@ function Linha({
   maiorAv,
   multiMes,
   mostrarMeses,
+  naFaixa,
+  soPapel,
   blocoNoFim,
   mostrarAv,
   mostrarAh,
@@ -1469,6 +1502,10 @@ function Linha({
   multiMes: boolean;
   /** Os meses aparecem — some com "Só o Total". */
   mostrarMeses: boolean;
+  /** O mês de índice `i` está na faixa desta tabela — ver `TabelaDre.faixa`. */
+  naFaixa: (i: number) => boolean;
+  /** Tabela só do papel: a linha sai sem `data-chave`. */
+  soPapel: boolean;
   /** O bloco do fim aparece — some com "Sem a coluna Total". */
   blocoNoFim: boolean;
   /** As colunas de analise que a barra de controles deixou ligadas. */
@@ -1525,7 +1562,7 @@ function Linha({
        * O DOM já é a fonte que a impressão usa — ela imprime o que está renderizado —, e
        * assim o Excel e o papel não têm como discordar.
        */
-      data-chave={linha.chaveOrdem}
+      data-chave={soPapel ? undefined : linha.chaveOrdem}
       onDragOver={(e) => {
         e.preventDefault();
         e.dataTransfer.dropEffect = "move";
@@ -1645,7 +1682,7 @@ function Linha({
         </div>
       </td>
 
-      {mostrarMeses && linha.valores.map((v, i) => (
+      {mostrarMeses && linha.valores.map((v, i) => naFaixa(i) && (
         <BlocoMes
           key={v.mesAno}
           faixa={faixaDoMes(i)}

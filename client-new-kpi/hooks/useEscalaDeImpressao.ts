@@ -48,7 +48,19 @@ export function useEscalaDeImpressao(
     const antes = () => {
       const el = alvo.current;
       if (!el) return;
-      const tabela = el.querySelector("table");
+      // Com a impressão em FAIXAS (mais de três meses, 23/10/2026), quem vai ao papel são as
+      // faixas, e não a tabela da tela — que no papel some. A fonte é uma só para todas, e é
+      // medida na faixa MAIS LARGA: as faixas não têm o mesmo número de colunas (o
+      // Provisionado só entra nos meses com título em aberto, quase sempre os últimos), e
+      // medir a primeira deixaria uma faixa de depois estourar a folha. A mais larga é a de
+      // mais colunas no cabeçalho.
+      const faixas = [...el.querySelectorAll<HTMLTableElement>(".faixa-de-impressao table")];
+      const colunas = (t: HTMLTableElement) => t.querySelectorAll("thead tr:last-child th").length;
+      const tabela =
+        faixas.reduce<HTMLTableElement | null>(
+          (maior, t) => (maior === null || colunas(t) > colunas(maior) ? t : maior),
+          null,
+        ) ?? el.querySelector("table");
       if (!tabela) return;
 
       // Fonte base para medir, e a tabela solta para dar a largura natural.
