@@ -15,6 +15,13 @@ namespace Epoca.Kpi.Api.Application.Features.Autenticacao.Dtos;
 public sealed record LoginRequest(string Login, string Senha, string? Base = null);
 
 /// <summary>
+/// A sessão de uma OUTRA base, aberta no mesmo login — a troca de base sem novo login
+/// (26/10/2026). Só existe quando, nessa base, a senha confere, o cadastro está ativo e há ao
+/// menos uma rotina. <b>Nunca chega ao navegador</b>, como o <see cref="LoginResponse"/>.
+/// </summary>
+public sealed record SessaoDeBase(string Token, DateTimeOffset ExpiraEm, UsuarioDto Usuario);
+
+/// <summary>
 /// A sessão recém-criada.
 ///
 /// <para><b>Este objeto nunca chega ao navegador.</b> Quem o consome é o servidor Next, que
@@ -25,7 +32,13 @@ public sealed record LoginRequest(string Login, string Senha, string? Base = nul
 /// <param name="ExpiraEm">Instante da expiração, em UTC. Vai junto para o BFF não precisar
 /// abrir o token só para saber quando renovar.</param>
 /// <param name="Usuario">Quem entrou, e o que ele pode apurar.</param>
-public sealed record LoginResponse(string Token, DateTimeOffset ExpiraEm, UsuarioDto Usuario);
+/// <param name="OutrasBases">As outras bases em que o mesmo login vale, cada uma com o seu
+/// token — a matrícula, as filiais e as rotinas são DELA. Vazia quando não há.</param>
+public sealed record LoginResponse(
+    string Token,
+    DateTimeOffset ExpiraEm,
+    UsuarioDto Usuario,
+    IReadOnlyList<SessaoDeBase> OutrasBases);
 
 /// <summary>
 /// A identidade que a tela mostra e usa para montar os filtros.

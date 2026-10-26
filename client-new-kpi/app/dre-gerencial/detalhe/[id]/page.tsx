@@ -8,7 +8,8 @@ import { CorpoDoDetalhe, FiltroDeBaixas } from "@/components/dre-gerencial/Modal
 import { FolhaDaImpressao } from "@/components/dre-gerencial/impressao";
 import { MenuExportar } from "@/components/dre-gerencial/MenuExportar";
 import { useExportarDetalhe } from "@/hooks/useExportarDetalhe";
-import { recuperar, type DetalheAberto } from "@/lib/detalheAberto";
+import { daBaseDaSessao, recuperar, type DetalheAberto } from "@/lib/detalheAberto";
+import { useSessao } from "@/hooks/useSessao";
 import { folhaDoDetalhe } from "@/lib/folhaDoDetalhe";
 import { useEscalaDeImpressao } from "@/hooks/useEscalaDeImpressao";
 import { dataHoraBr, paraBr } from "@/lib/periodos";
@@ -75,6 +76,7 @@ export default function DetalhePage({ params }: { params: Promise<{ id: string }
   useEscalaDeImpressao(secao, detalhe != null);
 
   const { exportar, exportando, erro: erroExportar } = useExportarDetalhe();
+  const sessao = useSessao();
 
   useEffect(() => {
     if (!querImprimir || disparado.current || !detalhe) return;
@@ -85,8 +87,12 @@ export default function DetalhePage({ params }: { params: Promise<{ id: string }
     return () => clearTimeout(t);
   }, [querImprimir, detalhe]);
 
-  if (detalhe === undefined) return <Procurando />;
+  if (detalhe === undefined || sessao.isPending) return <Procurando />;
   if (detalhe === null) return <NaoEstaMaisAqui />;
+  // FALHA FECHADA (26/10/2026): o detalhamento guardado tem de ser da base da sessão. Com a
+  // troca de base sem novo login, o navegador pode guardar um da Época numa sessão do Minas
+  // Rural — e esta página não refaz a consulta. Ver `daBaseDaSessao`.
+  if (!daBaseDaSessao(detalhe, sessao.data?.base.id)) return <NaoEstaMaisAqui />;
 
   // Depois dos dois retornos acima porque só aqui `detalhe` existe — e sem hook nenhum
   // envolvido, calcular depois deles não muda a ordem de nada.

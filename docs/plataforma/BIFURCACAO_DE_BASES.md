@@ -78,6 +78,11 @@ roda** — não existe "a Época por padrão".
   Minas Rural."* O rótulo é público, e o engano mais provável agora é escolher a base errada.
   Os motivos mais finos (inativo, sem senha) só aparecem depois de a senha provada, como hoje.
 - **O cookie é único.** Entrar numa base substitui a sessão anterior.
+- **Troca sem novo login (26/10/2026).** Quando o mesmo usuário e a mesma senha valem em
+  outra base, o login já abre a sessão dela também, e o menu do usuário troca de base sem
+  pedir a senha. A troca existe *porque* a base é identidade: cada base tem o seu token, com a
+  sua matrícula, as suas filiais e as suas rotinas, e nada da identidade de uma base é
+  reaproveitado na outra. Ver [AUTENTICACAO.md](AUTENTICACAO.md#troca-de-base-sem-novo-login--26102026).
 
 ### 4.1 O transporte: o navegador não tem o token — correção de 07/10/2026
 

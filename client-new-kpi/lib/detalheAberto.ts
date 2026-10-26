@@ -75,6 +75,22 @@ export function guardar(detalhe: DetalheAberto): string | null {
   return id;
 }
 
+/**
+ * O detalhamento guardado é da base da sessão? Falha fechada: sem base de um lado ou do
+ * outro, não.
+ *
+ * Desde a troca de base sem novo login (26/10/2026) o navegador pode ter guardado um
+ * detalhamento da Época e estar agora numa sessão do Minas Rural — e o mesmo já valia para
+ * sair e entrar na outra base. A página não refaz a consulta, então é aqui que se impede de
+ * mostrar números de uma empresa sob a sessão de outra.
+ */
+export function daBaseDaSessao(
+  detalhe: { dados: { base?: { id: string } | null } },
+  baseDaSessao: string | undefined,
+): boolean {
+  return baseDaSessao !== undefined && detalhe.dados.base?.id === baseDaSessao;
+}
+
 /** `null` quando o detalhamento não está mais disponível — a página trata esse caso. */
 export function recuperar(id: string): DetalheAberto | null {
   const daMemoria = memoria.get(id);

@@ -415,7 +415,74 @@ carrega o claim `base`. A identidade passa a ser o par **(base, matrícula)**: a
 e a 144 do Minas Rural são pessoas diferentes. Token sem o claim, ou de uma base que saiu da
 configuração, é recusado com *"Sua sessão é anterior a esta atualização. Entre de novo."* — e o
 BFF encerra a sessão em memória, para o navegador não ficar com cookie vivo e sessão morta.
-Banco da base fora do ar é **503**, nunca "senha incorreta". Trocar de base exige novo login.
+Banco da base fora do ar é **503**, nunca "senha incorreta". Trocar para uma base em que a
+senha é outra exige novo login; com a mesma senha, ver a seção seguinte.
+
+### Troca de base sem novo login — 26/10/2026
+
+Pedido do Gabriel: quem entra numa base e tem o mesmo usuário e a mesma senha na outra troca
+de base pelo menu do usuário, sem digitar a senha de novo. Especificação em
+[2026-10-26-troca-de-base-design.md](../superpowers/specs/2026-10-26-troca-de-base-design.md).
+
+**No login.** Depois de a base escolhida aprovar a senha — nunca antes, para quem erra a senha
+não gerar tentativa na outra base —, `AutenticacaoService.ConferirOutrasBasesAsync` confere a
+MESMA senha, com a mesma consulta, em cada outra base, em paralelo, com teto de 5 s por base.
+Para cada base aprovada sai um token próprio, com a matrícula, as filiais e as rotinas DELA:
+`LoginResponse.OutrasBases`.
+
+**No BFF.** A sessão guarda um token por base e qual está ativa (`lib/servidor/sessoes.ts`).
+`lerSessao` continua devolvendo o token e o usuário da base ativa — o proxy das rotas do DRE
+não mudou —, mais a lista `trocas` (base e rotinas, **sem token**), que o `GET /api/sessao`
+entrega ao navegador. `POST /api/sessao/base` com `{ base }` troca a base ativa; não chama a
+API nem pede senha, e recusa base que não está guardada na sessão.
+
+**Na tela.** Um botão à vista no cabeçalho (`BotaoTrocaDeBase`), no desenho dos interruptores
+de tema e de leitura, com o ícone de setas opostas e "Trocar para {base}". Aparece
+conforme a rotina aberta (`lib/trocasDeBase.ts`) e, ao trocar, recarrega a página do zero na **raiz da rotina** — não na
+subrota: o detalhamento mostra o que ficou guardado no navegador, e recarregá-lo poria números
+da base anterior sob a sessão nova. Pelo mesmo motivo a página de detalhamento só exibe o que
+foi guardado na base da sessão (`daBaseDaSessao`, falha fechada).
+
+**As outras abas.** A base ativa é da sessão, não da aba. Quem troca avisa as outras abas do
+navegador por `BroadcastChannel` (`avisarTroca`/`ouvirTrocas`), e elas recarregam — sem isso, a
+outra aba continuaria dizendo "Época" e chamando a API com o token do Minas Rural.
+
+**O teto vale também para o driver síncrono.** A conferência de cada outra base roda em
+`Task.Run`: a parte síncrona da abertura de conexão (DNS, TCP para host que descarta pacotes)
+prendia o login antes de o teto começar a contar — 10 s num teto de 5, no cenário F2 da `tb1`.
+
+| # | Regra |
+|---|---|
+| R1 | Uma outra base entra na lista se, **nela**, a senha confere, o cadastro está ativo e há ao menos uma rotina. |
+| R2 | A base escolhida segue as regras do login de sempre, inclusive entrar sem rotina (18/09/2026). |
+| R3 | Falha de outra base — fora do ar, lenta, erro — tira ela da lista e nunca derruba o login. O log leva só o id da base e o tipo do erro. |
+| R4 | Com uma rotina aberta, só aparece a base que tem aquela rotina; na tela inicial, toda base da lista. |
+| R5 | A troca só usa token já guardado na sessão; base forjada no corpo é recusada (400). |
+| R6 | Os tokens nascem juntos no login; a sessão vale até o primeiro vencer, e trocar não a estende. |
+| R7 | "Sair" apaga a sessão com todas as bases. |
+| R8 | A senha nunca é guardada nem logada; o token nunca sai do servidor. |
+| R9 | Mudança de permissão no Winthor só aparece no próximo login, como antes. |
+
+O log de login diz em quais outras bases o login valeu: `Também vale em: MinasRural` (ou
+`nenhuma`).
+
+Provas, todas sem banco, rodadas da raiz:
+
+```bash
+dotnet run docs/plataforma/validacao/tb1_outras_bases_no_login.cs -p:BaseOutputPath="$TEMP/tb1/"
+```
+
+```bash
+node --experimental-strip-types --import ./docs/rotinas/9815-dre-gerencial/validacao/_alias.mjs docs/plataforma/validacao/tb2_troca_no_bff.mjs
+```
+
+```bash
+node --experimental-strip-types --import ./docs/rotinas/9815-dre-gerencial/validacao/_alias.mjs docs/plataforma/validacao/tb3_trocas_na_tela.mjs
+```
+
+A `tb1` cobre R1–R3 com um repositório falso (senha diferente, inativo, sem rotina, base fora
+do ar, base pendurada que ignora o cancelamento, base que trava antes de devolver a Task, senha
+errada na escolhida); a `tb2`, R5–R7 sobre o `sessoes.ts` real; a `tb3`, R4.
 
 ### O que ainda não está ligado
 

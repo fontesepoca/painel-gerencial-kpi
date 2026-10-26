@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import type { TrocaDeBase } from "@/lib/trocasDeBase";
 
 /**
  * Quem está logado, do ponto de vista do navegador.
@@ -18,6 +19,11 @@ export interface UsuarioLogado {
   rotinas: string[];
   /** A base da sessão. Vai em toda chave de cache e de armazenamento que depende da pessoa. */
   base: { id: string; rotulo: string };
+  /**
+   * As outras bases para as quais dá para trocar sem novo login (26/10/2026). Opcional: um
+   * servidor anterior a isso não manda o campo, e aí não há troca.
+   */
+  trocas?: TrocaDeBase[];
 }
 
 export function useSessao() {

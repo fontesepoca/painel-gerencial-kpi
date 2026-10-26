@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { NOME_DO_COOKIE, lerSessaoPublica } from "@/lib/servidor/sessoes";
 import { MenuDoUsuario } from "@/components/layout/MenuDoUsuario";
+import { BotaoTrocaDeBase } from "@/components/layout/BotaoTrocaDeBase";
 import { ControlesDeExibicao } from "@/components/layout/ControlesDeExibicao";
 import { ROTINA_DRE, podeAbrir } from "@/lib/rotinas";
 
@@ -45,6 +46,7 @@ export default async function Home() {
           {/* Separador: o menu do usuário é de outra natureza que os interruptores — um
               controla a sessão, os outros a aparência. */}
           <span aria-hidden className="mx-1 h-6 w-px bg-[var(--border-strong)]" />
+          <BotaoTrocaDeBase />
           <MenuDoUsuario />
         </div>
       </header>

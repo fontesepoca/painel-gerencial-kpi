@@ -130,17 +130,125 @@ public sealed class AutenticacaoService
 
         var (token, expiraEm) = _tokens.Emitir(usuario);
 
+        // AS OUTRAS BASES, só depois de a escolhida aprovar a senha: quem errou a senha não
+        // gera tentativa nenhuma na outra base. Ver `ConferirOutrasBasesAsync`.
+        var outras = await ConferirOutrasBasesAsync(baseAlvo, login, pedido.Senha, cancellationToken);
+
         // Matrícula, não nome de guerra, e nunca a senha: o log serve para investigar acesso,
         // e a matrícula é o identificador estável. Ver a regra de nunca logar dado sensível.
         _logger.LogInformation(
             "Login concluído para a matrícula {Matricula} na base {Base}, com {Filiais} " +
-            "filiais e {Rotinas} rotinas.",
+            "filiais e {Rotinas} rotinas. Também vale em: {Outras}.",
             credenciais.Matricula,
             baseAlvo.Id,
             filiais.Count,
-            rotinas.Count);
+            rotinas.Count,
+            outras.Count == 0 ? "nenhuma" : string.Join(", ", outras.Select(o => o.Usuario.Base.Id)));
 
-        return Result<LoginResponse>.Ok(new LoginResponse(token, expiraEm, usuario));
+        return Result<LoginResponse>.Ok(new LoginResponse(token, expiraEm, usuario, outras));
+    }
+
+    /// <summary>
+    /// O teto de cada outra base. Uma base lenta não pode segurar o login da que respondeu.
+    /// </summary>
+    private static readonly TimeSpan TetoPorBase = TimeSpan.FromSeconds(5);
+
+    /// <summary>
+    /// AS OUTRAS BASES EM QUE O MESMO LOGIN VALE — a troca de base sem novo login, pedida pelo
+    /// Gabriel em 26/10/2026.
+    ///
+    /// <para>Confere a MESMA senha, com a mesma consulta do login, em cada base que não é a
+    /// escolhida, todas em paralelo. Entra na lista a base em que a senha confere, o cadastro
+    /// está ativo e há ao menos uma rotina (R1). Para cada uma sai um token próprio: a
+    /// matrícula 144 da Época e a 144 do Minas Rural podem ser pessoas diferentes, e cada token
+    /// leva a identidade da sua base.</para>
+    ///
+    /// <para><b>Nada aqui derruba o login</b> (R3). Base fora do ar, lenta ou com erro fica
+    /// fora da lista, e a pessoa entra na que escolheu como sempre entrou.</para>
+    /// </summary>
+    private async Task<IReadOnlyList<SessaoDeBase>> ConferirOutrasBasesAsync(
+        BaseConfigurada escolhida,
+        string login,
+        string senha,
+        CancellationToken cancellationToken)
+    {
+        var conferencias = _bases.Disponiveis
+            .Where(b => b.Id != escolhida.Id)
+            .Select(b => ConferirOutraBaseAsync(b, login, senha, cancellationToken));
+
+        var resultados = await Task.WhenAll(conferencias);
+        return resultados.OfType<SessaoDeBase>().ToList();
+    }
+
+    private async Task<SessaoDeBase?> ConferirOutraBaseAsync(
+        BaseConfigurada baseAlvo,
+        string login,
+        string senha,
+        CancellationToken cancellationToken)
+    {
+        using var teto = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        teto.CancelAfter(TetoPorBase);
+
+        try
+        {
+            // `WaitAsync`, além do token: o driver pode não atender o cancelamento no meio de
+            // uma conexão que não responde, e o teto tem de valer mesmo assim.
+            //
+            // `Task.Run` (revisão final, 26/10/2026): sem ele, a parte SÍNCRONA da abertura de
+            // conexão — DNS, TCP para um host que descarta pacotes — rodava na thread do login
+            // antes de existir a Task a esperar, e o teto só começava a valer depois dela. O
+            // tb1, cenário F2, prova: eram 10 s presos num teto de 5.
+            return await Task.Run(
+                    () => AbrirSessaoDeBaseAsync(baseAlvo, login, senha, teto.Token),
+                    teto.Token)
+                .WaitAsync(teto.Token);
+        }
+        catch (Exception erro) when (!cancellationToken.IsCancellationRequested)
+        {
+            // Só a base e o TIPO do erro: a mensagem de uma falha de conexão pode trazer host
+            // e usuário do banco, e nada disso vai ao log (AGENTS.md).
+            _logger.LogWarning(
+                "A base {Base} ficou fora da troca sem novo login: {Erro}.",
+                baseAlvo.Id,
+                erro.GetType().Name);
+            return null;
+        }
+    }
+
+    private async Task<SessaoDeBase?> AbrirSessaoDeBaseAsync(
+        BaseConfigurada baseAlvo,
+        string login,
+        string senha,
+        CancellationToken cancellationToken)
+    {
+        var credenciais = await _repositorio.VerificarCredenciaisAsync(
+            baseAlvo, login, senha, cancellationToken);
+
+        if (credenciais is null
+            || !credenciais.SenhaCorreta
+            || !credenciais.PossuiSenha
+            || !credenciais.EstaAtivo)
+        {
+            return null;
+        }
+
+        var filiais = await _repositorio.ObterFiliaisDoUsuarioAsync(
+            baseAlvo, credenciais.Matricula, cancellationToken);
+        var rotinas = RotinasDe(credenciais, filiais);
+
+        // R1: sem rotina, não há para onde trocar — a pessoa cairia numa tela vazia.
+        if (rotinas.Count == 0) return null;
+
+        var usuario = new UsuarioDto(
+            credenciais.Matricula,
+            credenciais.Nome.Trim(),
+            credenciais.NomeGuerra.Trim(),
+            filiais,
+            rotinas,
+            BaseDto.De(baseAlvo));
+
+        var (token, expiraEm) = _tokens.Emitir(usuario);
+        return new SessaoDeBase(token, expiraEm, usuario);
     }
 
     /// <summary>

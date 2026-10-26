@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { MenuDoUsuario } from "./MenuDoUsuario";
+import { BotaoTrocaDeBase } from "./BotaoTrocaDeBase";
 import { ControlesDeExibicao } from "./ControlesDeExibicao";
 
 /**
@@ -86,6 +87,9 @@ export function AppShell({
                 controla a sessão, os outros a aparência. Sem a divisão, os três viram uma
                 fileira de botões sem hierarquia. */}
             <span aria-hidden className="mx-1 h-6 w-px bg-[var(--border-strong)]" />
+            {/* Do lado da sessão, e não dos interruptores: trocar de base muda de quem são os
+                números, não a aparência deles. */}
+            <BotaoTrocaDeBase />
             <MenuDoUsuario />
           </div>
         </header>

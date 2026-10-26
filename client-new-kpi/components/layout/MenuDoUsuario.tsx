@@ -4,6 +4,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { useSessao } from "@/hooks/useSessao";
 import { iniciais } from "@/lib/iniciais";
 import { cn } from "@/lib/cn";
+import { destinoDaTroca, ouvirTrocas } from "@/lib/trocasDeBase";
 
 /**
  * Quem está logado, no canto superior direito — e por onde se sai.
@@ -52,6 +53,15 @@ export function MenuDoUsuario() {
       document.removeEventListener("keydown", aoTeclar);
     };
   }, [aberto]);
+
+  // A TROCA FEITA EM OUTRA ABA vale para esta também — a base ativa é da sessão. Recarrega
+  // como se a troca fosse aqui, para esta aba não continuar dizendo a base antiga enquanto
+  // chama a API com o token da nova. Ver `ouvirTrocas`. Mora no menu, e não no
+  // `BotaoTrocaDeBase`, porque o menu está em toda tela e o botão só quando há troca AQUI.
+  useEffect(
+    () => ouvirTrocas(() => window.location.replace(destinoDaTroca(window.location.pathname))),
+    [],
+  );
 
   async function sair() {
     if (saindo) return;

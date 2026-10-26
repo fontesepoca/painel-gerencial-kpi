@@ -5,6 +5,7 @@ import {
   criarSessao,
   encerrarSessao,
   lerSessaoPublica,
+  type SessaoDeBase,
 } from "@/lib/servidor/sessoes";
 import { esquecerTentativas, registrarTentativa } from "@/lib/servidor/limiteDeTentativas";
 import { enderecoDaApi } from "@/lib/servidor/urlDaApi";
@@ -22,21 +23,46 @@ import { enderecoDaApi } from "@/lib/servidor/urlDaApi";
 /** Oito horas, o mesmo fôlego do token — o cookie não deve sobreviver ao que ele aponta. */
 const VALIDADE_DO_COOKIE_SEGUNDOS = 8 * 60 * 60;
 
+interface UsuarioDaApi {
+  matricula: number;
+  nome: string;
+  nomeGuerra: string;
+  filiais: string[];
+  rotinas: string[];
+  base: { id: string; rotulo: string };
+}
+
 interface RespostaDaApi {
   sucesso: boolean;
   mensagem?: string | null;
   dados?: {
     token: string;
     expiraEm: string;
-    usuario: {
-      matricula: number;
-      nome: string;
-      nomeGuerra: string;
-      filiais: string[];
-      rotinas: string[];
-      base: { id: string; rotulo: string };
-    };
+    usuario: UsuarioDaApi;
+    /** As outras bases em que o mesmo login vale (26/10/2026). Ausente numa API anterior. */
+    outrasBases?: { token: string; expiraEm: string; usuario: UsuarioDaApi }[];
   } | null;
+}
+
+/**
+ * O usuário da API no formato da sessão.
+ *
+ * `rotinas ?? []` porque uma API mais antiga que este campo devolveria `undefined`, e aí
+ * ninguém abriria nada — o que é o padrão seguro, mas quebrado de um jeito difícil de
+ * diagnosticar. Com a lista vazia explícita, a tela inicial diz o que está acontecendo.
+ */
+function paraSessao(token: string, usuario: UsuarioDaApi): SessaoDeBase {
+  return {
+    token,
+    usuario: {
+      matricula: usuario.matricula,
+      nome: usuario.nome,
+      nomeGuerra: usuario.nomeGuerra,
+      filiais: usuario.filiais,
+      rotinas: usuario.rotinas ?? [],
+      base: usuario.base,
+    },
+  };
 }
 
 /**
@@ -156,17 +182,23 @@ export async function POST(requisicao: Request) {
     );
   }
 
-  const id = criarSessao(token, new Date(expiraEm), {
-    matricula: usuario.matricula,
-    nome: usuario.nome,
-    nomeGuerra: usuario.nomeGuerra,
-    filiais: usuario.filiais,
-    // `?? []` porque uma API mais antiga que este campo devolveria `undefined`, e aí
-    // ninguém abriria nada — o que é o padrão seguro, mas quebrado de um jeito difícil de
-    // diagnosticar. Com a lista vazia explícita, a tela inicial diz o que está acontecendo.
-    rotinas: usuario.rotinas ?? [],
-    base: usuario.base,
-  });
+  // AS OUTRAS BASES (26/10/2026): a API já as filtrou — senha, cadastro ativo e ao menos uma
+  // rotina. Base sem id é de uma API com defeito; fica fora em vez de criar uma troca que o
+  // proxy recusaria.
+  const outrasBases = (conteudo.dados.outrasBases ?? []).filter((o) => o.usuario.base?.id);
+
+  // A sessão vale até o PRIMEIRO token vencer (R6): trocar para uma base de token vencido
+  // daria 401 no meio do trabalho.
+  const expira = Math.min(
+    new Date(expiraEm).getTime(),
+    ...outrasBases.map((o) => new Date(o.expiraEm).getTime()),
+  );
+
+  const id = criarSessao(
+    paraSessao(token, usuario),
+    new Date(expira),
+    outrasBases.map((o) => paraSessao(o.token, o.usuario)),
+  );
 
   esquecerTentativas(await enderecoDeOrigem(), login);
 
@@ -205,7 +237,9 @@ export async function GET() {
     return NextResponse.json({ sucesso: false, mensagem: "Sem sessão." }, { status: 401 });
   }
 
-  return NextResponse.json({ sucesso: true, dados: sessao.usuario });
+  // As trocas vão JUNTO do usuário, sem token: é o que o menu precisa para oferecer
+  // "Trocar para X" (26/10/2026).
+  return NextResponse.json({ sucesso: true, dados: { ...sessao.usuario, trocas: sessao.trocas } });
 }
 
 export async function DELETE() {

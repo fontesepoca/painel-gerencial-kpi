@@ -17,11 +17,42 @@ import { randomBytes } from "node:crypto";
  * ele é a única porta de entrada para a sessão.
  */
 
-/** O que uma sessão guarda. O `token` nunca sai deste módulo. */
+/** O token e o usuário de UMA base. O `token` nunca sai deste módulo. */
+export interface SessaoDeBase {
+  readonly token: string;
+  readonly usuario: UsuarioDaSessao;
+}
+
+/** Uma base para a qual dá para trocar sem novo login — o que a tela precisa, sem token. */
+export interface TrocaDeBase {
+  readonly base: { readonly id: string; readonly rotulo: string };
+  readonly rotinas: readonly string[];
+}
+
+/**
+ * A sessão como os outros módulos a veem: o token e o usuário são os da base ATIVA, e quem
+ * repassa à API (`app/api/[...caminho]`) não precisa saber que existem outras.
+ */
 export interface Sessao {
   readonly token: string;
   readonly expiraEm: number;
   readonly usuario: UsuarioDaSessao;
+  readonly criadaEm: number;
+  /** As OUTRAS bases guardadas — a troca sem novo login (26/10/2026). Vazia quando não há. */
+  readonly trocas: readonly TrocaDeBase[];
+}
+
+/**
+ * O que o Map guarda: um token por base e qual está ativa.
+ *
+ * TROCA DE BASE SEM NOVO LOGIN (26/10/2026, pedido do Gabriel). O login já conferiu a senha
+ * em cada base guardada aqui — ver `ConferirOutrasBasesAsync` na API —, e trocar é só passar
+ * a usar outro token. Nenhuma chamada à API, nenhuma senha guardada.
+ */
+interface Guardada {
+  readonly porBase: ReadonlyMap<string, SessaoDeBase>;
+  baseAtiva: string;
+  readonly expiraEm: number;
   readonly criadaEm: number;
 }
 
@@ -59,12 +90,16 @@ export const NOME_DO_COOKIE = "epoca_analytics_sessao";
  * no escopo do módulo seria recriado vazio, deslogando quem estiver testando a cada vez que eu
  * salvar um arquivo. Pendurar no objeto global é o padrão do Next para estado de processo, e
  * em produção não muda nada: o módulo carrega uma vez só.
+ *
+ * A chave mudou com a troca de base (26/10/2026): uma sessão no formato antigo, que o Fast
+ * Refresh manteria na memória, não tem `porBase`. Chave nova derruba as sessões de
+ * desenvolvimento uma vez, em vez de cada leitura precisar reconhecer os dois formatos.
  */
 const global = globalThis as typeof globalThis & {
-  __sessoesEpocaAnalytics?: Map<string, Sessao>;
+  __sessoesPorBaseEpocaAnalytics?: Map<string, Guardada>;
 };
 
-const sessoes = (global.__sessoesEpocaAnalytics ??= new Map<string, Sessao>());
+const sessoes = (global.__sessoesPorBaseEpocaAnalytics ??= new Map<string, Guardada>());
 
 /**
  * Cria a sessão e devolve o identificador que vai no cookie.
@@ -74,18 +109,21 @@ const sessoes = (global.__sessoesEpocaAnalytics ??= new Map<string, Sessao>());
  * sessão de alguém, e adivinhá-lo tem de ser impossível, não improvável.
  */
 export function criarSessao(
-  token: string,
+  principal: SessaoDeBase,
   expiraEm: Date,
-  usuario: UsuarioDaSessao,
+  outras: readonly SessaoDeBase[] = [],
 ): string {
   limparExpiradas();
 
   const id = randomBytes(32).toString("base64url");
 
+  const porBase = new Map<string, SessaoDeBase>();
+  for (const sessao of [principal, ...outras]) porBase.set(sessao.usuario.base.id, sessao);
+
   sessoes.set(id, {
-    token,
+    porBase,
+    baseAtiva: principal.usuario.base.id,
     expiraEm: expiraEm.getTime(),
-    usuario,
     criadaEm: Date.now(),
   });
 
@@ -101,10 +139,16 @@ export function criarSessao(
 export function lerSessao(id: string | undefined): Sessao | null {
   if (!id) return null;
 
-  const sessao = sessoes.get(id);
-  if (!sessao) return null;
+  const guardada = sessoes.get(id);
+  if (!guardada) return null;
 
-  if (sessao.expiraEm <= Date.now()) {
+  if (guardada.expiraEm <= Date.now()) {
+    sessoes.delete(id);
+    return null;
+  }
+
+  const sessao = guardada.porBase.get(guardada.baseAtiva);
+  if (!sessao) {
     sessoes.delete(id);
     return null;
   }
@@ -131,7 +175,35 @@ export function lerSessao(id: string | undefined): Sessao | null {
     return null;
   }
 
-  return sessao;
+  return {
+    token: sessao.token,
+    usuario: sessao.usuario,
+    expiraEm: guardada.expiraEm,
+    criadaEm: guardada.criadaEm,
+    trocas: [...guardada.porBase.values()]
+      .filter((s) => s.usuario.base.id !== guardada.baseAtiva)
+      .map((s) => ({ base: s.usuario.base, rotinas: s.usuario.rotinas })),
+  };
+}
+
+/**
+ * Passa a usar o token de outra base JÁ GUARDADA nesta sessão (R5).
+ *
+ * Só troca para base que está no Map: quem forjar o corpo da requisição com outra base recebe
+ * `base-desconhecida`, porque aqui não há senha para conferir — a conferência foi no login.
+ * A validade não muda (R6): trocar não é entrar de novo.
+ */
+export function trocarBase(
+  id: string | undefined,
+  base: string,
+): "trocou" | "sem-sessao" | "base-desconhecida" {
+  if (!id || !lerSessao(id)) return "sem-sessao";
+
+  const guardada = sessoes.get(id)!;
+  if (!guardada.porBase.has(base)) return "base-desconhecida";
+
+  guardada.baseAtiva = base;
+  return "trocou";
 }
 
 /** A sessão sem o token — o que pode atravessar a fronteira do servidor. */
