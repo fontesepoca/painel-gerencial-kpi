@@ -224,6 +224,97 @@ export default function DreGerencialPage() {
   // junto com os números e não anda enquanto a folha espera para ser impressa.
   const apuradoEm = dataHoraBr(dados?.apuradoEm);
 
+  // A IDENTIFICAÇÃO DA APURAÇÃO — período, regime, filiais, avisos. Vai ao cabeçalho da
+  // seção e, na impressão em faixas, ao alto de CADA parte (ver `TabelaEFaixas`): as
+  // folhas de uma parte só se encaixam ao lado das da outra se as duas começarem igual.
+  const identificacao = dados && (
+    <div>
+      <h2 className="text-[length:var(--fs-rotulo)] font-semibold tracking-[0.14em] text-[var(--text-secondary)] uppercase">
+        Visão gerencial
+      </h2>
+      <p className="mt-1 text-[length:var(--fs-apoio)] text-[var(--text-muted)]">
+        {/* O intervalo do filtro só descreve o que foi apurado no modo mensal. Por
+          ano inteiro quem manda são as colunas; no comparativo são DOIS
+          intervalos, e citar só o primeiro esconderia metade da apuração. */}
+        {baseApurada !== null && (
+          <>
+            <span className="font-medium text-[var(--text-secondary)]">
+              {baseApurada}
+            </span>{" "}
+            ·{" "}
+          </>
+        )}
+        {descreverPeriodo(dados)} ·{" "}
+        {dados.regime === "caixa" ? "Caixa" : "Competência"} ·{" "}
+        {/* O separador vai DENTRO do span: escondido, ele leva o ` · ` junto e a
+          linha não fica com dois pontos seguidos. */}
+        <span className="filiais-resumo">
+          {filiaisApuradas.resumo} ·{" "}
+        </span>
+        {descreverColunas(dados)} ·{" "}
+        {/* NA TELA O TEMPO QUE A CONSULTA LEVOU, NO PAPEL A HORA EM QUE ELA FOI
+          FEITA — duas grafias do mesmo trecho, como o `%AH` em `Variacao`, e
+          quem escolhe é o CSS: `Ctrl+P` não espera re-render.
+  
+          O tempo de consulta responde "a tela travou?", pergunta de quem está
+          sentado na frente dela. No papel ele não diz nada, e o que falta é
+          justamente o contrário: a base é viva, e dois papéis do mesmo recorte
+          impressos em horas diferentes trazem números diferentes. Sem a hora,
+          não há como saber qual folha é a mais nova — e é por isso que ela vai
+          aqui, na mesma linha do período e das filiais.
+  
+          A hora é a do SERVIDOR, que apurou, e não a do navegador que imprimiu.
+          Ver `dataHoraBr`. */}
+        <span className="so-na-tela">
+          apurado em {formatarDuracao(dados.duracaoMs)}
+        </span>
+        {apuradoEm !== null && (
+          <span className="so-no-papel">
+            apurado em {apuradoEm}
+          </span>
+        )}
+      </p>
+  
+      {/* Os nomes das filiais em linha própria, na tela cheia e no papel — ver o
+        bloco FILIAIS APURADAS em globals.css.
+  
+        **Linha própria, e não mais um item da sequência acima.** Com dez
+        filiais a lista empurrava os controles da direita para baixo e crescia
+        o cabeçalho em 62px, que na tela cheia saem da tabela. Numa linha só
+        dela, a lista cresce sem deslocar nada.
+  
+        Fica no DOM sempre, escondida por CSS, porque `Ctrl+P` não espera
+        re-render — a mesma razão do par de `%AH` em `Variacao`. */}
+      <p className="filiais-descritas mt-0.5 text-[length:var(--fs-apoio)] text-[var(--text-muted)]">
+        {detalheDasFiliais}
+      </p>
+  
+      {/* DE QUEM É ESTE DRE.
+  
+        Em linha própria e sempre visível — na tela e no papel —, porque é a
+        informação que mais muda o sentido de todos os números acima dela. Uma
+        folha impressa de um DRE filtrado circula sem contexto nenhum, e sem
+        esta linha ela se parece com o DRE da empresa inteira.
+  
+        Só aparece quando há filtro: sem ele não há nada a dizer, e a altura
+        fica com a tabela. */}
+      {fornecedoresApurados !== null && (
+        <p className="mt-0.5 text-[length:var(--fs-apoio)] font-medium text-[var(--primary)]">
+          {fornecedoresApurados}
+        </p>
+      )}
+    </div>
+  );
+  const avisosDaApuracao = dados && dados.avisos.length > 0 && (
+    <div className="cabecalho-da-apuracao border-b border-[var(--border)] px-5 py-3">
+      {dados.avisos.map((aviso) => (
+        <Aviso key={aviso} tom="atencao">
+          {aviso}
+        </Aviso>
+      ))}
+    </div>
+  );
+
   return (
     // O nome da rotina vive só na trilha do cabeçalho. Um `h1` repetindo "DRE
     // Gerencial" logo abaixo dela custava duas linhas de altura para dizer o que já
@@ -286,83 +377,8 @@ export default function DreGerencialPage() {
                 dados.periodos.length >= 4 && "folha-cheia",
               )}
             >
-              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border)] px-4 py-2.5">
-                <div>
-                  <h2 className="text-[length:var(--fs-rotulo)] font-semibold tracking-[0.14em] text-[var(--text-secondary)] uppercase">
-                    Visão gerencial
-                  </h2>
-                  <p className="mt-1 text-[length:var(--fs-apoio)] text-[var(--text-muted)]">
-                    {/* O intervalo do filtro só descreve o que foi apurado no modo mensal. Por
-                      ano inteiro quem manda são as colunas; no comparativo são DOIS
-                      intervalos, e citar só o primeiro esconderia metade da apuração. */}
-                    {baseApurada !== null && (
-                      <>
-                        <span className="font-medium text-[var(--text-secondary)]">
-                          {baseApurada}
-                        </span>{" "}
-                        ·{" "}
-                      </>
-                    )}
-                    {descreverPeriodo(dados)} ·{" "}
-                    {dados.regime === "caixa" ? "Caixa" : "Competência"} ·{" "}
-                    {/* O separador vai DENTRO do span: escondido, ele leva o ` · ` junto e a
-                      linha não fica com dois pontos seguidos. */}
-                    <span className="filiais-resumo">
-                      {filiaisApuradas.resumo} ·{" "}
-                    </span>
-                    {descreverColunas(dados)} ·{" "}
-                    {/* NA TELA O TEMPO QUE A CONSULTA LEVOU, NO PAPEL A HORA EM QUE ELA FOI
-                      FEITA — duas grafias do mesmo trecho, como o `%AH` em `Variacao`, e
-                      quem escolhe é o CSS: `Ctrl+P` não espera re-render.
-
-                      O tempo de consulta responde "a tela travou?", pergunta de quem está
-                      sentado na frente dela. No papel ele não diz nada, e o que falta é
-                      justamente o contrário: a base é viva, e dois papéis do mesmo recorte
-                      impressos em horas diferentes trazem números diferentes. Sem a hora,
-                      não há como saber qual folha é a mais nova — e é por isso que ela vai
-                      aqui, na mesma linha do período e das filiais.
-
-                      A hora é a do SERVIDOR, que apurou, e não a do navegador que imprimiu.
-                      Ver `dataHoraBr`. */}
-                    <span className="so-na-tela">
-                      apurado em {formatarDuracao(dados.duracaoMs)}
-                    </span>
-                    {apuradoEm !== null && (
-                      <span className="so-no-papel">
-                        apurado em {apuradoEm}
-                      </span>
-                    )}
-                  </p>
-
-                  {/* Os nomes das filiais em linha própria, na tela cheia e no papel — ver o
-                    bloco FILIAIS APURADAS em globals.css.
-
-                    **Linha própria, e não mais um item da sequência acima.** Com dez
-                    filiais a lista empurrava os controles da direita para baixo e crescia
-                    o cabeçalho em 62px, que na tela cheia saem da tabela. Numa linha só
-                    dela, a lista cresce sem deslocar nada.
-
-                    Fica no DOM sempre, escondida por CSS, porque `Ctrl+P` não espera
-                    re-render — a mesma razão do par de `%AH` em `Variacao`. */}
-                  <p className="filiais-descritas mt-0.5 text-[length:var(--fs-apoio)] text-[var(--text-muted)]">
-                    {detalheDasFiliais}
-                  </p>
-
-                  {/* DE QUEM É ESTE DRE.
-
-                    Em linha própria e sempre visível — na tela e no papel —, porque é a
-                    informação que mais muda o sentido de todos os números acima dela. Uma
-                    folha impressa de um DRE filtrado circula sem contexto nenhum, e sem
-                    esta linha ela se parece com o DRE da empresa inteira.
-
-                    Só aparece quando há filtro: sem ele não há nada a dizer, e a altura
-                    fica com a tabela. */}
-                  {fornecedoresApurados !== null && (
-                    <p className="mt-0.5 text-[length:var(--fs-apoio)] font-medium text-[var(--primary)]">
-                      {fornecedoresApurados}
-                    </p>
-                  )}
-                </div>
+              <div className="cabecalho-da-apuracao flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border)] px-4 py-2.5">
+                {identificacao}
 
                 {/* `flex-wrap` e `whitespace-nowrap` juntos: em tela de celular o rótulo
                   quebrava em três linhas para caber ao lado dos botões, com 85px de largura
@@ -486,15 +502,7 @@ export default function DreGerencialPage() {
                 </p>
               )}
 
-              {dados.avisos.length > 0 && (
-                <div className="border-b border-[var(--border)] px-5 py-3">
-                  {dados.avisos.map((aviso) => (
-                    <Aviso key={aviso} tom="atencao">
-                      {aviso}
-                    </Aviso>
-                  ))}
-                </div>
-              )}
+              {avisosDaApuracao}
 
               <TabelaEFaixas
                 propsDaTabela={{
@@ -547,6 +555,12 @@ export default function DreGerencialPage() {
                   filiaisApuradas: detalheDasFiliais,
                 }}
                 variacaoNoFim={variacaoNoFim}
+                cabecalhoNoPapel={
+                  <div className="border-b border-[var(--border)] px-4 py-2.5">
+                    {identificacao}
+                    {avisosDaApuracao}
+                  </div>
+                }
               />
             </section>
           </>

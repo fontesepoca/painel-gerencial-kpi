@@ -1,6 +1,6 @@
 "use client";
 
-import type { ComponentProps } from "react";
+import type { ComponentProps, ReactNode } from "react";
 import { TabelaDre } from "@/components/dre-gerencial/TabelaDre";
 import { faixasDaImpressao } from "@/lib/faixasDaImpressao";
 
@@ -22,9 +22,17 @@ import { faixasDaImpressao } from "@/lib/faixasDaImpressao";
 export function TabelaEFaixas({
   propsDaTabela,
   variacaoNoFim,
+  cabecalhoNoPapel,
 }: {
   propsDaTabela: ComponentProps<typeof TabelaDre>;
   variacaoNoFim: boolean;
+  /**
+   * A identificação da apuração (período, regime, filiais, avisos), repetida no alto de
+   * CADA parte. Não é enfeite: sem ela a primeira folha da parte 1 teria menos linhas que a
+   * primeira das outras, e as folhas deixariam de se encaixar lado a lado. No papel, a
+   * identificação da tela some quando há faixas (`cabecalho-da-apuracao`, globals.css).
+   */
+  cabecalhoNoPapel?: ReactNode;
 }) {
   const { periodos } = propsDaTabela;
   const faixas = propsDaTabela.soTotal ? null : faixasDaImpressao(periodos.length);
@@ -32,9 +40,56 @@ export function TabelaEFaixas({
 
   const comTotal = propsDaTabela.mostrarTotal !== false;
   const partes = faixas.length + (comTotal ? 1 : 0);
+  // O trecho do calendário de cada faixa, e o do Total — usados no título, no fim, no
+  // "a seguir" da faixa anterior e na margem de cada folha.
+  const trecho = (f: { inicio: number; fim: number }) =>
+    f.fim - f.inicio > 1
+      ? `${periodos[f.inicio]?.rotulo} a ${periodos[f.fim - 1]?.rotulo}`
+      : (periodos[f.inicio]?.rotulo ?? "");
+  const trechoDoTotal = variacaoNoFim ? "Variação do período" : "Total do período";
+  /**
+   * A ORDEM DE MONTAGEM NA MESA (23/10/2026, pedido do Gabriel): as partes são colunas, lado a
+   * lado da esquerda para a direita. O título e a marca de fim dizem onde cada parte começa e
+   * acaba; a margem de cada folha, a posição dela (ver `paginas`).
+   */
+  const proxima = (k: number) =>
+    k + 1 < faixas.length ? trecho(faixas[k + 1]!) : comTotal ? trechoDoTotal : null;
+
+  /**
+   * A POSIÇÃO EM CADA FOLHA (23/10/2026, pedido do Gabriel). O título só sai na primeira folha
+   * de cada parte, e uma parte ocupa várias. Na margem de cima de TODA folha vai onde ela fica
+   * na mesa — "Coluna 2 · Folha 3": a coluna é a parte, da esquerda para a direita, e a folha
+   * conta de cima para baixo dentro da parte. Na margem de baixo, a página do arquivo.
+   *
+   * Fica na MARGEM da página (`@page` com caixas de margem), e não na tabela: não ocupa linha
+   * nenhuma nem muda tamanho — a primeira tentativa, com etiqueta dentro da tabela, foi
+   * desfeita por isso. Cada parte é uma página nomeada com contador próprio, porque o `page`
+   * do navegador não recomeça por parte. O `body` começa na parte 1: sem isso a troca de
+   * página nomeada abriria uma folha em branco antes dela.
+   */
+  const rotulos = [...faixas.map(trecho), ...(comTotal ? [trechoDoTotal] : [])];
+  const aspas = (t: string) => `"${t.replace(/["\\]/g, "")}"`;
+  // Os rótulos encostam na TABELA, e não na borda do papel: `vertical-align` empurra os de
+  // cima para baixo e os de baixo para cima, longe da faixa que a impressora não imprime.
+  const discreta = "font: 600 9pt Arial, sans-serif; color: #475569;";
+  const emCima = "vertical-align: bottom; padding-bottom: 1.5mm;";
+  const embaixo = "vertical-align: top; padding-top: 1.5mm;";
+  const paginas = [
+    "@media print { body { page: parte-1; } }",
+    ...rotulos.map(
+      (r, k) =>
+        `.faixa-de-impressao[data-parte="${k + 1}"] { page: parte-${k + 1}; }\n` +
+        `@page parte-${k + 1} { counter-increment: folha-${k + 1};` +
+        ` @top-left { content: ${aspas(`DRE Gerencial · Parte ${k + 1} de ${partes} · ${r}`)}; ${discreta} ${emCima} }` +
+        ` @top-right { content: ${aspas(`Coluna ${k + 1} · Folha `)} counter(folha-${k + 1}); font: 700 11pt Arial, sans-serif; color: #0f172a; ${emCima} }` +
+        ` @bottom-right { content: "Página " counter(page) " de " counter(pages); ${discreta} ${embaixo} } }`,
+    ),
+  ].join("\n");
 
   return (
     <>
+      <style>{paginas}</style>
+
       {/* `contents`: o invólucro não vira caixa, e a tabela da tela continua ocupando a
           altura da seção como sempre. */}
       <div className="so-na-tela contents">
@@ -43,38 +98,40 @@ export function TabelaEFaixas({
 
       <div className="so-no-papel faixas-de-impressao">
         {faixas.map((faixa, k) => (
-          <div key={faixa.inicio} className="faixa-de-impressao">
+          <div key={faixa.inicio} className="faixa-de-impressao" data-parte={k + 1}>
+            {cabecalhoNoPapel}
             <p className="titulo-da-faixa">
-              {periodos[faixa.inicio]?.rotulo}
-              {faixa.fim - faixa.inicio > 1 && ` a ${periodos[faixa.fim - 1]?.rotulo}`}
-              <span className="parte-da-faixa"> · parte {k + 1} de {partes}</span>
+              Parte {k + 1} de {partes} · {trecho(faixa)}
+              <span className="parte-da-faixa"> · {k + 1}ª coluna, da esquerda para a direita</span>
             </p>
             <TabelaDre
               {...propsDaTabela}
               soPapel
               faixa={faixa}
               mostrarTotal={false}
-              // O aviso de totais reordenados sai uma vez, no começo do relatório.
-              avisoNoPapel={k === 0}
+              // O aviso de totais reordenados sai em TODA parte: só na primeira, a folha 1
+              // dela teria menos linhas que a das outras, e as colunas desencaixariam.
+              avisoNoPapel
             />
             {/* O FIM DA FAIXA (23/10/2026, pedido do Gabriel): uma faixa pode ocupar duas
                 folhas, e sem marca nenhuma a página seguinte parecia continuar o mesmo
                 trecho. A linha tracejada diz onde o período acaba. */}
             <p className="fim-da-faixa">
-              Fim de {periodos[faixa.inicio]?.rotulo}
-              {faixa.fim - faixa.inicio > 1 && ` a ${periodos[faixa.fim - 1]?.rotulo}`}
+              Fim da parte {k + 1} de {partes}
+              {proxima(k) && ` · a seguir, parte ${k + 2}: ${proxima(k)}`}
             </p>
           </div>
         ))}
 
         {comTotal && (
-          <div className="faixa-de-impressao">
+          <div className="faixa-de-impressao" data-parte={partes} data-total="1">
+            {cabecalhoNoPapel}
             <p className="titulo-da-faixa">
-              {variacaoNoFim ? "Variação do período" : "Total do período"}
-              <span className="parte-da-faixa"> · parte {partes} de {partes}</span>
+              Parte {partes} de {partes} · {trechoDoTotal}
+              <span className="parte-da-faixa"> · {partes}ª coluna, a última à direita</span>
             </p>
-            <TabelaDre {...propsDaTabela} soPapel soTotal avisoNoPapel={false} />
-            <p className="fim-da-faixa">Fim do relatório</p>
+            <TabelaDre {...propsDaTabela} soPapel soTotal avisoNoPapel />
+            <p className="fim-da-faixa">Fim da parte {partes} de {partes} · fim do relatório</p>
           </div>
         )}
       </div>

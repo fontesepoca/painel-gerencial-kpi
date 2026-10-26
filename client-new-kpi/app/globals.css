@@ -1339,9 +1339,16 @@ tr:has(.valor-clicavel:focus-visible) .tem-detalhe .valor-clicavel {
      única escrita pelo componente não depende de nenhuma das duas: sem nome de página e
      com a medida em milímetros. */
 
-  /* Margem e orientação valem para toda folha; só a MEDIDA vem do componente. */
+  /* Margem e orientação valem para toda folha; só a MEDIDA vem do componente.
+
+     12mm, e não os 10mm de antes (23/10/2026, pedido do Gabriel): a impressora não imprime
+     os últimos 4 a 6mm da borda, e algumas jato de tinta chegam perto de 12mm no rodapé. A
+     página não tem como saber qual impressora vai receber a folha — nenhum navegador expõe a
+     área imprimível —, então a margem cobre a pior comum. A tabela já ficava a salvo com
+     10mm; quem corria risco eram os rótulos da margem ("Coluna 2 · Folha 3", ver
+     `TabelaEFaixas`), centralizados a ~5mm da borda. `LARGURA_UTIL` acompanha este valor. */
   @page {
-    margin: 10mm;
+    margin: 12mm;
   }
 
   /* A barra de %AV sai do papel.
@@ -1717,6 +1724,34 @@ tr:has(.valor-clicavel:focus-visible) .tem-detalhe .valor-clicavel {
   /* Nem a marca de fim sozinha no topo da folha seguinte, longe da última linha. */
   .fim-da-faixa {
     break-before: avoid;
+  }
+}
+
+/* ── AS FOLHAS SE ENCAIXAM LADO A LADO (23/10/2026) ──
+   Pedido do Gabriel: montar o DRE na mesa como um quebra-cabeça, cada parte numa coluna.
+   Para isso a folha 2 da parte 1 precisa trazer as MESMAS linhas que a folha 2 da parte 2 —
+   e cada faixa tem a sua fonte dos números (`useEscalaDeImpressao`). Três regras garantem
+   que todas as partes cortem as páginas nas mesmas linhas:
+
+   1. A identificação da apuração sai no alto de cada parte (`TabelaEFaixas`), e a da tela,
+      que só a parte 1 teria, some.
+   2. A linha dos números tem a altura da MAIOR fonte entre as faixas, `--fs-numero-maior`.
+      Uma faixa de fonte menor fica com o número menor, mas na mesma altura de linha.
+   3. Os rótulos das colunas ("TOTAL (R + P)") ocupam sempre duas linhas: quebram ou não
+      conforme a largura da coluna, que muda de faixa para faixa. */
+@media print {
+  .numeros-ampliados:has(.faixas-de-impressao) > .cabecalho-da-apuracao {
+    display: none !important;
+  }
+
+  .faixas-de-impressao tbody td:not(.celula-descricao),
+  .faixas-de-impressao tbody td:not(.celula-descricao) * {
+    line-height: calc(var(--fs-numero-maior, var(--fs-numero, var(--fs-base))) * 1.3) !important;
+  }
+
+  .faixas-de-impressao thead tr:last-child > th {
+    height: calc(var(--fs-rotulo) * 1.25 * 2 + 2 * var(--celula-y));
+    line-height: 1.25 !important;
   }
 }
 

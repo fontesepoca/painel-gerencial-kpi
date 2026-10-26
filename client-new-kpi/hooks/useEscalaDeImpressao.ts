@@ -82,7 +82,38 @@ export function useEscalaDeImpressao(
 
       // Os números, por último: com a folha e a fonte da tabela já postas, a maior fonte
       // dos valores que ainda cabe. Mede de novo com a mesma imitação do papel.
-      if (ampliarNumeros) {
+      if (ampliarNumeros && faixas.length > 0) {
+        /**
+         * UMA FONTE POR FAIXA (23/10/2026, pedido do Gabriel). Com a fonte da faixa mais larga
+         * valendo para todas, a faixa sem Provisionado esticava até a borda com vãos entre as
+         * colunas — espaço que cabia número maior. Cada faixa mede a sua.
+         *
+         * Para as folhas se encaixarem lado a lado na mesa, a folha 2 da parte 1 tem de ter as
+         * MESMAS linhas da folha 2 da parte 2: a altura da linha é uma só, a da maior fonte
+         * entre as faixas de meses (`--altura-do-numero`, globals.css). A faixa do Total tem
+         * poucas colunas e chegaria ao teto; ela fica limitada à maior fonte dos meses, senão
+         * a altura dela encolheria as linhas por folha de todas as partes.
+         */
+        el.classList.add("calibrando");
+        const fontes = faixas.map((t) => {
+          const faixa = t.closest<HTMLElement>(".faixa-de-impressao") ?? el;
+          const pt = maiorFonteDosNumeros(
+            (p) => {
+              faixa.style.setProperty("--fs-numero", `${p}pt`, "important");
+              return t.getBoundingClientRect().width;
+            },
+            folha,
+          );
+          return { faixa, pt, doTotal: faixa.dataset.total === "1" };
+        });
+        el.classList.remove("calibrando");
+        const dosMeses = fontes.filter((f) => !f.doTotal).map((f) => f.pt);
+        const maior = dosMeses.length > 0 ? Math.max(...dosMeses) : Math.max(...fontes.map((f) => f.pt));
+        for (const { faixa, pt } of fontes) {
+          faixa.style.setProperty("--fs-numero", `${Math.min(pt, maior)}pt`, "important");
+        }
+        el.style.setProperty("--fs-numero-maior", `${maior}pt`, "important");
+      } else if (ampliarNumeros) {
         el.classList.add("calibrando");
         const ptNumeros = maiorFonteDosNumeros(
           (p) => {
@@ -115,6 +146,10 @@ export function useEscalaDeImpressao(
         el.style.removeProperty(nome);
       }
       el.style.removeProperty("--fs-numero");
+      el.style.removeProperty("--fs-numero-maior");
+      for (const faixa of el.querySelectorAll<HTMLElement>(".faixa-de-impressao")) {
+        faixa.style.removeProperty("--fs-numero");
+      }
     };
 
     window.addEventListener("beforeprint", antes);

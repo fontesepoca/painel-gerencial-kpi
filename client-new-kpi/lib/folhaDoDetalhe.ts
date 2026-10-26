@@ -13,7 +13,7 @@ import type { TipoDetalhe } from "@/types/dre-gerencial";
  * | Receita por cliente | 8 | 316mm | 357mm | — |
  * | Lançamentos | 25 | 983mm | — | 760mm a 8,5pt |
  *
- * Larguras úteis: **A4 em pé ≈190mm, A4 deitada ≈277mm, A3 deitada ≈400mm.**
+ * Larguras úteis: **A4 em pé 186mm, A4 deitada 273mm, A3 deitada 396mm (margem de 12mm).**
  *
  * **Nenhuma tela cabe em A4 em pé, nem a 13pt.** Foi o que produziu o PDF cortado de
  * 09/09/2026: a receita por cliente pede 357mm a 16pt e a folha oferecia 190mm.

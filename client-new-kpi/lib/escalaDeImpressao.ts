@@ -22,12 +22,12 @@ import type { Folha } from "@/lib/folhaDoDetalhe";
  * ## O que este módulo faz
  *
  * Mede a tabela **na tela**, com a fonte base da impressão aplicada, e resolve uma regra de
- * três: se a 13pt ela mede 300px e a folha oferece 1.512px, cabe fonte 5x maior — limitada
+ * três: se a 13pt ela mede 300px e a folha oferece 1.497px, cabe fonte 5x maior — limitada
  * por um teto de bom senso tipográfico.
  *
  * **Isto não é o `beforeprint` que já nos enganou.** O erro daquela vez foi medir esperando
  * as métricas do papel; aqui a medição é de tela por construção, e a folha entra só como um
- * número conhecido — 400mm úteis da A3 deitada são 1.512px, e isso não depende de quando o
+ * número conhecido — 396mm úteis da A3 deitada são 1.497px, e isso não depende de quando o
  * navegador aplica a página.
  */
 
@@ -36,13 +36,14 @@ const px = (mm: number) => (mm * 96) / 25.4;
 
 /**
  * Largura útil de cada folha, descontadas as margens que o Chrome aplica por padrão
- * (≈10mm de cada lado). Os 1.512px da A3 deitada são o número que a calibragem da tabela
+ * (12mm de cada lado — o `@page` de globals.css; eram 10mm até 23/10/2026, quando a margem
+ * cresceu para as impressoras que cortam a borda). Os 1.497px da A3 deitada são o número que a calibragem da tabela
  * do DRE já usava.
  */
 export const LARGURA_UTIL: Record<Folha, number> = {
-  "a4-em-pe": px(190),
-  "a4-deitada": px(277),
-  "a3-deitada": px(400),
+  "a4-em-pe": px(186),
+  "a4-deitada": px(273),
+  "a3-deitada": px(396),
 };
 
 /**
