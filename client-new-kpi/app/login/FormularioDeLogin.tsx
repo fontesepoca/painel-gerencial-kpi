@@ -24,6 +24,7 @@ export function FormularioDeLogin() {
   const [mostrarSenha, setMostrarSenha] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [entrando, setEntrando] = useState(false);
+  const capsLock = useCapsLock();
 
   // As bases que o login oferece. `null` = ainda carregando; lista vazia = nenhuma disponível.
   const [bases, setBases] = useState<BaseOferecida[] | null>(null);
@@ -183,6 +184,22 @@ export function FormularioDeLogin() {
             <OlhoIcone aberto={mostrarSenha} />
           </button>
         </div>
+        {/* O AVISO DE CAPS LOCK (26/10/2026, pedido do Gabriel). A senha vai mascarada, e com
+            o Caps Lock ligado quem digita não vê que tudo está saindo em maiúscula: erra a
+            senha, tenta de novo do mesmo jeito e acha que ela expirou. Sob o campo da senha,
+            que é onde o erro acontece, e anunciado ao leitor de tela (`role="status"`). */}
+        {capsLock && (
+          <p
+            role="status"
+            className="flex items-center gap-2 rounded-[var(--radius-md)] border border-[var(--warning)] bg-[var(--warning-glow)] px-3 py-2 text-[length:var(--fs-apoio)] text-[var(--text-primary)]"
+          >
+            <CapsLockIcone />
+            <span>
+              <strong className="font-semibold">Caps Lock ligado.</strong> A senha diferencia
+              maiúsculas de minúsculas.
+            </span>
+          </p>
+        )}
       </div>
 
       {/* `role="alert"` para o leitor de tela anunciar o erro assim que ele aparece: sem isso,
@@ -205,6 +222,36 @@ export function FormularioDeLogin() {
       </button>
     </form>
   );
+}
+
+/**
+ * Se o Caps Lock está ligado, lido de cada tecla e clique na página.
+ *
+ * O navegador não informa o estado do Caps Lock quando a página abre — só junto de um evento
+ * de teclado ou de mouse, em `getModifierState`. Até o primeiro deles o valor é `false`, e
+ * o aviso não aparece por engano. Na janela inteira, e não só nos campos: quem liga o Caps
+ * Lock antes de clicar na senha já vê o aviso ao entrar nela.
+ */
+function useCapsLock() {
+  const [ligado, setLigado] = useState(false);
+
+  useEffect(() => {
+    const ler = (e: KeyboardEvent | MouseEvent) => {
+      // Autocompletar do navegador dispara `keydown` sintético, sem `getModifierState`.
+      if (typeof e.getModifierState !== "function") return;
+      setLigado(e.getModifierState("CapsLock"));
+    };
+    window.addEventListener("keydown", ler);
+    window.addEventListener("keyup", ler);
+    window.addEventListener("mousedown", ler);
+    return () => {
+      window.removeEventListener("keydown", ler);
+      window.removeEventListener("keyup", ler);
+      window.removeEventListener("mousedown", ler);
+    };
+  }, []);
+
+  return ligado;
 }
 
 function Campo({
@@ -271,6 +318,25 @@ function OlhoIcone({ aberto }: { aberto: boolean }) {
       <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7Z" />
       <circle cx="12" cy="12" r="3" />
       {aberto && <path d="m4 20 16-16" />}
+    </svg>
+  );
+}
+
+/** Seta para cima sobre uma barra — o desenho da tecla Caps Lock. */
+function CapsLockIcone() {
+  return (
+    <svg
+      aria-hidden
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="size-4 shrink-0 text-[var(--warning)]"
+    >
+      <path d="M12 4 5 11h4v4h6v-4h4l-7-7Z" />
+      <path d="M9 19h6" />
     </svg>
   );
 }

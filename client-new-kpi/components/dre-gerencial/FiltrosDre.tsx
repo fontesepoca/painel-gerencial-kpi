@@ -74,6 +74,16 @@ const CAMPO_DATA =
  * nativa de um jeito, e o `▾` que o filial usava antes vinha da fonte de texto: os dois
  * campos faziam a mesma coisa e não pareciam a mesma família.
  */
+/** Triângulo de "executar", preenchido com a cor do texto do botão — branco quando ativo,
+ *  apagado quando desabilitado. */
+function PlayIcone() {
+  return (
+    <svg aria-hidden viewBox="0 0 12 12" className="size-3.5 shrink-0" fill="currentColor">
+      <path d="M3 1.8v8.4a.6.6 0 0 0 .9.5l6.8-4.2a.6.6 0 0 0 0-1L3.9 1.3a.6.6 0 0 0-.9.5Z" />
+    </svg>
+  );
+}
+
 function Seta({ className }: { className?: string }) {
   return (
     <svg
@@ -192,7 +202,7 @@ export function FiltrosDre({
             disabled={!podeApurar}
             title={motivo ?? undefined}
             className={cn(
-              "h-[var(--altura-controle)] w-full rounded-[var(--radius-md)] px-6 text-[length:var(--fs-base)] font-medium whitespace-nowrap xl:w-auto",
+              "flex h-[var(--altura-controle)] w-full items-center justify-center gap-1.5 rounded-[var(--radius-md)] px-6 text-[length:var(--fs-base)] font-medium whitespace-nowrap xl:w-auto",
               // `h-full` para o botão ocupar a célula inteira da grade — rótulo mais controle
               // —, que é como ele sempre foi e o que o deixa com a presença de ação principal.
               // Nos modos com mais de uma linha de controles ele acompanha a altura; é o preço
@@ -203,6 +213,10 @@ export function FiltrosDre({
                 : "cursor-not-allowed bg-[var(--surface-3)] text-[var(--text-muted)]",
             )}
           >
+            {/* O PLAY (26/10/2026, pedido do Gabriel): é o botão que dispara a consulta, e o
+                triângulo diz "executar" antes de a palavra ser lida. Some enquanto apura — aí
+                não há o que disparar, e o texto já diz o que está acontecendo. */}
+            {!apurando && <PlayIcone />}
             {apurando ? "Apurando" : "Apurar"}
           </button>
         </Campo>
