@@ -1027,6 +1027,27 @@ html[data-leitura="ampliada"] .puxador {
   border-right: 1px solid var(--border);
 }
 
+/* A LARGURA DA DESCRIÇÃO NA TELA (29/10/2026, pedido do Gabriel): 18rem, e o nome longo
+   quebra em linhas — como no papel. Eram 32rem (512px) para o nome caber numa linha só, e a
+   coluna comia um terço da tela antes do primeiro número. Medido na apuração da filial 7 de
+   2025: com 18rem, seis nomes vão a três linhas; com 20rem, três; com 22rem, nenhum. Saiu
+   com 20rem e o Gabriel pediu "um pouco mais" estreita no mesmo dia.
+
+   `width`, e não `max-width`: célula de tabela ignora `max-width`, e a coluna cresceria até
+   o nome mais comprido. O papel e a medição da impressão têm a própria largura, com
+   `!important`, e não passam por aqui. Em `rem`: acompanha a leitura ampliada. */
+.largura-da-descricao {
+  width: 18rem;
+  min-width: 18rem;
+}
+
+@media (max-width: 767px) {
+  .largura-da-descricao {
+    width: 50vw;
+    min-width: 0;
+  }
+}
+
 /* No cruzamento das duas fixações — canto do cabeçalho — a célula tem que ficar
    acima tanto da coluna quanto do resto do cabeçalho. */
 .tabela-rolagem thead .celula-descricao {
@@ -1210,9 +1231,11 @@ tr:has(.valor-clicavel:focus-visible) .tem-detalhe .valor-clicavel {
   background-color: var(--surface-1);
 }
 
-/* Fora do celular vale a palavra inteira no selo — a versão curta só aparece na media
-   query abaixo, e por isso a regra padrão precisa vir ANTES dela. */
-.selo-curto {
+/* O SELO CURTO EM TODA TELA (29/10/2026). Até então a palavra inteira valia fora do celular;
+   com a descrição estreita (`largura-da-descricao`), `INFORMATIVO` ao lado de
+   `FORNECEDORES` não quebra e alargava a coluna inteira em 50px. `INFO` é o que o papel e o
+   celular já mostravam; a frase completa continua no `title` e no leitor de tela. */
+.selo-longo {
   display: none;
 }
 

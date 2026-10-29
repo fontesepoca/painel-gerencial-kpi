@@ -95,6 +95,7 @@ export function TabelaDre({
   periodos,
   linhas,
   mostrarZeradas,
+  mostrarInformativos = true,
   mostrarAv,
   mostrarAh: mostrarAhPedido,
   mostrarProvisionado = false,
@@ -113,6 +114,8 @@ export function TabelaDre({
   periodos: PeriodoDre[];
   linhas: LinhaDre[];
   mostrarZeradas: boolean;
+  /** As linhas informativas (`naoSoma`) aparecem. Desligável desde 29/10/2026. */
+  mostrarInformativos?: boolean;
   /** A coluna `AV %` aparece. Decidido na barra de controles, ligado por padrão. */
   mostrarAv: boolean;
   /**
@@ -339,12 +342,19 @@ export function TabelaDre({
   // Uma linha só com título EM ABERTO não tem movimento pelo critério da 9815, e aparece só
   // com o Provisionado ligado — é ele que explica por que ela está ali. Desligado, a tela é
   // a de antes (D9 da spec de 14/10/2026).
+  //
+  // OS INFORMATIVOS SOMEM JUNTO (29/10/2026, pedido do Gabriel): "Informativos" desligado no
+  // menu Exibição esconde toda linha que não soma (`naoSoma`, o selo INFO). Nenhum total muda
+  // — elas não entram em totalizador nenhum —, e o Excel e o papel seguem a tela, porque
+  // leem as linhas daqui.
   const comMovimento = useMemo(
     () =>
-      mostrarZeradas
-        ? ordenadas
-        : ordenadas.filter((l) => !l.semMovimento || (mostrarProvisionado && l.comAberto === true)),
-    [ordenadas, mostrarZeradas, mostrarProvisionado],
+      ordenadas.filter(
+        (l) =>
+          (mostrarInformativos || !l.naoSoma) &&
+          (mostrarZeradas || !l.semMovimento || (mostrarProvisionado && l.comAberto === true)),
+      ),
+    [ordenadas, mostrarZeradas, mostrarProvisionado, mostrarInformativos],
   );
 
   /**
@@ -1056,7 +1066,7 @@ export function TabelaDre({
                   Sem isto, só as linhas com selo truncam — e truncar justamente a linha
                   que a tela está sinalizando esconde o que ela quer mostrar. A tabela já
                   rola na horizontal, então a folga aqui não custa nada. */}
-              <Th className="celula-descricao min-w-[32rem]" aEsquerda>Descrição</Th>
+              <Th className="celula-descricao largura-da-descricao" aEsquerda>Descrição</Th>
               {mostrarMeses && periodos.map((p, i) => naFaixa(i) && (
                 <ColunasCabecalho
                   key={p.mesAno}
@@ -1660,11 +1670,12 @@ function Linha({
           />
           <span
             className={cn(
-              // `truncate` corta com reticências, o que na tela é certo — a coluna é fixa
-              // e o `title` mostra o resto. No papel não há hover, e uma conta cortada
-              // vira relatório que não se lê: a classe existe para o `@media print`
-              // desligar o corte e deixar o nome quebrar em duas linhas.
-              "descricao-conta truncate",
+              // O NOME QUEBRA, NA TELA COMO NO PAPEL (29/10/2026, pedido do Gabriel). Antes
+              // a coluna tinha 32rem para o nome caber inteiro numa linha, e o que passasse
+              // era cortado com reticências: a descrição comia um terço da tela. Agora ela
+              // é estreita (`largura-da-descricao`, globals.css) e o nome longo desce para
+              // a linha de baixo. `break-words` só parte uma palavra que sozinha não caiba.
+              "descricao-conta min-w-0 break-words",
               linha.totalizadora
                 ? "font-bold text-[var(--text-primary)]"
                 : "text-[var(--text-secondary)]",

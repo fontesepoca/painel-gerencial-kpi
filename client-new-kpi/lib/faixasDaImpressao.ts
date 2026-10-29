@@ -38,3 +38,55 @@ export function faixasDaImpressao(meses: number, porFaixa = MESES_POR_FAIXA): Fa
   }
   return faixas;
 }
+
+/**
+ * O TRIMESTRE DO CALENDÁRIO de uma faixa (29/10/2026, pedido do Gabriel): vai no alto de cada
+ * folha, ao lado de "Coluna · Folha", para quem monta a mesa saber de que trimestre é a folha
+ * sem procurar o título da parte.
+ *
+ * Do CALENDÁRIO, e não "1º, 2º, 3º" da ordem das faixas: a apuração que começa em fevereiro
+ * tem faixas fev–abr, mai–jul…, e chamar fev–abr de "1º trimestre" diria um trimestre que
+ * não é o de ninguém. Faixa que atravessa dois trimestres diz os dois.
+ *
+ * Recebe as chaves das colunas (`PeriodoDre.mesAno`). Só o modo mensal tem chave `MM/AAAA`;
+ * por ano e no comparativo a coluna não é um mês, e não há trimestre — `null`.
+ */
+export function trimestreDaFaixa(chaves: readonly string[]): string | null {
+  const trimestres: { ano: string; numero: number }[] = [];
+
+  for (const chave of chaves) {
+    const mes = /^(\d{2})\/(\d{4})$/.exec(chave);
+    if (!mes) return null;
+    const numero = Math.ceil(Number(mes[1]) / 3);
+    const ano = mes[2]!;
+    if (!trimestres.some((t) => t.ano === ano && t.numero === numero)) trimestres.push({ ano, numero });
+  }
+  if (trimestres.length === 0) return null;
+
+  const porAno = new Map<string, number[]>();
+  for (const { ano, numero } of trimestres) porAno.set(ano, [...(porAno.get(ano) ?? []), numero]);
+
+  return [...porAno]
+    .map(([ano, numeros]) =>
+      numeros.length === 1
+        ? `${numeros[0]}º trimestre de ${ano}`
+        : `${numeros.map((n) => `${n}º`).join(" e ")} trimestres de ${ano}`,
+    )
+    .join(" e ");
+}
+
+/**
+ * As faixas que o PAPEL usa — `faixasDaImpressao`, mais o caso de 2 e 3 meses com Total.
+ *
+ * O TOTAL NAS ÚLTIMAS PÁGINAS SEMPRE QUE EXISTE (29/10/2026, pedido do Gabriel). Até 3 meses
+ * a impressão era uma tabela só, com o Total ao lado; com Provisionado, ago–out e o Total
+ * numa folha saíam com os números ilegíveis. Agora, havendo coluna Total, os meses formam
+ * uma parte (uma faixa só, que cabe) e o Total outra, no fim — "semelhante a quando apuramos
+ * o ano inteiro". Sem a coluna Total, até 3 meses continua uma tabela só: não há o que
+ * separar.
+ */
+export function faixasDoPapel(meses: number, comTotal: boolean): FaixaDeMeses[] | null {
+  const faixas = faixasDaImpressao(meses);
+  if (faixas !== null) return faixas;
+  return comTotal && Number.isInteger(meses) && meses > 1 ? [{ inicio: 0, fim: meses }] : null;
+}

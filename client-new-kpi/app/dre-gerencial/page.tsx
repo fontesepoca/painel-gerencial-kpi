@@ -30,6 +30,8 @@ export default function DreGerencialPage() {
   // de dependências, e a base é o que muda o nome do arquivo.
   const baseDaSessao = usuario?.base.id;
   const [mostrarZeradas, setMostrarZeradas] = useState(false);
+  // Ligado por padrão: a tela de sempre mostra os informativos (29/10/2026).
+  const [mostrarInformativos, setMostrarInformativos] = useState(true);
 
   /**
    * As colunas de análise, ligadas por padrão.
@@ -415,6 +417,13 @@ export default function DreGerencialPage() {
                             onMudar: setMostrarZeradas,
                           },
                           {
+                            id: "informativos",
+                            rotulo: "Informativos",
+                            apoio: "Linhas com o selo INFO, que não entram em nenhum total",
+                            marcada: mostrarInformativos,
+                            onMudar: setMostrarInformativos,
+                          },
+                          {
                             id: "av",
                             rotulo: "AV %",
                             apoio: "Análise vertical: o peso de cada linha na receita",
@@ -512,6 +521,7 @@ export default function DreGerencialPage() {
                   periodos: dados.periodos,
                   linhas: dados.linhas,
                   mostrarZeradas,
+                  mostrarInformativos,
                   mostrarAv,
                   mostrarAh,
                   mostrarProvisionado: mostrarProvisionado && temProvisionado,

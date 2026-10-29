@@ -2,10 +2,11 @@
 
 import type { ComponentProps, ReactNode } from "react";
 import { TabelaDre } from "@/components/dre-gerencial/TabelaDre";
-import { faixasDaImpressao } from "@/lib/faixasDaImpressao";
+import { faixasDoPapel, trimestreDaFaixa } from "@/lib/faixasDaImpressao";
 
 /**
- * A tabela da tela e, com mais de três meses, as FAIXAS do papel (23/10/2026).
+ * A tabela da tela e, com mais de três meses — ou com 2 e 3 meses e a coluna Total, desde
+ * 29/10/2026 —, as FAIXAS do papel (23/10/2026).
  *
  * Com doze meses a tabela inteira numa folha saía ilegível (números a 7pt). Pedido do
  * Gabriel: imprimir "como se estivesse apurando de 3 em 3 meses, só que juntos num arquivo",
@@ -35,10 +36,12 @@ export function TabelaEFaixas({
   cabecalhoNoPapel?: ReactNode;
 }) {
   const { periodos } = propsDaTabela;
-  const faixas = propsDaTabela.soTotal ? null : faixasDaImpressao(periodos.length);
+  const comTotal = propsDaTabela.mostrarTotal !== false;
+  // Com 2 e 3 meses também, quando há Total: os meses numa parte, o Total nas últimas
+  // páginas (29/10/2026). Ver `faixasDoPapel`.
+  const faixas = propsDaTabela.soTotal ? null : faixasDoPapel(periodos.length, comTotal);
   if (faixas === null) return <TabelaDre {...propsDaTabela} />;
 
-  const comTotal = propsDaTabela.mostrarTotal !== false;
   const partes = faixas.length + (comTotal ? 1 : 0);
   // O trecho do calendário de cada faixa, e o do Total — usados no título, no fim, no
   // "a seguir" da faixa anterior e na margem de cada folha.
@@ -68,7 +71,17 @@ export function TabelaEFaixas({
    * página nomeada abriria uma folha em branco antes dela.
    */
   const rotulos = [...faixas.map(trecho), ...(comTotal ? [trechoDoTotal] : [])];
+  /**
+   * O TRIMESTRE NO CENTRO DE CADA FOLHA (29/10/2026, pedido do Gabriel): na margem de cima, no
+   * mesmo corpo e peso de "Coluna · Folha" — é o outro dado que quem monta a mesa procura.
+   * Do calendário, ver `trimestreDaFaixa`. A parte do Total não tem trimestre: fica sem.
+   */
+  const trimestres = [
+    ...faixas.map((f) => trimestreDaFaixa(periodos.slice(f.inicio, f.fim).map((p) => p.mesAno))),
+    ...(comTotal ? [null] : []),
+  ];
   const aspas = (t: string) => `"${t.replace(/["\\]/g, "")}"`;
+  const destacada = "font: 700 11pt Arial, sans-serif; color: #0f172a;";
   // Os rótulos encostam na TABELA, e não na borda do papel: `vertical-align` empurra os de
   // cima para baixo e os de baixo para cima, longe da faixa que a impressora não imprime.
   const discreta = "font: 600 9pt Arial, sans-serif; color: #475569;";
@@ -81,7 +94,10 @@ export function TabelaEFaixas({
         `.faixa-de-impressao[data-parte="${k + 1}"] { page: parte-${k + 1}; }\n` +
         `@page parte-${k + 1} { counter-increment: folha-${k + 1};` +
         ` @top-left { content: ${aspas(`DRE Gerencial · Parte ${k + 1} de ${partes} · ${r}`)}; ${discreta} ${emCima} }` +
-        ` @top-right { content: ${aspas(`Coluna ${k + 1} · Folha `)} counter(folha-${k + 1}); font: 700 11pt Arial, sans-serif; color: #0f172a; ${emCima} }` +
+        (trimestres[k]
+          ? ` @top-center { content: ${aspas(trimestres[k]!)}; ${destacada} ${emCima} }`
+          : "") +
+        ` @top-right { content: ${aspas(`Coluna ${k + 1} · Folha `)} counter(folha-${k + 1}); ${destacada} ${emCima} }` +
         ` @bottom-right { content: "Página " counter(page) " de " counter(pages); ${discreta} ${embaixo} } }`,
     ),
   ].join("\n");
