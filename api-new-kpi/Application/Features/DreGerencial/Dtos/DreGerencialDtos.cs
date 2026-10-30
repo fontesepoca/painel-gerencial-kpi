@@ -555,4 +555,13 @@ public record ApuracaoDto(
     /// da sessão e <b>recusa renderizar se diferir</b>: a segunda barreira contra uma apuração
     /// na base errada, depois do token.
     /// </summary>
-    BaseDto? Base = null);
+    BaseDto? Base = null,
+    /// <summary>
+    /// O MESMO DRE sem as baixas estornadas e as da rotina 737 (30/10/2026, pedido do
+    /// Gabriel) — o que a tela mostra com o checkbox "Ocultar baixas estornadas e da rotina
+    /// 737" marcado, que é o padrão. Montado pelo mesmo <c>MontadorDre</c>, da mesma
+    /// consulta: totalizadores, %AV, %AH e Média já recalculados aqui, e o checkbox só troca
+    /// uma lista pela outra. <see cref="Linhas"/> continua sendo o número da 9815. Ver a
+    /// divergência 21 em DIVERGENCIAS.md.
+    /// </summary>
+    IReadOnlyList<LinhaDreDto>? LinhasSemEstornos = null);

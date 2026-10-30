@@ -1698,8 +1698,11 @@ function TabelaLancamentos({
           ) : (
             <>
               {" "}
-              — somam <strong>{formatarValor(semBaixas.somaOculta)}</strong>, que a linha
-              do DRE conta e o total acima não. Desmarque o filtro para vê-las.
+              {/* Desde 30/10/2026 a linha do DRE também deixa de contá-las com o mesmo
+                  checkbox marcado (divergência 21): o total acima fecha com a célula. */}
+              — somam <strong>{formatarValor(semBaixas.somaOculta)}</strong>, que nem a
+              linha do DRE nem o total acima contam com o filtro marcado. Desmarque o
+              filtro para vê-las e somá-las de volta.
             </>
           )}
         </p>

@@ -74,4 +74,13 @@ public sealed record ColunaApuracao(
     IReadOnlyList<DespesaDre> Despesas,
     FaturamentoDre? Faturamento,
     int Bloco = 0,
-    IReadOnlyList<DespesaDre>? Abertos = null);
+    IReadOnlyList<DespesaDre>? Abertos = null)
+{
+    /// <summary>
+    /// A mesma coluna sem as baixas estornadas e as da rotina 737 nos PAGOS (30/10/2026). O
+    /// provisionado fica como está: título em aberto nunca sai por esse filtro. Ver
+    /// <see cref="DespesaDre.SemBaixasOcultaveis"/>.
+    /// </summary>
+    public ColunaApuracao SemBaixasOcultaveis() =>
+        this with { Despesas = Despesas.Select(d => d.SemBaixasOcultaveis()).ToList() };
+}

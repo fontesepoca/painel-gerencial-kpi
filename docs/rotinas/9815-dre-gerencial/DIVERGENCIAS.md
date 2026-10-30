@@ -40,6 +40,7 @@ linha no índice.
 | [17](#17-minas-rural-a-seção-sem-custo-é-a-1401--07102026) | Minas Rural: a seção tirada da venda e da devolução passa de `1601` para `1401` | todas, só no Minas Rural | **nenhum valor** nos meses medidos — jul a set/2026 | **ligada** em 07/10/2026 pela prova do trace · dc86 46/46 |
 | [18](#18-minas-rural-as-contas-de-icms-viram-a-3003007--07102026) | Minas Rural: conta de ICMS do grupo 303 vira a `3003007` na despesa e no detalhamento | todas, só no Minas Rural | **R$ 38.054,11** no lucro de agosto/2026 na filial 10 | **ligada** em 07/10/2026 · dc89 bate ao centavo |
 | [19](#19-as-colunas-provisionado-e-total-no-regime-competência--14102026) | Colunas **Provisionado** (títulos em aberto) e **Total** nos meses com aberto | todas, só em competência | colunas novas, também nos totalizadores de despesa; com o Provisionado ligado, **%AV e %AH sobre R + P** | **a pedido** em 14/10/2026 · dc92, dc93, dc94 |
+| [21](#21-a-apuração-sem-as-baixas-estornadas-e-as-da-rotina-737-por-padrão--30102026) | Com o checkbox "Ocultar baixas estornadas e da rotina 737" — **marcado por padrão** —, a conta não soma baixa estornada nem a da 737 | todas as linhas de despesa; desmarcado, nada | `FINANCEIRO` de set/2026 na filial 25: 64.840,00 → **32.420,00**, e o lucro sobe o mesmo; na filial 7, as baixas vêm em pares e quase nada muda (704,14) | **a pedido** em 30/10/2026 · dc101 24/24, dc102 4/4 |
 
 ---
 
@@ -1616,6 +1617,105 @@ SELECT TIPOLANC, COUNT(*) AS titulos, SUM(NVL(VPAGO, VALOR)) AS valor
  GROUP BY TIPOLANC
  ORDER BY TIPOLANC;
 ```
+
+---
+
+## 21. A apuração sem as baixas estornadas e as da rotina 737, por padrão — 30/10/2026
+
+**Pedido do Gabriel.** O detalhamento tinha, desde 08/10/2026, o checkbox "Ocultar baixas
+estornadas e da rotina 737", marcado por padrão — mas ele só escondia lançamentos da LISTA.
+A célula do DRE continuava somando tudo, e a lista aberta a partir dela não fechava com ela.
+O exemplo dele: `FINANCEIRO`, setembro/2026, duas baixas de 32.420,00, uma delas estornada e
+da 737 — a tabela mostrava **64.840,00**, o detalhamento filtrado, 32.420,00.
+
+Agora o mesmo checkbox está também no menu **Exibição** da tela principal, **marcado por
+padrão**, e é UM estado só na página: marcar ou desmarcar lá ou no detalhamento muda os dois.
+Marcado, a conta soma **32.420,00**, e tudo de que ela participa acompanha — totalizadores,
+`%AV`, `%AH`, Total do período, Média, Excel e impressão. Desmarcado, volta a ser o número da
+9815.
+
+### O que diverge da 9815
+
+**Com o checkbox marcado — o padrão —, todas as linhas de despesa que têm lançamento pago com
+baixa estornada (`DTESTORNOBAIXA` preenchida) ou baixado pela rotina 737
+(`CODROTINABAIXA LIKE '%737%'`)**, e os totalizadores acima delas. A 9815 soma esses
+lançamentos. Desmarcado, nada diverge.
+
+A regra é **a mesma do detalhamento** (`ocultavel` em `lib/baixasEstornadas.ts`):
+
+- rotina de baixa vazia **fica** — no Oracle `NULL LIKE '%737%'` não é verdadeiro;
+- título **em aberto** nunca sai: com baixa estornada, ele é título reaberto, que é o que o
+  Provisionado existe para cobrar. A coluna Provisionado não muda;
+- receita, deduções e CMV não mudam: não vêm do `PCLANC`.
+
+### Como
+
+A API monta **dois DREs da mesma consulta** e manda os dois; o checkbox só escolhe qual vai à
+tela, sem nova apuração (`linhasDaApuracao`).
+
+1. As quatro consultas de despesa marcam cada lançamento com o sinal `OCULTAVEL` (`{6}`,
+   escrito por `DreGerencialRepository.SinalDeOcultavel`; 0 no provisionado) e somam, ao lado
+   do valor, `VPAGO*OCULTAVEL` e `VPAGO_EXCLUSIVO_FORNEC*OCULTAVEL`. O `VLREALIZADO` não muda —
+   as colunas novas só se somam a ele. Sem bind novo: a ordem posicional não muda.
+2. `DespesaDre.SemBaixasOcultaveis` tira a parte oculta do valor e do exclusivo do fornecedor;
+   o serviço chama o `MontadorDre` uma segunda vez com as colunas sem ela e devolve
+   `LinhasSemEstornos` ao lado de `Linhas`. Totalizadores, `%AV`, `%AH` e Média saem do
+   servidor, como sempre.
+3. A tela usa o `useOcultarBaixas` que o detalhamento já tinha. O detalhamento em aba própria
+   recebe o estado da aba de origem (`DetalheAberto.ocultarBaixas`).
+
+**O texto das quatro consultas mudou de propósito.** A dc86 compara com o `COMMIT_BASE`, e o
+procedimento dela vale aqui: no commit seguinte ao desta mudança, `COMMIT_BASE` aponta para
+ele.
+
+### Provas
+
+dc101 (24: a despesa, a coluna, o DRE inteiro e o texto das quatro consultas), dc102 (4: a
+tela escolhe a lista), dc92 (38) e dc93 (33) continuam passando.
+
+**Conferido com o banco em 30/10/2026**, pela tela, filial 25, setembro/2026, competência, C.
+Custo Principal — o caso do pedido. Só quatro linhas mudam, e todas exatamente 32.420,00:
+
+| Linha | De sempre (9815) | Sem estornos |
+|---|---|---|
+| `FINANCEIRO` | −64.840,00 | **−32.420,00** |
+| `Sub-Total -> Despesas Operacionais` | −2.277.233,48 | −2.244.813,48 |
+| `RESULTADO OPERACIONAL` | −544.355,52 | −511.935,52 |
+| `LUCRO LIQUIDO` | −421.927,29 | −389.507,29 |
+
+O checkbox troca as duas versões na hora, e o detalhamento do `FINANCEIRO` abre marcado com
+um lançamento (RECNUM 20765384) somando **32.420,00 — o mesmo da célula**.
+
+**Na filial 7, no mesmo mês, quase nada muda** (consulta abaixo, rodada pelo Gabriel): das 18
+contas com baixa estornada ou da 737, **17 somam 0,00** — a baixa e o estorno dela vêm em
+par, com sinais opostos, e esconder o par não mexe na soma. Só `Verbas Recebidas Via Deposito
+Bancario` deixa 704,14. O efeito aparece onde a baixa estornada não tem o par no mesmo
+recorte, como na filial 25.
+
+A consulta é a lista de lançamentos, sem o rateio por centro de custo: serve para o tamanho,
+não para casar centavo a centavo com uma linha do C. Custo Principal.
+
+```sql
+SELECT FIN.CODCONTA, CT.CONTA, COUNT(*) AS LANCAMENTOS,
+       SUM(NVL(FIN.VPAGO, FIN.VALOR)) AS VALOR_OCULTO
+  FROM PCLANC FIN, PCCONTA CT
+ WHERE FIN.CODCONTA = CT.CODCONTA
+   AND CT.GRUPOCONTA >= 200
+   AND FIN.CODFILIAL = '7'
+   AND FIN.DTPAGTO IS NOT NULL
+   AND (FIN.DTESTORNOBAIXA IS NOT NULL OR FIN.CODROTINABAIXA LIKE '%737%')
+   AND NVL(FIN.DTCOMPETENCIA, FIN.DTVENC) BETWEEN DATE '2026-09-01' AND DATE '2026-09-30'
+ GROUP BY FIN.CODCONTA, CT.CONTA
+ ORDER BY ABS(SUM(NVL(FIN.VPAGO, FIN.VALOR))) DESC;
+```
+
+### Como reverter
+
+Desligar sem mexer no SQL: em `app/dre-gerencial/page.tsx`, passar `false` a
+`linhasDaApuracao` — a tela volta ao DRE de sempre, e o checkbox do detalhamento continua
+existindo como antes de 30/10/2026. Para tirar de vez: remover o `{6}` e as colunas
+`VPAGO_OCULTAVEL`/`VPAGO_EXCLUSIVO_OCULTAVEL` das quatro consultas, a segunda chamada ao
+`MontadorDre` no serviço e `LinhasSemEstornos` da resposta.
 
 ---
 
