@@ -1,0 +1,22 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches:
+      - main # ou qualquer outra branch que você queira monitorar
+
+jobs:
+  build-and-deploy:
+    runs-on: [self-hosted] # Ação será executada em uma VM Ubuntu
+
+    steps:
+      - name: Deploy to server
+        env:
+          SSH_PASSWORD: ${{ secrets.SSH_PASSWORD }}
+        run: |
+          sshpass -p $SSH_PASSWORD ssh -o StrictHostKeyChecking=no root@10.122.65.45 << 'EOF'
+          cd /painel-gerencial-kpi
+          git fetch origin
+          git pull origin main
+          docker compose up -d --build
+          EOF
