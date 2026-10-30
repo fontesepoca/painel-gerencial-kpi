@@ -336,7 +336,7 @@ export default function DreGerencialPage() {
     // O nome da rotina vive só na trilha do cabeçalho. Um `h1` repetindo "DRE
     // Gerencial" logo abaixo dela custava duas linhas de altura para dizer o que já
     // estava dito — e altura é o recurso escasso desta tela.
-    <AppShell trilha={["Época Analytics Teste", "DRE Gerencial Teste"]}>
+    <AppShell trilha={["Época Analytics", "DRE Gerencial"]}>
       {/* Com a leitura ampliada a tabela precisa de mais largura útil antes de
           começar a rolar na horizontal. */}
       <div className="mx-auto flex h-full min-h-0 w-full max-w-[110rem] flex-col gap-3">
