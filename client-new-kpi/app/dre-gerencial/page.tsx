@@ -19,7 +19,11 @@ import { cn } from "@/lib/cn";
 import { formatarDataIso, formatarDuracao } from "@/lib/formato";
 import { descreverFiliais } from "@/lib/filiaisApuradas";
 import { descreverFornecedores } from "@/lib/fornecedoresApurados";
-import { estimativaDeTempo, impedimento, mostraVariacao } from "@/lib/modosDePeriodo";
+import {
+  estimativaDeTempo,
+  impedimento,
+  mostraVariacao,
+} from "@/lib/modosDePeriodo";
 import { MenuDeExibicao } from "@/components/dre-gerencial/MenuDeExibicao";
 import { dataHoraBr, periodoPadrao } from "@/lib/periodos";
 import type { Apuracao, FiltroApuracao } from "@/types/dre-gerencial";
@@ -102,69 +106,81 @@ export default function DreGerencialPage() {
   const [exportando, setExportando] = useState(false);
   const [erroExportar, setErroExportar] = useState<string | null>(null);
 
-  const exportar = useCallback(async (apuracao: Apuracao) => {
-    setExportando(true);
-    setErroExportar(null);
-    try {
-      const chaves = [
-        ...document.querySelectorAll<HTMLElement>("tr[data-chave]"),
-      ]
-        .map((tr) => tr.dataset.chave)
-        .filter((c): c is string => !!c);
+  const exportar = useCallback(
+    async (apuracao: Apuracao) => {
+      setExportando(true);
+      setErroExportar(null);
+      try {
+        const chaves = [
+          ...document.querySelectorAll<HTMLElement>("tr[data-chave]"),
+        ]
+          .map((tr) => tr.dataset.chave)
+          .filter((c): c is string => !!c);
 
-      // Os VALORES da tela, não os da apuração. Desde 15/09/2026 a ordem muda os totais, e
-      // remapear as chaves do DOM para `apuracao.linhas` traria de volta os números do
-      // cadastro — o arquivo contaria uma história e a tela outra.
-      //
-      // O recálculo precisa da lista COMPLETA, e o DOM só tem as visíveis: `aplicarOrdem`
-      // recoloca as escondidas na vizinhança canônica delas, e uma conta zerada escondida
-      // continua somando no bloco onde está.
-      const completa = recalcular(
-        aplicarOrdem(apuracao.linhas, chaves),
-        apuracao.linhas,
-      );
-      const porChave = new Map(completa.map((l) => [l.chaveOrdem, l]));
-      const naTela = chaves
-        .map((c) => porChave.get(c))
-        .filter((l): l is (typeof apuracao.linhas)[number] => l !== undefined);
+        // Os VALORES da tela, não os da apuração. Desde 15/09/2026 a ordem muda os totais, e
+        // remapear as chaves do DOM para `apuracao.linhas` traria de volta os números do
+        // cadastro — o arquivo contaria uma história e a tela outra.
+        //
+        // O recálculo precisa da lista COMPLETA, e o DOM só tem as visíveis: `aplicarOrdem`
+        // recoloca as escondidas na vizinhança canônica delas, e uma conta zerada escondida
+        // continua somando no bloco onde está.
+        const completa = recalcular(
+          aplicarOrdem(apuracao.linhas, chaves),
+          apuracao.linhas,
+        );
+        const porChave = new Map(completa.map((l) => [l.chaveOrdem, l]));
+        const naTela = chaves
+          .map((c) => porChave.get(c))
+          .filter(
+            (l): l is (typeof apuracao.linhas)[number] => l !== undefined,
+          );
 
-      // Sem nenhuma linha reconhecida no DOM, exporta a apuração como veio — melhor um
-      // arquivo na ordem do cadastro que nenhum arquivo.
-      // O ARQUIVO SAI COMO A TELA ESTA, inclusive nas colunas de analise: quem desligou o
-      // %AH para ler os valores nao quer reencontra-lo no Excel. As linhas ja vinham assim
-      // -- na ordem e na selecao do DOM --, e as colunas passam a vir tambem.
-      await exportarApuracao(
-        apuracao,
-        naTela.length > 0 ? naTela : apuracao.linhas,
-        // O recorte do menu Exibição também: "Sem a coluna Total" e "Só o Total" (15/10/2026).
-        {
-          av: mostrarAv,
-          ah: mostrarAh,
-          provisionado: mostrarProvisionado,
-          total: !semTotal,
-          // A mesma condição de `podeSoTotal`, mas da apuração recebida: o callback vem
-          // antes daquela constante.
-          soTotal:
-            soTotal &&
-            apuracao.periodos.length > 2 &&
-            !mostraVariacao(apuracao.modo, apuracao.periodos),
-        },
-        baseDaSessao,
-      );
-    } catch (e) {
-      setErroExportar(
-        e instanceof Error
-          ? `Não foi possível gerar o Excel: ${e.message}`
-          : "Não foi possível gerar o Excel.",
-      );
-    } finally {
-      setExportando(false);
-    }
-    // AS DEPENDENCIAS IMPORTAM AQUI. Com a lista vazia, o callback guardaria os valores da
-    // primeira renderizacao -- os dois marcados -- e o Excel sairia sempre completo, por
-    // mais que a tela mostrasse outra coisa. Um defeito que nao da erro: o arquivo abre, e
-    // so quem conferir coluna por coluna percebe.
-  }, [mostrarAv, mostrarAh, mostrarProvisionado, semTotal, soTotal, baseDaSessao]);
+        // Sem nenhuma linha reconhecida no DOM, exporta a apuração como veio — melhor um
+        // arquivo na ordem do cadastro que nenhum arquivo.
+        // O ARQUIVO SAI COMO A TELA ESTA, inclusive nas colunas de analise: quem desligou o
+        // %AH para ler os valores nao quer reencontra-lo no Excel. As linhas ja vinham assim
+        // -- na ordem e na selecao do DOM --, e as colunas passam a vir tambem.
+        await exportarApuracao(
+          apuracao,
+          naTela.length > 0 ? naTela : apuracao.linhas,
+          // O recorte do menu Exibição também: "Sem a coluna Total" e "Só o Total" (15/10/2026).
+          {
+            av: mostrarAv,
+            ah: mostrarAh,
+            provisionado: mostrarProvisionado,
+            total: !semTotal,
+            // A mesma condição de `podeSoTotal`, mas da apuração recebida: o callback vem
+            // antes daquela constante.
+            soTotal:
+              soTotal &&
+              apuracao.periodos.length > 2 &&
+              !mostraVariacao(apuracao.modo, apuracao.periodos),
+          },
+          baseDaSessao,
+        );
+      } catch (e) {
+        setErroExportar(
+          e instanceof Error
+            ? `Não foi possível gerar o Excel: ${e.message}`
+            : "Não foi possível gerar o Excel.",
+        );
+      } finally {
+        setExportando(false);
+      }
+      // AS DEPENDENCIAS IMPORTAM AQUI. Com a lista vazia, o callback guardaria os valores da
+      // primeira renderizacao -- os dois marcados -- e o Excel sairia sempre completo, por
+      // mais que a tela mostrasse outra coisa. Um defeito que nao da erro: o arquivo abre, e
+      // so quem conferir coluna por coluna percebe.
+    },
+    [
+      mostrarAv,
+      mostrarAh,
+      mostrarProvisionado,
+      semTotal,
+      soTotal,
+      baseDaSessao,
+    ],
+  );
 
   // O mês corrente, em colunas mensais: o recorte que a tela sempre abriu, e que os modos
   // de ano não deslocaram. `anos` começa vazio de propósito — um ano pré-escolhido seria
@@ -220,11 +236,14 @@ export default function DreGerencialPage() {
   // O checkbox só existe quando há o que mostrar: competência e algum título em aberto no
   // período. Em caixa, ou com tudo pago, a tela é a de sempre e o controle não aparece —
   // diferente do %AH, que fica desabilitado, porque aqui não há "ainda não": não existe.
-  const temProvisionado = dados?.periodos.some((p) => p.temProvisionado === true) ?? false;
+  const temProvisionado =
+    dados?.periodos.some((p) => p.temProvisionado === true) ?? false;
   // "Só o Total" vale com MAIS DE DOIS meses — pedido do Gabriel — e só quando o bloco do fim
   // é um total: nos modos de ano ele pode ser a variação entre colunas, e a variação sozinha
   // não é o DRE de período nenhum.
-  const variacaoNoFim = dados ? mostraVariacao(dados.modo, dados.periodos) : false;
+  const variacaoNoFim = dados
+    ? mostraVariacao(dados.modo, dados.periodos)
+    : false;
   const podeSoTotal = (dados?.periodos.length ?? 0) > 2 && !variacaoNoFim;
 
   // Pela mesma razão: a hora é a da apuração que está na tela, não a de agora. Ela congela
@@ -255,54 +274,50 @@ export default function DreGerencialPage() {
         {dados.regime === "caixa" ? "Caixa" : "Competência"} ·{" "}
         {/* O separador vai DENTRO do span: escondido, ele leva o ` · ` junto e a
           linha não fica com dois pontos seguidos. */}
-        <span className="filiais-resumo">
-          {filiaisApuradas.resumo} ·{" "}
-        </span>
+        <span className="filiais-resumo">{filiaisApuradas.resumo} · </span>
         {descreverColunas(dados)} ·{" "}
         {/* NA TELA O TEMPO QUE A CONSULTA LEVOU, NO PAPEL A HORA EM QUE ELA FOI
           FEITA — duas grafias do mesmo trecho, como o `%AH` em `Variacao`, e
           quem escolhe é o CSS: `Ctrl+P` não espera re-render.
-  
+
           O tempo de consulta responde "a tela travou?", pergunta de quem está
           sentado na frente dela. No papel ele não diz nada, e o que falta é
           justamente o contrário: a base é viva, e dois papéis do mesmo recorte
           impressos em horas diferentes trazem números diferentes. Sem a hora,
           não há como saber qual folha é a mais nova — e é por isso que ela vai
           aqui, na mesma linha do período e das filiais.
-  
+
           A hora é a do SERVIDOR, que apurou, e não a do navegador que imprimiu.
           Ver `dataHoraBr`. */}
         <span className="so-na-tela">
           apurado em {formatarDuracao(dados.duracaoMs)}
         </span>
         {apuradoEm !== null && (
-          <span className="so-no-papel">
-            apurado em {apuradoEm}
-          </span>
+          <span className="so-no-papel">apurado em {apuradoEm}</span>
         )}
       </p>
-  
+
       {/* Os nomes das filiais em linha própria, na tela cheia e no papel — ver o
         bloco FILIAIS APURADAS em globals.css.
-  
+
         **Linha própria, e não mais um item da sequência acima.** Com dez
         filiais a lista empurrava os controles da direita para baixo e crescia
         o cabeçalho em 62px, que na tela cheia saem da tabela. Numa linha só
         dela, a lista cresce sem deslocar nada.
-  
+
         Fica no DOM sempre, escondida por CSS, porque `Ctrl+P` não espera
         re-render — a mesma razão do par de `%AH` em `Variacao`. */}
       <p className="filiais-descritas mt-0.5 text-[length:var(--fs-apoio)] text-[var(--text-muted)]">
         {detalheDasFiliais}
       </p>
-  
+
       {/* DE QUEM É ESTE DRE.
-  
+
         Em linha própria e sempre visível — na tela e no papel —, porque é a
         informação que mais muda o sentido de todos os números acima dela. Uma
         folha impressa de um DRE filtrado circula sem contexto nenhum, e sem
         esta linha ela se parece com o DRE da empresa inteira.
-  
+
         Só aparece quando há filtro: sem ele não há nada a dizer, e a altura
         fica com a tabela. */}
       {fornecedoresApurados !== null && (
@@ -424,7 +439,8 @@ export default function DreGerencialPage() {
                           {
                             id: "informativos",
                             rotulo: "Informativos",
-                            apoio: "Linhas com o selo INFO, que não entram em nenhum total",
+                            apoio:
+                              "Linhas com o selo INFO, que não entram em nenhum total",
                             marcada: mostrarInformativos,
                             onMudar: setMostrarInformativos,
                           },
@@ -433,8 +449,9 @@ export default function DreGerencialPage() {
                             // página, então marcar aqui ou lá muda os dois — e a célula fecha
                             // com o detalhamento aberto a partir dela. Ver a divergência 21.
                             id: "ocultar-baixas",
-                            rotulo: "Ocultar baixas estornadas e da rotina 737",
-                            apoio: "As contas sem os pagamentos estornados e os baixados pela 737",
+                            rotulo: "Ocultar títulos estornados ou desdobrados",
+                            apoio:
+                              "As contas sem os pagamentos estornados e sem os baixados pela 737",
                             marcada: ocultarBaixas,
                             onMudar: setOcultarBaixas,
                             motivo: dados?.linhasSemEstornos
@@ -444,14 +461,16 @@ export default function DreGerencialPage() {
                           {
                             id: "av",
                             rotulo: "AV %",
-                            apoio: "Análise vertical: o peso de cada linha na receita",
+                            apoio:
+                              "Análise vertical: o peso de cada linha na receita",
                             marcada: mostrarAv,
                             onMudar: setMostrarAv,
                           },
                           {
                             id: "ah",
                             rotulo: "AH %",
-                            apoio: "Análise horizontal: a variação sobre a coluna anterior",
+                            apoio:
+                              "Análise horizontal: a variação sobre a coluna anterior",
                             marcada: mostrarAh,
                             onMudar: setMostrarAh,
                             motivo: temAh
@@ -461,7 +480,8 @@ export default function DreGerencialPage() {
                           {
                             id: "provisionado",
                             rotulo: "Provisionado",
-                            apoio: "Títulos não pagos e não confirmados, e o Total (R + P)",
+                            apoio:
+                              "Títulos não pagos e não confirmados, e o Total (R + P)",
                             marcada: mostrarProvisionado,
                             onMudar: setMostrarProvisionado,
                             oculta: !temProvisionado,
@@ -488,7 +508,8 @@ export default function DreGerencialPage() {
                           {
                             id: "so-total",
                             rotulo: "Só o Total",
-                            apoio: "Esconde os meses e deixa o bloco do período",
+                            apoio:
+                              "Esconde os meses e deixa o bloco do período",
                             marcada: soTotal,
                             onMudar: (m) => {
                               setSoTotal(m);
@@ -515,7 +536,10 @@ export default function DreGerencialPage() {
                     // O Excel sai da versão que está NA TELA, com ou sem as baixas ocultas:
                     // a planilha conta a mesma coisa que a pessoa está vendo.
                     onExcel={() =>
-                      exportar({ ...dados, linhas: linhasDaApuracao(dados, ocultarBaixas) })
+                      exportar({
+                        ...dados,
+                        linhas: linhasDaApuracao(dados, ocultarBaixas),
+                      })
                     }
                     excelOcupado={exportando}
                   />
@@ -571,7 +595,9 @@ export default function DreGerencialPage() {
                     // O que viaja para a API é o código, e só ele — ver `paraApi`.
                     fornecedores: dados.fornecedores.map(
                       (cod) =>
-                        filtro.fornecedores.find((f) => f.codFornec === cod) ?? {
+                        filtro.fornecedores.find(
+                          (f) => f.codFornec === cod,
+                        ) ?? {
                           codFornec: cod,
                           fornecedor: "",
                           cgc: null,
