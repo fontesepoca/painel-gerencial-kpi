@@ -29,7 +29,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-const COMMIT_BASE = "b0dde42"; // 14/10/2026: DTVENC no detalhamento (provisionado). Antes: 6202e2e, b758c42 e cb4ad69.
+const COMMIT_BASE = "1d0b714"; // 30/10/2026: o sinal OCULTAVEL nas despesas (divergência 21). Antes: b0dde42, 6202e2e, b758c42 e cb4ad69.
 const DIR = "api-new-kpi/Infrastructure/Persistence/Queries";
 const ARQUIVOS = ["DreGerencialQueries.cs", "DreDetalheQueries.cs", "AutenticacaoQueries.cs"];
 const REGRAS_CS = "api-new-kpi/Domain/Entities/RegrasDaBase.cs";
