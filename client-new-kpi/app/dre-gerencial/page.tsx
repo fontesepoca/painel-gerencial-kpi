@@ -13,6 +13,8 @@ import { recalcular } from "@/lib/recalculoDoDre";
 import { useApuracao, useFiliais } from "@/hooks/useDreGerencial";
 import { useSessao } from "@/hooks/useSessao";
 import { useEscalaDeImpressao } from "@/hooks/useEscalaDeImpressao";
+import { useOcultarBaixas } from "@/hooks/useOcultarBaixas";
+import { linhasDaApuracao } from "@/lib/baixasEstornadas";
 import { cn } from "@/lib/cn";
 import { formatarDataIso, formatarDuracao } from "@/lib/formato";
 import { descreverFiliais } from "@/lib/filiaisApuradas";
@@ -32,6 +34,9 @@ export default function DreGerencialPage() {
   const [mostrarZeradas, setMostrarZeradas] = useState(false);
   // Ligado por padrão: a tela de sempre mostra os informativos (29/10/2026).
   const [mostrarInformativos, setMostrarInformativos] = useState(true);
+  // "Ocultar baixas estornadas e da rotina 737", marcado por padrão (30/10/2026): o mesmo
+  // estado do checkbox do detalhamento. Escolhe qual dos dois DREs da API vai à tela.
+  const [ocultarBaixas, setOcultarBaixas] = useOcultarBaixas();
 
   /**
    * As colunas de análise, ligadas por padrão.
@@ -424,6 +429,19 @@ export default function DreGerencialPage() {
                             onMudar: setMostrarInformativos,
                           },
                           {
+                            // O MESMO checkbox do detalhamento (30/10/2026): um estado só na
+                            // página, então marcar aqui ou lá muda os dois — e a célula fecha
+                            // com o detalhamento aberto a partir dela. Ver a divergência 21.
+                            id: "ocultar-baixas",
+                            rotulo: "Ocultar baixas estornadas e da rotina 737",
+                            apoio: "As contas sem os pagamentos estornados e os baixados pela 737",
+                            marcada: ocultarBaixas,
+                            onMudar: setOcultarBaixas,
+                            motivo: dados?.linhasSemEstornos
+                              ? null
+                              : "A API desta apuração é anterior a esta opção. Apure de novo.",
+                          },
+                          {
                             id: "av",
                             rotulo: "AV %",
                             apoio: "Análise vertical: o peso de cada linha na receita",
@@ -494,7 +512,11 @@ export default function DreGerencialPage() {
 
                   <MenuExportar
                     onImprimir={() => window.print()}
-                    onExcel={() => exportar(dados)}
+                    // O Excel sai da versão que está NA TELA, com ou sem as baixas ocultas:
+                    // a planilha conta a mesma coisa que a pessoa está vendo.
+                    onExcel={() =>
+                      exportar({ ...dados, linhas: linhasDaApuracao(dados, ocultarBaixas) })
+                    }
                     excelOcupado={exportando}
                   />
                 </div>
@@ -519,7 +541,8 @@ export default function DreGerencialPage() {
                   // apurado, não o que o formulário mostra agora.
                   comFornecedor: dados.fornecedores.length > 0,
                   periodos: dados.periodos,
-                  linhas: dados.linhas,
+                  // Com ou sem as baixas estornadas e da 737, pelo checkbox (30/10/2026).
+                  linhas: linhasDaApuracao(dados, ocultarBaixas),
                   mostrarZeradas,
                   mostrarInformativos,
                   mostrarAv,

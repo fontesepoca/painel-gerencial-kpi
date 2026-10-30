@@ -43,6 +43,13 @@ export interface DetalheAberto {
    * página precisa abrir mesmo assim.
    */
   filiais?: string;
+  /**
+   * O checkbox "Ocultar baixas estornadas e da rotina 737" como estava na aba de origem
+   * (30/10/2026). A aba nova é outra página, e o estado de lá não atravessa sozinho: sem isto
+   * ela abriria sempre marcada, e com a tabela de origem desmarcada a soma do detalhamento
+   * deixaria de fechar com a célula clicada. Ausente: marcado, o padrão.
+   */
+  ocultarBaixas?: boolean;
 }
 
 const PREFIXO = "epoca:detalhe:";

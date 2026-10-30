@@ -300,16 +300,25 @@ public static class DreGerencialQueries
     ///
     /// <para>Ver <c>docs/rotinas/9815-dre-gerencial/FILTRO_FORNECEDOR.md</c> para a mecânica inteira, e
     /// <c>docs/rotinas/9815-dre-gerencial/validacao/dc73...</c> para a tabela.</para>
+    ///
+    /// <para><b>{6} é o sinal OCULTAVEL</b> (30/10/2026, divergência 21): 1 no lançamento pago
+    /// com baixa estornada ou baixado pela rotina 737, 0 no resto e sempre 0 no provisionado
+    /// — ver <c>DreGerencialRepository.SinalDeOcultavel</c>. As camadas de fora somam
+    /// <c>VPAGO*OCULTAVEL</c> e <c>VPAGO_EXCLUSIVO_FORNEC*OCULTAVEL</c> ao lado do valor, e a
+    /// API monta com elas o DRE sem estornos. O valor (<c>VLREALIZADO</c>) continua o da 9815:
+    /// as colunas novas só se somam a ele, nunca o alteram. Para isso o PCLANC passa a trazer
+    /// <c>DTESTORNOBAIXA</c> e <c>CODROTINABAIXA</c>, e o ramo do PCPREST, que não vem dele,
+    /// leva 0 nas duas.</para>
     /// </summary>
     public const string DespesasGrupoDeContas = """
-         SELECT  GRUPOCONTA AS GRUPOCONTA, CONTASUBIDA AS CONTASUBIDA, AntesRO AS ANTESRO, AntesLL AS ANTESLL, AntesLF AS ANTESLF, MES_ANO AS MESANO, MES AS MES, ANO AS ANO, sum(VLREALIZADO) AS VLREALIZADO, sum(VPAGO_EXCLUSIVO_FORNEC) AS VPAGOEXCLUSIVOFORNEC, sum(QdeReg) AS QDEREG 
+         SELECT  GRUPOCONTA AS GRUPOCONTA, CONTASUBIDA AS CONTASUBIDA, AntesRO AS ANTESRO, AntesLL AS ANTESLL, AntesLF AS ANTESLF, MES_ANO AS MESANO, MES AS MES, ANO AS ANO, sum(VLREALIZADO) AS VLREALIZADO, sum(VPAGO_EXCLUSIVO_FORNEC) AS VPAGOEXCLUSIVOFORNEC, sum(VPAGO_OCULTAVEL) AS VPAGOOCULTAVEL, sum(VPAGO_EXCLUSIVO_OCULTAVEL) AS VPAGOEXCLUSIVOOCULTAVEL, sum(QdeReg) AS QDEREG 
          FROM ( 
          /* `decode(AntesLF,'N',CODCONTA,codgrupo)`: as linhas DEPOIS do LUCRO LIQUIDO já saem
             por conta, e as de antes por grupo. A conta 3000165 entra na primeira regra sem
             estar depois do LUCRO LIQUIDO — é a exceção que mantém `INDENIZACAO DE MERC.
             VENC. E AVARIA` como linha própria em vez de somida no grupo 300. A estrutura tem
             a exceção gêmea; as duas precisam concordar ou a linha aparece zerada. */
-         SELECT  to_char(case when AntesLF = 'N' or CODCONTA = 3000165 then CODCONTA else codgrupo end) as GRUPOCONTA, CONTASUBIDA, AntesRO, AntesLL, AntesLF, MES_ANO, MES, ANO, SUM(VPAGO) AS VLREALIZADO, sum(VPAGO_EXCLUSIVO_FORNEC) as VPAGO_EXCLUSIVO_FORNEC, count(*) as QdeReg
+         SELECT  to_char(case when AntesLF = 'N' or CODCONTA = 3000165 then CODCONTA else codgrupo end) as GRUPOCONTA, CONTASUBIDA, AntesRO, AntesLL, AntesLF, MES_ANO, MES, ANO, SUM(VPAGO) AS VLREALIZADO, sum(VPAGO_EXCLUSIVO_FORNEC) as VPAGO_EXCLUSIVO_FORNEC, sum(VPAGO*OCULTAVEL) as VPAGO_OCULTAVEL, sum(VPAGO_EXCLUSIVO_FORNEC*OCULTAVEL) as VPAGO_EXCLUSIVO_OCULTAVEL, count(*) as QdeReg
                         FROM ( 
           SELECT  FIN.RECNUM, @@CONTA_SUBIDA@@ as CONTASUBIDA, FIN.CODFILIAL, CCPrinc.codccprinc, CCPrinc.DescCCPrinc,  
                   case  
@@ -331,6 +340,7 @@ public static class DreGerencialQueries
                   SUBSTR(CONCAT(CONCAT(TRIM(FIN.HISTORICO), '. '), TRIM(FIN.HISTORICO2)),0,200) HISTORICO, 
                   DECODE(RC.valor,NULL,NVL(FIN.VPAGO,0)*(-1),NVL(RC.valor,FIN.VPAGO)*(-1)) as VPAGO,  
                   {4} 
+                  {6} 
                   FIN.DTPAGTO, FIN.NUMBANCO,FIN.NumCheque,FIN.numbordero,FIN.numseqbordero, FIN.NUMCHEQUE2, 
                   FIN.LOCALIZACAO, FIN.NOMEFUNC, 
                   DECODE(FIN.TIPOPARCEIRO, 
@@ -345,7 +355,7 @@ public static class DreGerencialQueries
                   (select RECNUM, CODFILIAL, numtrans, NUMNOTA, Duplic, codprojeto, dtcompetencia, DTVENC, DTPAGTO, nvl(VPAGO,VALOR) as VPAGO, INDICE, 
          @@CODCONTA_LANC@@, 
                           TIPOPARCEIRO, DTRECLASSIFIC, CODFUNCRECLASSIFIC, historico, HISTORICO2, 
-                          NUMBANCO, NumCheque, numbordero, numseqbordero, NUMCHEQUE2, LOCALIZACAO, NOMEFUNC, CODFORNEC, CODFUNCBAIXA 
+                          NUMBANCO, NumCheque, numbordero, numseqbordero, NUMCHEQUE2, LOCALIZACAO, NOMEFUNC, CODFORNEC, CODFUNCBAIXA, DTESTORNOBAIXA, CODROTINABAIXA 
                      from PCLANC
                     WHERE DTPAGTO IS NOT NULL 
                   ) FIN, 
@@ -371,7 +381,7 @@ public static class DreGerencialQueries
          select '400' as GRUPOCONTA, cast(null as varchar2(20)) as CONTASUBIDA,  
                 'N' as AntesRO, 'S' as AntesLL,  'S' as AntesLF, TO_CHAR(FIN.dtpag,'mm/yyyy') as MES_ANO, 
                 TO_CHAR(FIN.dtpag,'mm') as MES, 
-                extract(YEAR FROM FIN.dtpag) as ANO, fin.valor as VLREALIZADO, 0 as VPAGO_EXCLUSIVO_FORNEC, 0 as QdeReg  
+                extract(YEAR FROM FIN.dtpag) as ANO, fin.valor as VLREALIZADO, 0 as VPAGO_EXCLUSIVO_FORNEC, 0 as VPAGO_OCULTAVEL, 0 as VPAGO_EXCLUSIVO_OCULTAVEL, 0 as QdeReg  
            from pcnfsaid nf, pcprest fin 
           where nf.numnota = fin.duplic 
             and nf.numtransvenda  = fin.numtransvenda 
@@ -471,9 +481,9 @@ public static class DreGerencialQueries
     /// :dtIni1/:dtFim1, :dtIni2/:dtFim2, {3} filiais de `PCNFSAID`.</para>
     /// </summary>
     public const string DespesasContaGerencial = """
-         SELECT  GRUPOCONTA AS GRUPOCONTA, AntesRO AS ANTESRO, AntesLL AS ANTESLL, AntesLF AS ANTESLF, MES_ANO AS MESANO, MES AS MES, ANO AS ANO, sum(VLREALIZADO) AS VLREALIZADO, sum(VPAGO_EXCLUSIVO_FORNEC) AS VPAGOEXCLUSIVOFORNEC, sum(QdeReg) AS QDEREG
+         SELECT  GRUPOCONTA AS GRUPOCONTA, AntesRO AS ANTESRO, AntesLL AS ANTESLL, AntesLF AS ANTESLF, MES_ANO AS MESANO, MES AS MES, ANO AS ANO, sum(VLREALIZADO) AS VLREALIZADO, sum(VPAGO_EXCLUSIVO_FORNEC) AS VPAGOEXCLUSIVOFORNEC, sum(VPAGO_OCULTAVEL) AS VPAGOOCULTAVEL, sum(VPAGO_EXCLUSIVO_OCULTAVEL) AS VPAGOEXCLUSIVOOCULTAVEL, sum(QdeReg) AS QDEREG
          FROM (
-         SELECT  to_char(CODCONTA) as GRUPOCONTA, AntesRO, AntesLL, AntesLF, MES_ANO, MES, ANO, SUM(VPAGO) AS VLREALIZADO, sum(VPAGO_EXCLUSIVO_FORNEC) as VPAGO_EXCLUSIVO_FORNEC, count(*) as QdeReg
+         SELECT  to_char(CODCONTA) as GRUPOCONTA, AntesRO, AntesLL, AntesLF, MES_ANO, MES, ANO, SUM(VPAGO) AS VLREALIZADO, sum(VPAGO_EXCLUSIVO_FORNEC) as VPAGO_EXCLUSIVO_FORNEC, sum(VPAGO*OCULTAVEL) as VPAGO_OCULTAVEL, sum(VPAGO_EXCLUSIVO_FORNEC*OCULTAVEL) as VPAGO_EXCLUSIVO_OCULTAVEL, count(*) as QdeReg
                         FROM (
           SELECT  FIN.RECNUM, FIN.CODFILIAL, CCPrinc.codccprinc, CCPrinc.DescCCPrinc,
                   case
@@ -495,6 +505,7 @@ public static class DreGerencialQueries
                   SUBSTR(CONCAT(CONCAT(TRIM(FIN.HISTORICO), '. '), TRIM(FIN.HISTORICO2)),0,200) HISTORICO,
                   DECODE(RC.valor,NULL,NVL(FIN.VPAGO,0)*(-1),NVL(RC.valor,FIN.VPAGO)*(-1)) as VPAGO,
                   {4}
+                  {6}
                   FIN.DTPAGTO, FIN.NUMBANCO,FIN.NumCheque,FIN.numbordero,FIN.numseqbordero, FIN.NUMCHEQUE2,
                   FIN.LOCALIZACAO, FIN.NOMEFUNC,
                   DECODE(FIN.TIPOPARCEIRO,
@@ -509,7 +520,7 @@ public static class DreGerencialQueries
                   (select RECNUM, CODFILIAL, numtrans, NUMNOTA, Duplic, codprojeto, dtcompetencia, DTVENC, DTPAGTO, nvl(VPAGO,VALOR) as VPAGO, INDICE,
          @@CODCONTA_LANC@@,
                           TIPOPARCEIRO, DTRECLASSIFIC, CODFUNCRECLASSIFIC, historico, HISTORICO2,
-                          NUMBANCO, NumCheque, numbordero, numseqbordero, NUMCHEQUE2, LOCALIZACAO, NOMEFUNC, CODFORNEC, CODFUNCBAIXA
+                          NUMBANCO, NumCheque, numbordero, numseqbordero, NUMCHEQUE2, LOCALIZACAO, NOMEFUNC, CODFORNEC, CODFUNCBAIXA, DTESTORNOBAIXA, CODROTINABAIXA
                      from PCLANC
                     WHERE DTPAGTO IS NOT NULL
                   ) FIN,
@@ -535,7 +546,7 @@ public static class DreGerencialQueries
          select '4000004' as GRUPOCONTA,
                 'N' as AntesRO, 'S' as AntesLL,  'S' as AntesLF, TO_CHAR(FIN.dtpag,'mm/yyyy') as MES_ANO,
                 TO_CHAR(FIN.dtpag,'mm') as MES,
-                extract(YEAR FROM FIN.dtpag) as ANO, fin.valor as VLREALIZADO, 0 as VPAGO_EXCLUSIVO_FORNEC, 0 as QdeReg
+                extract(YEAR FROM FIN.dtpag) as ANO, fin.valor as VLREALIZADO, 0 as VPAGO_EXCLUSIVO_FORNEC, 0 as VPAGO_OCULTAVEL, 0 as VPAGO_EXCLUSIVO_OCULTAVEL, 0 as QdeReg
            from pcnfsaid nf, pcprest fin
           where nf.numnota = fin.duplic
             and nf.numtransvenda  = fin.numtransvenda
@@ -708,9 +719,9 @@ public static class DreGerencialQueries
     /// expressões de data do regime.</para>
     /// </summary>
     public const string DespesasCCustoPrincipal = """
-         SELECT  GRUPOCONTA AS GRUPOCONTA, CONTASUBIDA AS CONTASUBIDA, AntesRO AS ANTESRO, AntesLL AS ANTESLL, AntesLF AS ANTESLF, MES_ANO AS MESANO, MES AS MES, ANO AS ANO, sum(VLREALIZADO) AS VLREALIZADO, sum(VPAGO_EXCLUSIVO_FORNEC) AS VPAGOEXCLUSIVOFORNEC, sum(QdeReg) AS QDEREG
+         SELECT  GRUPOCONTA AS GRUPOCONTA, CONTASUBIDA AS CONTASUBIDA, AntesRO AS ANTESRO, AntesLL AS ANTESLL, AntesLF AS ANTESLF, MES_ANO AS MESANO, MES AS MES, ANO AS ANO, sum(VLREALIZADO) AS VLREALIZADO, sum(VPAGO_EXCLUSIVO_FORNEC) AS VPAGOEXCLUSIVOFORNEC, sum(VPAGO_OCULTAVEL) AS VPAGOOCULTAVEL, sum(VPAGO_EXCLUSIVO_OCULTAVEL) AS VPAGOEXCLUSIVOOCULTAVEL, sum(QdeReg) AS QDEREG
          FROM (
-         SELECT  decode(AntesLF,'N',to_char(CODCONTA),  NVL(codccprinc,'99')) as GRUPOCONTA, CONTASUBIDA, AntesRO, AntesLL, AntesLF, MES_ANO, MES, ANO, SUM(VPAGO) AS VLREALIZADO, sum(VPAGO_EXCLUSIVO_FORNEC) as VPAGO_EXCLUSIVO_FORNEC, count(*) as QdeReg
+         SELECT  decode(AntesLF,'N',to_char(CODCONTA),  NVL(codccprinc,'99')) as GRUPOCONTA, CONTASUBIDA, AntesRO, AntesLL, AntesLF, MES_ANO, MES, ANO, SUM(VPAGO) AS VLREALIZADO, sum(VPAGO_EXCLUSIVO_FORNEC) as VPAGO_EXCLUSIVO_FORNEC, sum(VPAGO*OCULTAVEL) as VPAGO_OCULTAVEL, sum(VPAGO_EXCLUSIVO_FORNEC*OCULTAVEL) as VPAGO_EXCLUSIVO_OCULTAVEL, count(*) as QdeReg
                         FROM (
           SELECT  FIN.RECNUM, @@CONTA_SUBIDA@@ as CONTASUBIDA, FIN.CODFILIAL, CCPrinc.codccprinc, CCPrinc.DescCCPrinc,
                   case
@@ -732,6 +743,7 @@ public static class DreGerencialQueries
                   SUBSTR(CONCAT(CONCAT(TRIM(FIN.HISTORICO), '. '), TRIM(FIN.HISTORICO2)),0,200) HISTORICO,
                   DECODE(RC.valor,NULL,NVL(FIN.VPAGO,0)*(-1),NVL(RC.valor,FIN.VPAGO)*(-1)) as VPAGO,
                   {4}
+                  {6}
                   FIN.DTPAGTO, FIN.NUMBANCO,FIN.NumCheque,FIN.numbordero,FIN.numseqbordero, FIN.NUMCHEQUE2,
                   FIN.LOCALIZACAO, FIN.NOMEFUNC,
                   DECODE(FIN.TIPOPARCEIRO,
@@ -746,7 +758,7 @@ public static class DreGerencialQueries
                   (select RECNUM, CODFILIAL, numtrans, NUMNOTA, Duplic, codprojeto, dtcompetencia, DTVENC, DTPAGTO, nvl(VPAGO,VALOR) as VPAGO, INDICE,
          @@CODCONTA_LANC@@,
                           TIPOPARCEIRO, DTRECLASSIFIC, CODFUNCRECLASSIFIC, historico, HISTORICO2,
-                          NUMBANCO, NumCheque, numbordero, numseqbordero, NUMCHEQUE2, LOCALIZACAO, NOMEFUNC, CODFORNEC, CODFUNCBAIXA
+                          NUMBANCO, NumCheque, numbordero, numseqbordero, NUMCHEQUE2, LOCALIZACAO, NOMEFUNC, CODFORNEC, CODFUNCBAIXA, DTESTORNOBAIXA, CODROTINABAIXA
                      from PCLANC
                     WHERE DTPAGTO IS NOT NULL
                   ) FIN,
@@ -772,7 +784,7 @@ public static class DreGerencialQueries
          select '85' as GRUPOCONTA, cast(null as varchar2(20)) as CONTASUBIDA,
                 'N' as AntesRO, 'S' as AntesLL,  'S' as AntesLF, TO_CHAR(FIN.dtpag,'mm/yyyy') as MES_ANO,
                 TO_CHAR(FIN.dtpag,'mm') as MES,
-                extract(YEAR FROM FIN.dtpag) as ANO, fin.valor as VLREALIZADO, 0 as VPAGO_EXCLUSIVO_FORNEC, 0 as QdeReg
+                extract(YEAR FROM FIN.dtpag) as ANO, fin.valor as VLREALIZADO, 0 as VPAGO_EXCLUSIVO_FORNEC, 0 as VPAGO_OCULTAVEL, 0 as VPAGO_EXCLUSIVO_OCULTAVEL, 0 as QdeReg
            from pcnfsaid nf, pcprest fin
           where nf.numnota = fin.duplic
             and nf.numtransvenda  = fin.numtransvenda
@@ -911,9 +923,9 @@ public static class DreGerencialQueries
     /// :dtIni2/:dtFim2, {3} filiais de `PCNFSAID`.</para>
     /// </summary>
     public const string DespesasCentroCusto = """
-         SELECT  GRUPOCONTA AS GRUPOCONTA, CONTASUBIDA AS CONTASUBIDA, AntesRO AS ANTESRO, AntesLL AS ANTESLL, AntesLF AS ANTESLF, MES_ANO AS MESANO, MES AS MES, ANO AS ANO, sum(VLREALIZADO) AS VLREALIZADO, sum(VPAGO_EXCLUSIVO_FORNEC) AS VPAGOEXCLUSIVOFORNEC, sum(QdeReg) AS QDEREG
+         SELECT  GRUPOCONTA AS GRUPOCONTA, CONTASUBIDA AS CONTASUBIDA, AntesRO AS ANTESRO, AntesLL AS ANTESLL, AntesLF AS ANTESLF, MES_ANO AS MESANO, MES AS MES, ANO AS ANO, sum(VLREALIZADO) AS VLREALIZADO, sum(VPAGO_EXCLUSIVO_FORNEC) AS VPAGOEXCLUSIVOFORNEC, sum(VPAGO_OCULTAVEL) AS VPAGOOCULTAVEL, sum(VPAGO_EXCLUSIVO_OCULTAVEL) AS VPAGOEXCLUSIVOOCULTAVEL, sum(QdeReg) AS QDEREG
          FROM (
-         SELECT  decode(AntesLF,'N',to_char(CODCONTA),  CODCENTROCUSTO) as GRUPOCONTA, CONTASUBIDA, AntesRO, AntesLL, AntesLF, MES_ANO, MES, ANO, SUM(VPAGO) AS VLREALIZADO, sum(VPAGO_EXCLUSIVO_FORNEC) as VPAGO_EXCLUSIVO_FORNEC, count(*) as QdeReg
+         SELECT  decode(AntesLF,'N',to_char(CODCONTA),  CODCENTROCUSTO) as GRUPOCONTA, CONTASUBIDA, AntesRO, AntesLL, AntesLF, MES_ANO, MES, ANO, SUM(VPAGO) AS VLREALIZADO, sum(VPAGO_EXCLUSIVO_FORNEC) as VPAGO_EXCLUSIVO_FORNEC, sum(VPAGO*OCULTAVEL) as VPAGO_OCULTAVEL, sum(VPAGO_EXCLUSIVO_FORNEC*OCULTAVEL) as VPAGO_EXCLUSIVO_OCULTAVEL, count(*) as QdeReg
                         FROM (
           SELECT  FIN.RECNUM, @@CONTA_SUBIDA@@ as CONTASUBIDA, FIN.CODFILIAL, CCPrinc.codccprinc, CCPrinc.DescCCPrinc,
                   case
@@ -935,6 +947,7 @@ public static class DreGerencialQueries
                   SUBSTR(CONCAT(CONCAT(TRIM(FIN.HISTORICO), '. '), TRIM(FIN.HISTORICO2)),0,200) HISTORICO,
                   DECODE(RC.valor,NULL,NVL(FIN.VPAGO,0)*(-1),NVL(RC.valor,FIN.VPAGO)*(-1)) as VPAGO,
                   {4}
+                  {6}
                   FIN.DTPAGTO, FIN.NUMBANCO,FIN.NumCheque,FIN.numbordero,FIN.numseqbordero, FIN.NUMCHEQUE2,
                   FIN.LOCALIZACAO, FIN.NOMEFUNC,
                   DECODE(FIN.TIPOPARCEIRO,
@@ -949,7 +962,7 @@ public static class DreGerencialQueries
                   (select RECNUM, CODFILIAL, numtrans, NUMNOTA, Duplic, codprojeto, dtcompetencia, DTVENC, DTPAGTO, nvl(VPAGO,VALOR) as VPAGO, INDICE,
          @@CODCONTA_LANC@@,
                           TIPOPARCEIRO, DTRECLASSIFIC, CODFUNCRECLASSIFIC, historico, HISTORICO2,
-                          NUMBANCO, NumCheque, numbordero, numseqbordero, NUMCHEQUE2, LOCALIZACAO, NOMEFUNC, CODFORNEC, CODFUNCBAIXA
+                          NUMBANCO, NumCheque, numbordero, numseqbordero, NUMCHEQUE2, LOCALIZACAO, NOMEFUNC, CODFORNEC, CODFUNCBAIXA, DTESTORNOBAIXA, CODROTINABAIXA
                      from PCLANC
                     WHERE DTPAGTO IS NOT NULL
                   ) FIN,
@@ -975,7 +988,7 @@ public static class DreGerencialQueries
          select '8501' as GRUPOCONTA, cast(null as varchar2(20)) as CONTASUBIDA,
                 'N' as AntesRO, 'S' as AntesLL,  'S' as AntesLF, TO_CHAR(FIN.dtpag,'mm/yyyy') as MES_ANO,
                 TO_CHAR(FIN.dtpag,'mm') as MES,
-                extract(YEAR FROM FIN.dtpag) as ANO, fin.valor as VLREALIZADO, 0 as VPAGO_EXCLUSIVO_FORNEC, 0 as QdeReg
+                extract(YEAR FROM FIN.dtpag) as ANO, fin.valor as VLREALIZADO, 0 as VPAGO_EXCLUSIVO_FORNEC, 0 as VPAGO_OCULTAVEL, 0 as VPAGO_EXCLUSIVO_OCULTAVEL, 0 as QdeReg
            from pcnfsaid nf, pcprest fin
           where nf.numnota = fin.duplic
             and nf.numtransvenda  = fin.numtransvenda

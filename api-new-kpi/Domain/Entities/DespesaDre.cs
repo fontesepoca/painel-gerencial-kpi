@@ -42,10 +42,46 @@ public class DespesaDre
     /// <summary>Sempre 0 nesta consulta; mantido por fidelidade ao original.</summary>
     public decimal VpagoExclusivoFornec { get; init; }
 
+    /// <summary>
+    /// A parte de <see cref="VlRealizado"/> que vem de baixa ESTORNADA ou da ROTINA 737 — o
+    /// que o checkbox "Ocultar baixas estornadas e da rotina 737" esconde (30/10/2026). Mesmo
+    /// sinal e mesma expressão do valor (o do lançamento, ou o do rateio). Zero no
+    /// provisionado: título em aberto nunca sai por esse filtro. Ver a divergência 21.
+    /// </summary>
+    public decimal VpagoOcultavel { get; init; }
+
+    /// <summary>A parte de <see cref="VpagoExclusivoFornec"/> que o mesmo filtro esconde.</summary>
+    public decimal VpagoExclusivoOcultavel { get; init; }
+
     /// <summary>Quantidade de lançamentos somados. Útil para conferência.</summary>
     public int QdeReg { get; init; }
 
     /// <summary>Tupla que identifica a linha, para casar com a estrutura.</summary>
     public (string GrupoConta, string AntesRo, string AntesLl, string AntesLf, string MesAno) Chave
         => (GrupoConta, AntesRo, AntesLl, AntesLf, MesAno);
+
+    /// <summary>
+    /// A mesma despesa SEM as baixas estornadas e as da rotina 737 — a versão que a tela
+    /// mostra com o checkbox marcado (30/10/2026). Uma cópia: o montador monta o DRE de
+    /// sempre e o sem estornos a partir da mesma consulta.
+    ///
+    /// <para>A contagem de lançamentos não muda: ela decide se a linha "tem movimento", e uma
+    /// conta cuja única baixa foi estornada continua sendo uma conta que se mexeu.</para>
+    /// </summary>
+    public DespesaDre SemBaixasOcultaveis() => new()
+    {
+        GrupoConta = GrupoConta,
+        ContaSubida = ContaSubida,
+        AntesRo = AntesRo,
+        AntesLl = AntesLl,
+        AntesLf = AntesLf,
+        MesAno = MesAno,
+        Mes = Mes,
+        Ano = Ano,
+        VlRealizado = VlRealizado - VpagoOcultavel,
+        VpagoExclusivoFornec = VpagoExclusivoFornec - VpagoExclusivoOcultavel,
+        VpagoOcultavel = 0m,
+        VpagoExclusivoOcultavel = 0m,
+        QdeReg = QdeReg,
+    };
 }

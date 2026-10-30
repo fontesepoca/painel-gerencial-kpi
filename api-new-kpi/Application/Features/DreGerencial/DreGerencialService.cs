@@ -428,7 +428,16 @@ public sealed class DreGerencialService
             estrutura, colunas, filtro, cronometro.ElapsedMilliseconds,
             _baseAtual.Base.Regras.ContasSubidasParaOperacional);
 
-        return Result<ApuracaoDto>.Ok(apuracao);
+        // O MESMO DRE SEM AS BAIXAS ESTORNADAS E AS DA ROTINA 737 (30/10/2026, pedido do
+        // Gabriel): a tela mostra este por padrão e troca para o de cima ao desmarcar o
+        // checkbox. Sai da MESMA consulta — ela já traz a parte oculta de cada despesa — e do
+        // mesmo montador, então totalizadores, %AV, %AH e Média são recalculados aqui, e não
+        // na tela. Não custa ida ao banco. Ver a divergência 21 em DIVERGENCIAS.md.
+        var semEstornos = MontadorDre.Montar(
+            estrutura, colunas.Select(c => c.SemBaixasOcultaveis()).ToList(), filtro,
+            cronometro.ElapsedMilliseconds, _baseAtual.Base.Regras.ContasSubidasParaOperacional);
+
+        return Result<ApuracaoDto>.Ok(apuracao with { LinhasSemEstornos = semEstornos.Linhas });
     }
 
     /// <summary>

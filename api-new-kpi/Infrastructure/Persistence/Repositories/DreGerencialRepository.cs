@@ -246,7 +246,8 @@ public sealed class DreGerencialRepository : IDreGerencialRepository
             regime.ExpressaoFiltro,
             placeholdersB,
             exclusivo,
-            condicoes);
+            condicoes,
+            SinalDeOcultavel(emAberto));
 
         // Meia-noite nas duas pontas, de propósito: a 9815 usa
         // To_Date('27/08/2026','dd/mm/yyyy'), que é 00:00. Usar o fim do dia incluiria
@@ -505,6 +506,27 @@ public sealed class DreGerencialRepository : IDreGerencialRepository
     private const string DedicadoAberto =
         "EXISTS (SELECT 1 FROM TAB_WEB_CENTROC_FORNEC D " +
         "WHERE cc.CodigoCentroCusto LIKE D.CODCENTRO || '%' AND D.DTINATIVACAO IS NULL";
+
+    /// <summary>
+    /// <b>{6} das despesas: o lançamento sai com "Ocultar baixas estornadas e da rotina 737"</b>
+    /// (30/10/2026, pedido do Gabriel). Um sinal 0/1 que as camadas de fora multiplicam pelo
+    /// valor — <c>VPAGO_OCULTAVEL</c> e <c>VPAGO_EXCLUSIVO_OCULTAVEL</c> —, e a API monta com
+    /// eles o DRE sem estornos. Ver a divergência 21.
+    ///
+    /// <para><b>A mesma regra do detalhamento</b> (`ocultavel` em lib/baixasEstornadas.ts):
+    /// baixa estornada, ou baixada pela 737. Rotina de baixa vazia FICA — no Oracle
+    /// <c>NULL LIKE '%737%'</c> não é verdadeiro, e o CASE devolve 0. Divergindo das duas, a
+    /// célula deixaria de fechar com o detalhamento aberto com o mesmo filtro.</para>
+    ///
+    /// <para><b>No provisionado é sempre 0</b>: título em aberto com baixa estornada é título
+    /// REABERTO, e é ele que a coluna Provisionado existe para cobrar.</para>
+    ///
+    /// <para>Sem bind: a ordem posicional dos parâmetros do ODP.NET não muda.</para>
+    /// </summary>
+    public static string SinalDeOcultavel(bool emAberto) =>
+        emAberto
+            ? "0 as OCULTAVEL,"
+            : "case when FIN.DTESTORNOBAIXA is not null or FIN.CODROTINABAIXA like '%737%' then 1 else 0 end as OCULTAVEL,";
 
     /// <summary>
     /// <b>O lançamento é do fornecedor filtrado</b> — a verba do centro 90 que tem o

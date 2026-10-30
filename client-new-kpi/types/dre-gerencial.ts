@@ -447,7 +447,14 @@ export interface Apuracao {
   dataFim: string;
   filiais: string[];
   periodos: PeriodoDre[];
+  /** O DRE de sempre — o número da 9815. */
   linhas: LinhaDre[];
+  /**
+   * O MESMO DRE sem as baixas estornadas e as da rotina 737 (30/10/2026), que a tela mostra
+   * com o checkbox marcado — o padrão. Montado pela API; ausente numa API anterior. Ver
+   * `linhasDaApuracao` e a divergência 21.
+   */
+  linhasSemEstornos?: LinhaDre[] | null;
   avisos: string[];
   apuradoEm: string;
   duracaoMs: number;

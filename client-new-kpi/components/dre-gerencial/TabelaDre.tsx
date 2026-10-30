@@ -687,6 +687,7 @@ export function TabelaDre({
         linha: detalhe.linha,
         dados: consultaDetalhe.data,
         filiais: filiaisApuradas,
+        ocultarBaixas,
       });
 
       // Sem armazenamento não há como o dado atravessar, e a aba nova abriria vazia.
@@ -703,7 +704,7 @@ export function TabelaDre({
       const destino = `/dre-gerencial/detalhe/${id}${imprimir ? "?imprimir=1" : ""}`;
       window.open(destino, "_blank", "noopener");
     },
-    [detalhe, consultaDetalhe.data, filiaisApuradas],
+    [detalhe, consultaDetalhe.data, filiaisApuradas, ocultarBaixas],
   );
 
   const abrirEmNovaAba = useCallback(() => levarParaPagina(false), [levarParaPagina]);

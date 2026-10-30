@@ -10,6 +10,7 @@ import { MenuExportar } from "@/components/dre-gerencial/MenuExportar";
 import { useExportarDetalhe } from "@/hooks/useExportarDetalhe";
 import { daBaseDaSessao, recuperar, type DetalheAberto } from "@/lib/detalheAberto";
 import { useSessao } from "@/hooks/useSessao";
+import { definirOcultarBaixas } from "@/hooks/useOcultarBaixas";
 import { folhaDoDetalhe } from "@/lib/folhaDoDetalhe";
 import { useEscalaDeImpressao } from "@/hooks/useEscalaDeImpressao";
 import { dataHoraBr, paraBr } from "@/lib/periodos";
@@ -77,6 +78,13 @@ export default function DetalhePage({ params }: { params: Promise<{ id: string }
 
   const { exportar, exportando, erro: erroExportar } = useExportarDetalhe();
   const sessao = useSessao();
+
+  // O checkbox "Ocultar baixas estornadas e da rotina 737" abre como estava na aba de origem
+  // (30/10/2026) — senão a soma daqui deixaria de fechar com a célula de lá. Ver
+  // `DetalheAberto.ocultarBaixas`.
+  useEffect(() => {
+    if (detalhe) definirOcultarBaixas(detalhe.ocultarBaixas ?? true);
+  }, [detalhe]);
 
   useEffect(() => {
     if (!querImprimir || disparado.current || !detalhe) return;

@@ -72,3 +72,19 @@ export function semBaixasEstornadas<T extends LancamentoComBaixa>(
   }
   return { visiveis, ocultos, somaOculta: centavos / 100 };
 }
+
+/**
+ * As linhas que a TABELA DO DRE mostra (30/10/2026, pedido do Gabriel): com o checkbox
+ * marcado — o padrão —, o DRE sem as baixas estornadas e as da rotina 737; desmarcado, o de
+ * sempre, que é o número da 9815.
+ *
+ * As duas versões vêm prontas da API, do mesmo montador (totalizadores, %AV, %AH e Média já
+ * recalculados lá): o checkbox só escolhe uma. Uma API anterior a isto não manda a segunda,
+ * e aí a tela é a de sempre. Ver a divergência 21 em DIVERGENCIAS.md.
+ */
+export function linhasDaApuracao<T>(
+  apuracao: { linhas: T[]; linhasSemEstornos?: T[] | null },
+  ocultar: boolean,
+): T[] {
+  return ocultar && apuracao.linhasSemEstornos ? apuracao.linhasSemEstornos : apuracao.linhas;
+}
