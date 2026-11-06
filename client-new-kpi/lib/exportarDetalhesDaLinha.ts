@@ -1,19 +1,29 @@
-import { baixar, gerarPlanilha, nomeSeguro } from "@/lib/excel";
+import { baixar, gerarPlanilha, nomeSeguro, type Planilha } from "@/lib/excel";
 import { nomeDoArquivoDetalhe, planilhaDoDetalhe } from "@/lib/exportarExcelDetalhe";
 import { criarZip, type ArquivoDoZip } from "@/lib/zip";
 import { planilhaDaComposicao, type Parcela } from "@/lib/composicaoDoTotal";
-import type { Detalhamento } from "@/types/dre-gerencial";
+import { exigirMesmaBase } from "@/lib/baseDaResposta";
+import {
+  lerNdjson,
+  NOME_DO_LEIA,
+  pedirLote,
+  textoDoLeia,
+  type PedidoDoLote,
+} from "@/lib/loteDeDetalhe";
+import { ApiError } from "@/services/apiClient";
+import type { TipoDetalhe } from "@/types/dre-gerencial";
 
 /**
- * "Exportar todo o detalhamento" de uma linha — o botão direito na descrição (16/10/2026).
+ * "Exportar todo o detalhamento" — o botão direito numa linha (16/10/2026) e as linhas
+ * selecionadas (06/11/2026). Um Excel por linha × coluna, o MESMO que o duplo clique na célula
+ * exportaria (`planilhaDoDetalhe`), todos num `.zip`.
  *
- * Um Excel por coluna apurada, cada um o MESMO arquivo que o duplo clique na célula daquele
- * mês exportaria (`planilhaDoDetalhe`), e todos num `.zip`. Quem apurou três meses de
- * COMPRAS - RAT recebe três planilhas com o nome de cada mês, sem abrir três detalhamentos.
+ * **Em lote, desde 06/11/2026** (pedido do Gabriel): as contas saem de UM pedido à API, em
+ * fluxo NDJSON (`lib/loteDeDetalhe.ts`), que consulta o banco uma vez por bloco × coluna — e
+ * não uma vez por linha × coluna. Cada Excel é gerado assim que a parte dele chega.
  *
- * **Um mês por vez**, e não em paralelo: cada detalhe é uma varredura de PCLANC, e doze de uma
- * vez num modo anual disputariam o banco com a apuração de todo mundo. Mais lento, e o
- * progresso aparece mês a mês.
+ * **Zip parcial:** o que falhou no servidor, ou não chegou porque a conexão caiu, entra no
+ * `LEIA - arquivos que faltaram.txt`, e o resto é baixado.
  */
 
 export interface ColunaParaExportar {
@@ -29,6 +39,8 @@ export interface ColunaParaExportar {
 const tituloDe = (descricao: string, coluna: ColunaParaExportar) =>
   `${descricao} · ${coluna.rotulo}`;
 
+const periodoDe = (c: ColunaParaExportar) => ({ dataInicio: c.dataInicio, dataFim: c.dataFim });
+
 /**
  * Os nomes dos arquivos dentro do zip, os mesmos do Excel do detalhamento. As datas entram no
  * nome: no comparativo dois "Agosto" de anos diferentes se sobrescreveriam.
@@ -38,75 +50,9 @@ export function nomesDosArquivos(descricao: string, colunas: readonly ColunaPara
     (c) =>
       `${nomeDoArquivoDetalhe({
         titulo: tituloDe(descricao, c),
-        periodo: { dataInicio: c.dataInicio, dataFim: c.dataFim },
+        periodo: periodoDe(c),
       })}.xlsx`,
   );
-}
-
-/**
- * Os Excels de UMA linha — um por coluna apurada —, prontos para entrar num zip. É o miolo
- * das duas exportações: a de uma linha (botão direito) e a das linhas selecionadas.
- */
-async function arquivosDaLinha({
-  descricao,
-  colunas,
-  buscar,
-  composicao,
-  ocultarBaixas,
-  nomes,
-  aoTerminarColuna,
-}: {
-  descricao: string;
-  colunas: readonly ColunaParaExportar[];
-  buscar?: (periodo: { dataInicio: string; dataFim: string }) => Promise<Detalhamento>;
-  composicao?: ComposicaoDaColuna;
-  ocultarBaixas: boolean;
-  /** O caminho de cada arquivo dentro do zip, na ordem das colunas. */
-  nomes: readonly string[];
-  aoTerminarColuna?: () => void;
-}): Promise<ArquivoDoZip[]> {
-  const arquivos: ArquivoDoZip[] = [];
-
-  for (const [i, coluna] of colunas.entries()) {
-    const periodo = { dataInicio: coluna.dataInicio, dataFim: coluna.dataFim };
-
-    // O TOTALIZADOR (06/11/2026): a planilha é a composição dele, montada do que já está na
-    // tela — sem consulta. Ver `lib/composicaoDoTotal.ts`.
-    if (composicao) {
-      const blob = await gerarPlanilha([
-        planilhaDaComposicao({ titulo: tituloDe(descricao, coluna), periodo, ...composicao(coluna) }),
-      ]);
-      arquivos.push({ nome: nomes[i]!, dados: new Uint8Array(await blob.arrayBuffer()) });
-      aoTerminarColuna?.();
-      continue;
-    }
-    if (!buscar) throw new Error(`${descricao}: nada a exportar nesta linha.`);
-
-    let dados: Detalhamento;
-    try {
-      dados = await buscar(periodo);
-    } catch (e) {
-      // Diz QUAL mês falhou: "falhou" sozinho faria a pessoa repetir os três.
-      throw new Error(
-        `${coluna.rotulo}: ${e instanceof Error ? e.message : "o detalhamento não respondeu"}`,
-        { cause: e },
-      );
-    }
-
-    const blob = await gerarPlanilha([
-      planilhaDoDetalhe({
-        titulo: tituloDe(descricao, coluna),
-        periodo,
-        linha: { descricao, valor: coluna.valor ?? 0 },
-        dados,
-        ocultarBaixas,
-      }),
-    ]);
-    arquivos.push({ nome: nomes[i]!, dados: new Uint8Array(await blob.arrayBuffer()) });
-    aoTerminarColuna?.();
-  }
-
-  return arquivos;
 }
 
 /**
@@ -118,39 +64,11 @@ export type ComposicaoDaColuna = (coluna: ColunaParaExportar) => {
   parcelas: readonly Parcela[];
 };
 
-export async function exportarDetalhesDaLinha({
-  descricao,
-  colunas,
-  buscar,
-  composicao,
-  ocultarBaixas,
-  onProgresso,
-}: {
-  descricao: string;
-  colunas: readonly ColunaParaExportar[];
-  /** O detalhamento de um recorte — a mesma consulta do duplo clique. */
-  buscar?: (periodo: { dataInicio: string; dataFim: string }) => Promise<Detalhamento>;
-  /** No totalizador, a composição em vez da consulta. */
-  composicao?: ComposicaoDaColuna;
-  /** O checkbox de baixas estornadas, como a tela está: o arquivo conta o que a tela conta. */
-  ocultarBaixas: boolean;
-  onProgresso?: (feitos: number, total: number) => void;
-}): Promise<void> {
-  let feitos = 0;
-  onProgresso?.(0, colunas.length);
-  const arquivos = await arquivosDaLinha({
-    descricao,
-    colunas,
-    buscar,
-    composicao,
-    ocultarBaixas,
-    nomes: nomesDosArquivos(descricao, colunas),
-    aoTerminarColuna: () => onProgresso?.(++feitos, colunas.length),
-  });
-
+/** O zip do botão direito: uma linha, todas as colunas. */
+export function nomeDoZipDaLinha(descricao: string, colunas: readonly ColunaParaExportar[]): string {
   const inicio = colunas[0]?.dataInicio ?? "";
   const fim = colunas.at(-1)?.dataFim ?? "";
-  baixar(criarZip(arquivos), `${nomeSeguro(`Detalhe ${descricao} ${inicio} a ${fim}`)}.zip`);
+  return `${nomeSeguro(`Detalhe ${descricao} ${inicio} a ${fim}`)}.zip`;
 }
 
 /** `2026-09-01` → `01-09-2026`: o dia primeiro, como a pessoa lê, e sem barra. */
@@ -176,7 +94,7 @@ export function nomeDoZipDaSelecao({
   return `${nomeSeguro(`${empresa} - ${quem} - ${dataNoNome(dataInicio)} a ${dataNoNome(dataFim)}`)}.zip`;
 }
 
-/** Uma linha a exportar: o nome e as colunas — o mesmo que o botão direito recebe. */
+/** Uma linha a exportar: o nome e as colunas. */
 export interface LinhaParaExportar {
   descricao: string;
   colunas: readonly ColunaParaExportar[];
@@ -197,60 +115,147 @@ export function caminhosNoZip(linhas: readonly LinhaParaExportar[]): string[][] 
   });
 }
 
+/** Uma linha a exportar: a CONTA leva o destino do detalhamento; o TOTALIZADOR, a composição. */
+export interface LinhaParaExportarNoLote extends LinhaParaExportar {
+  destino?: { tipo: TipoDetalhe; bloco: string | null; chave: string | null; sobra?: string[] | null };
+  composicao?: ComposicaoDaColuna;
+}
+
 /**
- * "Exportar detalhamento" das LINHAS SELECIONADAS (06/11/2026, pedido do Gabriel): a mesma
- * lógica do botão direito — um Excel por coluna, o mesmo do duplo clique —, para todas as
- * linhas marcadas, num zip só (`caminhosNoZip`, `nomeDoZipDaSelecao`).
+ * EXPORTA linhas num zip (06/11/2026): os totalizadores pela composição, no navegador; as
+ * contas por UM pedido em lote, em fluxo — cada Excel é gerado assim que a parte dele chega,
+ * e os dados são descartados (10 meses de uma filial são ~104 mil lançamentos).
  *
- * **Uma consulta por vez**, como na de uma linha: dez contas em doze meses são 120
- * varreduras de PCLANC, e em paralelo disputariam o banco com a apuração de todo mundo.
+ * **Zip parcial.** Parte que falhou no servidor, ou que não chegou porque a conexão caiu,
+ * vira uma linha do `LEIA - arquivos que faltaram.txt`; o resto é baixado. Só não há zip
+ * quando nada foi gerado, quando o servidor recusou o pedido antes de começar, ou quando a
+ * pessoa CANCELOU (aí lança o `AbortError`).
  */
-export async function exportarDetalhesDasLinhas({
+export async function exportarLinhas({
   linhas,
-  buscar,
-  ocultarBaixas,
+  caminhos,
   nomeDoZip,
+  filtro,
+  ocultarBaixas,
+  baseDaSessao,
+  signal,
   onProgresso,
 }: {
-  linhas: readonly (LinhaParaExportar & {
-    /** O detalhamento desta linha num recorte — a consulta do duplo clique. */
-    buscar?: (periodo: { dataInicio: string; dataFim: string }) => Promise<Detalhamento>;
-    /** No totalizador, a composição em vez da consulta (06/11/2026). */
-    composicao?: ComposicaoDaColuna;
-  })[];
-  /** Usado quando a linha não traz o seu. */
-  buscar?: (descricao: string, periodo: { dataInicio: string; dataFim: string }) => Promise<Detalhamento>;
-  ocultarBaixas: boolean;
+  linhas: readonly LinhaParaExportarNoLote[];
+  /** O caminho de cada arquivo no zip: `caminhos[linha][coluna]`. */
+  caminhos: readonly (readonly string[])[];
   nomeDoZip: string;
-  /** `linha` é a conta em andamento — para a tela dizer qual está sendo exportada. */
-  onProgresso?: (feitos: number, total: number, linha: string) => void;
-}): Promise<void> {
-  const caminhos = caminhosNoZip(linhas);
-  const total = linhas.reduce((soma, l) => soma + l.colunas.length, 0);
+  filtro: Omit<PedidoDoLote, "colunas" | "linhas">;
+  /** O checkbox de baixas estornadas, como a tela está: o arquivo conta o que a tela conta. */
+  ocultarBaixas: boolean;
+  baseDaSessao: string | undefined;
+  signal: AbortSignal;
+  onProgresso?: (p: { feitos: number; total: number; agora: string }) => void;
+}): Promise<{ arquivos: number; faltando: number }> {
   const arquivos: ArquivoDoZip[] = [];
+  const faltas: { caminho: string; motivo: string }[] = [];
+  const total = linhas.reduce((soma, l) => soma + l.colunas.length, 0);
   let feitos = 0;
+  const avisar = (agora: string) => onProgresso?.({ feitos, total, agora });
 
+  async function adicionar(nome: string, planilha: Planilha) {
+    const blob = await gerarPlanilha([planilha]);
+    arquivos.push({ nome, dados: new Uint8Array(await blob.arrayBuffer()) });
+  }
+
+  // 1. TOTALIZADORES — aritmética do que já está na tela, sem consulta.
   for (const [i, linha] of linhas.entries()) {
-    onProgresso?.(feitos, total, linha.descricao);
-    const daLinha =
-      linha.buscar ?? (buscar ? (periodo: { dataInicio: string; dataFim: string }) => buscar(linha.descricao, periodo) : undefined);
-    try {
-      arquivos.push(
-        ...(await arquivosDaLinha({
-          descricao: linha.descricao,
-          colunas: linha.colunas,
-          buscar: daLinha,
-          composicao: linha.composicao,
-          ocultarBaixas,
-          nomes: caminhos[i]!,
-          aoTerminarColuna: () => onProgresso?.(++feitos, total, linha.descricao),
-        })),
+    if (!linha.composicao) continue;
+    for (const [c, coluna] of linha.colunas.entries()) {
+      await adicionar(
+        caminhos[i]![c]!,
+        planilhaDaComposicao({
+          titulo: tituloDe(linha.descricao, coluna),
+          periodo: periodoDe(coluna),
+          ...linha.composicao(coluna),
+        }),
       );
-    } catch (e) {
-      // Diz a CONTA, além do mês que a função de dentro já pôs na mensagem.
-      throw new Error(`${linha.descricao} — ${e instanceof Error ? e.message : "falhou"}`, { cause: e });
+      feitos++;
+      avisar(`${linha.descricao} · ${coluna.rotulo}`);
     }
   }
 
+  // 2. CONTAS — um pedido em lote.
+  const comConsulta = linhas.flatMap((l, i) => (l.destino ? [i] : []));
+  if (comConsulta.length > 0) {
+    const colunas = linhas[comConsulta[0]!]!.colunas;
+    const recebidas = new Set<string>();
+    let terminou = false;
+    let interrompido: string | null = null;
+    avisar("Consultando o banco…");
+
+    try {
+      const corpo = await pedirLote(
+        {
+          ...filtro,
+          colunas: colunas.map(periodoDe),
+          linhas: comConsulta.map((i) => ({ id: i, ...linhas[i]!.destino! })),
+        },
+        signal,
+      );
+
+      for await (const pacote of lerNdjson(corpo)) {
+        if (pacote.t === "inicio") {
+          exigirMesmaBase({ base: pacote.base }, baseDaSessao);
+        } else if (pacote.t === "parte") {
+          const linha = linhas[pacote.linha]!;
+          const coluna = linha.colunas[pacote.coluna]!;
+          await adicionar(
+            caminhos[pacote.linha]![pacote.coluna]!,
+            planilhaDoDetalhe({
+              titulo: tituloDe(linha.descricao, coluna),
+              periodo: periodoDe(coluna),
+              linha: { descricao: linha.descricao, valor: coluna.valor ?? 0 },
+              dados: pacote.dados,
+              ocultarBaixas,
+            }),
+          );
+          recebidas.add(`${pacote.linha}:${pacote.coluna}`);
+          feitos++;
+          avisar(`${linha.descricao} · ${coluna.rotulo}`);
+        } else if (pacote.t === "falha") {
+          for (const id of pacote.linhas) {
+            faltas.push({ caminho: caminhos[id]![pacote.coluna]!, motivo: pacote.mensagem });
+            recebidas.add(`${id}:${pacote.coluna}`);
+            feitos++;
+          }
+          avisar(`${faltas.length} ${faltas.length === 1 ? "arquivo falhou" : "arquivos falharam"} até agora`);
+        } else if (pacote.t === "erro") {
+          interrompido = pacote.mensagem;
+          break;
+        } else if (pacote.t === "fim") {
+          terminou = true;
+          break;
+        }
+      }
+    } catch (e) {
+      if (signal.aborted) throw e;
+      // Recusa ANTES de começar (pedido inválido, sessão, base trocada): não há zip a montar.
+      if (e instanceof ApiError && e.status !== 0 && recebidas.size === 0) throw e;
+      interrompido = e instanceof Error ? e.message : "A exportação foi interrompida.";
+    }
+
+    if (signal.aborted) throw new DOMException("Exportação cancelada.", "AbortError");
+    if (!terminou && !interrompido) interrompido = "A conexão com o servidor caiu antes do fim.";
+
+    if (interrompido) {
+      for (const i of comConsulta) {
+        for (const c of colunas.keys()) {
+          if (!recebidas.has(`${i}:${c}`)) faltas.push({ caminho: caminhos[i]![c]!, motivo: interrompido });
+        }
+      }
+      if (arquivos.length === 0) throw new Error(interrompido);
+    }
+  }
+
+  if (faltas.length > 0) {
+    arquivos.push({ nome: NOME_DO_LEIA, dados: new TextEncoder().encode(textoDoLeia(faltas)) });
+  }
   baixar(criarZip(arquivos), nomeDoZip);
+  return { arquivos: arquivos.length - (faltas.length > 0 ? 1 : 0), faltando: faltas.length };
 }

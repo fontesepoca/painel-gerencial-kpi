@@ -164,4 +164,24 @@ public interface IDreGerencialRepository
         IReadOnlyList<string>? sobra = null,
         bool emAberto = false,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Os lançamentos de VÁRIAS linhas de um bloco numa coluna — a exportação em lote
+    /// (06/11/2026). A mesma consulta de <see cref="ObterDetalheLancamentosAsync"/>, com
+    /// <c>IN</c> no recorte e a chave de cada lançamento em <c>ChaveLote</c>. Só os realizados
+    /// (sem provisionado) e sem sobra: linha com sobra vai pelo detalhamento de uma célula.
+    /// </summary>
+    Task<IReadOnlyList<DetalheLancamentoDre>> ObterDetalheLancamentosDoLoteAsync(
+        IReadOnlyList<string> filiais,
+        DateOnly dataInicio,
+        DateOnly dataFim,
+        RegimeDre regime,
+        AnaliseDre analise,
+        string bloco,
+        IReadOnlyList<string> chaves,
+        IReadOnlyList<decimal>? fornecedores = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Se vale uma nova tentativa — ver <c>FalhaTransitoria</c>.</summary>
+    bool EhFalhaTransitoria(Exception erro);
 }

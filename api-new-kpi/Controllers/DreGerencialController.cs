@@ -2,8 +2,11 @@ using Epoca.Kpi.Api.Application.Common;
 using Epoca.Kpi.Api.Application.Common.Bases;
 using Epoca.Kpi.Api.Application.Features.DreGerencial;
 using Epoca.Kpi.Api.Application.Features.DreGerencial.Dtos;
+using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 
 namespace Epoca.Kpi.Api.Controllers;
 
@@ -17,11 +20,21 @@ public sealed class DreGerencialController : ControllerBase
 {
     private readonly DreGerencialService _servico;
     private readonly IBaseAtual _baseAtual;
+    private readonly ILogger<DreGerencialController> _log;
+    private readonly JsonSerializerOptions _json;
 
-    public DreGerencialController(DreGerencialService servico, IBaseAtual baseAtual)
+    public DreGerencialController(
+        DreGerencialService servico,
+        IBaseAtual baseAtual,
+        ILogger<DreGerencialController> log,
+        IOptions<JsonOptions> json)
     {
         _servico = servico;
         _baseAtual = baseAtual;
+        _log = log;
+        // As MESMAS opções das respostas de sempre: o pacote do lote tem os nomes e formatos
+        // que o front já lê no detalhamento de uma célula.
+        _json = json.Value.JsonSerializerOptions;
     }
 
     /// <summary>Filiais disponíveis para o filtro, na ordem de exibição do cadastro.</summary>
@@ -172,5 +185,56 @@ public sealed class DreGerencialController : ControllerBase
 
         return Ok(ApiResponse<DetalhamentoDto>.Ok(
             resultado.Valor! with { Base = BaseDto.De(_baseAtual.Base) }));
+    }
+
+    private static readonly byte[] QuebraDeLinha = "\n"u8.ToArray();
+
+    /// <summary>
+    /// Exportação do detalhamento EM LOTE (06/11/2026) — muitas linhas × muitas colunas, em
+    /// fluxo NDJSON: <c>inicio</c>, <c>aguarde</c> a cada 15 s, uma <c>parte</c> por linha ×
+    /// coluna, <c>falha</c> do que não deu, <c>fim</c>. Ver <c>LoteDeDetalhe</c>.
+    ///
+    /// <para><b>Cada pacote sai na hora</b> (<c>FlushAsync</c>), e o <c>no-transform</c> impede o
+    /// Next de comprimir — compressão em blocos seguraria o batimento, e a conexão pareceria
+    /// parada justamente quando está trabalhando.</para>
+    /// </summary>
+    [HttpPost("detalhe/lote")]
+    public async Task ObterDetalheEmLote(
+        [FromBody] LoteFiltroDto lote,
+        CancellationToken cancellationToken)
+    {
+        var erro = _servico.ValidarLote(lote);
+        if (erro is not null)
+        {
+            Response.StatusCode = StatusCodes.Status400BadRequest;
+            await Response.WriteAsJsonAsync(ApiResponse<object>.Falha(erro), _json, cancellationToken);
+            return;
+        }
+
+        Response.ContentType = "application/x-ndjson; charset=utf-8";
+        Response.Headers.CacheControl = "no-store, no-transform";
+        HttpContext.Features.Get<IHttpResponseBodyFeature>()?.DisableBuffering();
+
+        async Task Escrever(PacoteDoLote pacote)
+        {
+            await JsonSerializer.SerializeAsync(Response.Body, pacote, _json, cancellationToken);
+            await Response.Body.WriteAsync(QuebraDeLinha, cancellationToken);
+            await Response.Body.FlushAsync(cancellationToken);
+        }
+
+        try
+        {
+            await foreach (var pacote in _servico.ExecutarLoteAsync(lote, cancellationToken))
+            {
+                await Escrever(pacote);
+            }
+        }
+        catch (Exception e) when (!cancellationToken.IsCancellationRequested)
+        {
+            // Depois do primeiro byte não há mais status a mudar: o erro vai como pacote, e o
+            // front monta o zip parcial com o que já chegou.
+            _log.LogError(e, "Lote do detalhamento interrompido");
+            await Escrever(PacoteDoLote.Erro("A exportação parou por um erro no servidor."));
+        }
     }
 }

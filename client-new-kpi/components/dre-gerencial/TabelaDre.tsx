@@ -4,13 +4,16 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ModalMoverLinha, type MovimentoPendente } from "./ModalMoverLinha";
 import { ModalDetalhe } from "./ModalDetalhe";
 import { ModalConfirmarDetalhe, type DetalhePendente } from "./ModalConfirmarDetalhe";
-import { pedirDetalhe, useDetalhe } from "@/hooks/useDreGerencial";
+import { paraApi, useDetalhe } from "@/hooks/useDreGerencial";
 import { useOcultarBaixas } from "@/hooks/useOcultarBaixas";
 import { composicaoDaLinha } from "@/lib/composicaoDoTotal";
 import {
-  exportarDetalhesDaLinha,
-  exportarDetalhesDasLinhas,
+  caminhosNoZip,
+  exportarLinhas,
+  nomeDoZipDaLinha,
   nomeDoZipDaSelecao,
+  nomesDosArquivos,
+  type LinhaParaExportarNoLote,
 } from "@/lib/exportarDetalhesDaLinha";
 import { MenuDaLinha } from "./MenuDaLinha";
 import { useExportarDetalhe } from "@/hooks/useExportarDetalhe";
@@ -251,18 +254,24 @@ export function TabelaDre({
     conta: string;
     feitos: number;
     total: number;
+    /** O que está acontecendo agora: "Consultando o banco…" ou "COMBUSTÍVEL · Março/2025". */
+    agora: string | null;
     erro: string | null;
+    /** Terminou, mas com arquivos faltando — o LEIA está no zip. */
+    aviso: string | null;
+    /** Enquanto roda: cancela o pedido, o que derruba a consulta no Oracle. */
+    cancelar: (() => void) | null;
   } | null>(null);
 
   /**
    * O QUE SAI DE UMA LINHA na exportação — a mesma regra para o botão direito e para as
-   * linhas selecionadas. A CONTA leva o detalhamento: a mesma consulta do duplo clique na
-   * célula do mês. O TOTALIZADOR leva a COMPOSIÇÃO (06/11/2026, pedido do Gabriel): as
-   * linhas que formam o total e o valor de cada uma, como o duplo clique nele mostra — sem
-   * consulta. `null` só para a linha que não tem nenhum dos dois.
+   * linhas selecionadas. A CONTA leva o destino do detalhamento, consultado em LOTE com as
+   * outras contas (06/11/2026). O TOTALIZADOR leva a COMPOSIÇÃO (06/11/2026, pedido do
+   * Gabriel): as linhas que formam o total e o valor de cada uma, como o duplo clique nele
+   * mostra — sem consulta. `null` só para a linha que não tem nenhum dos dois.
    */
   const paraExportar = useCallback(
-    (linha: LinhaDre) => {
+    (linha: LinhaDre): LinhaParaExportarNoLote | null => {
       const descricao = linha.descricao.trim();
       const colunas = periodos.map((p) => ({
         rotulo: p.rotulo,
@@ -276,18 +285,12 @@ export function TabelaDre({
         return {
           descricao,
           colunas,
-          buscar: (periodo: { dataInicio: string; dataFim: string }) =>
-            pedirDetalhe(
-              {
-                ...filtro,
-                ...periodo,
-                tipo: destino.tipo,
-                bloco: destino.bloco,
-                chave: destino.chave,
-                sobra: destino.sobra ?? null,
-              },
-              usuario?.base.id,
-            ),
+          destino: {
+            tipo: destino.tipo,
+            bloco: destino.bloco,
+            chave: destino.chave,
+            sobra: destino.sobra ?? null,
+          },
         };
       }
       if ((linha.composicao ?? []).length > 0) {
@@ -300,39 +303,94 @@ export function TabelaDre({
       }
       return null;
     },
-    [periodos, filtro, usuario, ordenadas],
+    [periodos, ordenadas],
+  );
+
+  /**
+   * Roda uma exportação e mantém o aviso flutuante em dia — a mesma para o botão direito e
+   * para as linhas selecionadas. Ver `exportarLinhas`.
+   */
+  const rodarExportacao = useCallback(
+    async (
+      linhas: LinhaParaExportarNoLote[],
+      caminhos: string[][],
+      nomeDoZip: string,
+      conta: string,
+    ) => {
+      const controle = new AbortController();
+      const total = linhas.reduce((soma, l) => soma + l.colunas.length, 0);
+      setExportacao({
+        conta,
+        feitos: 0,
+        total,
+        agora: null,
+        erro: null,
+        aviso: null,
+        cancelar: () => controle.abort(),
+      });
+      const { filiais, regime, analise, fornecedores } = paraApi(filtro);
+      try {
+        const { faltando } = await exportarLinhas({
+          linhas,
+          caminhos,
+          nomeDoZip,
+          filtro: { filiais, regime, analise, ...(fornecedores ? { fornecedores } : {}) },
+          ocultarBaixas,
+          baseDaSessao: usuario?.base.id,
+          signal: controle.signal,
+          onProgresso: ({ feitos, total: tot, agora }) =>
+            setExportacao((e) => (e ? { ...e, feitos, total: tot, agora } : e)),
+        });
+        setExportacao(
+          faltando > 0
+            ? {
+                conta,
+                feitos: total,
+                total,
+                agora: null,
+                erro: null,
+                cancelar: null,
+                aviso: `Exportado com ${faltando} ${faltando === 1 ? "arquivo faltando" : "arquivos faltando"} — veja o LEIA no zip.`,
+              }
+            : null,
+        );
+      } catch (e) {
+        if (controle.signal.aborted) {
+          setExportacao(null);
+          return;
+        }
+        setExportacao((atual) => ({
+          conta,
+          feitos: atual?.feitos ?? 0,
+          total,
+          agora: null,
+          aviso: null,
+          cancelar: null,
+          erro: `Não foi possível exportar: ${e instanceof Error ? e.message : "erro desconhecido"}`,
+        }));
+      }
+    },
+    [filtro, ocultarBaixas, usuario],
   );
 
   const exportarTudo = useCallback(
     async (linha: LinhaDre) => {
       const fonte = paraExportar(linha);
       if (!fonte) return;
-      const conta = fonte.descricao;
-      setExportacao({ conta, feitos: 0, total: periodos.length, erro: null });
-      try {
-        await exportarDetalhesDaLinha({
-          ...fonte,
-          ocultarBaixas,
-          onProgresso: (feitos, total) =>
-            setExportacao((e) => (e ? { ...e, feitos, total } : e)),
-        });
-        setExportacao(null);
-      } catch (e) {
-        setExportacao((atual) => ({
-          conta,
-          feitos: atual?.feitos ?? 0,
-          total: periodos.length,
-          erro: `Não foi possível exportar: ${e instanceof Error ? e.message : "erro desconhecido"}`,
-        }));
-      }
+      await rodarExportacao(
+        [fonte],
+        [nomesDosArquivos(fonte.descricao, fonte.colunas)],
+        nomeDoZipDaLinha(fonte.descricao, fonte.colunas),
+        fonte.descricao,
+      );
     },
-    [periodos, ocultarBaixas, paraExportar],
+    [paraExportar, rodarExportacao],
   );
 
   /**
    * "Exportar detalhamento" das LINHAS SELECIONADAS (06/11/2026, pedido do Gabriel): o mesmo
    * de `exportarTudo`, para cada linha marcada, na ordem da tela, num zip só com a empresa, a
-   * filial e o período no nome. Ver `exportarDetalhesDasLinhas`.
+   * filial e o período no nome. Ver `exportarLinhas`.
    */
   const exportarSelecionadas = useCallback(
     async (escolhidas: readonly LinhaDre[]) => {
@@ -346,32 +404,19 @@ export function TabelaDre({
         linhasParaExportar.length === 1
           ? linhasParaExportar[0]!.descricao
           : `${linhasParaExportar.length} linhas`;
-      const total = linhasParaExportar.length * periodos.length;
-      setExportacao({ conta: rotulo, feitos: 0, total, erro: null });
-      try {
-        await exportarDetalhesDasLinhas({
-          linhas: linhasParaExportar,
-          ocultarBaixas,
-          nomeDoZip: nomeDoZipDaSelecao({
-            empresa: usuario?.base.rotulo ?? "DRE Gerencial",
-            filiais: filtro.filiais,
-            dataInicio: filtro.dataInicio,
-            dataFim: filtro.dataFim,
-          }),
-          onProgresso: (feitos, tot) =>
-            setExportacao((e) => (e ? { ...e, feitos, total: tot } : e)),
-        });
-        setExportacao(null);
-      } catch (e) {
-        setExportacao((atual) => ({
-          conta: rotulo,
-          feitos: atual?.feitos ?? 0,
-          total,
-          erro: `Não foi possível exportar: ${e instanceof Error ? e.message : "erro desconhecido"}`,
-        }));
-      }
+      await rodarExportacao(
+        linhasParaExportar,
+        caminhosNoZip(linhasParaExportar),
+        nomeDoZipDaSelecao({
+          empresa: usuario?.base.rotulo ?? "DRE Gerencial",
+          filiais: filtro.filiais,
+          dataInicio: filtro.dataInicio,
+          dataFim: filtro.dataFim,
+        }),
+        rotulo,
+      );
     },
-    [periodos, filtro, ocultarBaixas, usuario, paraExportar],
+    [filtro, usuario, paraExportar, rodarExportacao],
   );
   const [detalhe, setDetalhe] = useState<{
     titulo: string;
@@ -1052,19 +1097,20 @@ export function TabelaDre({
                 </strong>{" "}
                 · {marcadasNaTela.length * periodos.length}{" "}
                 {marcadasNaTela.length * periodos.length === 1 ? "planilha" : "planilhas"} no .zip
-                {/* Cada planilha é uma consulta ao banco, uma por vez. "Selecionar todas"
-                    em doze meses passa de mil — a pessoa precisa saber antes de clicar. */}
+                {/* As contas vão em lote (uma consulta por bloco × coluna), mas "Selecionar
+                    todas" em doze meses ainda são centenas de planilhas — a pessoa precisa
+                    saber antes de clicar. */}
                 {marcadasNaTela.filter((l) => l.detalhe).length * periodos.length > 24 && (
                   <span className="text-[var(--warning)]">
                     {" "}
-                    — uma consulta por planilha de conta: pode levar vários minutos
+                    — as contas são consultadas em lote: pode levar alguns minutos
                   </span>
                 )}
               </p>
               <button
                 type="button"
                 onClick={() => exportarSelecionadas(marcadasNaTela)}
-                disabled={exportacao !== null && !exportacao.erro}
+                disabled={!!exportacao?.cancelar}
                 className="rounded-[var(--radius-md)] bg-[var(--primary)] px-3 py-1.5 text-[length:var(--fs-apoio)] font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-wait disabled:opacity-60"
               >
                 Exportar detalhamento (.zip)
@@ -1396,7 +1442,7 @@ export function TabelaDre({
                     : `A composição do total, um arquivo por coluna — ${periodos.length} ${periodos.length === 1 ? "arquivo" : "arquivos"}, num .zip`,
                   motivo: !exportavel(menuDaLinha.linha)
                     ? "Esta linha não tem detalhamento nem composição para exportar."
-                    : exportacao && !exportacao.erro
+                    : exportacao?.cancelar
                       ? "Já há uma exportação em andamento."
                       : null,
                   onEscolher: () => void exportarTudo(menuDaLinha.linha),
@@ -1413,18 +1459,31 @@ export function TabelaDre({
           aria-live="polite"
           className="nao-imprime fixed right-4 bottom-4 z-50 flex max-w-sm items-start gap-3 rounded-[var(--radius-lg)] border border-[var(--border-strong)] bg-[var(--surface-2)] px-4 py-3 text-[length:var(--fs-apoio)] shadow-[var(--shadow-float)]"
         >
-          <p className={exportacao.erro ? "text-[var(--negative)]" : "text-[var(--text-primary)]"}>
-            {exportacao.erro ?? (
+          <div className={exportacao.erro ? "text-[var(--negative)]" : "text-[var(--text-primary)]"}>
+            {exportacao.erro ?? exportacao.aviso ?? (
               <>
-                Exportando <strong className="font-semibold">{exportacao.conta}</strong>:{" "}
-                <span className="tabular">
-                  {exportacao.feitos} de {exportacao.total}
-                </span>{" "}
-                {exportacao.total === 1 ? "detalhamento" : "detalhamentos"}…
+                <p>
+                  Exportando <strong className="font-semibold">{exportacao.conta}</strong>:{" "}
+                  <span className="tabular">
+                    {exportacao.feitos} de {exportacao.total}
+                  </span>{" "}
+                  {exportacao.total === 1 ? "planilha" : "planilhas"}…
+                </p>
+                {exportacao.agora && (
+                  <p className="mt-0.5 text-[var(--text-secondary)]">{exportacao.agora}</p>
+                )}
               </>
             )}
-          </p>
-          {exportacao.erro && (
+          </div>
+          {exportacao.cancelar ? (
+            <button
+              type="button"
+              onClick={exportacao.cancelar}
+              className="shrink-0 cursor-pointer font-medium text-[var(--text-secondary)] underline underline-offset-4 hover:text-[var(--text-primary)]"
+            >
+              Cancelar
+            </button>
+          ) : (
             <button
               type="button"
               onClick={() => setExportacao(null)}

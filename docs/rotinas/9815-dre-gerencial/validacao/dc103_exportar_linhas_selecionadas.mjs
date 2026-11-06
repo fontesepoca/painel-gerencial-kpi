@@ -1,7 +1,10 @@
 /**
  * dc103 — exportar o detalhamento de VÁRIAS linhas num zip só (06/11/2026).
  *
- *   node --experimental-strip-types --import ./docs/rotinas/9815-dre-gerencial/validacao/_alias.mjs docs/rotinas/9815-dre-gerencial/validacao/dc103_exportar_linhas_selecionadas.mjs
+ *   node --experimental-transform-types --import ./docs/rotinas/9815-dre-gerencial/validacao/_alias.mjs docs/rotinas/9815-dre-gerencial/validacao/dc103_exportar_linhas_selecionadas.mjs
+ *
+ * (`transform-types` desde 06/11/2026: o módulo importa o `ApiError`, que tem propriedades no
+ * construtor.)
  *
  * Pedido do Gabriel: um checkbox em cada linha do DRE, "selecionar todas", e uma ação que
  * exporta o detalhamento de todas as linhas marcadas — a mesma lógica do botão direito na

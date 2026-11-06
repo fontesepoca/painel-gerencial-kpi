@@ -785,7 +785,7 @@ public sealed class DreGerencialRepository : IDreGerencialRepository
         return linhas.ToList();
     }
 
-    public async Task<IReadOnlyList<DetalheLancamentoDre>> ObterDetalheLancamentosAsync(
+    public Task<IReadOnlyList<DetalheLancamentoDre>> ObterDetalheLancamentosAsync(
         IReadOnlyList<string> filiais,
         DateOnly dataInicio,
         DateOnly dataFim,
@@ -796,7 +796,47 @@ public sealed class DreGerencialRepository : IDreGerencialRepository
         IReadOnlyList<decimal>? fornecedores = null,
         IReadOnlyList<string>? sobra = null,
         bool emAberto = false,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default) =>
+        ConsultarLancamentosAsync(filiais, dataInicio, dataFim, regime, analise, bloco,
+            [chave], lote: false, fornecedores, sobra, emAberto, commandTimeout: 300,
+            cancellationToken);
+
+    public Task<IReadOnlyList<DetalheLancamentoDre>> ObterDetalheLancamentosDoLoteAsync(
+        IReadOnlyList<string> filiais,
+        DateOnly dataInicio,
+        DateOnly dataFim,
+        RegimeDre regime,
+        AnaliseDre analise,
+        string bloco,
+        IReadOnlyList<string> chaves,
+        IReadOnlyList<decimal>? fornecedores = null,
+        CancellationToken cancellationToken = default) =>
+        // 600 s, o dobro da célula: o `IN` lê as linhas de um bloco inteiro num mês.
+        ConsultarLancamentosAsync(filiais, dataInicio, dataFim, regime, analise, bloco,
+            chaves, lote: true, fornecedores, sobra: null, emAberto: false, commandTimeout: 600,
+            cancellationToken);
+
+    public bool EhFalhaTransitoria(Exception erro) => FalhaTransitoria.Eh(erro);
+
+    /// <summary>
+    /// O corpo das duas consultas de lançamentos: a de uma célula (<c>= :chave</c>) e a do LOTE
+    /// (<c>IN</c>, ver <see cref="ConsultaDoLote"/>). Um corpo só, para os binds e os filtros
+    /// não terem como divergir entre o duplo clique e a exportação.
+    /// </summary>
+    private async Task<IReadOnlyList<DetalheLancamentoDre>> ConsultarLancamentosAsync(
+        IReadOnlyList<string> filiais,
+        DateOnly dataInicio,
+        DateOnly dataFim,
+        RegimeDre regime,
+        AnaliseDre analise,
+        string bloco,
+        IReadOnlyList<string> chaves,
+        bool lote,
+        IReadOnlyList<decimal>? fornecedores,
+        IReadOnlyList<string>? sobra,
+        bool emAberto,
+        int commandTimeout,
+        CancellationToken cancellationToken)
     {
         if (filiais.Count == 0)
         {
@@ -835,15 +875,23 @@ public sealed class DreGerencialRepository : IDreGerencialRepository
             condicoes = CentrosDeOutroFornecedor(Lista(2), Lista(3));
         }
 
+        // Os títulos EM ABERTO da célula de Provisionado: a mesma consulta, trocando só o
+        // pagamento — ver `ConsultasEmAberto`. Os binds abaixo valem para as duas versões.
+        // O realizado do detalhe segue a apuração: em competência, pago OU confirmado.
+        var baseSql = emAberto
+            ? ConsultasEmAberto.Lancamentos(DreDetalheQueries.Lancamentos)
+            : regime == RegimeDre.Competencia
+                ? ConsultasEmAberto.LancamentosRealizadosEmCompetencia(DreDetalheQueries.Lancamentos)
+                : DreDetalheQueries.Lancamentos;
+
+        // LOTE: a mesma consulta, com IN no recorte e a chave de cada lançamento.
+        if (lote)
+        {
+            baseSql = ConsultaDoLote.Lancamentos(baseSql, chaves.Count);
+        }
+
         var sql = string.Format(
-            // Os títulos EM ABERTO da célula de Provisionado: a mesma consulta, trocando só o
-            // pagamento — ver `ConsultasEmAberto`. Os binds abaixo valem para as duas versões.
-            // O realizado do detalhe segue a apuração: em competência, pago OU confirmado.
-            emAberto
-                ? ConsultasEmAberto.Lancamentos(DreDetalheQueries.Lancamentos)
-                : regime == RegimeDre.Competencia
-                    ? ConsultasEmAberto.LancamentosRealizadosEmCompetencia(DreDetalheQueries.Lancamentos)
-                    : DreDetalheQueries.Lancamentos,
+            baseSql,
             DreDetalheQueries.PredicadoDoBloco(antesRo, antesLl),
             placeholdersA,
             placeholdersB,
@@ -898,7 +946,18 @@ public sealed class DreGerencialRepository : IDreGerencialRepository
         {
             parametros.Add($"filialB{i}", filiais[i]);
         }
-        parametros.Add("chave", chave);
+        // LOTE: as chaves ocupam a posição de `:chave`, na ordem do IN.
+        if (lote)
+        {
+            for (var i = 0; i < chaves.Count; i++)
+            {
+                parametros.Add($"chave{i}", chaves[i]);
+            }
+        }
+        else
+        {
+            parametros.Add("chave", chaves[0]);
+        }
         // A sobra vem DEPOIS da chave: é a ordem dos `:placeholders` no SQL ({7} fica
         // abaixo do `WHERE {3} = :chave`), e o ODP.NET liga por posição.
         for (var i = 0; i < (sobra?.Count ?? 0); i++)
@@ -912,7 +971,7 @@ public sealed class DreGerencialRepository : IDreGerencialRepository
             new CommandDefinition(
                 Final(sql),
                 parametros,
-                commandTimeout: 300,
+                commandTimeout: commandTimeout,
                 cancellationToken: cancellationToken));
 
         return linhas.ToList();

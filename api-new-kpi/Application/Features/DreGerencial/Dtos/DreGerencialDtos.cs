@@ -565,3 +565,24 @@ public record ApuracaoDto(
     /// divergência 21 em DIVERGENCIAS.md.
     /// </summary>
     IReadOnlyList<LinhaDreDto>? LinhasSemEstornos = null);
+
+/// <summary>Uma coluna do lote: o intervalo exato da coluna na tela (mês, ano ou recorte do comparativo).</summary>
+public record LoteColunaDto(DateOnly DataInicio, DateOnly DataFim);
+
+/// <summary>
+/// Uma linha do lote: o destino que a apuração pôs na linha (<see cref="DetalheDisponivelDto"/>),
+/// devolvido como veio, e um <c>Id</c> que o front escolhe para reconhecer as partes.
+/// </summary>
+public record LoteLinhaDto(int Id, string Tipo, string? Bloco, string? Chave, IReadOnlyList<string>? Sobra = null);
+
+/// <summary>
+/// O pedido da exportação em lote (06/11/2026): o recorte da apuração, as colunas e as linhas.
+/// Ver <c>LoteDeDetalhe</c>.
+/// </summary>
+public record LoteFiltroDto(
+    IReadOnlyList<string> Filiais,
+    string Regime,
+    string Analise,
+    IReadOnlyList<LoteColunaDto> Colunas,
+    IReadOnlyList<LoteLinhaDto> Linhas,
+    IReadOnlyList<decimal>? Fornecedores = null);
