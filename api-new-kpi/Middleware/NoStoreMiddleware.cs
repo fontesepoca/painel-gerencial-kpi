@@ -16,7 +16,12 @@ public sealed class NoStoreMiddleware
         context.Response.OnStarting(() =>
         {
             var headers = context.Response.Headers;
-            headers.CacheControl = "no-store, no-cache, must-revalidate, max-age=0";
+            // A resposta em fluxo (lote do detalhamento) pede `no-transform` para ninguém no
+            // caminho comprimir em blocos e segurar o batimento. O resto da regra não muda.
+            var semTransformar = headers.CacheControl.ToString()
+                .Contains("no-transform", StringComparison.OrdinalIgnoreCase);
+            headers.CacheControl = "no-store, no-cache, must-revalidate, max-age=0"
+                + (semTransformar ? ", no-transform" : "");
             headers.Pragma = "no-cache";
             headers.Expires = "0";
             return Task.CompletedTask;

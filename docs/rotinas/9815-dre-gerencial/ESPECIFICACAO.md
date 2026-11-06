@@ -1287,8 +1287,9 @@ Três saídas no popover — **Imprimir**, **Exportar PDF** e **Exportar Excel**
 dos itens muda no modal, para dizer que a impressão abre uma aba — aba que aparece sem avisar
 parece defeito.
 
-**A composição dos totalizadores não exporta**, pelo mesmo motivo de não ter página: é
-aritmética sobre linhas da tabela que está atrás do modal, e a tabela inteira já exporta.
+**A composição dos totalizadores não exporta pelo modal**, pelo mesmo motivo de não ter
+página: é aritmética sobre linhas da tabela que está atrás do modal, e a tabela inteira já
+exporta. Desde 06/11/2026 ela sai no `.zip` do botão direito e das linhas selecionadas (§20.4).
 
 ### 20.2 O Excel do detalhamento
 
@@ -1310,6 +1311,51 @@ colunas de dinheiro bate com o DRE.
 09/09/2026, 52 linhas: a tabela do DRE saiu com 13.299 bytes; o duplo clique em
 `(-) DEVOLUCAO` abriu 20 motivos fechando em **413.947,02**, o mesmo valor da célula clicada,
 e exportou 11.203 bytes; a página dedicada, 11.170.
+
+### 20.4 O `.zip` do detalhamento, em lote (06/11/2026)
+
+O botão direito numa linha e a ação das **linhas selecionadas** geram um `.zip` com um Excel
+por linha × coluna — o mesmo arquivo que o duplo clique na célula exportaria. Até 06/11/2026
+era uma requisição por linha × coluna, uma atrás da outra: 15 linhas em 10 meses eram 150
+varreduras da PCLANC. Medido no mesmo dia: a filial 7 tem **104.330 lançamentos** de despesa
+em jan–out/2025.
+
+**Agora as contas vão num pedido só**, `POST /api/dre-gerencial/detalhe/lote`, e a API consulta
+o banco **uma vez por bloco × coluna** (`LoteDeDetalhe`, `ConsultaDoLote`): todas as linhas de
+lançamentos do mesmo bloco entram num `IN`, com o filtro de datas exato da coluna — o lote não
+redistribui lançamento entre meses. Receita, devolução, impostos e contas com sobra vão pelo
+detalhamento de uma célula, sem mudança. Os totalizadores seguem pela composição, no
+navegador, sem consulta.
+
+**A resposta é um fluxo NDJSON**, e o navegador gera cada Excel assim que a parte dele chega:
+
+```
+{"t":"inicio","partes":150,"base":{…}}
+{"t":"aguarde"}                               ← a cada 15 s sem dado
+{"t":"parte","linha":3,"coluna":0,"dados":{…o DetalhamentoDto de sempre…}}
+{"t":"falha","linhas":[0,4],"coluna":3,"mensagem":"…"}
+{"t":"fim"}
+```
+
+**Contra timeout**, em cada camada:
+
+| Camada | Proteção |
+|---|---|
+| Oracle | 600 s por consulta do lote (a célula tem 300 s) |
+| Falha transitória | ORA-01013, 03113, 03114, 03135, 12170, 12541, 12571: **uma** nova tentativa (`FalhaTransitoria`) |
+| Conexão parada | `aguarde` a cada 15 s, com `FlushAsync`; `Cache-Control: no-transform` para o Next não comprimir em blocos e segurar o batimento (o `NoStoreMiddleware` preserva o `no-transform`) |
+| Navegador | vigia: 90 s sem nenhum pacote = conexão perdida, e o corpo é cancelado — o que derruba a consulta no Oracle |
+| Pessoa | botão **Cancelar** no aviso da exportação |
+
+**Zip parcial.** Uma consulta que falha de novo vira `falha` e o lote **segue**. No fim, o que
+faltou — por falha ou porque a conexão caiu — entra no `LEIA - arquivos que faltaram.txt`,
+dentro do zip, e a tela diz quantos faltaram. Cancelar não baixa nada.
+
+| | |
+|---|---|
+| [dc105](./validacao/dc105_lote_do_detalhamento.cs) | a consulta derivada, o plano das unidades, a validação, o batimento e o serviço com um repositório falso (nova tentativa, falha, partes por chave) |
+| [dc106](./validacao/dc106_fluxo_do_lote.mjs) | o leitor do NDJSON (pacote e acento partidos, pacote de 8 MB), o vigia e o LEIA |
+| [dc107](./validacao/dc107_lote_contra_mensal.mjs) | **contra o Oracle, rodado pelo Gabriel**: o mesmo recorte mês a mês e em lote, lançamento por lançamento, cronometrado |
 
 ---
 

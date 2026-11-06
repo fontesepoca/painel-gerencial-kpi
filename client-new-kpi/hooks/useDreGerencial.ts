@@ -161,7 +161,7 @@ export function useApuracao() {
  * Lista vazia some do corpo: é o DRE inteiro, e `undefined` é o que o contrato chama de
  * "sem filtro". Mandar `[]` funcionaria igual hoje, mas documenta o oposto do que acontece.
  */
-function paraApi(filtro: FiltroApuracao) {
+export function paraApi(filtro: FiltroApuracao) {
   const { fornecedores, ...resto } = filtro;
   return {
     ...resto,

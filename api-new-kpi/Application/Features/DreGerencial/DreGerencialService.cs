@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using Epoca.Kpi.Api.Application.Common;
 using Epoca.Kpi.Api.Application.Common.Bases;
 using Epoca.Kpi.Api.Application.Features.DreGerencial.Dtos;
@@ -13,11 +14,16 @@ public sealed class DreGerencialService
 {
     private readonly IDreGerencialRepository _repositorio;
     private readonly IBaseAtual _baseAtual;
+    private readonly ILogger<DreGerencialService> _log;
 
-    public DreGerencialService(IDreGerencialRepository repositorio, IBaseAtual baseAtual)
+    public DreGerencialService(
+        IDreGerencialRepository repositorio,
+        IBaseAtual baseAtual,
+        ILogger<DreGerencialService> log)
     {
         _repositorio = repositorio;
         _baseAtual = baseAtual;
+        _log = log;
     }
 
     /// <summary>
@@ -239,6 +245,187 @@ public sealed class DreGerencialService
         "Na 9815 cada dimensão tem consultas próprias de estrutura e de despesas.";
 
     /// <summary>Validações comuns a período e filiais. Devolve a mensagem, ou null.</summary>
+    /// <summary>A participação do fornecedor no período: receita líquida filtrada sobre a da filial.</summary>
+    private static decimal Participacao(IReadOnlyList<FaturamentoDre> faturamento)
+    {
+        var total = faturamento.Sum(f => f.ReceitaLiquidaTotal);
+        return total == 0m ? 1m : faturamento.Sum(f => f.ReceitaLiquida) / total;
+    }
+
+    /// <summary>
+    /// O detalhamento de lançamentos, como o duplo clique e a exportação em lote o entregam —
+    /// um lugar só, para as duas telas não divergirem num campo.
+    /// </summary>
+    private static DetalhamentoDto DetalhamentoDeLancamentos(
+        string tipo,
+        DateOnly inicio,
+        DateOnly fim,
+        IEnumerable<(DetalheLancamentoDre Lancamento, bool EmAberto)> linhas,
+        long duracaoMs,
+        IReadOnlyList<decimal> eco,
+        decimal participacao,
+        bool provisionado,
+        bool ambos) =>
+        new(tipo, inicio, fim, null, null,
+            linhas.Select(par => { var l = par.Lancamento; return new DetalheLancamentoDto(
+                l.Exclusivo != 0m,
+                l.RecNum, l.CodFilial, l.CodCcPrinc, l.DescCcPrinc,
+                l.CodCentroCusto, l.DescCentroCusto, l.CodGrupo, l.Grupo,
+                l.CodConta, l.Conta, l.VPago, l.Historico, l.DtLanc,
+                l.DtCompetencia, l.DtCompensacao, l.DtPagto, l.NumTrans,
+                l.NumNota, l.Duplic, l.Indice, l.CodProjeto, l.CodFornec,
+                l.Fornecedor, l.NumBanco, l.NumCheque, l.NumBordero,
+                l.NumSeqBordero, l.NumCheque2, l.NumCar, l.Localizacao,
+                l.NomeFunc, l.NomeFuncBaixa, l.DtReclassific,
+                l.CodFuncReclassific, l.DtEstornoBaixa,
+                l.CodRotinaBaixa, l.DtVenc, par.EmAberto); }).ToList(),
+            null, duracaoMs, Fornecedores: eco, Participacao: participacao,
+            Provisionado: provisionado,
+            RealizadoEProvisionado: ambos);
+
+    /// <summary>O motivo da recusa do lote, ou nulo. Ver <see cref="LoteDeDetalhe.Validar"/>.</summary>
+    public string? ValidarLote(LoteFiltroDto lote) => LoteDeDetalhe.Validar(lote);
+
+    /// <summary>
+    /// A exportação em lote (06/11/2026): as unidades de <see cref="LoteDeDetalhe.Planejar"/>,
+    /// UMA DE CADA VEZ — não disputar o Oracle com a operação —, cada parte entregue assim que
+    /// a unidade termina.
+    ///
+    /// <para><b>À prova de timeout.</b> Enquanto uma unidade roda, um <c>aguarde</c> a cada
+    /// 15 s mantém a conexão viva em toda camada. Falha transitória (tempo esgotado, conexão
+    /// caída) ganha UMA nova tentativa; se falhar de novo, ou se for outro erro, a unidade vira
+    /// um pacote <c>falha</c> e o lote SEGUE — o front monta o zip parcial com o LEIA.</para>
+    ///
+    /// <para>Pedido já validado por <see cref="ValidarLote"/>.</para>
+    /// </summary>
+    public async IAsyncEnumerable<PacoteDoLote> ExecutarLoteAsync(
+        LoteFiltroDto lote,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        var unidades = LoteDeDetalhe.Planejar(lote);
+        var linhas = lote.Linhas.ToDictionary(l => l.Id);
+        var participacoes = new Dictionary<int, decimal>();
+
+        yield return PacoteDoLote.Inicio(lote.Linhas.Count * lote.Colunas.Count, BaseDto.De(_baseAtual.Base));
+
+        foreach (var unidade in unidades)
+        {
+            IReadOnlyList<(int Linha, DetalhamentoDto Dados)>? partes = null;
+            string? falha = null;
+
+            for (var tentativa = 1; partes is null && falha is null; tentativa++)
+            {
+                var tarefa = RodarUnidadeAsync(lote, unidade, linhas, participacoes, cancellationToken);
+
+                await foreach (var _ in LoteDeDetalhe.Esperar(tarefa, LoteDeDetalhe.IntervaloDoBatimento, cancellationToken))
+                {
+                    yield return PacoteDoLote.Aguarde;
+                }
+
+                try
+                {
+                    partes = await tarefa;
+                }
+                catch (FalhaDoLote e)
+                {
+                    falha = e.Message;
+                }
+                catch (Exception e) when (!cancellationToken.IsCancellationRequested && _repositorio.EhFalhaTransitoria(e))
+                {
+                    _log.LogWarning(e, "Lote do detalhamento: {Tipo} {Bloco}, coluna {Coluna}, tentativa {Tentativa}",
+                        unidade.Tipo, unidade.Bloco, unidade.Coluna, tentativa);
+                    if (tentativa >= 2)
+                    {
+                        falha = "O banco não respondeu a tempo, nem na segunda tentativa.";
+                    }
+                }
+                catch (Exception e) when (!cancellationToken.IsCancellationRequested)
+                {
+                    _log.LogError(e, "Lote do detalhamento: {Tipo} {Bloco}, coluna {Coluna}",
+                        unidade.Tipo, unidade.Bloco, unidade.Coluna);
+                    falha = "Erro inesperado ao consultar o banco.";
+                }
+            }
+
+            if (falha is not null)
+            {
+                yield return PacoteDoLote.Falha(unidade.Linhas, unidade.Coluna, falha);
+                continue;
+            }
+
+            foreach (var (linha, dados) in partes!)
+            {
+                yield return PacoteDoLote.Parte(linha, unidade.Coluna, dados);
+            }
+        }
+
+        yield return PacoteDoLote.Fim;
+    }
+
+    private async Task<IReadOnlyList<(int Linha, DetalhamentoDto Dados)>> RodarUnidadeAsync(
+        LoteFiltroDto lote,
+        UnidadeDoLote unidade,
+        IReadOnlyDictionary<int, LoteLinhaDto> linhas,
+        Dictionary<int, decimal> participacoes,
+        CancellationToken cancellationToken)
+    {
+        var coluna = lote.Colunas[unidade.Coluna];
+        var fornecedores = lote.Fornecedores is { Count: > 0 } f ? f : null;
+
+        // Receita, devolução, impostos e contas com sobra: o detalhamento de uma célula, sem
+        // mudança nenhuma — e o resultado serve a todas as linhas com o mesmo destino.
+        if (!unidade.Agrupada)
+        {
+            var modelo = linhas[unidade.Linhas[0]];
+            var resultado = await ObterDetalheAsync(new DetalheFiltroDto(
+                lote.Filiais, coluna.DataInicio, coluna.DataFim, lote.Regime, lote.Analise,
+                modelo.Tipo, modelo.Bloco, modelo.Chave, fornecedores, modelo.Sobra),
+                cancellationToken);
+
+            if (resultado.Falha)
+            {
+                throw new FalhaDoLote(resultado.Erro!);
+            }
+
+            return unidade.Linhas.Select(id => (id, resultado.Valor!)).ToList();
+        }
+
+        var cronometro = System.Diagnostics.Stopwatch.StartNew();
+        var lancamentos = await _repositorio.ObterDetalheLancamentosDoLoteAsync(
+            lote.Filiais, coluna.DataInicio, coluna.DataFim,
+            RegimeDre.Resolver(lote.Regime)!, AnaliseDre.Resolver(lote.Analise)!,
+            unidade.Bloco!, unidade.Chaves, fornecedores, cancellationToken);
+
+        // A participação é da COLUNA, e as unidades da mesma coluna a dividem.
+        var participacao = 1m;
+        if (fornecedores is not null && !participacoes.TryGetValue(unidade.Coluna, out participacao))
+        {
+            participacao = Participacao(await _repositorio.ObterFaturamentoPorMesAsync(
+                lote.Filiais, coluna.DataInicio, coluna.DataFim, fornecedores, cancellationToken));
+            participacoes[unidade.Coluna] = participacao;
+        }
+
+        cronometro.Stop();
+
+        var foraDoLote = lancamentos.Count(l => l.ChaveLote is null || !unidade.Chaves.Contains(l.ChaveLote));
+        if (foraDoLote > 0)
+        {
+            // Não deveria acontecer: é a chave que o Oracle devolveu diferente da que entrou.
+            _log.LogWarning(
+                "Lote do detalhamento: {Fora} lançamentos com chave fora do lote ({Bloco}, coluna {Coluna})",
+                foraDoLote, unidade.Bloco, unidade.Coluna);
+        }
+
+        var porChave = lancamentos.ToLookup(l => l.ChaveLote ?? string.Empty);
+        return unidade.Linhas
+            .Select(id => (id, DetalhamentoDeLancamentos(
+                "lancamentos", coluna.DataInicio, coluna.DataFim,
+                porChave[linhas[id].Chave!].Select(l => (l, false)),
+                cronometro.ElapsedMilliseconds, fornecedores ?? [], participacao,
+                provisionado: false, ambos: false)))
+            .ToList();
+    }
+
     private static string? ValidarPeriodoEFiliais(DespesasFiltroDto filtro)
     {
         if (filtro.Filiais.Count == 0)
@@ -567,9 +754,7 @@ public sealed class DreGerencialService
                 // operacional (`MontadorDre.Destino`). Vêm da apuração, ida e volta pelo
                 // front, e por isso passam por uma forma fechada — entram como bind, mas uma
                 // lista sem limite ainda seria uma consulta sem limite.
-                if (filtro.Sobra is { } sobra
-                    && (sobra.Count is 0 or > 200
-                        || sobra.Any(c => c.Length is 0 or > 20 || !c.All(ch => char.IsAsciiDigit(ch) || ch == '.'))))
+                if (filtro.Sobra is { } sobra && !LoteDeDetalhe.SobraValida(sobra))
                 {
                     return Result<DetalhamentoDto>.Invalido(
                         "A sobra do detalhamento tem de ser de 1 a 200 códigos, só com dígitos e ponto.");
@@ -626,32 +811,14 @@ public sealed class DreGerencialService
                 var participacao = 1m;
                 if (fornecedores is not null)
                 {
-                    var faturamento = await faturamentoTask!;
-
-                    var total = faturamento.Sum(f => f.ReceitaLiquidaTotal);
-                    participacao = total == 0m
-                        ? 1m
-                        : faturamento.Sum(f => f.ReceitaLiquida) / total;
+                    participacao = Participacao(await faturamentoTask!);
                 }
 
                 cronometro.Stop();
-                return Result<DetalhamentoDto>.Ok(new DetalhamentoDto(
-                    filtro.Tipo, filtro.DataInicio, filtro.DataFim, null, null,
-                    linhas.Select(par => { var l = par.Lancamento; return new DetalheLancamentoDto(
-                        l.Exclusivo != 0m,
-                        l.RecNum, l.CodFilial, l.CodCcPrinc, l.DescCcPrinc,
-                        l.CodCentroCusto, l.DescCentroCusto, l.CodGrupo, l.Grupo,
-                        l.CodConta, l.Conta, l.VPago, l.Historico, l.DtLanc,
-                        l.DtCompetencia, l.DtCompensacao, l.DtPagto, l.NumTrans,
-                        l.NumNota, l.Duplic, l.Indice, l.CodProjeto, l.CodFornec,
-                        l.Fornecedor, l.NumBanco, l.NumCheque, l.NumBordero,
-                        l.NumSeqBordero, l.NumCheque2, l.NumCar, l.Localizacao,
-                        l.NomeFunc, l.NomeFuncBaixa, l.DtReclassific,
-                        l.CodFuncReclassific, l.DtEstornoBaixa,
-                        l.CodRotinaBaixa, l.DtVenc, par.EmAberto); }).ToList(),
-                    null, cronometro.ElapsedMilliseconds, Fornecedores: eco, Participacao: participacao,
-                    Provisionado: filtro.Provisionado && !ambos,
-                    RealizadoEProvisionado: ambos));
+                return Result<DetalhamentoDto>.Ok(DetalhamentoDeLancamentos(
+                    filtro.Tipo, filtro.DataInicio, filtro.DataFim, linhas,
+                    cronometro.ElapsedMilliseconds, eco, participacao,
+                    provisionado: filtro.Provisionado && !ambos, ambos: ambos));
             }
 
             case "imposto-por-produto":

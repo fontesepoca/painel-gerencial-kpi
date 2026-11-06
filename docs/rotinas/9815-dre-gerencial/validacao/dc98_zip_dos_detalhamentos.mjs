@@ -1,7 +1,7 @@
 /**
  * dc98 — o `.zip` dos detalhamentos de uma linha (16/10/2026).
  *
- *   node --experimental-strip-types --import ./docs/rotinas/9815-dre-gerencial/validacao/_alias.mjs docs/rotinas/9815-dre-gerencial/validacao/dc98_zip_dos_detalhamentos.mjs
+ *   node --experimental-transform-types --import ./docs/rotinas/9815-dre-gerencial/validacao/_alias.mjs docs/rotinas/9815-dre-gerencial/validacao/dc98_zip_dos_detalhamentos.mjs
  *
  * O botão direito na descrição de uma linha exporta um Excel por mês, empacotados num zip.
  * O empacotador é nosso (`lib/zip.ts`, sem biblioteca nova): o `.xlsx` já é comprimido por

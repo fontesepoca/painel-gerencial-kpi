@@ -64,6 +64,13 @@ public class DetalheLancamentoDre
     public decimal RecNum { get; init; }
 
     /// <summary>
+    /// A chave da linha do DRE a que o lançamento pertence — só na consulta do LOTE
+    /// (<c>ConsultaDoLote</c>), nula no detalhamento de uma célula. Sem sublinhado no alias
+    /// (<c>CHAVELOTE</c>): o Dapper não casaria <c>CHAVE_LOTE</c> com esta propriedade.
+    /// </summary>
+    public string? ChaveLote { get; init; }
+
+    /// <summary>
     /// <b>1 quando o lançamento pertence ao fornecedor filtrado</b> e por isso entra inteiro
     /// no DRE, sem rateio: a verba do centro 90 com o <c>CODFORNEC</c> dele, e a despesa de
     /// um centro dedicado a ele em <c>TAB_WEB_CENTROC_FORNEC</c>.
