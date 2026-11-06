@@ -1,6 +1,7 @@
 import { baixar, gerarPlanilha, nomeSeguro } from "@/lib/excel";
 import { nomeDoArquivoDetalhe, planilhaDoDetalhe } from "@/lib/exportarExcelDetalhe";
 import { criarZip, type ArquivoDoZip } from "@/lib/zip";
+import { planilhaDaComposicao, type Parcela } from "@/lib/composicaoDoTotal";
 import type { Detalhamento } from "@/types/dre-gerencial";
 
 /**
@@ -21,6 +22,8 @@ export interface ColunaParaExportar {
   dataFim: string;
   /** O valor da célula: é contra ele que o detalhamento se confere. */
   valor?: number;
+  /** A chave da coluna no DRE — a composição de um totalizador é lida por ela. */
+  mesAno?: string;
 }
 
 const tituloDe = (descricao: string, coluna: ColunaParaExportar) =>
@@ -48,13 +51,15 @@ async function arquivosDaLinha({
   descricao,
   colunas,
   buscar,
+  composicao,
   ocultarBaixas,
   nomes,
   aoTerminarColuna,
 }: {
   descricao: string;
   colunas: readonly ColunaParaExportar[];
-  buscar: (periodo: { dataInicio: string; dataFim: string }) => Promise<Detalhamento>;
+  buscar?: (periodo: { dataInicio: string; dataFim: string }) => Promise<Detalhamento>;
+  composicao?: ComposicaoDaColuna;
   ocultarBaixas: boolean;
   /** O caminho de cada arquivo dentro do zip, na ordem das colunas. */
   nomes: readonly string[];
@@ -64,6 +69,19 @@ async function arquivosDaLinha({
 
   for (const [i, coluna] of colunas.entries()) {
     const periodo = { dataInicio: coluna.dataInicio, dataFim: coluna.dataFim };
+
+    // O TOTALIZADOR (06/11/2026): a planilha é a composição dele, montada do que já está na
+    // tela — sem consulta. Ver `lib/composicaoDoTotal.ts`.
+    if (composicao) {
+      const blob = await gerarPlanilha([
+        planilhaDaComposicao({ titulo: tituloDe(descricao, coluna), periodo, ...composicao(coluna) }),
+      ]);
+      arquivos.push({ nome: nomes[i]!, dados: new Uint8Array(await blob.arrayBuffer()) });
+      aoTerminarColuna?.();
+      continue;
+    }
+    if (!buscar) throw new Error(`${descricao}: nada a exportar nesta linha.`);
+
     let dados: Detalhamento;
     try {
       dados = await buscar(periodo);
@@ -91,17 +109,29 @@ async function arquivosDaLinha({
   return arquivos;
 }
 
+/**
+ * A composição de um TOTALIZADOR numa coluna — o que entra no lugar da consulta quando a
+ * linha não tem lançamentos próprios (06/11/2026). Ver `composicaoDaLinha`.
+ */
+export type ComposicaoDaColuna = (coluna: ColunaParaExportar) => {
+  total: number;
+  parcelas: readonly Parcela[];
+};
+
 export async function exportarDetalhesDaLinha({
   descricao,
   colunas,
   buscar,
+  composicao,
   ocultarBaixas,
   onProgresso,
 }: {
   descricao: string;
   colunas: readonly ColunaParaExportar[];
   /** O detalhamento de um recorte — a mesma consulta do duplo clique. */
-  buscar: (periodo: { dataInicio: string; dataFim: string }) => Promise<Detalhamento>;
+  buscar?: (periodo: { dataInicio: string; dataFim: string }) => Promise<Detalhamento>;
+  /** No totalizador, a composição em vez da consulta. */
+  composicao?: ComposicaoDaColuna;
   /** O checkbox de baixas estornadas, como a tela está: o arquivo conta o que a tela conta. */
   ocultarBaixas: boolean;
   onProgresso?: (feitos: number, total: number) => void;
@@ -112,6 +142,7 @@ export async function exportarDetalhesDaLinha({
     descricao,
     colunas,
     buscar,
+    composicao,
     ocultarBaixas,
     nomes: nomesDosArquivos(descricao, colunas),
     aoTerminarColuna: () => onProgresso?.(++feitos, colunas.length),
@@ -184,6 +215,8 @@ export async function exportarDetalhesDasLinhas({
   linhas: readonly (LinhaParaExportar & {
     /** O detalhamento desta linha num recorte — a consulta do duplo clique. */
     buscar?: (periodo: { dataInicio: string; dataFim: string }) => Promise<Detalhamento>;
+    /** No totalizador, a composição em vez da consulta (06/11/2026). */
+    composicao?: ComposicaoDaColuna;
   })[];
   /** Usado quando a linha não traz o seu. */
   buscar?: (descricao: string, periodo: { dataInicio: string; dataFim: string }) => Promise<Detalhamento>;
@@ -199,13 +232,15 @@ export async function exportarDetalhesDasLinhas({
 
   for (const [i, linha] of linhas.entries()) {
     onProgresso?.(feitos, total, linha.descricao);
-    const daLinha = linha.buscar ?? ((periodo) => buscar!(linha.descricao, periodo));
+    const daLinha =
+      linha.buscar ?? (buscar ? (periodo: { dataInicio: string; dataFim: string }) => buscar(linha.descricao, periodo) : undefined);
     try {
       arquivos.push(
         ...(await arquivosDaLinha({
           descricao: linha.descricao,
           colunas: linha.colunas,
           buscar: daLinha,
+          composicao: linha.composicao,
           ocultarBaixas,
           nomes: caminhos[i]!,
           aoTerminarColuna: () => onProgresso?.(++feitos, total, linha.descricao),

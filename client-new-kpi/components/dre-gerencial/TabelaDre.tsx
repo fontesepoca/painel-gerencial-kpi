@@ -6,6 +6,7 @@ import { ModalDetalhe } from "./ModalDetalhe";
 import { ModalConfirmarDetalhe, type DetalhePendente } from "./ModalConfirmarDetalhe";
 import { pedirDetalhe, useDetalhe } from "@/hooks/useDreGerencial";
 import { useOcultarBaixas } from "@/hooks/useOcultarBaixas";
+import { composicaoDaLinha } from "@/lib/composicaoDoTotal";
 import {
   exportarDetalhesDaLinha,
   exportarDetalhesDasLinhas,
@@ -253,24 +254,29 @@ export function TabelaDre({
     erro: string | null;
   } | null>(null);
 
-  const exportarTudo = useCallback(
-    async (linha: LinhaDre) => {
+  /**
+   * O QUE SAI DE UMA LINHA na exportação — a mesma regra para o botão direito e para as
+   * linhas selecionadas. A CONTA leva o detalhamento: a mesma consulta do duplo clique na
+   * célula do mês. O TOTALIZADOR leva a COMPOSIÇÃO (06/11/2026, pedido do Gabriel): as
+   * linhas que formam o total e o valor de cada uma, como o duplo clique nele mostra — sem
+   * consulta. `null` só para a linha que não tem nenhum dos dois.
+   */
+  const paraExportar = useCallback(
+    (linha: LinhaDre) => {
+      const descricao = linha.descricao.trim();
+      const colunas = periodos.map((p) => ({
+        rotulo: p.rotulo,
+        dataInicio: p.dataInicio,
+        dataFim: p.dataFim,
+        valor: linha.valores.find((v) => v.mesAno === p.mesAno)?.valor,
+        mesAno: p.mesAno,
+      }));
       const destino = linha.detalhe;
-      if (!destino) return;
-      const conta = linha.descricao.trim();
-      setExportacao({ conta, feitos: 0, total: periodos.length, erro: null });
-      try {
-        await exportarDetalhesDaLinha({
-          descricao: conta,
-          colunas: periodos.map((p) => ({
-            rotulo: p.rotulo,
-            dataInicio: p.dataInicio,
-            dataFim: p.dataFim,
-            valor: linha.valores.find((v) => v.mesAno === p.mesAno)?.valor,
-          })),
-          // A MESMA consulta do duplo clique na célula do mês: o arquivo de cada mês é o
-          // que a pessoa exportaria abrindo aquele detalhamento.
-          buscar: (periodo) =>
+      if (destino) {
+        return {
+          descricao,
+          colunas,
+          buscar: (periodo: { dataInicio: string; dataFim: string }) =>
             pedirDetalhe(
               {
                 ...filtro,
@@ -282,6 +288,30 @@ export function TabelaDre({
               },
               usuario?.base.id,
             ),
+        };
+      }
+      if ((linha.composicao ?? []).length > 0) {
+        return {
+          descricao,
+          colunas,
+          composicao: (coluna: { mesAno?: string }) =>
+            composicaoDaLinha(linha, ordenadas, coluna.mesAno ?? null),
+        };
+      }
+      return null;
+    },
+    [periodos, filtro, usuario, ordenadas],
+  );
+
+  const exportarTudo = useCallback(
+    async (linha: LinhaDre) => {
+      const fonte = paraExportar(linha);
+      if (!fonte) return;
+      const conta = fonte.descricao;
+      setExportacao({ conta, feitos: 0, total: periodos.length, erro: null });
+      try {
+        await exportarDetalhesDaLinha({
+          ...fonte,
           ocultarBaixas,
           onProgresso: (feitos, total) =>
             setExportacao((e) => (e ? { ...e, feitos, total } : e)),
@@ -296,7 +326,7 @@ export function TabelaDre({
         }));
       }
     },
-    [periodos, filtro, ocultarBaixas, usuario],
+    [periodos, ocultarBaixas, paraExportar],
   );
 
   /**
@@ -307,38 +337,15 @@ export function TabelaDre({
   const exportarSelecionadas = useCallback(
     async (escolhidas: readonly LinhaDre[]) => {
       const linhasParaExportar = escolhidas.flatMap((linha) => {
-        const destino = linha.detalhe;
-        if (!destino) return [];
-        return [
-          {
-            descricao: linha.descricao.trim(),
-            colunas: periodos.map((p) => ({
-              rotulo: p.rotulo,
-              dataInicio: p.dataInicio,
-              dataFim: p.dataFim,
-              valor: linha.valores.find((v) => v.mesAno === p.mesAno)?.valor,
-            })),
-            buscar: (periodo: { dataInicio: string; dataFim: string }) =>
-              pedirDetalhe(
-                {
-                  ...filtro,
-                  ...periodo,
-                  tipo: destino.tipo,
-                  bloco: destino.bloco,
-                  chave: destino.chave,
-                  sobra: destino.sobra ?? null,
-                },
-                usuario?.base.id,
-              ),
-          },
-        ];
+        const fonte = paraExportar(linha);
+        return fonte ? [fonte] : [];
       });
       if (linhasParaExportar.length === 0) return;
 
       const rotulo =
         linhasParaExportar.length === 1
           ? linhasParaExportar[0]!.descricao
-          : `${linhasParaExportar.length} contas`;
+          : `${linhasParaExportar.length} linhas`;
       const total = linhasParaExportar.length * periodos.length;
       setExportacao({ conta: rotulo, feitos: 0, total, erro: null });
       try {
@@ -364,7 +371,7 @@ export function TabelaDre({
         }));
       }
     },
-    [periodos, filtro, ocultarBaixas, usuario],
+    [periodos, filtro, ocultarBaixas, usuario, paraExportar],
   );
   const [detalhe, setDetalhe] = useState<{
     titulo: string;
@@ -472,8 +479,9 @@ export function TabelaDre({
     () => (selecao.assinatura === assinaturaDaApuracao ? selecao.chaves : new Set<string>()),
     [selecao, assinaturaDaApuracao],
   );
-  // Só a linha que abre detalhamento tem o que exportar — a mesma condição do botão direito.
-  const selecionaveis = useMemo(() => visiveis.filter((l) => l.detalhe), [visiveis]);
+  // Tem o que exportar a linha com detalhamento (a conta) ou com composição (o totalizador,
+  // desde 06/11/2026) — a mesma condição do botão direito, `paraExportar`.
+  const selecionaveis = useMemo(() => visiveis.filter(exportavel), [visiveis]);
   const marcadasNaTela = selecionaveis.filter((l) => selecionadas.has(l.chaveOrdem));
 
   const alternarSelecao = useCallback(
@@ -766,17 +774,9 @@ export function TabelaDre({
    */
   const abrirComposicao = useCallback(
     (linha: LinhaDre, mesAno: string | null) => {
-      const valorDe = (l: LinhaDre) =>
-        mesAno ? (l.valores.find((v) => v.mesAno === mesAno)?.valor ?? 0) : l.total.valor;
-
-      const parcelas = (linha.composicao ?? []).flatMap((p) => {
-        const alvo = ordenadas.find((l) => l.chaveOrdem === p.chaveOrdem);
-        // Parcela sem linha correspondente não vira zero: some. Um zero inventado no meio
-        // de uma composição parece uma conta que fechou.
-        return alvo
-          ? [{ rotulo: p.rotulo, valor: p.sinal * valorDe(alvo), semMovimento: alvo.semMovimento }]
-          : [];
-      });
+      // A MESMA conta que a exportação do totalizador usa (06/11/2026): o modal e o Excel
+      // não podem discordar. Ver `lib/composicaoDoTotal.ts`.
+      const { total, parcelas } = composicaoDaLinha(linha, ordenadas, mesAno);
 
       const coluna = mesAno
         ? (periodos.find((pp) => pp.mesAno === mesAno)?.rotulo ?? mesAno)
@@ -784,8 +784,8 @@ export function TabelaDre({
 
       setComposicao({
         titulo: `${linha.descricao.trim()} · ${coluna}`,
-        total: valorDe(linha),
-        parcelas,
+        total,
+        parcelas: parcelas.map((p) => ({ ...p, semMovimento: p.semMovimento ?? false })),
       });
     },
     [ordenadas, periodos],
@@ -1039,7 +1039,7 @@ export function TabelaDre({
         <div className="nao-imprime flex flex-wrap items-center gap-x-5 gap-y-2 border-b border-[var(--border)] bg-[var(--surface-2)] px-4 py-2">
           {marcadasNaTela.length === 0 ? (
             <p className="text-[length:var(--fs-apoio)] text-[var(--text-muted)]">
-              Marque as contas — ou todas, no cabeçalho — para exportar o detalhamento delas
+              Marque as linhas — ou todas, no cabeçalho — para exportar o detalhamento delas
               num arquivo só.
             </p>
           ) : (
@@ -1047,17 +1047,17 @@ export function TabelaDre({
               <p role="status" className="text-[length:var(--fs-apoio)] text-[var(--text-secondary)]">
                 <strong className="font-semibold text-[var(--text-primary)]">
                   {marcadasNaTela.length === 1
-                    ? "1 conta selecionada"
-                    : `${marcadasNaTela.length} contas selecionadas`}
+                    ? "1 linha selecionada"
+                    : `${marcadasNaTela.length} linhas selecionadas`}
                 </strong>{" "}
                 · {marcadasNaTela.length * periodos.length}{" "}
                 {marcadasNaTela.length * periodos.length === 1 ? "planilha" : "planilhas"} no .zip
                 {/* Cada planilha é uma consulta ao banco, uma por vez. "Selecionar todas"
                     em doze meses passa de mil — a pessoa precisa saber antes de clicar. */}
-                {marcadasNaTela.length * periodos.length > 24 && (
+                {marcadasNaTela.filter((l) => l.detalhe).length * periodos.length > 24 && (
                   <span className="text-[var(--warning)]">
                     {" "}
-                    — uma consulta por planilha: pode levar vários minutos
+                    — uma consulta por planilha de conta: pode levar vários minutos
                   </span>
                 )}
               </p>
@@ -1334,7 +1334,7 @@ export function TabelaDre({
                   selecao={
                     mostrarSelecao && !soPapel
                       ? {
-                          marcada: linha.detalhe ? selecionadas.has(linha.chaveOrdem) : null,
+                          marcada: exportavel(linha) ? selecionadas.has(linha.chaveOrdem) : null,
                           onAlternar: () => alternarSelecao(linha.chaveOrdem),
                         }
                       : null
@@ -1390,10 +1390,12 @@ export function TabelaDre({
                 {
                   id: "excel-zip",
                   rotulo: "Excel (.zip)",
-                  apoio: `Um arquivo por coluna — ${periodos.length} ${periodos.length === 1 ? "arquivo" : "arquivos"}, num .zip`,
-                  // Totalizador é soma de outras linhas, e não tem lançamento próprio.
-                  motivo: !menuDaLinha.linha.detalhe
-                    ? "Esta linha é um total: não tem lançamentos próprios para exportar."
+                  // O totalizador exporta a COMPOSIÇÃO (06/11/2026) — ver `paraExportar`.
+                  apoio: menuDaLinha.linha.detalhe
+                    ? `Um arquivo por coluna — ${periodos.length} ${periodos.length === 1 ? "arquivo" : "arquivos"}, num .zip`
+                    : `A composição do total, um arquivo por coluna — ${periodos.length} ${periodos.length === 1 ? "arquivo" : "arquivos"}, num .zip`,
+                  motivo: !exportavel(menuDaLinha.linha)
+                    ? "Esta linha não tem detalhamento nem composição para exportar."
                     : exportacao && !exportacao.erro
                       ? "Já há uma exportação em andamento."
                       : null,
@@ -1683,6 +1685,14 @@ function SelecionarTodas({
       className="selecao-da-linha nao-imprime shrink-0"
     />
   );
+}
+
+/**
+ * A linha tem o que exportar: detalhamento (a conta) ou composição (o totalizador, desde
+ * 06/11/2026). A mesma condição para o checkbox, o "selecionar todas" e o botão direito.
+ */
+function exportavel(l: LinhaDre): boolean {
+  return !!l.detalhe || (l.composicao ?? []).length > 0;
 }
 
 function Th({
