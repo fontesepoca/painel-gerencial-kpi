@@ -6,7 +6,11 @@ import { ModalDetalhe } from "./ModalDetalhe";
 import { ModalConfirmarDetalhe, type DetalhePendente } from "./ModalConfirmarDetalhe";
 import { pedirDetalhe, useDetalhe } from "@/hooks/useDreGerencial";
 import { useOcultarBaixas } from "@/hooks/useOcultarBaixas";
-import { exportarDetalhesDaLinha } from "@/lib/exportarDetalhesDaLinha";
+import {
+  exportarDetalhesDaLinha,
+  exportarDetalhesDasLinhas,
+  nomeDoZipDaSelecao,
+} from "@/lib/exportarDetalhesDaLinha";
 import { MenuDaLinha } from "./MenuDaLinha";
 import { useExportarDetalhe } from "@/hooks/useExportarDetalhe";
 import { paraBr } from "@/lib/periodos";
@@ -96,6 +100,8 @@ export function TabelaDre({
   linhas,
   mostrarZeradas,
   mostrarInformativos = true,
+  mostrarSelecao = false,
+  mostrarPunho = true,
   mostrarAv,
   mostrarAh: mostrarAhPedido,
   mostrarProvisionado = false,
@@ -116,6 +122,16 @@ export function TabelaDre({
   mostrarZeradas: boolean;
   /** As linhas informativas (`naoSoma`) aparecem. Desligável desde 29/10/2026. */
   mostrarInformativos?: boolean;
+  /**
+   * Os checkboxes de seleção das linhas, para exportar o detalhamento de várias num zip só
+   * — "Selecionar linhas" no menu Exibição, desligado por padrão (06/11/2026).
+   */
+  mostrarSelecao?: boolean;
+  /**
+   * O punho ⠿ de mover linhas e a dica de como arrastar — "Mover linhas" no menu Exibição,
+   * ligado por padrão (06/11/2026). Desligado, a coluna da descrição fica só com o nome.
+   */
+  mostrarPunho?: boolean;
   /** A coluna `AV %` aparece. Decidido na barra de controles, ligado por padrão. */
   mostrarAv: boolean;
   /**
@@ -282,6 +298,74 @@ export function TabelaDre({
     },
     [periodos, filtro, ocultarBaixas, usuario],
   );
+
+  /**
+   * "Exportar detalhamento" das LINHAS SELECIONADAS (06/11/2026, pedido do Gabriel): o mesmo
+   * de `exportarTudo`, para cada linha marcada, na ordem da tela, num zip só com a empresa, a
+   * filial e o período no nome. Ver `exportarDetalhesDasLinhas`.
+   */
+  const exportarSelecionadas = useCallback(
+    async (escolhidas: readonly LinhaDre[]) => {
+      const linhasParaExportar = escolhidas.flatMap((linha) => {
+        const destino = linha.detalhe;
+        if (!destino) return [];
+        return [
+          {
+            descricao: linha.descricao.trim(),
+            colunas: periodos.map((p) => ({
+              rotulo: p.rotulo,
+              dataInicio: p.dataInicio,
+              dataFim: p.dataFim,
+              valor: linha.valores.find((v) => v.mesAno === p.mesAno)?.valor,
+            })),
+            buscar: (periodo: { dataInicio: string; dataFim: string }) =>
+              pedirDetalhe(
+                {
+                  ...filtro,
+                  ...periodo,
+                  tipo: destino.tipo,
+                  bloco: destino.bloco,
+                  chave: destino.chave,
+                  sobra: destino.sobra ?? null,
+                },
+                usuario?.base.id,
+              ),
+          },
+        ];
+      });
+      if (linhasParaExportar.length === 0) return;
+
+      const rotulo =
+        linhasParaExportar.length === 1
+          ? linhasParaExportar[0]!.descricao
+          : `${linhasParaExportar.length} contas`;
+      const total = linhasParaExportar.length * periodos.length;
+      setExportacao({ conta: rotulo, feitos: 0, total, erro: null });
+      try {
+        await exportarDetalhesDasLinhas({
+          linhas: linhasParaExportar,
+          ocultarBaixas,
+          nomeDoZip: nomeDoZipDaSelecao({
+            empresa: usuario?.base.rotulo ?? "DRE Gerencial",
+            filiais: filtro.filiais,
+            dataInicio: filtro.dataInicio,
+            dataFim: filtro.dataFim,
+          }),
+          onProgresso: (feitos, tot) =>
+            setExportacao((e) => (e ? { ...e, feitos, total: tot } : e)),
+        });
+        setExportacao(null);
+      } catch (e) {
+        setExportacao((atual) => ({
+          conta: rotulo,
+          feitos: atual?.feitos ?? 0,
+          total,
+          erro: `Não foi possível exportar: ${e instanceof Error ? e.message : "erro desconhecido"}`,
+        }));
+      }
+    },
+    [periodos, filtro, ocultarBaixas, usuario],
+  );
   const [detalhe, setDetalhe] = useState<{
     titulo: string;
     periodo: { dataInicio: string; dataFim: string };
@@ -369,6 +453,49 @@ export function TabelaDre({
   );
 
   const filtrando = filtroDeLinhas.trim() !== "";
+
+  /**
+   * AS LINHAS SELECIONADAS (06/11/2026, pedido do Gabriel), para exportar o detalhamento de
+   * todas num zip só. Pela `chaveOrdem`, que é a mesma nas duas versões do DRE (com e sem
+   * as baixas estornadas): trocar o checkbox das baixas não desfaz a seleção.
+   *
+   * **Presa à apuração.** A seleção guarda a assinatura das colunas e do filtro em que foi
+   * feita; numa apuração nova a assinatura muda e ela vale como vazia — sem efeito para
+   * limpar, e sem marcar por engano uma conta de outro período.
+   */
+  const assinaturaDaApuracao = `${periodos.map((p) => p.mesAno).join(",")}|${filtro.filiais.join(",")}|${filtro.regime}|${filtro.analise}`;
+  const [selecao, setSelecao] = useState<{ assinatura: string; chaves: Set<string> }>({
+    assinatura: "",
+    chaves: new Set(),
+  });
+  const selecionadas = useMemo(
+    () => (selecao.assinatura === assinaturaDaApuracao ? selecao.chaves : new Set<string>()),
+    [selecao, assinaturaDaApuracao],
+  );
+  // Só a linha que abre detalhamento tem o que exportar — a mesma condição do botão direito.
+  const selecionaveis = useMemo(() => visiveis.filter((l) => l.detalhe), [visiveis]);
+  const marcadasNaTela = selecionaveis.filter((l) => selecionadas.has(l.chaveOrdem));
+
+  const alternarSelecao = useCallback(
+    (chave: string) =>
+      setSelecao((atual) => {
+        const chaves = new Set(atual.assinatura === assinaturaDaApuracao ? atual.chaves : []);
+        if (chaves.has(chave)) chaves.delete(chave);
+        else chaves.add(chave);
+        return { assinatura: assinaturaDaApuracao, chaves };
+      }),
+    [assinaturaDaApuracao],
+  );
+  // "Selecionar todas" marca as que estão À VISTA: com o filtro de linhas digitado, são as
+  // que sobraram — a pessoa seleciona o que está vendo.
+  const selecionarTodas = useCallback(
+    (marcar: boolean) =>
+      setSelecao({
+        assinatura: assinaturaDaApuracao,
+        chaves: marcar ? new Set(selecionaveis.map((l) => l.chaveOrdem)) : new Set(),
+      }),
+    [assinaturaDaApuracao, selecionaveis],
+  );
 
   const indiceCompleto = useCallback(
     (chaveOrdem: string) => ordenadas.findIndex((l) => l.chaveOrdem === chaveOrdem),
@@ -903,8 +1030,62 @@ export function TabelaDre({
     <>
       {!soPapel && (
       <>
+      {/* A BARRA DA SELEÇÃO (06/11/2026, pedido do Gabriel). Existe enquanto "Selecionar
+          linhas" estiver ligado no menu Exibição, e diz o que fazer em cada momento: sem
+          nada marcado, como começar; com contas marcadas, quantas e a ação. Fica fora da
+          `barra-reordenar` de propósito — aquela some no toque, e marcar uma caixa funciona
+          com o dedo. */}
+      {mostrarSelecao && (
+        <div className="nao-imprime flex flex-wrap items-center gap-x-5 gap-y-2 border-b border-[var(--border)] bg-[var(--surface-2)] px-4 py-2">
+          {marcadasNaTela.length === 0 ? (
+            <p className="text-[length:var(--fs-apoio)] text-[var(--text-muted)]">
+              Marque as contas — ou todas, no cabeçalho — para exportar o detalhamento delas
+              num arquivo só.
+            </p>
+          ) : (
+            <>
+              <p role="status" className="text-[length:var(--fs-apoio)] text-[var(--text-secondary)]">
+                <strong className="font-semibold text-[var(--text-primary)]">
+                  {marcadasNaTela.length === 1
+                    ? "1 conta selecionada"
+                    : `${marcadasNaTela.length} contas selecionadas`}
+                </strong>{" "}
+                · {marcadasNaTela.length * periodos.length}{" "}
+                {marcadasNaTela.length * periodos.length === 1 ? "planilha" : "planilhas"} no .zip
+                {/* Cada planilha é uma consulta ao banco, uma por vez. "Selecionar todas"
+                    em doze meses passa de mil — a pessoa precisa saber antes de clicar. */}
+                {marcadasNaTela.length * periodos.length > 24 && (
+                  <span className="text-[var(--warning)]">
+                    {" "}
+                    — uma consulta por planilha: pode levar vários minutos
+                  </span>
+                )}
+              </p>
+              <button
+                type="button"
+                onClick={() => exportarSelecionadas(marcadasNaTela)}
+                disabled={exportacao !== null && !exportacao.erro}
+                className="rounded-[var(--radius-md)] bg-[var(--primary)] px-3 py-1.5 text-[length:var(--fs-apoio)] font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-wait disabled:opacity-60"
+              >
+                Exportar detalhamento (.zip)
+              </button>
+              <button
+                type="button"
+                onClick={() => selecionarTodas(false)}
+                className="text-[length:var(--fs-apoio)] font-medium text-[var(--primary)] underline underline-offset-4 hover:opacity-80"
+              >
+                Limpar seleção
+              </button>
+            </>
+          )}
+        </div>
+      )}
+
       {/* `barra-reordenar` sai em dispositivo de toque: ela explica um gesto de mouse e
-          um atalho de teclado, e o celular não tem nenhum dos dois. */}
+          um atalho de teclado, e o celular não tem nenhum dos dois. Com "Mover linhas"
+          desligado (06/11/2026) a dica sai junto com o punho, e a barra só existe se ainda
+          tiver o que dizer — o aviso de reordenado, o filtro, o restaurar. */}
+      {(mostrarPunho || totaisPersonalizados || filtrando || personalizada) && (
       <div className="barra-reordenar nao-imprime flex flex-wrap items-center justify-between gap-x-6 gap-y-2 border-b border-[var(--border)] px-4 py-2">
         {/* O AVISO OCUPA O LUGAR DA DICA, e não uma faixa própria embaixo dela.
 
@@ -927,7 +1108,7 @@ export function TabelaDre({
             </strong>{" "}
             — eles seguem a ordem desta tela, que fica só neste navegador.
           </p>
-        ) : (
+        ) : mostrarPunho ? (
           <p className="text-[length:var(--fs-apoio)] text-[var(--text-muted)]">
             Arraste uma conta pelo punho{" "}
             <span aria-hidden className="text-[var(--text-secondary)]">
@@ -937,7 +1118,7 @@ export function TabelaDre({
             <kbd className="tecla">↑</kbd> <kbd className="tecla">↓</kbd>. Os totais se
             refazem.
           </p>
-        )}
+        ) : null}
 
         {/* ENQUANTO FILTRA, A TABELA NÃO É O DRE.
 
@@ -976,6 +1157,7 @@ export function TabelaDre({
           )}
         </div>
       </div>
+      )}
 
       </>
       )}
@@ -1067,7 +1249,22 @@ export function TabelaDre({
                   Sem isto, só as linhas com selo truncam — e truncar justamente a linha
                   que a tela está sinalizando esconde o que ela quer mostrar. A tabela já
                   rola na horizontal, então a folga aqui não custa nada. */}
-              <Th className="celula-descricao largura-da-descricao" aEsquerda>Descrição</Th>
+              <Th className="celula-descricao largura-da-descricao" aEsquerda>
+                {/* SELECIONAR TODAS (06/11/2026): no mesmo lugar dos checkboxes das linhas,
+                    para a coluna de caixas começar no cabeçalho, como numa planilha. */}
+                {mostrarSelecao && !soPapel && selecionaveis.length > 0 ? (
+                  <span className="flex items-center gap-2">
+                    <SelecionarTodas
+                      marcadas={marcadasNaTela.length}
+                      total={selecionaveis.length}
+                      onMudar={selecionarTodas}
+                    />
+                    Descrição
+                  </span>
+                ) : (
+                  "Descrição"
+                )}
+              </Th>
               {mostrarMeses && periodos.map((p, i) => naFaixa(i) && (
                 <ColunasCabecalho
                   key={p.mesAno}
@@ -1133,6 +1330,15 @@ export function TabelaDre({
                   }}
                   onTeclado={(direcao) => moverPorTeclado(indice, direcao)}
                   onMenu={(x, y) => setMenuDaLinha({ x, y, linha })}
+                  mostrarPunho={mostrarPunho && !soPapel}
+                  selecao={
+                    mostrarSelecao && !soPapel
+                      ? {
+                          marcada: linha.detalhe ? selecionadas.has(linha.chaveOrdem) : null,
+                          onAlternar: () => alternarSelecao(linha.chaveOrdem),
+                        }
+                      : null
+                  }
                   provisionadoNoMes={provisionadoNoMes}
                   provisionadoNoFim={provisionadoNoFim}
                   // Só linha de conta tem títulos em aberto — totalizador não tem Provisionado.
@@ -1446,6 +1652,39 @@ function Traco() {
   return <span className="block text-center text-[var(--text-muted)]">—</span>;
 }
 
+/**
+ * "Selecionar todas" as contas à vista (06/11/2026). Três estados: nenhuma, algumas — o
+ * traço do `indeterminate`, que só existe por JavaScript — e todas. Clicar com algumas
+ * marcadas marca todas, como numa planilha; com todas, desmarca.
+ */
+function SelecionarTodas({
+  marcadas,
+  total,
+  onMudar,
+}: {
+  marcadas: number;
+  total: number;
+  onMudar: (marcar: boolean) => void;
+}) {
+  const ref = useRef<HTMLInputElement>(null);
+  const todas = marcadas > 0 && marcadas === total;
+
+  useEffect(() => {
+    if (ref.current) ref.current.indeterminate = marcadas > 0 && !todas;
+  }, [marcadas, todas]);
+
+  return (
+    <input
+      ref={ref}
+      type="checkbox"
+      checked={todas}
+      onChange={() => onMudar(!todas)}
+      aria-label={todas ? "Desmarcar todas as contas" : "Selecionar todas as contas à vista"}
+      className="selecao-da-linha nao-imprime shrink-0"
+    />
+  );
+}
+
 function Th({
   className,
   title,
@@ -1503,9 +1742,19 @@ function Linha({
   provisionadoNoFim,
   percentuaisRp,
   onDetalheProvisionado,
+  mostrarPunho,
+  selecao,
 }: {
   linha: LinhaDre;
   indice: number;
+  /** O punho ⠿ de mover aparece — "Mover linhas" no menu Exibição (06/11/2026). */
+  mostrarPunho: boolean;
+  /**
+   * O checkbox de seleção da linha — "Selecionar linhas" no menu Exibição (06/11/2026).
+   * `null` com a opção desligada; `marcada: null` numa linha que não abre detalhamento
+   * (totalizador), que ganha só o espaço vazio, para os nomes continuarem alinhados.
+   */
+  selecao: { marcada: boolean | null; onAlternar: () => void } | null;
   /** A conta soma num total diferente do que o cadastro lhe deu. */
   foraDoBloco: boolean;
   maiorAv: number;
@@ -1629,7 +1878,23 @@ function Linha({
               O espaço continua reservado, e vazio. Sem ele, o nome dessas linhas saltaria
               24px para a esquerda e a coluna fixa perderia o alinhamento — logo nas linhas
               que o olho usa como referência ao descer a tabela. */}
-          {linha.calculada ? (
+          {/* A SELEÇÃO, antes do punho (06/11/2026, pedido do Gabriel): para exportar o
+              detalhamento de várias linhas num zip só. Só a linha que abre detalhamento tem
+              o que exportar; as outras ganham o espaço vazio, e os nomes não saltam. */}
+          {selecao &&
+            (selecao.marcada === null ? (
+              <span aria-hidden className="selecao-vazia shrink-0" />
+            ) : (
+              <input
+                type="checkbox"
+                checked={selecao.marcada}
+                onChange={selecao.onAlternar}
+                aria-label={`Selecionar ${nome} para exportar o detalhamento`}
+                className="selecao-da-linha nao-imprime shrink-0"
+              />
+            ))}
+
+          {!mostrarPunho ? null : linha.calculada ? (
             <span aria-hidden className="puxador-vazio shrink-0" />
           ) : (
             <button

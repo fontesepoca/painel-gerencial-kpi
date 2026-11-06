@@ -492,6 +492,7 @@ body {
 .calibrando .barra-av,
 .calibrando .puxador,
 .calibrando .puxador-vazio,
+.calibrando .selecao-vazia,
 .calibrando .nao-imprime,
 .calibrando .so-na-tela {
   display: none !important;
@@ -819,6 +820,37 @@ html[data-leitura="ampliada"] .puxador {
   height: 1.75rem;
   font-size: 1.1rem;
   color: var(--text-secondary);
+}
+
+/* A SELEÇÃO DAS LINHAS (06/11/2026, pedido do Gabriel): o checkbox para exportar o
+   detalhamento de várias contas num zip só, na mesma coluna do punho e antes dele.
+
+   O mesmo alvo do punho — 24px de lado, contando a margem —, e a cor primária na marca:
+   é o controle da tela, não um estado de alerta. O vazio existe pelo mesmo motivo do
+   `puxador-vazio`: sem ele, o nome dos totalizadores, que não têm o que exportar, saltaria
+   para a esquerda. */
+.selecao-da-linha {
+  width: 1rem;
+  height: 1rem;
+  margin: 0.25rem;
+  accent-color: var(--primary);
+  cursor: pointer;
+}
+
+.selecao-vazia {
+  display: block;
+  width: 1.5rem;
+  height: 1.5rem;
+}
+
+html[data-leitura="ampliada"] .selecao-da-linha {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+html[data-leitura="ampliada"] .selecao-vazia {
+  width: 1.75rem;
+  height: 1.75rem;
 }
 
 /* A linha arrastada some parcialmente para o traço de destino ficar sendo a única
@@ -1399,7 +1431,9 @@ tr:has(.valor-clicavel:focus-visible) .tem-detalhe .valor-clicavel {
      Os dois juntos, sempre: o vazio existe só para as calculadas ficarem alinhadas com as
      contas. Esconder um e deixar o outro é o degrau que ele nasceu para evitar. */
   .puxador,
-  .puxador-vazio {
+  .puxador-vazio,
+  .selecao-da-linha,
+  .selecao-vazia {
     display: none !important;
   }
 

@@ -130,7 +130,7 @@ precaução".
 |---|---|---|---|
 | `SecaoSemCusto` | `1601` em 8 lugares | 1601 | 1401 |
 | `AgrupaIcms` | não existe | não | sim |
-| `FiliaisForaDoFiltro` | `NOT IN ('20','31','35','91')` | esses quatro | nenhuma, por ora |
+| `FiliaisForaDoFiltro` | `NOT IN ('20','31','91')` (a 35 voltou ao filtro em 06/11/2026) | esses três | nenhuma, por ora |
 | `FiliaisForaDaPermissao` | `NOT IN (2, 99)` no `PCLIB` | 2 e 99 | nenhuma, por ora |
 
 **Como entram no SQL.** Os `1601` estão em cinco constantes (`FaturamentoPorMes`,

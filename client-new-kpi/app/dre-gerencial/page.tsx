@@ -41,6 +41,10 @@ export default function DreGerencialPage() {
   // "Ocultar baixas estornadas e da rotina 737", marcado por padrão (30/10/2026): o mesmo
   // estado do checkbox do detalhamento. Escolhe qual dos dois DREs da API vai à tela.
   const [ocultarBaixas, setOcultarBaixas] = useOcultarBaixas();
+  // Os controles da linha no menu Exibição (06/11/2026): a seleção para exportar várias
+  // contas começa escondida, o punho de mover começa à vista.
+  const [mostrarSelecao, setMostrarSelecao] = useState(false);
+  const [mostrarPunho, setMostrarPunho] = useState(true);
 
   /**
    * As colunas de análise, ligadas por padrão.
@@ -523,6 +527,29 @@ export default function DreGerencialPage() {
                           },
                         ],
                       },
+                      {
+                        // OS CONTROLES DA LINHA (06/11/2026, pedido do Gabriel): com o
+                        // checkbox de seleção e o punho de mover juntos, a coluna da
+                        // descrição ficava com ícones demais. Cada um liga quando a pessoa
+                        // precisa — a seleção desligada, o punho ligado, por padrão.
+                        titulo: "Na linha",
+                        opcoes: [
+                          {
+                            id: "selecionar-linhas",
+                            rotulo: "Selecionar linhas",
+                            apoio: "Um checkbox por conta, para exportar o detalhamento de várias num .zip",
+                            marcada: mostrarSelecao,
+                            onMudar: setMostrarSelecao,
+                          },
+                          {
+                            id: "mover-linhas",
+                            rotulo: "Mover linhas",
+                            apoio: "O punho ⠿ para arrastar uma conta de bloco, e a dica de como usar",
+                            marcada: mostrarPunho,
+                            onMudar: setMostrarPunho,
+                          },
+                        ],
+                      },
                     ]}
                   />
 
@@ -569,6 +596,8 @@ export default function DreGerencialPage() {
                   linhas: linhasDaApuracao(dados, ocultarBaixas),
                   mostrarZeradas,
                   mostrarInformativos,
+                  mostrarSelecao,
+                  mostrarPunho,
                   mostrarAv,
                   mostrarAh,
                   mostrarProvisionado: mostrarProvisionado && temProvisionado,

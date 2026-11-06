@@ -51,14 +51,17 @@ public static class DreGerencialQueries
     /// lista</b>: não tem link, os dados estão aqui, e o zero dela é verdadeiro — é filial
     /// inativa, não ausente.</para>
     ///
-    /// <para><b>4. `AND F.CODFIL NOT IN ('20','31','35','91')` — a lista de exclusões por
-    /// decisão de negócio.</b> Quatro filiais que existem, têm os dados nesta base e ainda
-    /// assim não devem aparecer no filtro:</para>
+    /// <para><b>4. `AND F.CODFIL NOT IN ('20','31','91')` — a lista de exclusões por
+    /// decisão de negócio.</b> Três filiais que existem, têm os dados nesta base e ainda
+    /// assim não devem aparecer no filtro. Vem de <c>Bases:Epoca:Regras:FiliaisForaDoFiltro</c>
+    /// pelo marcador abaixo:</para>
     ///
     /// <list type="bullet">
     ///   <item><c>31 CeM-ES</c> e <c>91 CeM-MG</c> — em 02/09/2026, revertendo a decisão de
     ///   31/08 que as mantinha: não pertencem à operação que o DRE mede.</item>
-    ///   <item><c>20 EPC-CEASA</c> e <c>35 VIVALOG-SUL</c> — em 09/09/2026.</item>
+    ///   <item><c>20 EPC-CEASA</c> — em 09/09/2026.</item>
+    ///   <item><c>35 VIVALOG-SUL</c> saiu junto com a 20, em 09/09/2026, e <b>voltou ao
+    ///   filtro em 06/11/2026</b>, a pedido do Gabriel.</item>
     /// </list>
     ///
     /// <para>Todas por decisão do Gabriel, e o motivo é o mesmo: oferecer no filtro uma

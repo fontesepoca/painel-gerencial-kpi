@@ -42,7 +42,7 @@ const SECAO_JA_MIGRADA = true;
 /** O que cada marcador vale PARA A ÉPOCA: o texto que o literal original tinha. */
 const EPOCA = new Map([
   ["@@SECAO_SEM_CUSTO@@", "1601"],
-  ["@@FILIAIS_FORA_DO_FILTRO@@", "AND F.CODFIL NOT IN ('20','31','35','91')"],
+  ["@@FILIAIS_FORA_DO_FILTRO@@", "AND F.CODFIL NOT IN ('20','31','91')"], // a 35 voltou ao filtro em 06/11/2026
   ["@@FILIAIS_FORA_DA_PERMISSAO@@", "AND CODIGOA NOT IN (2, 99)"],
   ["@@RATEIO_RC@@", "PCRATEIOCENTROCUSTO"],
   ["@@CODCONTA_LANC@@", "codconta"],
