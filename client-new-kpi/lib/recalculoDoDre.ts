@@ -222,6 +222,29 @@ export function contasDeslocadas(
 }
 
 /**
+ * As informativas (`naoSoma`) que estão SOMANDO: as que foram arrastadas para um encaixe
+ * diferente do cadastro (10/11/2026, branch de teste, pedido do Gabriel — "os valores
+ * INFORMATIVOS, todos sem exceção, alterem o cálculo dos totalizadores quando forem movidos
+ * manualmente").
+ *
+ * Na posição do cadastro a informativa continua fora de todo total: é o que mantém a tela sem
+ * reordenação igual à 9815 (dc35). Movida de total, ela soma na âncora de destino como qualquer
+ * conta. ST, PIS e COFINS também são informativos, mas são âncoras fixas — não se movem.
+ */
+export function informativasQueSomam(
+  ordenadas: readonly LinhaDre[],
+  canonicas: readonly LinhaDre[],
+): Set<string> {
+  const deslocadas = contasDeslocadas(ordenadas, canonicas);
+  return new Set(
+    ordenadas
+      .filter((l) => !l.calculada && l.naoSoma && deslocadas.has(l.chaveOrdem))
+      .filter((l) => ancoraDoEncaixe(ordenadas, ordenadas.indexOf(l)) !== null)
+      .map((l) => l.chaveOrdem),
+  );
+}
+
+/**
  * Recalcula o DRE para a ordem dada.
  *
  * `ordenadas` são as linhas já na ordem da tela; `canonicas`, as que a API mandou. As duas
@@ -262,8 +285,6 @@ export function recalcular(
   const acumulado = new Map<PapelDaLinha, number[]>();
   for (const [papel] of PROPAGACAO) acumulado.set(papel, new Array<number>(colunas).fill(0));
 
-  const valorDaConta = (l: LinhaDre, c: number) => (l.naoSoma ? 0 : lerDaConta(l, c));
-
   for (let c = 0; c < colunas; c++) {
     /** O que entrou menos o que saiu do encaixe de cada âncora. */
     const proprio = new Map<PapelDaLinha, number>();
@@ -275,8 +296,11 @@ export function recalcular(
       const origem = antes.get(l.chaveOrdem) ?? null;
       if (destino === origem) continue;
 
-      const v = valorDaConta(l, c);
+      const v = lerDaConta(l, c);
       if (destino !== null && proprio.has(destino)) proprio.set(destino, proprio.get(destino)! + v);
+      // A INFORMATIVA MOVIDA soma no destino e não tira nada da origem (10/11/2026, branch de
+      // teste, pedido do Gabriel): na posição do cadastro ela nunca somou — ver `informativasQueSomam`.
+      if (l.naoSoma) continue;
       if (origem !== null && proprio.has(origem)) proprio.set(origem, proprio.get(origem)! - v);
     }
 
@@ -296,6 +320,7 @@ export function recalcular(
   return acumulado;
   };
 
+  const somam = informativasQueSomam(ordenadas, canonicas);
   const acumulado = deltasPor((l, c) => l.valores[c]?.valor ?? 0);
   const acumuladoP = deltasPor((l, c) => l.valores[c]?.provisionado ?? 0);
 
@@ -410,7 +435,7 @@ export function recalcular(
           l.total.percentualAv,
         ),
       },
-      composicao: recomporParcelas(l, ordenadas),
+      composicao: recomporParcelas(l, ordenadas, somam),
     };
   });
 }
@@ -485,7 +510,12 @@ function calcularAh(valor: number, anterior: number): number | null {
  * mentiria — e essa tela existe justamente para alguém conferir um total somando as parcelas
  * à mão. Composição desatualizada é pior que composição nenhuma.
  */
-function recomporParcelas(l: LinhaDre, ordenadas: readonly LinhaDre[]): Parcela[] {
+function recomporParcelas(
+  l: LinhaDre,
+  ordenadas: readonly LinhaDre[],
+  /** As informativas movidas, que somam — e por isso são parcela. Ver `informativasQueSomam`. */
+  somam: ReadonlySet<string>,
+): Parcela[] {
   if (!l.calculada || l.papel === null || l.composicao.length === 0) return l.composicao;
 
   const indice = ordenadas.indexOf(l);
@@ -500,7 +530,7 @@ function recomporParcelas(l: LinhaDre, ordenadas: readonly LinhaDre[]): Parcela[
   for (let i = indice - 1; i >= 0; i--) {
     const anterior = ordenadas[i];
     if (!anterior || anterior.calculada) break;
-    if (!anterior.naoSoma) doEncaixe.unshift(parcela(anterior));
+    if (!anterior.naoSoma || somam.has(anterior.chaveOrdem)) doEncaixe.unshift(parcela(anterior));
   }
 
   const ancora = (papel: PapelDaLinha): Parcela[] => {

@@ -195,14 +195,49 @@ function mover(linhas, chave, destino) {
   eq(valorDe(r, "lucro-liquido"), 340, "e o LUCRO LIQUIDO sobe os 90 que deixaram de ser despesa");
 }
 
-// ── linha naoSoma não contribui, esteja onde estiver ─────────────────────────
+// ── a informativa MOVIDA soma no destino (10/11/2026, branch de teste) ───────
 //
-// A INFORMATIVA vale 999 de propósito: se ela fosse somada em algum lugar, o número apareceria
-// gritando em qualquer um destes totais.
+// Pedido do Gabriel: "os valores INFORMATIVOS, todos sem exceção, alterem o cálculo dos
+// totalizadores quando forem movidos manualmente". Na posição do cadastro a informativa
+// continua sem somar — a tela de sempre segue batendo com a 9815 (dc35). Arrastada para outro
+// encaixe, ela soma na âncora de destino como qualquer conta; a origem não perde nada, porque
+// lá ela nunca somou.
+//
+// A INFORMATIVA vale 999 de propósito: o número aparece gritando em todo total que a recebe.
 {
   const r = recalcular(mover(DRE, "info", "despA"), DRE);
-  eq(valorDe(r, "sub-total"), -290, "a informativa não entra no Sub-Total nem quando é largada nele");
-  eq(valorDe(r, "lucro-liquido"), 250, "e o LUCRO LIQUIDO não se mexe");
+  eq(valorDe(r, "sub-total"), 709, "largada no meio das despesas, a informativa entra no Sub-Total: −290 + 999");
+  eq(valorDe(r, "resultado-operacional"), 1219, "e desce para o RESULTADO OPERACIONAL");
+  eq(valorDe(r, "total-despesas"), 799, "o Total das Despesas ganha os 999 e não perde nada: na origem ela não somava");
+  eq(valorDe(r, "lucro-liquido"), 1249, "e o LUCRO LIQUIDO sobe os 999");
+
+  const parcelas = r.find((l) => l.chaveOrdem === "sub-total").composicao.map((p) => p.chaveOrdem);
+  eq(parcelas, ["despA", "info", "despB"], "e ela aparece entre as parcelas do Sub-Total, na posição da tela");
+
+  // A órfã depois do LUCRO LIQUIDO, também informativa, puxada para o cabeçalho.
+  const orfa = recalcular(mover(DRE, "orfa", "receita-bruta"), DRE);
+  eq(valorDe(orfa, "receitas-liquidas"), 857, "a órfã solta no cabeçalho atravessa os impostos e entra nas RECEITAS LIQUIDAS");
+  eq(valorDe(orfa, "lucro-liquido"), 257, "e chega ao LUCRO LIQUIDO");
+}
+
+// ── na posição do cadastro, a informativa continua não somando ───────────────
+{
+  // Trocar de vizinho dentro do MESMO encaixe não é movê-la de total.
+  const vizinho = recalcular(mover(DRE, "info", "posC"), DRE);
+  for (const l of DRE) {
+    eq(valorDe(vizinho, l.chaveOrdem), l.total.valor, `informativa no encaixe do cadastro: ${l.descricao} fica igual`);
+  }
+  eq(
+    vizinho.find((l) => l.chaveOrdem === "total-despesas").composicao.some((p) => p.chaveOrdem === "info"),
+    false,
+    "e não vira parcela",
+  );
+
+  // Ida e volta: largada no Sub-Total e devolvida, tudo volta ao que a API mandou.
+  const volta = mover(mover(DRE, "info", "despA"), "info", "posC");
+  const r = recalcular(volta, DRE);
+  eq(valorDe(r, "sub-total"), -290, "devolvida ao lugar, o Sub-Total volta a −290");
+  eq(valorDe(r, "lucro-liquido"), 250, "e o LUCRO LIQUIDO a 250");
 }
 
 // ── %AV: a base acompanha o que a tela mostra ────────────────────────────────

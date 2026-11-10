@@ -12,6 +12,12 @@ export type OpcaoDeExibicao = {
   onMudar: (marcada: boolean) => void;
   /** Texto do porquê, quando a opção não se aplica a esta apuração. */
   motivo?: string | null;
+  /**
+   * Opção TRAVADA LIGADA: aparece marcada e não muda, com o porquê na dica. Diferente de
+   * `motivo`, que desabilita desmarcada. Primeiro uso: os Informativos na branch de teste
+   * (10/11/2026) — uma informativa movida soma, e escondê-la esconderia parte de um total.
+   */
+  travada?: string | null;
   oculta?: boolean;
 };
 
@@ -54,7 +60,7 @@ export function MenuDeExibicao({
   // sem precisar abrir o menu para descobrir por que falta uma coluna.
   const fora = grupos
     .flatMap((g) => g.opcoes)
-    .filter((o) => !o.oculta && !o.motivo && o.marcada !== padrao(o.id)).length;
+    .filter((o) => !o.oculta && !o.motivo && !o.travada && o.marcada !== padrao(o.id)).length;
 
   return (
     <div ref={caixa} className="relative shrink-0">
@@ -125,8 +131,9 @@ function padrao(id: string): boolean {
  * leitor de tela ela continua no texto, escondida da vista (`sr-only`).
  */
 function ItemDeExibicao({ opcao }: { opcao: OpcaoDeExibicao }) {
-  const desabilitada = !!opcao.motivo;
-  const dica = opcao.motivo ?? opcao.apoio;
+  const travada = !!opcao.travada;
+  const desabilitada = !!opcao.motivo || travada;
+  const dica = opcao.travada ?? opcao.motivo ?? opcao.apoio;
   return (
     <label
       title={dica}
@@ -137,7 +144,7 @@ function ItemDeExibicao({ opcao }: { opcao: OpcaoDeExibicao }) {
     >
       <input
         type="checkbox"
-        checked={opcao.marcada && !desabilitada}
+        checked={travada || (opcao.marcada && !desabilitada)}
         disabled={desabilitada}
         onChange={(e) => opcao.onMudar(e.target.checked)}
         className="size-4 shrink-0 accent-[var(--primary)] disabled:opacity-50"

@@ -44,6 +44,7 @@ import {
 import {
   ancoraDoEncaixe,
   contasDeslocadas,
+  informativasQueSomam,
   mesmosValores,
   recalcular,
 } from "@/lib/recalculoDoDre";
@@ -603,10 +604,15 @@ export function TabelaDre({
       // atravessa ST, PIS e COFINS e cai nas RECEITAS LIQUIDAS.
       const ancora = ancoraDoEncaixe(nova, novoIndice);
       const saiDaConta = !linha.naoSoma && ancora === null;
-      // Informativa não soma em lugar nenhum, esteja onde estiver: prometer um total a ela
-      // seria o modal dizendo o contrário do que o selo da própria linha diz.
+      // A informativa só soma quando sai do encaixe do cadastro (10/11/2026, branch de teste —
+      // `informativasQueSomam`). Devolvida ao lugar, ou trocada de vizinho, o modal não promete
+      // total nenhum a ela, como o selo da própria linha diz.
+      const informativaSomando =
+        linha.naoSoma && informativasQueSomam(nova, linhas).has(linha.chaveOrdem);
       const somaEm =
-        linha.naoSoma || ancora === null ? null : (nova[ancora]?.descricao.trim() ?? null);
+        ancora === null || (linha.naoSoma && !informativaSomando)
+          ? null
+          : (nova[ancora]?.descricao.trim() ?? null);
 
       if (totais.length === 0 && !saiDaConta) {
         salvar(nova.map((l) => l.chaveOrdem));
@@ -2511,7 +2517,7 @@ function SeloForaDoBloco() {
 function SeloInformativo() {
   return (
     <span
-      title="Informativo — esta linha não entra nos totalizadores"
+      title="Informativo — fora dos totalizadores na posição original; movida, soma no total abaixo dela"
       className="shrink-0 rounded-[var(--radius-sm)] bg-[var(--warning-glow)] px-1.5 py-0.5 text-[length:var(--fs-rotulo)] font-semibold tracking-[0.1em] text-[var(--warning)] uppercase"
     >
       <span className="sr-only">Informativo</span>

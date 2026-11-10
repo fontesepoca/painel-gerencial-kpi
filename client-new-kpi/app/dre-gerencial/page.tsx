@@ -36,8 +36,10 @@ export default function DreGerencialPage() {
   // de dependências, e a base é o que muda o nome do arquivo.
   const baseDaSessao = usuario?.base.id;
   const [mostrarZeradas, setMostrarZeradas] = useState(false);
-  // Ligado por padrão: a tela de sempre mostra os informativos (29/10/2026).
-  const [mostrarInformativos, setMostrarInformativos] = useState(true);
+  // TRAVADO LIGADO na branch de teste (10/11/2026, pedido do Gabriel): uma informativa movida
+  // passa a somar no total de destino (`informativasQueSomam`), e escondê-la esconderia parte
+  // de um total. Até então era desligável no menu Exibição (29/10/2026).
+  const mostrarInformativos = true;
   // "Ocultar baixas estornadas e da rotina 737", marcado por padrão (30/10/2026): o mesmo
   // estado do checkbox do detalhamento. Escolhe qual dos dois DREs da API vai à tela.
   const [ocultarBaixas, setOcultarBaixas] = useOcultarBaixas();
@@ -444,9 +446,11 @@ export default function DreGerencialPage() {
                             id: "informativos",
                             rotulo: "Informativos",
                             apoio:
-                              "Linhas com o selo INFO, que não entram em nenhum total",
+                              "Linhas com o selo INFO: fora dos totais na posição original, e somando quando movidas",
                             marcada: mostrarInformativos,
-                            onMudar: setMostrarInformativos,
+                            onMudar: () => {},
+                            travada:
+                              "Sempre visíveis: uma informativa movida soma no total abaixo dela, e escondê-la esconderia parte do total",
                           },
                           {
                             // O MESMO checkbox do detalhamento (30/10/2026): um estado só na
