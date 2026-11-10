@@ -9,6 +9,7 @@ import {
   type Estilo,
   type Planilha,
 } from "@/lib/excel";
+import { codigoDaLinha } from "@/lib/codigoDaLinha";
 import { lerVariacao } from "@/lib/leituraDaVariacao";
 import { somaDosAh } from "@/lib/ahDoTotal";
 import { rotulosDoDinheiro } from "@/lib/rotulosDoDinheiro";
@@ -59,6 +60,38 @@ export interface ColunasDeAnalise {
   total?: boolean;
   /** Só o bloco do período, sem os meses — "Só o Total" (15/10/2026). Vence o `total`. */
   soTotal?: boolean;
+  /** A coluna "Código" antes da descrição — o checkbox "Códigos" (10/11/2026). Ausente: desligada. */
+  codigos?: boolean;
+}
+
+/**
+ * Põe a coluna "Código" na frente da planilha pronta (10/11/2026) — o código de cada linha, ou
+ * o traço nas calculadas (`codigoDaLinha`).
+ *
+ * <b>Um passo à parte, e não mais uma coluna dentro de `matrizDaApuracao`.</b> A montagem e a
+ * pintura leem a estrutura por índice — a descrição é a coluna 0, os blocos começam na 1 —, e
+ * a dc13 cobra essa planilha célula por célula. Inserir depois desloca tudo de uma vez, e a
+ * planilha sem a coluna continua sendo exatamente a de antes (dc108).
+ */
+function comCodigos(planilha: Planilha, linhas: readonly LinhaDre[]): Planilha {
+  const matriz = planilha.matriz.map((celulas, r) => {
+    const descricao = celulas[0];
+    // A célula herda o fundo, a cor e o negrito da descrição — o cinza do totalizador, o
+    // cabeçalho —, mas não o recuo nem a borda de cor da conta, que são da descrição.
+    const estilo = descricao?.s
+      ? { ...descricao.s, recuo: undefined, borda: undefined, alinhar: r < 2 ? "centro" as const : "direita" as const }
+      : undefined;
+    const valor = r === 0 ? "" : r === 1 ? "Código" : codigoDaLinha(linhas[r - 2]!);
+    return [{ ...txt(valor), ...(estilo ? { s: estilo } : {}) }, ...celulas];
+  });
+
+  return {
+    ...planilha,
+    matriz,
+    larguras: [12, ...planilha.larguras],
+    merges: planilha.merges?.map((m) => ({ s: { ...m.s, c: m.s.c + 1 }, e: { ...m.e, c: m.e.c + 1 } })),
+    congelar: planilha.congelar ? { ...planilha.congelar, colunas: planilha.congelar.colunas + 1 } : undefined,
+  };
 }
 
 /**
@@ -440,7 +473,7 @@ export function planilhaDaApuracao(
     c += largura;
   }
 
-  return {
+  const planilha: Planilha = {
     aba: "DRE",
     matriz,
     // A primeira cabe o nome mais comprido do cadastro; as de valor, `(99.999.999,99)`.
@@ -450,6 +483,7 @@ export function planilhaDaApuracao(
     // resolve com `sticky`.
     congelar: { colunas: 1, linhas: 2 },
   };
+  return analise.codigos ? comCodigos(planilha, linhas) : planilha;
 }
 
 /** Gera e baixa. `linhas` já vem na ordem e na seleção da tela. */

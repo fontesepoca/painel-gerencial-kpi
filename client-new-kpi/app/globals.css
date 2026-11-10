@@ -2067,3 +2067,69 @@ html[data-tema="claro"] .cartao-login {
   /* No claro a sombra do escuro fica pesada e suja a borda. */
   box-shadow: 0 16px 48px rgb(15 23 42 / 0.12);
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   A COLUNA DOS CÓDIGOS (10/11/2026, pedido do Gabriel)
+
+   O código da conta, grupo ou centro à esquerda da descrição — "Códigos" no menu Exibição,
+   desligado por padrão. Fica DENTRO da célula fixa, como uma faixa de largura própria com
+   divisória: duas colunas fixas não concordavam no pixel (ver a célula da descrição em
+   `TabelaDre.tsx`). As calculadas mostram o traço, como as células sem valor.
+
+   A faixa encosta na borda esquerda da célula (o `margin-left` desfaz o `pl-2` dela) e a
+   coluna fixa ganha a largura da faixa, na tela e no papel, para o nome não perder espaço.
+   Em `em`: acompanha a leitura ampliada e a fonte calibrada da impressão.
+   ═══════════════════════════════════════════════════════════════ */
+.codigo-da-linha {
+  flex: none;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  width: 5.5em;
+  margin-left: -0.5rem;
+  padding: 0 0.5em 0 0.25em;
+  border-right: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* A coluna fixa ganha a largura da faixa. Em `em` da PRÓPRIA célula, e nas duas — cabeçalho
+   e linhas: a faixa da linha mede em `em` da fonte dela, que é maior que a do cabeçalho, e
+   a coluna fica com a maior das larguras. Medido em 10/11/2026: com o acréscimo só no
+   cabeçalho, o nome perdia ~24px. Só a partir do tablet: no celular a coluna tem teto de
+   metade da tela (ver o bloco do fim de `max-width: 767px`). */
+@media (min-width: 768px) {
+  .com-codigos .largura-da-descricao,
+  .com-codigos tbody .celula-descricao {
+    width: calc(18rem + 5.5em);
+    min-width: calc(18rem + 5.5em);
+  }
+}
+
+.calibrando .com-codigos .celula-descricao {
+  max-width: calc(18rem + 5.5em) !important;
+}
+
+.calibrando.numeros-ampliados .tabela-rolagem .com-codigos .celula-descricao {
+  width: calc(max(12rem, 14em) + 5.5em) !important;
+  max-width: calc(max(12rem, 14em) + 5.5em) !important;
+  min-width: calc(12rem + 5.5em) !important;
+}
+
+@media print {
+  .tabela-rolagem .com-codigos .celula-descricao {
+    max-width: calc(18rem + 5.5em);
+  }
+
+  .numeros-ampliados .tabela-rolagem .com-codigos .celula-descricao {
+    width: calc(max(12rem, 14em) + 5.5em) !important;
+    max-width: calc(max(12rem, 14em) + 5.5em) !important;
+    min-width: calc(12rem + 5.5em) !important;
+  }
+
+  .codigo-da-linha {
+    color: inherit;
+  }
+}

@@ -47,6 +47,7 @@ import {
   mesmosValores,
   recalcular,
 } from "@/lib/recalculoDoDre";
+import { codigoDaLinha } from "@/lib/codigoDaLinha";
 import { rotulosDoDinheiro, type RotulosDoDinheiro } from "@/lib/rotulosDoDinheiro";
 import type { SituacaoDoDetalhe } from "@/lib/colunaDoTotal";
 import { comPercentuaisRp, sentidoDaLinha } from "@/lib/percentuaisComProvisionado";
@@ -106,6 +107,7 @@ export function TabelaDre({
   mostrarInformativos = true,
   mostrarSelecao = false,
   mostrarPunho = true,
+  mostrarCodigos = false,
   mostrarAv,
   mostrarAh: mostrarAhPedido,
   mostrarProvisionado = false,
@@ -136,6 +138,11 @@ export function TabelaDre({
    * ligado por padrão (06/11/2026). Desligado, a coluna da descrição fica só com o nome.
    */
   mostrarPunho?: boolean;
+  /**
+   * O código de cada linha à esquerda da descrição — "Códigos" no menu Exibição, desligado
+   * por padrão (10/11/2026). Calculada mostra o traço (`codigoDaLinha`).
+   */
+  mostrarCodigos?: boolean;
   /** A coluna `AV %` aparece. Decidido na barra de controles, ligado por padrão. */
   mostrarAv: boolean;
   /**
@@ -1250,7 +1257,13 @@ export function TabelaDre({
         }}
         className="tabela-rolagem"
       >
-        <table className="w-full border-collapse text-[length:var(--fs-base)]">
+        <table
+          className={cn(
+            "w-full border-collapse text-[length:var(--fs-base)]",
+            // Alarga a coluna fixa para o código não comer o espaço do nome — ver globals.css.
+            mostrarCodigos && "com-codigos",
+          )}
+        >
           <thead>
             {multiMes && (
               <tr className="border-b border-[var(--border)]">
@@ -1298,18 +1311,20 @@ export function TabelaDre({
               <Th className="celula-descricao largura-da-descricao" aEsquerda>
                 {/* SELECIONAR TODAS (06/11/2026): no mesmo lugar dos checkboxes das linhas,
                     para a coluna de caixas começar no cabeçalho, como numa planilha. */}
-                {mostrarSelecao && !soPapel && selecionaveis.length > 0 ? (
-                  <span className="flex items-center gap-2">
+                <span className="flex items-center gap-2">
+                  {/* OS CÓDIGOS (10/11/2026): na mesma célula fixa, e não numa coluna fixa
+                      a mais — duas colunas fixas não concordavam no pixel (ver a célula da
+                      linha). A faixa tem largura própria e divisória, e se lê como coluna. */}
+                  {mostrarCodigos && <span className="codigo-da-linha">Código</span>}
+                  {mostrarSelecao && !soPapel && selecionaveis.length > 0 && (
                     <SelecionarTodas
                       marcadas={marcadasNaTela.length}
                       total={selecionaveis.length}
                       onMudar={selecionarTodas}
                     />
-                    Descrição
-                  </span>
-                ) : (
-                  "Descrição"
-                )}
+                  )}
+                  Descrição
+                </span>
               </Th>
               {mostrarMeses && periodos.map((p, i) => naFaixa(i) && (
                 <ColunasCabecalho
@@ -1377,6 +1392,7 @@ export function TabelaDre({
                   onTeclado={(direcao) => moverPorTeclado(indice, direcao)}
                   onMenu={(x, y) => setMenuDaLinha({ x, y, linha })}
                   mostrarPunho={mostrarPunho && !soPapel}
+                  codigo={mostrarCodigos ? codigoDaLinha(linha) : null}
                   selecao={
                     mostrarSelecao && !soPapel
                       ? {
@@ -1812,12 +1828,15 @@ function Linha({
   percentuaisRp,
   onDetalheProvisionado,
   mostrarPunho,
+  codigo,
   selecao,
 }: {
   linha: LinhaDre;
   indice: number;
   /** O punho ⠿ de mover aparece — "Mover linhas" no menu Exibição (06/11/2026). */
   mostrarPunho: boolean;
+  /** O código da linha, ou o traço — `null` com "Códigos" desligado (10/11/2026). */
+  codigo: string | null;
   /**
    * O checkbox de seleção da linha — "Selecionar linhas" no menu Exibição (06/11/2026).
    * `null` com a opção desligada; `marcada: null` numa linha que não abre detalhamento
@@ -1938,6 +1957,11 @@ function Linha({
         }}
       >
         <div className="flex items-center gap-2">
+          {codigo !== null && (
+            <span className="codigo-da-linha" title={codigo === "—" ? "Linha calculada: sem código" : `Código ${codigo}`}>
+              {codigo}
+            </span>
+          )}
           {/* LINHA CALCULADA NÃO SE MOVE — desde 15/09/2026.
 
               Elas são as âncoras que definem os blocos: onde uma conta está em relação a
