@@ -44,6 +44,7 @@ import {
 import {
   ancoraDoEncaixe,
   contasDeslocadas,
+  ehAcumulador,
   informativasQueSomam,
   mesmosValores,
   recalcular,
@@ -199,15 +200,15 @@ export function TabelaDre({
   // A base da sessão entra na chave da ordem salva. Sem sessão ainda, `""` — e o hook, sem
   // base, não lê nem grava: melhor a ordem do cadastro por um instante que a de outra base.
   const { data: usuario } = useSessao();
-  const { ordem, salvar, limpar } = useOrdemSalva(usuario?.base.id ?? "", filtro.analise);
+  const { ordem, arrastadas, salvar, limpar } = useOrdemSalva(usuario?.base.id ?? "", filtro.analise);
 
   // `linhas` é sempre a ordem do cadastro, como veio da API — é a referência contra a
   // qual tudo aqui é medido. `ordenadas` é o que a pessoa vê, **com os totais refeitos
   // pela posição**: desde 15/09/2026 arrastar uma conta a tira de um total e a põe em
   // outro. Ver `lib/recalculoDoDre.ts`.
   const ordenadas = useMemo(
-    () => recalcular(aplicarOrdem(linhas, ordem), linhas),
-    [linhas, ordem],
+    () => recalcular(aplicarOrdem(linhas, ordem), linhas, arrastadas),
+    [linhas, ordem, arrastadas],
   );
 
   /** A ordem atual mudou algum número em relação ao que a API entregou? */
@@ -224,7 +225,7 @@ export function TabelaDre({
   /** Última posição vertical do ponteiro durante o arraste, em coordenadas da janela. */
   const ponteiroY = useRef<number | null>(null);
   const [pendente, setPendente] = useState<
-    (MovimentoPendente & { nova: LinhaDre[] }) | null
+    (MovimentoPendente & { nova: LinhaDre[]; arrastadas: Set<string> }) | null
   >(null);
   /**
    * Falha ao guardar o detalhamento para a outra aba. Raro, mas silêncio seria pior: a
@@ -468,10 +469,15 @@ export function TabelaDre({
    * indistinguíveis linha a linha, e só o aviso no alto separa as duas — o que não sobrevive a
    * um print recortado nem a alguém que entra na tela no meio da conversa.
    */
-  const deslocadas = useMemo(
-    () => contasDeslocadas(ordenadas, linhas),
-    [ordenadas, linhas],
-  );
+  const deslocadas = useMemo(() => {
+    // A informativa levada de carona por um totalizador está fora do lugar e NÃO soma —
+    // só a arrastada à mão soma (10/11/2026, branch de teste). O selo diz "somando num bloco
+    // que não é o do cadastro"; nela, ele mentiria.
+    const somam = informativasQueSomam(ordenadas, linhas, arrastadas);
+    const fora = contasDeslocadas(ordenadas, linhas);
+    for (const l of ordenadas) if (l.naoSoma && !somam.has(l.chaveOrdem)) fora.delete(l.chaveOrdem);
+    return fora;
+  }, [ordenadas, linhas, arrastadas]);
 
   // Esconde por AUSÊNCIA DE MOVIMENTO, não por valor zero — é o critério da 9815.
   // `DESCONTO FUNCIONÁRIOS` fecha em 0,00 com 16 lançamentos e continua na tela.
@@ -567,12 +573,19 @@ export function TabelaDre({
   const aplicar = useCallback(
     (indice: number, destino: number) => {
       const linha = ordenadas[indice];
-      // Linha calculada é âncora do bloco e não se move. Quem chega aqui com uma delas é
-      // o teclado — o punho nem existe nessas linhas.
-      if (!linha || linha.calculada) return;
+      // TODA LINHA SE MOVE desde 10/11/2026 (branch de teste), as calculadas inclusive — ver
+      // `ehAcumulador`. Um totalizador movido passa a somar o que ficar acima dele.
+      if (!linha) return;
 
       const nova = mover(ordenadas, indice, destino);
       if (!ordemPersonalizada(ordenadas, nova)) return;
+
+      // Quem a pessoa arrastou à mão, esta linha incluída. Ordem salva antes de a lista existir
+      // começa pelas informativas que já somavam, para nenhuma parar de somar no próximo arraste.
+      const novasArrastadas = new Set([
+        ...(arrastadas ?? informativasQueSomam(ordenadas, linhas)),
+        linha.chaveOrdem,
+      ]);
 
       // A PARTIR DAS LINHAS DA APURAÇÃO, e não de `nova` (16/10/2026). `nova` sai de
       // `ordenadas`, que JÁ TRAZ o recálculo da ordem atual; recalcular por cima aplicava os
@@ -585,6 +598,7 @@ export function TabelaDre({
           nova.map((l) => l.chaveOrdem),
         ),
         linhas,
+        novasArrastadas,
       );
       const nomeCurto = linha.descricao.trim();
       const novoIndice = nova.findIndex((l) => l.chaveOrdem === linha.chaveOrdem);
@@ -602,26 +616,33 @@ export function TabelaDre({
       // Sem âncora acumuladora abaixo, a conta para de entrar em qualquer total. Depois de
       // 15/09/2026 isso só acontece abaixo do LUCRO LIQUIDO: dentro do cabeçalho a conta
       // atravessa ST, PIS e COFINS e cai nas RECEITAS LIQUIDAS.
-      const ancora = ancoraDoEncaixe(nova, novoIndice);
-      const saiDaConta = !linha.naoSoma && ancora === null;
+      // Um ACUMULADOR movido não "soma em" ninguém: ele é quem soma. O que muda com ele está
+      // na lista de totais do modal.
+      const acumulador = ehAcumulador(linha);
+      const ancora = acumulador ? null : ancoraDoEncaixe(nova, novoIndice);
+      const saiDaConta = !acumulador && !linha.naoSoma && ancora === null;
       // A informativa só soma quando sai do encaixe do cadastro (10/11/2026, branch de teste —
       // `informativasQueSomam`). Devolvida ao lugar, ou trocada de vizinho, o modal não promete
       // total nenhum a ela, como o selo da própria linha diz.
       const informativaSomando =
-        linha.naoSoma && informativasQueSomam(nova, linhas).has(linha.chaveOrdem);
+        linha.naoSoma && informativasQueSomam(nova, linhas, novasArrastadas).has(linha.chaveOrdem);
       const somaEm =
         ancora === null || (linha.naoSoma && !informativaSomando)
           ? null
           : (nova[ancora]?.descricao.trim() ?? null);
 
       if (totais.length === 0 && !saiDaConta) {
-        salvar(nova.map((l) => l.chaveOrdem));
+        salvar(
+          nova.map((l) => l.chaveOrdem),
+          novasArrastadas,
+        );
         setAnuncio(`${nomeCurto} movida para a posição ${novoIndice + 1}.`);
         return;
       }
 
       setPendente({
         nova,
+        arrastadas: novasArrastadas,
         conta: nomeCurto,
         deOnde: descreverPosicao(ordenadas, indice),
         paraOnde: descreverPosicao(nova, novoIndice),
@@ -630,7 +651,7 @@ export function TabelaDre({
         saiDaConta,
       });
     },
-    [linhas, ordenadas, salvar],
+    [linhas, ordenadas, arrastadas, salvar],
   );
 
   /**
@@ -703,7 +724,10 @@ export function TabelaDre({
 
   const confirmar = useCallback(() => {
     if (!pendente) return;
-    salvar(pendente.nova.map((l) => l.chaveOrdem));
+    salvar(
+      pendente.nova.map((l) => l.chaveOrdem),
+      pendente.arrastadas,
+    );
     setAnuncio(
       pendente.totais.length === 0
         ? `${pendente.conta} movida. Ela sai dos totais.`
@@ -1944,7 +1968,9 @@ function Linha({
         }}
       >
         <div className="flex items-center gap-2">
-          {/* LINHA CALCULADA NÃO SE MOVE — desde 15/09/2026.
+          {/* LINHA CALCULADA NÃO SE MOVIA — de 15/09/2026 até 10/11/2026, quando a branch de
+              teste liberou o arraste de todas as linhas (pedido do Gabriel). O texto abaixo é o
+              motivo da trava, mantido para quem levar isto à main.
 
               Elas são as âncoras que definem os blocos: onde uma conta está em relação a
               elas é o que decide de que total ela participa. Movê-las redefiniria todos os
@@ -1969,9 +1995,7 @@ function Linha({
               />
             ))}
 
-          {!mostrarPunho ? null : linha.calculada ? (
-            <span aria-hidden className="puxador-vazio shrink-0" />
-          ) : (
+          {!mostrarPunho ? null : (
             <button
               type="button"
               draggable

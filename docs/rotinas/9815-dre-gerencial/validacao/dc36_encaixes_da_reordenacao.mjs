@@ -14,7 +14,7 @@
  * receitas liquidas — o valor de subtotal positivo e lucro bruto devem ser alterados"*.
  */
 import assert from "node:assert/strict";
-import { ancoraDoEncaixe, contasDeslocadas, recalcular, media } from "@/lib/recalculoDoDre.ts";
+import { ancoraDoEncaixe, contasDeslocadas, informativasQueSomam, recalcular, media } from "@/lib/recalculoDoDre.ts";
 
 let n = 0;
 const eq = (achou, esperado, oque) => {
@@ -60,7 +60,9 @@ const DRE = [
   ancora("receita-bruta", "(+) RECEITA BRUTA", 1000),
   ancora("abat-desc", "(-) ABAT./DESC.", -100),
   ancora("devolucao", "(-) DEVOLUCAO", -50),
-  ancora("st", "(-) ST", -30),
+  // Informativa, como a API manda (`MontadorDre.NaoSomamNoCabecalho`): pesa desde que as
+  // linhas calculadas também se movem (10/11/2026).
+  { ...ancora("st", "(-) ST", -30), naoSoma: true },
   // O %AV desta linha VEM PRONTO do servidor, e por isso o fixture o traz preenchido: sem
   // filtro ele é 100, e com fornecedor selecionado é a participação (`P.8,221%`), que o
   // front não tem como calcular — o divisor é a receita da filial inteira.
@@ -420,6 +422,92 @@ eq(media(-1222.41, 2), -611.2, "−611,205 vai para o par: −611,20");
   // Abaixo do LUCRO LIQUIDO ela não soma em nada — aí o LUCRO LIQUIDO muda, de verdade.
   const fora = recalcular(mover(SEM_TD, "despA", "orfa"), SEM_TD);
   eq(ll(fora), 450, "depois do LUCRO LIQUIDO a despesa deixa de entrar nele");
+}
+
+// ── TODAS AS LINHAS SE MOVEM (10/11/2026, branch de teste) ────────────────────
+//
+// Pedido do Gabriel: "deixe que seja possível alterar e movimentar todas as linhas, alterando
+// nos totalizadores" — escolha "bloco por posição". As linhas do faturamento (RECEITA BRUTA,
+// ABAT., DEVOLUCAO, CMV) passam a ser contas como as outras: movidas de encaixe, saem do total
+// do cadastro e somam no de baixo. ST, PIS e COFINS seguem a regra das informativas. Um
+// totalizador movido soma o que ficar entre ele e o acumulador de cima; as fórmulas entre
+// totalizadores não mudam.
+{
+  const parcelas = (r, chave) => r.find((l) => l.chaveOrdem === chave)?.composicao.map((p) => p.chaveOrdem);
+
+  // Na ordem do cadastro, a composição refeita é a de sempre.
+  const igual = recalcular(DRE, DRE);
+  eq(parcelas(igual, "receitas-liquidas"), ["receita-bruta", "abat-desc", "devolucao"], "cadastro: RECEITAS LIQUIDAS = bruta, abat., devolução");
+  eq(parcelas(igual, "lucro-bruto"), ["receitas-liquidas", "cmv"], "cadastro: LUCRO BRUTO = líquida e CMV");
+
+  // O CMV arrastado para o meio das despesas.
+  const cmv = recalcular(mover(DRE, "cmv", "despB"), DRE);
+  eq(valorDe(cmv, "lucro-bruto"), 850, "sem o CMV, o LUCRO BRUTO é a própria líquida");
+  eq(valorDe(cmv, "subtotal-positivo"), 910, "o SUBTOTAL POSITIVO herda");
+  eq(valorDe(cmv, "sub-total"), -690, "o Sub-Total ganha os −400 do CMV");
+  eq(valorDe(cmv, "resultado-operacional"), 220, "o RESULTADO OPERACIONAL conserva: o CMV só mudou de bloco");
+  eq(valorDe(cmv, "lucro-liquido"), 250, "e o LUCRO LIQUIDO também");
+  eq(valorDe(cmv, "cmv"), -400, "o CMV continua valendo o custo apurado");
+  eq(parcelas(cmv, "sub-total"), ["despA", "despB", "cmv"], "ele vira parcela do Sub-Total");
+  eq(parcelas(cmv, "lucro-bruto"), ["receitas-liquidas"], "e sai das parcelas do LUCRO BRUTO");
+  eq([...contasDeslocadas(mover(DRE, "cmv", "despB"), DRE)], ["cmv"], "e acende o selo de fora do lugar");
+
+  // A RECEITA BRUTA levada para depois do LUCRO LIQUIDO deixa de entrar em total nenhum.
+  const rb = recalcular(mover(DRE, "receita-bruta", "orfa"), DRE);
+  eq(valorDe(rb, "receitas-liquidas"), -150, "a líquida perde os 1000 da bruta");
+  eq(valorDe(rb, "lucro-liquido"), -750, "e o LUCRO LIQUIDO também");
+
+  // O ST, informativo, solto no meio das despesas: soma lá e não sai de lugar nenhum.
+  const st = recalcular(mover(DRE, "st", "despA"), DRE);
+  eq(valorDe(st, "sub-total"), -320, "o ST entra no Sub-Total: −290 − 30");
+  eq(valorDe(st, "receitas-liquidas"), 850, "e a líquida não muda — o ST nunca entrou nela");
+  eq(parcelas(st, "sub-total"), ["despA", "st", "despB"], "e vira parcela do Sub-Total");
+
+  // O Sub-Total levado para cima do SUBTOTAL POSITIVO, logo abaixo do crédito.
+  const sub = recalcular(mover(DRE, "sub-total", "credito"), DRE);
+  eq(valorDe(sub, "sub-total"), 60, "o Sub-Total passa a somar só o crédito");
+  eq(valorDe(sub, "subtotal-positivo"), 450, "o SUBTOTAL POSITIVO perde o crédito e fica no LUCRO BRUTO");
+  eq(valorDe(sub, "resultado-operacional"), 220, "as despesas caem no RESULTADO OPERACIONAL, que conserva");
+  eq(valorDe(sub, "lucro-liquido"), 250, "e o LUCRO LIQUIDO também");
+  eq(parcelas(sub, "sub-total"), ["credito"], "a composição do Sub-Total segue a posição");
+  eq(parcelas(sub, "resultado-operacional"), ["subtotal-positivo", "sub-total", "despA", "despB"], "e a do RESULTADO OPERACIONAL ganha as despesas");
+
+  // As RECEITAS LIQUIDAS levadas para baixo do LUCRO BRUTO: a bruta e as deduções descem para ele.
+  // A terceira lista diz QUEM FOI ARRASTADO À MÃO — só as RECEITAS LIQUIDAS, aqui.
+  const rl = recalcular(mover(DRE, "receitas-liquidas", "lucro-bruto"), DRE, new Set(["receitas-liquidas"]));
+  eq(valorDe(rl, "receitas-liquidas"), 0, "sem nada acima dela até o acumulador anterior, a líquida zera");
+  eq(valorDe(rl, "lucro-bruto"), 450, "o LUCRO BRUTO conserva: recebe a bruta, as deduções e o CMV direto");
+}
+
+// ── SÓ SOMA A INFORMATIVA ARRASTADA À MÃO (10/11/2026, branch de teste) ───────
+//
+// Pedido do Gabriel: "só some o informativo arrastado a mão". Mover um totalizador muda o
+// encaixe das informativas vizinhas sem ninguém tocá-las — o ST acima das RECEITAS LIQUIDAS
+// cai no LUCRO BRUTO quando ela desce. Pela posição ela está fora do lugar; pela regra, não
+// soma, porque não foi ela que a pessoa moveu.
+{
+  const ordem = mover(DRE, "receitas-liquidas", "lucro-bruto");
+  const parcelas = (r, chave) => r.find((l) => l.chaveOrdem === chave)?.composicao.map((p) => p.chaveOrdem);
+
+  const soARl = recalcular(ordem, DRE, new Set(["receitas-liquidas"]));
+  eq(parcelas(soARl, "lucro-bruto").includes("st"), false, "o ST levado de carona não vira parcela");
+  eq(informativasQueSomam(ordem, DRE, new Set(["receitas-liquidas"])).size, 0, "nem conta como informativa somando");
+
+  // A mesma posição, mas com o ST arrastado por ele mesmo antes: aí soma.
+  const comSt = recalcular(ordem, DRE, new Set(["receitas-liquidas", "st"]));
+  eq(valorDe(comSt, "lucro-bruto"), 420, "o ST que a pessoa arrastou entra no LUCRO BRUTO: 450 − 30");
+
+  // Arrastada à mão para o meio das despesas, a informativa soma como antes.
+  const info = recalcular(mover(DRE, "info", "despA"), DRE, new Set(["info"]));
+  eq(valorDe(info, "sub-total"), 709, "a INFORMATIVA arrastada entra no Sub-Total");
+
+  // Arrastada à mão e devolvida ao encaixe do cadastro: não soma, mesmo constando da lista.
+  const volta = recalcular(mover(DRE, "info", "posC"), DRE, new Set(["info"]));
+  eq(valorDe(volta, "lucro-liquido"), 250, "de volta ao encaixe do cadastro, ela sai das somas");
+
+  // Uma despesa arrastada por cima da INFORMATIVA não a leva junto.
+  const outra = recalcular(mover(DRE, "despA", "info"), DRE, new Set(["despA"]));
+  eq(valorDe(outra, "lucro-liquido"), 250, "a despesa muda de bloco e o LUCRO LIQUIDO conserva");
 }
 
 eq(media(300, 2), 150, "sem resto, sem arredondamento");

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useSyncExternalStore } from "react";
+import { useCallback, useMemo, useSyncExternalStore } from "react";
 import type { Analise } from "@/types/dre-gerencial";
 
 import { chaveDaOrdem, chavesAntigasDaOrdem } from "@/lib/chavesPorBase";
@@ -59,20 +59,37 @@ function inscrever(ouvinte: () => void): () => void {
   };
 }
 
-/** Lê e valida. Conteúdo estragado é descartado, nunca aplicado pela metade. */
+/**
+ * As linhas que a pessoa ARRASTOU À MÃO, guardadas ao lado da ordem (10/11/2026, branch de
+ * teste). A ordem sozinha não diz quem se moveu: um totalizador arrastado tira as vizinhas do
+ * lugar sem ninguém tocá-las, e só a informativa arrastada à mão soma — ver
+ * `informativasQueSomam`.
+ */
+const chaveDasArrastadas = (baseId: string, analise: Analise) =>
+  `${chaveDaOrdem(baseId, analise)}:arrastadas`;
+
+/** Lê e valida a ordem. Conteúdo estragado é descartado, nunca aplicado pela metade. */
 function ler(baseId: string, analise: Analise): string[] | null {
   // Sem base conhecida (a sessão ainda não chegou), não há ordem a ler: aplicar a de outra
   // base seria exatamente o engano que a chave por base existe para impedir.
   if (!baseId) return null;
+  return lerLista(chaveDaOrdem(baseId, analise), chavesAntigasDaOrdem(baseId, analise));
+}
 
-  const chave = chaveDaOrdem(baseId, analise);
+/** As arrastadas à mão; `null` quando a ordem foi salva antes de elas existirem. */
+export function lerArrastadas(baseId: string, analise: Analise): string[] | null {
+  if (!baseId) return null;
+  return lerLista(chaveDasArrastadas(baseId, analise), []);
+}
 
+/** Uma lista de chaves do armazenamento, com o cache que estabiliza o snapshot. */
+function lerLista(chave: string, antigas: readonly string[]): string[] | null {
   let bruto: string | null;
   try {
     // A chave desta base; e, só para a Época, a de ANTES das bases (v1), para ninguém perder
     // a ordem que já tinha. Na primeira vez que a pessoa reordenar, a v2 passa a valer.
     bruto = localStorage.getItem(chave);
-    for (const antiga of chavesAntigasDaOrdem(baseId, analise)) {
+    for (const antiga of antigas) {
       if (bruto !== null) break;
       bruto = localStorage.getItem(antiga);
     }
@@ -116,11 +133,26 @@ export function useOrdemSalva(baseId: string, analise: Analise) {
     () => null,
   );
 
+  const listaDeArrastadas = useSyncExternalStore(
+    inscrever,
+    () => lerArrastadas(baseId, analise),
+    () => null,
+  );
+  // `undefined` quando nunca foi salva: o recálculo cai na regra anterior, e quem já tinha
+  // uma informativa movida não a vê parar de somar só por ter atualizado a tela.
+  const arrastadas = useMemo(
+    () => (listaDeArrastadas ? new Set(listaDeArrastadas) : undefined),
+    [listaDeArrastadas],
+  );
+
   const salvar = useCallback(
-    (chaves: string[]) => {
+    (chaves: string[], arrastadasAgora?: Iterable<string>) => {
       if (!baseId) return;
       try {
         localStorage.setItem(chaveDaOrdem(baseId, analise), JSON.stringify(chaves));
+        if (arrastadasAgora) {
+          localStorage.setItem(chaveDasArrastadas(baseId, analise), JSON.stringify([...arrastadasAgora]));
+        }
       } catch {
         // Sem espaço ou sem permissão: a ordem não persiste, e o aviso abaixo faz a tela
         // voltar para o que está guardado — que é a verdade. Fingir que salvou seria pior.
@@ -134,6 +166,7 @@ export function useOrdemSalva(baseId: string, analise: Analise) {
     if (!baseId) return;
     try {
       localStorage.removeItem(chaveDaOrdem(baseId, analise));
+      localStorage.removeItem(chaveDasArrastadas(baseId, analise));
       // E as antigas: sem isto, "Restaurar ordem do cadastro" devolveria a v1 pela porta dos
       // fundos, e a pessoa veria a ordem voltar sozinha.
       for (const antiga of chavesAntigasDaOrdem(baseId, analise)) {
@@ -145,5 +178,5 @@ export function useOrdemSalva(baseId: string, analise: Analise) {
     avisar();
   }, [baseId, analise]);
 
-  return { ordem, salvar, limpar };
+  return { ordem, arrastadas, salvar, limpar };
 }

@@ -11,6 +11,7 @@ import { exportarApuracao } from "@/lib/exportarExcel";
 import { aplicarOrdem } from "@/lib/ordemLinhas";
 import { recalcular } from "@/lib/recalculoDoDre";
 import { useApuracao, useFiliais } from "@/hooks/useDreGerencial";
+import { lerArrastadas } from "@/hooks/useOrdemSalva";
 import { useSessao } from "@/hooks/useSessao";
 import { useEscalaDeImpressao } from "@/hooks/useEscalaDeImpressao";
 import { useOcultarBaixas } from "@/hooks/useOcultarBaixas";
@@ -130,9 +131,12 @@ export default function DreGerencialPage() {
         // O recálculo precisa da lista COMPLETA, e o DOM só tem as visíveis: `aplicarOrdem`
         // recoloca as escondidas na vizinhança canônica delas, e uma conta zerada escondida
         // continua somando no bloco onde está.
+        // E com as linhas arrastadas à mão, que decidem quais informativas somam.
+        const arrastadas = lerArrastadas(baseDaSessao ?? "", apuracao.analise);
         const completa = recalcular(
           aplicarOrdem(apuracao.linhas, chaves),
           apuracao.linhas,
+          arrastadas ? new Set(arrastadas) : undefined,
         );
         const porChave = new Map(completa.map((l) => [l.chaveOrdem, l]));
         const naTela = chaves

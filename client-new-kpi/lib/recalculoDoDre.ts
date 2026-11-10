@@ -180,11 +180,28 @@ export function ancoraDoEncaixe(
   return null;
 }
 
+/**
+ * A linha é um ACUMULADOR — o totalizador que soma o encaixe acima dele?
+ *
+ * Todas as outras são **contas** para o recálculo, inclusive as calculadas do faturamento
+ * (RECEITA BRUTA, ABAT./DESC., DEVOLUCAO, CMV, ST, PIS, COFINS): 10/11/2026, branch de teste,
+ * pedido do Gabriel — "deixe que seja possível alterar e movimentar todas as linhas, alterando
+ * nos totalizadores". No lugar do cadastro elas compõem o acumulador de baixo, como a fórmula
+ * do servidor já faz; arrastadas para outro encaixe, saem dele e somam no destino. ST, PIS e
+ * COFINS são `naoSoma` e seguem a regra das informativas — ver `informativasQueSomam`.
+ *
+ * Um acumulador também se move: passa a somar o que ficar entre ele e o acumulador de cima.
+ * As fórmulas ENTRE acumuladores (`PROPAGACAO`) não mudam com a posição.
+ */
+export function ehAcumulador(l: { calculada: boolean; papel: PapelDaLinha | null }): boolean {
+  return l.calculada && l.papel !== null && !NAO_ACUMULAM.has(l.papel);
+}
+
 /** O papel da âncora que recebe cada conta, por `chaveOrdem`. */
 function encaixesPorConta(linhas: readonly LinhaDre[]): Map<string, PapelDaLinha | null> {
   const mapa = new Map<string, PapelDaLinha | null>();
   linhas.forEach((l, i) => {
-    if (l.calculada) return;
+    if (ehAcumulador(l)) return;
     const alvo = ancoraDoEncaixe(linhas, i);
     mapa.set(l.chaveOrdem, alvo === null ? null : (linhas[alvo]?.papel ?? null));
   });
@@ -229,16 +246,25 @@ export function contasDeslocadas(
  *
  * Na posição do cadastro a informativa continua fora de todo total: é o que mantém a tela sem
  * reordenação igual à 9815 (dc35). Movida de total, ela soma na âncora de destino como qualquer
- * conta. ST, PIS e COFINS também são informativos, mas são âncoras fixas — não se movem.
+ * conta. ST, PIS e COFINS também são informativos, e seguem esta mesma regra desde que todas as
+ * linhas passaram a se mover (10/11/2026) — ver `ehAcumulador`.
  */
 export function informativasQueSomam(
   ordenadas: readonly LinhaDre[],
   canonicas: readonly LinhaDre[],
+  /**
+   * As linhas que a pessoa ARRASTOU À MÃO (10/11/2026, branch de teste — "só some o
+   * informativo arrastado a mão"). Mover um totalizador muda o encaixe das informativas
+   * vizinhas sem ninguém tocá-las; elas ficam fora do lugar e NÃO somam. Ausente, toda
+   * informativa fora do encaixe do cadastro conta como arrastada.
+   */
+  arrastadas?: ReadonlySet<string>,
 ): Set<string> {
   const deslocadas = contasDeslocadas(ordenadas, canonicas);
   return new Set(
     ordenadas
-      .filter((l) => !l.calculada && l.naoSoma && deslocadas.has(l.chaveOrdem))
+      .filter((l) => !ehAcumulador(l) && l.naoSoma && deslocadas.has(l.chaveOrdem))
+      .filter((l) => !arrastadas || arrastadas.has(l.chaveOrdem))
       .filter((l) => ancoraDoEncaixe(ordenadas, ordenadas.indexOf(l)) !== null)
       .map((l) => l.chaveOrdem),
   );
@@ -253,6 +279,8 @@ export function informativasQueSomam(
 export function recalcular(
   ordenadas: readonly LinhaDre[],
   canonicas: readonly LinhaDre[],
+  /** Quem foi arrastado à mão — ver `informativasQueSomam`. */
+  arrastadas?: ReadonlySet<string>,
 ): LinhaDre[] {
   const colunas = ordenadas[0]?.valores.length ?? 0;
   if (colunas === 0) return [...ordenadas];
@@ -262,6 +290,8 @@ export function recalcular(
 
   const papeis = new Set<PapelDaLinha>();
   for (const l of ordenadas) if (l.calculada && l.papel) papeis.add(l.papel);
+
+  const somam = informativasQueSomam(ordenadas, canonicas, arrastadas);
 
   /** Onde um papel ausente cai. Só o SUBTOTAL POSITIVO tem substituto. */
   const resolverPais = (pais: readonly PapelDaLinha[]): PapelDaLinha[] =>
@@ -291,10 +321,13 @@ export function recalcular(
     for (const [papel] of PROPAGACAO) proprio.set(papel, 0);
 
     for (const l of ordenadas) {
-      if (l.calculada) continue;
+      if (ehAcumulador(l)) continue;
       const destino = agora.get(l.chaveOrdem) ?? null;
       const origem = antes.get(l.chaveOrdem) ?? null;
       if (destino === origem) continue;
+
+      // A informativa que não foi arrastada à mão não soma em lugar nenhum, esteja onde estiver.
+      if (l.naoSoma && !somam.has(l.chaveOrdem)) continue;
 
       const v = lerDaConta(l, c);
       if (destino !== null && proprio.has(destino)) proprio.set(destino, proprio.get(destino)! + v);
@@ -320,7 +353,6 @@ export function recalcular(
   return acumulado;
   };
 
-  const somam = informativasQueSomam(ordenadas, canonicas);
   const acumulado = deltasPor((l, c) => l.valores[c]?.valor ?? 0);
   const acumuladoP = deltasPor((l, c) => l.valores[c]?.provisionado ?? 0);
 
@@ -529,7 +561,7 @@ function recomporParcelas(
   const doEncaixe: Parcela[] = [];
   for (let i = indice - 1; i >= 0; i--) {
     const anterior = ordenadas[i];
-    if (!anterior || anterior.calculada) break;
+    if (!anterior || ehAcumulador(anterior)) break;
     if (!anterior.naoSoma || somam.has(anterior.chaveOrdem)) doEncaixe.unshift(parcela(anterior));
   }
 
@@ -539,10 +571,12 @@ function recomporParcelas(
   };
 
   switch (l.papel) {
+    // A bruta, as deduções e o CMV entram PELO ENCAIXE desde 10/11/2026 (branch de teste):
+    // no lugar do cadastro dá a composição de sempre; movidos, saem daqui com o valor.
     case "receitas-liquidas":
-      return [...ancora("receita-bruta"), ...ancora("abat-desc"), ...ancora("devolucao"), ...doEncaixe];
+      return doEncaixe;
     case "lucro-bruto":
-      return [...ancora("receitas-liquidas"), ...ancora("cmv"), ...doEncaixe];
+      return [...ancora("receitas-liquidas"), ...doEncaixe];
     case "subtotal-positivo":
       return [...ancora("lucro-bruto"), ...doEncaixe];
     case "sub-total":
