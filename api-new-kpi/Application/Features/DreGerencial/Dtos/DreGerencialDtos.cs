@@ -262,18 +262,18 @@ public record LinhaDreDto(
     /// <summary>Não entra em totalizador: as 3 informativas e o bloco pós-LUCRO LIQUIDO.</summary>
     bool NaoSoma,
     /// <summary>
-    /// Nenhum lançamento no período. É este o critério que a 9815 usa para esconder linha
-    /// sem "Mostrar Contas Zeradas" — <b>não</b> é valor zero.
+    /// Linha não calculada que fecha em zero em <b>todas</b> as colunas — some com "Mostrar
+    /// zeradas" desmarcado.
     ///
-    /// <para>Conferido em 31/08/2026: `DESCONTO FUNCIONÁRIOS` sai com 0,00 e 16 lançamentos,
-    /// `CONTRATO DE MUTUO` com 0,00 e 18, e a 9815 mostra as duas. `ALFALOG` e
-    /// `VENDAS UNILEVER`, sem lançamento nenhum, ela esconde. As 44 linhas com movimento
-    /// mais as 13 calculadas dão exatamente as 57 da exportação.</para>
+    /// <para>Diverge da 9815 desde 11/11/2026, a pedido (divergência 22): ela esconde só a
+    /// conta SEM lançamento, e mostra `DESCONTO FUNCIONÁRIOS` com 0,00 e 16 lançamentos. Aqui
+    /// essa conta some. A contagem de lançamentos não entra mais no critério — nem para
+    /// esconder, nem para mostrar.</para>
     ///
     /// <para>Linha calculada nunca é escondida: cabeçalho e totalizadores aparecem sempre.</para>
     /// </summary>
     bool SemMovimento,
-    /// <summary>Zero em todos os meses. Não decide visibilidade — ver <see cref="SemMovimento"/>.</summary>
+    /// <summary>Zero em todos os meses. Hoje igual a <see cref="SemMovimento"/> nas linhas não calculadas; nas calculadas, só ela marca o zero.</summary>
     bool Zerada,
     string? Cor,
     /// <summary>Destino do duplo clique, ou `null` se a linha não abre detalhamento.</summary>
@@ -292,7 +292,7 @@ public record LinhaDreDto(
     IReadOnlyList<ParcelaDto> Composicao,
     /// <summary>
     /// A linha tem título EM ABERTO no período (competência, 14/10/2026). <b>Não muda o
-    /// <see cref="SemMovimento"/></b>, que continua sendo o critério da 9815, só do pago: com
+    /// <see cref="SemMovimento"/></b>, que continua sendo só do pago: com
     /// o Provisionado desligado a tela tem de ser a de antes (D9). O front mostra uma linha
     /// sem movimento quando ela tem aberto E o Provisionado está ligado.
     /// </summary>

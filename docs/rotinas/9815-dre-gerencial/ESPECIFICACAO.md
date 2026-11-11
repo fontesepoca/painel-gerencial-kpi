@@ -543,13 +543,23 @@ totalizador nenhum** — é o que a tela marca como `INFORMATIVO`.
 
 ### O bloco informativo ignora "Mostrar Contas Zeradas"
 
+> **Na web, desde 11/11/2026, não ignora** — toda linha zerada some, informativa ou não. Ver
+> a divergência 22 em [DIVERGENCIAS.md](./DIVERGENCIAS.md). O texto abaixo descreve a 9815.
+
 `CONTRATO DE MUTUO` aparece com `0,00` mesmo na exportação **sem** contas zeradas, enquanto
 linhas zeradas do corpo (`VERBAS P&G`, `% SALDO FINAL`, …) somem. O filtro de zeradas vale
 para as linhas parametrizadas, não para as órfãs.
 
-### O que esconde uma linha: **nem lançamento, nem valor**
+### O que esconde uma linha: **zero em todas as colunas**
 
-As duas condições. Uma linha some da tela apenas quando não tem lançamento em `PCLANC` **e**
+> **Mudou em 11/11/2026, a pedido do Gabriel** — divergência 22 em
+> [DIVERGENCIAS.md](./DIVERGENCIAS.md). Na web a linha não calculada some, com "Mostrar
+> zeradas" desmarcado, sempre que fecha em zero em todas as colunas, tenha lançamento ou não.
+> `DESCONTO FUNCIONÁRIOS` com 0,00 e 16 lançamentos **some**. O resto desta seção é o
+> critério da 9815 e a história do caso da venda de ativo, que continua valendo: a contagem
+> de lançamentos nunca esconde uma linha com valor.
+
+Na 9815, as duas condições. Uma linha some da tela apenas quando não tem lançamento em `PCLANC` **e**
 fecha em zero em todas as colunas — que é o mesmo critério da 9815 ao montar a estrutura,
 `where VPAGO <> 0 or qdereg <> 0`.
 

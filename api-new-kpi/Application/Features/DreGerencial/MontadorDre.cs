@@ -291,18 +291,10 @@ public static class MontadorDre
                 g => (Valor: g.Sum(x => x.Despesa.VlRealizado),
                       Exclusivo: g.Sum(x => x.Despesa.VpagoExclusivoFornec)));
 
-        // Quantos lancamentos cada linha tem em TODAS as colunas. E o que decide se a linha
-        // aparece com "Mostrar Contas Zeradas" desmarcada — a 9815 esconde por AUSENCIA DE
-        // MOVIMENTO, nao por valor zero. Sem a coluna na chave: a visibilidade e da linha.
-        //
-        // SÓ OS PAGOS, como sempre: é o critério da 9815, e com o Provisionado desligado a tela
-        // tem de ser a de antes (D9). Os abertos contam à parte, em `qtdAberto`, e é o front
-        // que decide mostrar a linha só com aberto quando o Provisionado está ligado.
-        var qtdDespesa = colunas
-            .SelectMany(c => c.Despesas)
-            .GroupBy(d => Destino(d, subidas, operacionaisDaEstrutura))
-            .ToDictionary(g => g.Key, g => g.Sum(d => d.QdeReg));
-
+        // Quantos títulos EM ABERTO cada linha tem em todas as colunas. A visibilidade com
+        // "Mostrar Contas Zeradas" desmarcada é por VALOR desde 11/11/2026 (divergência 22, ver
+        // `SemMovimento` abaixo); os abertos só contam para o front mostrar a linha quando o
+        // Provisionado está ligado.
         var qtdAberto = colunas
             .SelectMany(c => c.Abertos ?? [])
             .GroupBy(d => Destino(d, subidas, operacionaisDaEstrutura))
@@ -417,12 +409,6 @@ public static class MontadorDre
                 ? null
                 : provisionados.Sum(v => v.Provisionado!.Value);
 
-            // Quantos lancamentos de PCLANC a linha tem no periodo. Decide a visibilidade
-            // com "Mostrar contas zeradas" desmarcada — junto com o valor, ver abaixo.
-            var qdeLancamentos = qtdDespesa.GetValueOrDefault(
-                (l.Estrutura.CodGruConta, l.Estrutura.AntesRo,
-                 l.Estrutura.AntesLl, l.Estrutura.AntesLf));
-
             return new LinhaDreDto(
                 Id: l.Estrutura.Id,
                 ChaveOrdem: chavesOrdem[indice],
@@ -446,21 +432,17 @@ public static class MontadorDre
                 NaoSoma: EhNaoSoma(l),
                 // Calculada aparece sempre: cabecalho e totalizadores nao dependem de movimento.
                 //
-                // SEM LANCAMENTO **E** SEM VALOR. As duas condicoes, e a segunda entrou em
-                // 11/09/2026 por causa de RECEITA VENDA ATIVO: a linha injetada de PCPREST
-                // traz "0 as QdeReg" — fielmente, porque a 9815 faz igual —, entao contar
-                // so lancamento escondia 225.000,00 na filial 28.
+                // POR VALOR, NAO POR LANCAMENTO — divergência 22, 11/11/2026, pedido do
+                // Gabriel. A 9815 esconde só a conta SEM lançamento ("where VPAGO <> 0 or
+                // qdereg <> 0"), e mostrava 0,00 em contas cujos lançamentos se anulam
+                // (DESCONTO FUNCIONARIOS, 16 lançamentos) ou estão todos ocultos pelo
+                // checkbox de estornos (NÃO USA/NÃO INFORMADO, filial 7, out/2026). Agora toda
+                // linha zerada some com "Mostrar zeradas" desmarcado.
                 //
-                // Escondia a LINHA, nao o valor: ele continuava dentro do LUCRO LIQUIDO, e a
-                // tela mostrava um total que nao fechava com as linhas visiveis. E o pior
-                // tipo de defeito desta rotina, porque nada na tela denuncia.
-                //
-                // E o mesmo criterio que a 9815 usa para montar a estrutura —
-                // "where VPAGO <> 0 or qdereg <> 0" —, e ele preserva o caso oposto, ja
-                // conferido: DESCONTO FUNCIONARIOS fecha em 0,00 com 16 lancamentos e
-                // continua aparecendo.
+                // Só o valor, e nunca a contagem: em 11/09/2026 contar lancamento escondia
+                // RECEITA VENDA ATIVO, que vem de PCPREST com "0 as QdeReg" e 225.000,00 na
+                // filial 28 — a linha sumia e o valor continuava no LUCRO LIQUIDO.
                 SemMovimento: !l.Calculada
-                    && qdeLancamentos == 0
                     // Por COLUNA, e nao pela soma do periodo: uma conta com +100 num mes e
                     // -100 no outro soma zero e teve movimento nos dois.
                     && valores.All(v => v.Valor == 0m),

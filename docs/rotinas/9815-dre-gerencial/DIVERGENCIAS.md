@@ -41,6 +41,7 @@ linha no índice.
 | [18](#18-minas-rural-as-contas-de-icms-viram-a-3003007--07102026) | Minas Rural: conta de ICMS do grupo 303 vira a `3003007` na despesa e no detalhamento | todas, só no Minas Rural | **R$ 38.054,11** no lucro de agosto/2026 na filial 10 | **ligada** em 07/10/2026 · dc89 bate ao centavo |
 | [19](#19-as-colunas-provisionado-e-total-no-regime-competência--14102026) | Colunas **Provisionado** (títulos em aberto) e **Total** nos meses com aberto | todas, só em competência | colunas novas, também nos totalizadores de despesa; com o Provisionado ligado, **%AV e %AH sobre R + P** | **a pedido** em 14/10/2026 · dc92, dc93, dc94 |
 | [21](#21-a-apuração-sem-as-baixas-estornadas-e-as-da-rotina-737-por-padrão--30102026) | Com o checkbox "Ocultar baixas estornadas e da rotina 737" — **marcado por padrão** —, a conta não soma baixa estornada nem a da 737 | todas as linhas de despesa; desmarcado, nada | `FINANCEIRO` de set/2026 na filial 25: 64.840,00 → **32.420,00**, e o lucro sobe o mesmo; na filial 7, as baixas vêm em pares e quase nada muda (704,14) | **a pedido** em 30/10/2026 · dc101 24/24, dc102 4/4 |
+| [22](#22-toda-linha-zerada-some-com-mostrar-zeradas-desmarcado--11112026) | Com "Mostrar zeradas" desmarcado, some toda linha zerada — também a que tem lançamentos que se anulam ou só lançamentos ocultos pelo checkbox de estornos | todas | **nenhum valor muda** — só quais linhas aparecem | **a pedido** em 11/11/2026 · dc109 |
 
 ---
 
@@ -1719,6 +1720,49 @@ existindo como antes de 30/10/2026. Para tirar de vez: remover o `{6}` e as colu
 
 ---
 
+## 22. Toda linha zerada some com "Mostrar zeradas" desmarcado — 11/11/2026
+
+**Pedido do Gabriel:** "suma todos os zerados mesmo", tenha a conta lançamentos ou não.
+
+### O que diverge da 9815
+
+A 9815 esconde, sem *Mostrar Contas Zeradas*, só a conta **sem lançamento** no período
+(`where VPAGO <> 0 or qdereg <> 0`). Uma conta com lançamentos que fecha em 0,00 aparece.
+Na web, desde esta data, **toda linha não calculada que fecha em zero em todas as colunas
+some** — o critério passou da contagem para o valor.
+
+Os casos que mudam de lado:
+
+| Linha | Por que fechava em zero | 9815 | Web |
+|---|---|---|---|
+| `DESCONTO FUNCIONÁRIOS` | 16 lançamentos que se anulam (agosto/2026) | aparece | **some** |
+| `CONTRATO DE MUTUO` | 18 lançamentos, bloco informativo | aparece | **some** |
+| `NÃO USA/NÃO INFORMADO` — filial 7, out/2026, C. Custo Principal | um título só, RECNUM 20887274, −250,00 com desconto de 100% e a baixa estornada em 09/10/2026; com o checkbox da divergência 21 marcado, o valor sai e a linha ficava com 0,00 | aparece | **some** |
+
+**Nenhum número muda.** Uma linha zerada não pesa em total nenhum, então esconder não deixa
+total que discorde das linhas visíveis — o defeito da divergência 6 era o oposto, uma linha
+**com** valor escondida, e ele continua impossível: a contagem de lançamentos não entra mais
+no critério, nem para esconder, nem para mostrar.
+
+Continuam valendo:
+
+- **por coluna**, não pela soma do período: `+100` num mês e `(100)` no outro mantêm a
+  linha;
+- a linha só com título **em aberto** aparece quando o Provisionado está ligado (divergência
+  19);
+- linha calculada — cabeçalho e totalizadores — aparece sempre;
+- com *Mostrar zeradas* marcado, tudo aparece, como na 9815.
+
+**Para conferir contra a 9815**, exporte a referência **com** contas zeradas: sem elas, a 9815
+tem linhas a mais que a web, e a diferença é esta divergência, não um defeito.
+
+Prova: dc109 (o montador, com as três formas de zero e a linha com valor sem lançamento).
+
+### Como reverter
+
+Em `MontadorDre.Montar`, devolver a condição `qdeLancamentos == 0` ao `SemMovimento` —
+a contagem por linha está no histórico do git, no commit anterior a este.
+
 ## As regras que nenhuma branch pode desfazer
 
 Tudo nesta página que está marcado **a pedido** é decisão do Gabriel, não defeito. Elas se
@@ -1778,7 +1822,7 @@ Estão aqui para que ninguém os "corrija" depois.
 | `%AH` do primeiro mês é `0,00`, não vazio; mês anterior zero deixa a célula vazia | [ESPECIFICACAO.md §13](./ESPECIFICACAO.md) |
 | O bloco TOTAL não tem `%AV` nas cinco deduções | [ESPECIFICACAO.md §13](./ESPECIFICACAO.md) |
 | Cada mês é arredondado a duas casas **antes** de somar no TOTAL | [ESPECIFICACAO.md §13](./ESPECIFICACAO.md) |
-| O bloco informativo ignora "Mostrar Contas Zeradas" | [ESPECIFICACAO.md §10](./ESPECIFICACAO.md) |
+| ~~O bloco informativo ignora "Mostrar Contas Zeradas"~~ — deixou de valer na web em 11/11/2026, ver a divergência 22 | [ESPECIFICACAO.md §10](./ESPECIFICACAO.md) |
 
 Otimizações de desempenho que **não podem** alterar valor — faturamento numa passada por
 mês, `CODFILIAL IN (:lista)` no lugar de `UNION ALL`, remoção da conferência de rateio
