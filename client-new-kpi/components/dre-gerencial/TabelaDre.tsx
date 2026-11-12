@@ -479,10 +479,10 @@ export function TabelaDre({
     [ordenadas, linhas],
   );
 
-  // Esconde por AUSÊNCIA DE MOVIMENTO, não por valor zero — é o critério da 9815.
-  // `DESCONTO FUNCIONÁRIOS` fecha em 0,00 com 16 lançamentos e continua na tela.
+  // Esconde a linha ZERADA em todas as colunas, tenha lançamento ou não — `semMovimento` vem
+  // assim da API desde 11/11/2026 (divergência 22; a 9815 escondia só a conta sem lançamento).
   //
-  // Uma linha só com título EM ABERTO não tem movimento pelo critério da 9815, e aparece só
+  // Uma linha só com título EM ABERTO fecha em zero no pago, e aparece só
   // com o Provisionado ligado — é ele que explica por que ela está ali. Desligado, a tela é
   // a de antes (D9 da spec de 14/10/2026).
   //
