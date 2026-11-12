@@ -3,7 +3,7 @@ const nextConfig = {
   /* config options here */
   output: "standalone",
   reactCompiler: true,
-  allowedDevOrigins: ["192.168.0.146"],
+  allowedDevOrigins: ["192.168.0.117", "192.168.0.146"],
 };
 
 export default nextConfig;
