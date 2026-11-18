@@ -1401,9 +1401,19 @@ tr:has(.valor-clicavel:focus-visible) .tem-detalhe .valor-clicavel {
      página não tem como saber qual impressora vai receber a folha — nenhum navegador expõe a
      área imprimível —, então a margem cobre a pior comum. A tabela já ficava a salvo com
      10mm; quem corria risco eram os rótulos da margem ("Coluna 2 · Folha 3", ver
-     `TabelaEFaixas`), centralizados a ~5mm da borda. `LARGURA_UTIL` acompanha este valor. */
+     `TabelaEFaixas`), centralizados a ~5mm da borda. `LARGURA_UTIL` acompanha este valor.
+
+     18mm EM CIMA E EMBAIXO (18/11/2026, pedido do Gabriel): a folha impressa saiu com "3º e 4º
+     trimestres", "Coluna 1 · Folha 1" e "Página 1 de 8" cortados ao meio. A geometria da foto
+     é a de uma folha A3 deitada encolhida para caber no A4 da impressora (escala 0,707): com
+     12mm, o texto de cima começa a 6,5mm da borda no PDF e cai para 4,6mm no papel — dentro da
+     faixa que a impressora não imprime. Com 18mm ele fica a 12,5mm no PDF e a 8,9mm encolhido;
+     o de baixo, a 9,3mm. Medido no PDF do Chrome (posição do texto nas caixas de margem).
+
+     Só a altura muda: as laterais continuam 12mm, e `LARGURA_UTIL` — que decide folha e
+     fonte — não se mexe. O custo é ~12mm de tabela a menos por folha. */
   @page {
-    margin: 12mm;
+    margin: 18mm 12mm;
   }
 
   /* A barra de %AV sai do papel.

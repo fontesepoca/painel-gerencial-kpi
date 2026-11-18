@@ -73,7 +73,8 @@ alternados por `.so-na-tela` / `.so-no-papel`.
 1. **mede** a tabela com a fonte base e `width: max-content` — a largura que ela pede quando
    nada a comprime;
 2. **escolhe** a menor folha em que ela caiba com pelo menos 13pt: A4 em pé (186mm úteis), A4
-   deitada (273mm), A3 deitada (396mm = 1.497px, margem de 12mm);
+   deitada (273mm), A3 deitada (396mm = 1.497px, margem lateral de 12mm; em cima e embaixo são
+   18mm, para os rótulos da margem não caírem na faixa que a impressora não imprime);
 3. **calcula** a fonte por regra de três contra essa largura, com 2% de folga, presa entre 7pt
    e 20pt;
 4. **aplica** inline com `important`, reescreve a regra `@page`, e desfaz no `afterprint`.
