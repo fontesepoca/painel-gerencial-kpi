@@ -2,11 +2,12 @@
  * As decisões do BFF das rotas do DRE (`app/api/[...caminho]/route.ts`), separadas da cola
  * do Next para serem testáveis sem servidor: o `dc87` as exercita.
  *
- * <b>Só `dre-gerencial` e `health` passam.</b> `/api/auth/*` NÃO: o navegador não pode
- * chamar o login da API pulando o freio de tentativas de `app/api/sessao/route.ts`. Trocar
- * esta lista é trocar o que o navegador alcança na API — por isso ela é testada.
+ * <b>Só `dre-gerencial`, `simulador-preco` e `health` passam.</b> `/api/auth/*` NÃO: o
+ * navegador não pode chamar o login da API pulando o freio de tentativas de
+ * `app/api/sessao/route.ts`. Trocar esta lista é trocar o que o navegador alcança na API — por
+ * isso ela é testada. `simulador-preco` entrou em 18/11/2026 (spec do simulador §3.1).
  */
-const REPASSADOS = new Set(["dre-gerencial", "health"]);
+const REPASSADOS = new Set(["dre-gerencial", "simulador-preco", "health"]);
 
 /** O que fazer com uma chamada do navegador a `/api/<caminho>`. */
 export type Repasse =

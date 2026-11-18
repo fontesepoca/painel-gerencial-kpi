@@ -159,7 +159,10 @@ function ItemDeModulo({ modulo }: { modulo: ModuloDoMenu }) {
               {modulo.telas.map((tela) => {
                 const atual = telaAtiva(pathname, tela.href);
                 return (
-                  <li key={tela.codigo}>
+                  // Pelo ENDEREÇO, não pelo código da rotina: duas telas podem dividir a mesma
+                  // permissão do Winthor — o Simulador de Preço usa a 9815 do DRE (decisão D4,
+                  // 18/11/2026) —, e a chave repetida fazia o React confundir as duas.
+                  <li key={tela.href}>
                     <Link
                       href={tela.href}
                       aria-current={atual ? "page" : undefined}

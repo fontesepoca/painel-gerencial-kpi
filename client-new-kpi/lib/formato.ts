@@ -37,6 +37,38 @@ export function formatarPercentual(valor: number | null, casas: 0 | 1 | 2 | 3 = 
   return valor < 0 ? `(${texto})` : texto;
 }
 
+const MILESIMOS = new Intl.NumberFormat("pt-BR", {
+  minimumFractionDigits: 3,
+  maximumFractionDigits: 3,
+});
+
+/**
+ * Valor com TRÊS casas, negativo entre parênteses — para o simulador de preço, onde o SQL
+ * arredonda em três casas e a tela mostra exatamente o número dele (decisão de 18/11/2026).
+ * Duas casas esconderiam a terceira e fariam a tela "discordar" do SQL por arredondamento.
+ */
+export function formatarValor3(valor: number): string {
+  const texto = MILESIMOS.format(Math.abs(valor));
+  return valor < 0 ? `(${texto})` : texto;
+}
+
+const PERCENTUAL_LIVRE = new Intl.NumberFormat("pt-BR", {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 4,
+});
+
+/**
+ * Percentual cadastrado, de duas a quatro casas, negativo entre parênteses.
+ *
+ * <b>Até quatro casas</b> porque há percentual que o SQL não arredonda: o ICMS de custo com
+ * base reduzida sai `18 × 61,11 / 100 = 10,9998`, e duas casas o mostrariam como `11,00` —
+ * um número que não está em lugar nenhum da conta.
+ */
+export function formatarPercentualLivre(valor: number): string {
+  const texto = PERCENTUAL_LIVRE.format(Math.abs(valor));
+  return valor < 0 ? `(${texto})` : texto;
+}
+
 /** `2026-08-01` → `01/08/2026`. Sem fuso: a data vem sem hora e é local. */
 export function formatarDataIso(iso: string): string {
   const partes = iso.split("-");

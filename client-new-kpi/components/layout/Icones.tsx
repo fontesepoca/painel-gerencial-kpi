@@ -55,5 +55,13 @@ export function IconeDaTela({ icone, className }: { icone: IconeDeTela; classNam
           <path d="M6.5 14.6h7" />
         </Traco>
       );
+    case "preco":
+      // Uma etiqueta de preço com o furo do barbante: o que o simulador entrega é o preço.
+      return (
+        <Traco className={className}>
+          <path d="M10.6 2.8h5.1a1.5 1.5 0 0 1 1.5 1.5v5.1a1.5 1.5 0 0 1-.44 1.06l-6.6 6.6a1.5 1.5 0 0 1-2.12 0l-4.6-4.6a1.5 1.5 0 0 1 0-2.12l6.6-6.6a1.5 1.5 0 0 1 1.06-.44Z" />
+          <circle cx="13.6" cy="6.4" r="1.2" />
+        </Traco>
+      );
   }
 }

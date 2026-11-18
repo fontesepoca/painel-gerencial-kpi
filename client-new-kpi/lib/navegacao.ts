@@ -16,6 +16,9 @@ export interface TelaDoMenu {
   /**
    * Código da rotina no Winthor. Decide a permissão e mais nada: desde 12/11/2026 o número
    * não aparece na tela — a pessoa procura a tela pelo nome e pelo ícone.
+   *
+   * <b>Não é único:</b> duas telas podem dividir a mesma permissão (o Simulador de Preço usa a
+   * 9815 do DRE). O que identifica uma tela é o `href`.
    */
   codigo: string;
   nome: string;
@@ -26,7 +29,7 @@ export interface TelaDoMenu {
 }
 
 export type IconeDeModulo = "gerencial";
-export type IconeDeTela = "dre";
+export type IconeDeTela = "dre" | "preco";
 
 export interface ModuloDoMenu {
   id: string;
@@ -47,6 +50,15 @@ export const MODULOS: readonly ModuloDoMenu[] = [
         icone: "dre",
         descricao: "Resultado por filial e período",
         href: "/dre-gerencial",
+      },
+      {
+        // Tela nova, sem rotina própria no Winthor: a permissão é a do DRE (decisão D4 da
+        // spec docs/superpowers/specs/2026-11-18-simulador-de-preco-design.md).
+        codigo: ROTINA_DRE,
+        nome: "Simulador de Preço",
+        icone: "preco",
+        descricao: "Impostos, custo e preço futuro a partir do preço de compra",
+        href: "/simulador-preco",
       },
     ],
   },
