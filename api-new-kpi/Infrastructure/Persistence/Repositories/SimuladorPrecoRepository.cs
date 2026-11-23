@@ -18,8 +18,8 @@ public sealed class SimuladorPrecoRepository : ISimuladorPrecoRepository
     /// </summary>
     private const int TempoLimiteSegundos = 300;
 
-    /// <summary>Quantas vezes <c>:PCOMPRA</c> aparece no SQL v1 (A1).</summary>
-    private const int OcorrenciasDoPreco = 8;
+    /// <summary>Quantas vezes <c>:PCOMPRA</c> aparece no SQL v2 (A1). Eram 8 na v1.</summary>
+    private const int OcorrenciasDoPreco = 22;
 
     private readonly IOracleConnectionFactory _conexoes;
     private readonly IBaseAtual _baseAtual;
@@ -40,7 +40,20 @@ public sealed class SimuladorPrecoRepository : ISimuladorPrecoRepository
         // A ORDEM DOS Add É A ORDEM DOS :placeholders NO TEXTO — o ODP.NET liga por posição.
         // Acrescentar ou mover uma ocorrência no SQL sem mexer aqui não dá erro de compilação:
         // dá ORA-01008 ou, pior, um valor no lugar do outro.
+        //
+        // A ORDEM DA v2 (a sp5 imprime a mesma lista a partir da referência): os 22 :pCompra vêm
+        // PRIMEIRO, porque estão no SELECT interno; depois :numRegiao, :codFornec1/2,
+        // :matricula1/2 (as duas PCLIB) e :codFilial, no WHERE. Na v1 a ordem era outra.
         var parametros = new DynamicParameters();
+
+        // NULO em todas: o SQL usa o próprio padrão, NVL(VLULTPCOMPRA, 0), e a primeira tela é a
+        // resposta dele, sem conta nossa (A3). O tipo vai explícito porque um nulo sem tipo
+        // dentro de NVL com número é conversão implícita deixada ao acaso.
+        for (var i = 1; i <= OcorrenciasDoPreco; i++)
+        {
+            parametros.Add($"pCompra{i}", null, DbType.Decimal);
+        }
+
         parametros.Add("numRegiao", numRegiao);
 
         // Zero, e não nulo, para "todos": o SQL faz NVL(:codFornec, 0) e compara com 0 no
@@ -52,17 +65,8 @@ public sealed class SimuladorPrecoRepository : ISimuladorPrecoRepository
         parametros.Add("matricula1", matricula);
         parametros.Add("matricula2", matricula);
 
-        // CODFILIAL é texto no Winthor (PCEST, PCFILIAL): vai como texto.
-        parametros.Add("codFilial1", codFilial);
-        parametros.Add("codFilial2", codFilial);
-
-        // NULO em todas: o SQL usa o próprio padrão, NVL(VLULTPCOMPRA, CUSTOREP), e a primeira
-        // tela é a resposta dele, sem conta nossa (A3). O tipo vai explícito porque um nulo sem
-        // tipo dentro de NVL com número é conversão implícita deixada ao acaso.
-        for (var i = 1; i <= OcorrenciasDoPreco; i++)
-        {
-            parametros.Add($"pCompra{i}", null, DbType.Decimal);
-        }
+        // CODFILIAL é texto no Winthor (PCEST, PCFILIAL): vai como texto. Uma vez só na v2.
+        parametros.Add("codFilial", codFilial);
 
         using var conexao = await _conexoes.CriarConexaoAsync(cancellationToken);
 

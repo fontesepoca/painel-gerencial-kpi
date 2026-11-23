@@ -9,8 +9,12 @@ namespace Epoca.Kpi.Api.Domain.Entities;
 /// </summary>
 public class ProdutoSimulado
 {
+    /// <summary>A filial da linha (SQL v2). A consulta já é de uma filial só.</summary>
+    public string? CodFilial { get; init; }
     public decimal CodProd { get; init; }
     public string Descricao { get; init; } = string.Empty;
+    /// <summary><c>PCPRODUT.CLASSEVENDA</c> (SQL v2).</summary>
+    public string? ClasseVenda { get; init; }
     public string? Ncm { get; init; }
     public string? CodigoTributacao { get; init; }
     public string? DescricaoTributacao { get; init; }
@@ -47,4 +51,6 @@ public class ProdutoSimulado
     public decimal? PerCofinsSaid { get; init; }
     public decimal? Indice { get; init; }
     public decimal? PrFuturo { get; init; }
+    /// <summary><c>PRECOFINAL</c> do SQL v2: o preço futuro mais o <c>VLST</c> da tabela de preço.</summary>
+    public decimal? PrFinal { get; init; }
 }

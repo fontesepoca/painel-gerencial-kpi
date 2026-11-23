@@ -6,7 +6,6 @@ import {
   de,
   dividirArredondando,
   ehZero,
-  maiorQueZero,
   multiplicar,
   paraNumero,
   porCento,
@@ -21,13 +20,14 @@ import type {
 } from "@/types/simulador-preco";
 
 /**
- * O recálculo do simulador de preço: as contas do SQL v1, refeitas na tela com o preço de
+ * O recálculo do simulador de preço: as contas do SQL **v2**, refeitas na tela com o preço de
  * compra que a pessoa digita (decisão D1 da spec).
  *
- * <b>É a tradução do SQL, CTE por CTE.</b> Cada bloco abaixo leva o nome da CTE de
- * `docs/rotinas/simulador-preco/referencia/sql-v1.sql` de onde saiu, e faz as mesmas contas, na
- * mesma ordem, com os MESMOS `ROUND` nos mesmos pontos. Quando a v2 do SQL chegar, este é o
- * único arquivo de conta a reescrever — e a `sp8` prova que ficou igual.
+ * <b>É a tradução do SQL, coluna por coluna.</b> Cada conta abaixo leva o nome da coluna de
+ * `docs/rotinas/simulador-preco/referencia/sql-v2.sql` de onde saiu, e é feita com os MESMOS
+ * `ROUND` nos mesmos pontos. Na v1 o custo somava valores já arredondados; na v2 o custo, a base e
+ * o valor da CBS são UMA conta crua com um `ROUND` só — e a `sp8` tem um caso (P = 10,001) que
+ * distingue as duas formas. Uma v3 do SQL reescreve este arquivo, e a `sp8` prova que ficou igual.
  *
  * <b>Os percentuais NÃO são recalculados</b>: vêm do banco, já resolvidos pelo SQL (o IPI que
  * só vale para indústria, o PIS/COFINS da exceção, o frete por fornecedor). Daqui para baixo só
@@ -73,6 +73,8 @@ export interface LinhaCalculada {
   indice: number;
   /** Nulo quando o índice é zero — o `NULLIF(…, 0)` do SQL. */
   prFuturo: number | null;
+  /** `PRECOFINAL` (v2): o preço futuro mais o ST, num `ROUND` só. Nulo junto com o preço futuro. */
+  prFinal: number | null;
 }
 
 /** O `NVL(x, 0)` do SQL, já convertido para decimal. */
@@ -95,55 +97,55 @@ export function percentuaisDe(p: ProdutoSimulado): PercentuaisDaLinha {
 }
 
 /**
- * Refaz as contas do SQL v1 para um preço de compra.
+ * Refaz as contas do SQL v2 para um preço de compra.
  *
- * @param preco o preço de compra — o `NVL(:PCOMPRA, NVL(VLULTPCOMPRA, CUSTOREP))` já resolvido.
+ * @param preco o preço de compra — o `NVL(:PCOMPRA, NVL(VLULTPCOMPRA, 0))` já resolvido.
+ * @param st o `VLST` em R$ — o da tabela de preço (`NVL(TP.VLST, 0)`) ou o digitado no quadro.
+ *   Ele NÃO depende do preço de compra, e na v2 só entra no preço final.
  */
-export function calcular(preco: number, pc: PercentuaisDaLinha): LinhaCalculada {
+export function calcular(preco: number, pc: PercentuaisDaLinha, st: number): LinhaCalculada {
   const P = de(preco);
+  const ST = de(st);
 
-  // ── CALCULOS_ENTRADA ──────────────────────────────────────────────────────
   const percIpi = nvl0(pc.percIpi);
   const icmsEnt = nvl0(pc.percIcmsEnt);
   const baseRed = nvl0(pc.percBaseRedEnt);
 
-  // DECODE(NVL(PERC_BASE_RED_ENT,0), 0, PERCICMS_ENT, PERCICMS_ENT * PERC_BASE_RED_ENT / 100)
+  // PERCICM_CUSTO: DECODE(NVL(PERC_BASE_RED,0), 0, PERCICMS_ENT, PERCICMS_ENT * PERC_BASE_RED / 100)
   // — SEM ROUND no SQL, então sem arredondar aqui.
   const percIcmCusto = ehZero(baseRed) ? icmsEnt : porCento(multiplicar(icmsEnt, baseRed));
 
-  const vlIpi = arredondar(porCento(multiplicar(P, percIpi)), 3);
+  // As parcelas CRUAS. As colunas de valor arredondam cada uma; o custo e a base da CBS usam as
+  // cruas, como o SQL v2, que repete as expressões dentro de um ROUND só.
+  const ipiCru = porCento(multiplicar(P, percIpi));
+  const icmsCru = porCento(multiplicar(P, percIcmCusto));
+  const baseSemIcms = subtrair(P, icmsCru);
+  const pisCru = porCento(multiplicar(baseSemIcms, absoluto(nvl0(pc.perPis))));
+  const cofinsCru = porCento(multiplicar(baseSemIcms, absoluto(nvl0(pc.perCofins))));
+  const freteCru = porCento(multiplicar(P, nvl0(pc.percFreteFob)));
 
-  // `0 AS VLST` — fixo na v1 (decisão D7, provisória até a v2).
-  const vlSt = ZERO;
+  // VLIPI, VLICMS, VLPIS, VLCOFINS, VLFRETEFOB: cada um com o seu ROUND(…, 3).
+  const vlIpi = arredondar(ipiCru, 3);
+  const vlIcms = arredondar(icmsCru, 3);
+  const vlPis = arredondar(pisCru, 3);
+  const vlCofins = arredondar(cofinsCru, 3);
+  const vlFrete = arredondar(freteCru, 3);
 
-  const vlIcms = arredondar(porCento(multiplicar(P, percIcmCusto)), 3);
-
-  // (P − P · PERCICM_CUSTO / 100) — o ICMS aqui é o NÃO arredondado, como no SQL, que repete a
-  // expressão em vez de usar o VLICMS da coluna ao lado.
-  const baseSemIcms = subtrair(P, porCento(multiplicar(P, percIcmCusto)));
-  const vlPis = arredondar(porCento(multiplicar(baseSemIcms, absoluto(nvl0(pc.perPis)))), 3);
-  const vlCofins = arredondar(porCento(multiplicar(baseSemIcms, absoluto(nvl0(pc.perCofins)))), 3);
-
-  const vlFrete = arredondar(porCento(multiplicar(P, nvl0(pc.percFreteFob))), 3);
-
-  // ── CALCULOS_CUSTO ────────────────────────────────────────────────────────
+  // CUSTO_ANTES_CBS: ROUND(P + IPI − ICMS − PIS − COFINS + FRETE, 3) sobre as CRUAS. O ST não
+  // entra (na v2 ele vai só para o preço final).
   const custoAntesCbs = arredondar(
-    somar(subtrair(subtrair(subtrair(somar(somar(P, vlIpi), vlSt), vlIcms), vlPis), vlCofins), vlFrete),
+    somar(subtrair(subtrair(subtrair(somar(P, ipiCru), icmsCru), pisCru), cofinsCru), freteCru),
     3,
   );
 
-  // ── RESULTADO_CBS ─────────────────────────────────────────────────────────
-  // P − (VLST se VLST > 0, senão VLICMS) − VLIPI. Aqui são os valores JÁ arredondados das
-  // colunas, como no SQL.
-  const deducao = maiorQueZero(vlSt) ? vlSt : vlIcms;
-  const semBase = subtrair(subtrair(P, deducao), vlIpi);
+  // BASE_CBS: ROUND(P − ICMS − IPI, 3), crus. VLCBS: ROUND((P − ICMS − IPI) · CBS / 100, 3).
+  const semBase = subtrair(subtrair(P, icmsCru), ipiCru);
   const baseCbs = arredondar(semBase, 3);
   const vlCbs = arredondar(porCento(multiplicar(semBase, nvl0(pc.percCbs))), 3);
 
-  // ── RESULTADO_FINAL ───────────────────────────────────────────────────────
-  const custoCalc = arredondar(subtrair(custoAntesCbs, vlCbs), 3);
-
-  // ── SELECT final ──────────────────────────────────────────────────────────
+  // CUSTO_CALC: ROUND(CUSTO_ANTES_CBS − VLCBS, 3), com as duas colunas JÁ arredondadas.
+  const diferenca = subtrair(custoAntesCbs, vlCbs);
+  const custoCalc = arredondar(diferenca, 3);
   // 1 − (MARGEM + ICMS saída + PIS + COFINS + CBS) / 100. PIS e COFINS SEM o ABS aqui — o SQL
   // só aplica ABS no valor de entrada.
   const somaSaida = somar(
@@ -153,13 +155,18 @@ export function calcular(preco: number, pc: PercentuaisDaLinha): LinhaCalculada 
   const indiceCru = subtrair(de(1), porCento(somaSaida));
   const indice = arredondar(indiceCru, 6);
 
-  // ROUND(CUSTO_CALC / NULLIF(índice NÃO arredondado, 0), 3).
-  const prFuturo = ehZero(indiceCru) ? null : paraNumero(dividirArredondando(custoCalc, indiceCru, 3));
+  // PR_FUTURO: ROUND((CUSTO_ANTES_CBS − VLCBS) / NULLIF(índice NÃO arredondado, 0), 3).
+  // PRECOFINAL: ROUND((CUSTO_ANTES_CBS − VLCBS) / NULLIF(…) + VLST, 3) — o ST somado ANTES do
+  // ROUND, à divisão crua: (diferença + ST · índice) / índice, exato.
+  const prFuturo = ehZero(indiceCru) ? null : paraNumero(dividirArredondando(diferenca, indiceCru, 3));
+  const prFinal = ehZero(indiceCru)
+    ? null
+    : paraNumero(dividirArredondando(somar(diferenca, multiplicar(ST, indiceCru)), indiceCru, 3));
 
   return {
     vlUltPCompra: paraNumero(P),
     vlIpi: paraNumero(vlIpi),
-    vlSt: paraNumero(vlSt),
+    vlSt: paraNumero(ST),
     percIcmCusto: paraNumero(percIcmCusto),
     vlIcmsEnt: paraNumero(vlIcms),
     vlPisEnt: paraNumero(vlPis),
@@ -171,6 +178,7 @@ export function calcular(preco: number, pc: PercentuaisDaLinha): LinhaCalculada 
     custoCalc: paraNumero(custoCalc),
     indice: paraNumero(indice),
     prFuturo,
+    prFinal,
   };
 }
 
@@ -190,6 +198,7 @@ export const COLUNAS_CALCULADAS = [
   "custoCalc",
   "indice",
   "prFuturo",
+  "prFinal",
 ] as const satisfies ReadonlyArray<keyof LinhaCalculada & keyof ProdutoSimulado>;
 
 /**
@@ -205,13 +214,37 @@ export function precoEfetivo(p: ProdutoSimulado, ajuste: AjusteDaLinha | undefin
   return digitado === null || Number.isNaN(digitado) ? (p.vlUltPCompra ?? 0) : digitado;
 }
 
-/** A linha está simulada — o preço digitado difere do SQL, ou algum percentual foi trocado. */
+/**
+ * O ajuste não guarda nada: sem preço, sem percentual e sem ST. É quando a linha volta ao SQL e o
+ * ajuste é apagado do armazenamento. Revisão final de 23/11/2026: a página olhava só preço e
+ * percentuais, e apagava sem aviso o ajuste que só tinha ST (decisão V2).
+ */
+export function ajusteVazio(ajuste: AjusteDaLinha | undefined): boolean {
+  return (
+    ajuste === undefined ||
+    (ajuste.preco === undefined && ajuste.percentuais === undefined && ajuste.st === undefined)
+  );
+}
+
+/**
+ * O ST que vale numa linha: o digitado no quadro, se houver; senão, o `VLST` do SQL (zero quando
+ * nulo, como o `NVL` da v2). Simulação salva antes da v2 não tem `st`, e cai no do SQL.
+ */
+export function stEfetivo(p: ProdutoSimulado, ajuste: AjusteDaLinha | undefined): number {
+  return ajuste?.st ?? p.vlSt ?? 0;
+}
+
+/**
+ * A linha está simulada — o preço digitado difere do SQL, algum percentual foi trocado, ou o ST
+ * digitado difere do ST do SQL.
+ */
 export function linhaSimulada(p: ProdutoSimulado, ajuste: AjusteDaLinha | undefined): boolean {
   if (!ajuste) return false;
   const percentuais = Object.keys(ajuste.percentuais ?? {}).length > 0;
   const digitado = lerPreco(ajuste.preco ?? "");
   const preco = digitado !== null && !Number.isNaN(digitado) && digitado !== p.vlUltPCompra;
-  return percentuais || preco;
+  const st = ajuste.st !== undefined && ajuste.st !== (p.vlSt ?? 0);
+  return percentuais || preco || st;
 }
 
 /**
@@ -219,10 +252,12 @@ export function linhaSimulada(p: ProdutoSimulado, ajuste: AjusteDaLinha | undefi
  * usar as mesmas colunas (D26). O que o SQL traria do cadastro fica vazio; o resto é a conta.
  */
 export function linhaDeProdutoNovo(n: ProdutoNovo): ProdutoSimulado {
-  const r = calcular(n.preco, n.percentuais);
+  const r = calcular(n.preco, n.percentuais, n.st ?? 0);
   return {
+    codFilial: null,
     codProd: 0,
     descricao: n.descricao,
+    classeVenda: null,
     ncm: null,
     codigoTributacao: null,
     descricaoTributacao: null,

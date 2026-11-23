@@ -130,6 +130,9 @@ foi **idêntico**, com os 15 binds na ordem acima.
 | Recálculo: `lib/decimalExato.ts` (decimal exato, `ROUND` do Oracle) e `lib/simuladorPreco.ts` (uma função por CTE) | ✅ |
 | Prova do recálculo: [sp8](../../rotinas/simulador-preco/validacao/sp8_recalculo_reproduz_o_sql.mjs) | ✅ parte 1 (25/25, sem banco); ✅ **parte 2: 9.788 linhas reais, 0 diferenças, 137.057 conferências** (filial 7, região 90, 18/11/2026) |
 | Grants e sinônimos (`sp7`) | ✅ executados em 18/11/2026, com aprovação do gestor |
+| **SQL v2** (23/11/2026, [spec](2026-11-23-simulador-sql-v2-design.md)): API, recálculo, ST e preço final, classe de venda | ✅ `sp5` idêntica à v2; `sp8` **9.811 linhas reais da v2, 0 diferenças, 147.220 conferências** (filial 7, região 90), com 5.502 linhas com ST; consulta em 8,7 s |
+| Paginação (100/página) e produtos novos na mesma tabela ([spec](2026-11-23-simulador-paginacao-design.md)) | ✅ `sp10` 12/12, `sp12` 4/4. A consulta **não** fica mais no sessionStorage (V4) |
+| Alinhamento visual com o DRE ([spec](2026-11-23-simulador-alinhamento-visual-design.md)) | ✅ código e revisão; capturas pendentes |
 | Quadro do produto, produtos novos e simulação guardada (§3.6): `QuadroSimulacao.tsx`, `useSimulacaoGuardada.ts` | ✅ `tsc` e `eslint` limpos; `sp8` com as funções novas: 137.072/137.072. **Não visto na tela por mim** (precisa de login) |
 
 **A primeira consulta real (sp6, filial 7, região 90, 18/11/2026):**

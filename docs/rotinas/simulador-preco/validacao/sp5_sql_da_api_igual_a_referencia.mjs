@@ -1,43 +1,68 @@
 // ============================================================================
 // sp5: o SQL da API é o SQL de referência, mudando só o que a spec lista?
 //
-// Aplica à referência as adaptações A1, A2, A4 e A5 da spec §3.2 (binds com nome
-// próprio, matrícula no lugar de CODFUNC = 1, sem ";", sem as linhas comentadas)
-// e compara, ignorando espaços, com o miolo de SimuladorPrecoQueries.Consulta.
-// O SELECT de fora (A6/A7) fica de fora da comparação: ele só renomeia colunas.
+// Serve a QUALQUER versão (sql-v1.sql, sql-v2.sql…): aplica à referência as adaptações
+// documentadas e confere, ignorando espaços, que o texto resultante está DENTRO da
+// constante de SimuladorPrecoQueries. O SELECT de fora (A6/A7) só renomeia colunas
+// e não entra na comparação.
 //
-// Quando a v2 chegar, rode apontando para sql-v2.sql. Sem banco e sem rede:
+// Adaptações aplicadas à referência:
+//   A1 — cada :NOME vira um bind com nome próprio, na ordem do texto: um nome que
+//        aparece uma vez vira camelCase (:NUMREGIAO → :numRegiao); um que aparece N
+//        vezes ganha 1..N (:PCOMPRA → :pCompra1 … :pCompraN);
+//   A2 — CODFUNC = 1 vira :matricula1, :matricula2… (a matrícula da sessão, D3);
+//   A4 — sai o ";" final;
+//   A5 — saem as linhas de comentário "--" (cabeçalho e binds comentados).
 //
+// Sem banco e sem rede:
 //   node docs/rotinas/simulador-preco/validacao/sp5_sql_da_api_igual_a_referencia.mjs \
 //     api-new-kpi/Infrastructure/Persistence/Queries/SimuladorPrecoQueries.cs \
-//     docs/rotinas/simulador-preco/referencia/sql-v1.sql
+//     docs/rotinas/simulador-preco/referencia/sql-v2.sql
 // ============================================================================
 import { readFileSync } from "node:fs";
-const [cs, ref] = process.argv.slice(2).map((f) => readFileSync(f, "utf8"));
+
+const [arquivoCs, arquivoRef] = process.argv.slice(2);
+const cs = readFileSync(arquivoCs, "utf8");
+const ref = readFileSync(arquivoRef, "utf8");
 const norm = (s) => s.replace(/\s+/g, " ").trim();
+
+const camel = (nome) =>
+  nome.toLowerCase().replace(/^(p|num|cod)(.)/, (_, prefixo, letra) => prefixo + letra.toUpperCase());
+
+// A5 e A4.
 let r = ref.split("\n").filter((l) => !l.trim().startsWith("--")).join("\n").replace(/;\s*$/, "");
-const ordem = {
-  NUMREGIAO: ["numRegiao"],
-  CODFORNEC: ["codFornec1", "codFornec2"],
-  CODFILIAL: ["codFilial1", "codFilial2"],
-  PCOMPRA: [1, 2, 3, 4, 5, 6, 7, 8].map((i) => "pCompra" + i),
-};
-for (const [k, nomes] of Object.entries(ordem)) {
-  let i = 0;
-  r = r.replace(new RegExp(":" + k + "(?![A-Za-z0-9_])", "g"), () => ":" + nomes[i++]);
-  if (i !== nomes.length) throw new Error(k + " contou " + i);
+
+// A1: conta as ocorrências de cada nome e numera quando repete.
+const ocorrencias = new Map();
+for (const [, nome] of r.matchAll(/:([A-Z][A-Z0-9_]*)(?![A-Za-z0-9_])/g)) {
+  ocorrencias.set(nome, (ocorrencias.get(nome) ?? 0) + 1);
 }
+const vistos = new Map();
+r = r.replace(/:([A-Z][A-Z0-9_]*)(?![A-Za-z0-9_])/g, (_, nome) => {
+  const n = (vistos.get(nome) ?? 0) + 1;
+  vistos.set(nome, n);
+  return ":" + camel(nome) + (ocorrencias.get(nome) > 1 ? n : "");
+});
+
+// A2.
 let m = 0;
 r = r.replace(/CODFUNC = 1(?![0-9])/g, () => "CODFUNC = :matricula" + ++m);
-if (m !== 2) throw new Error("CODFUNC " + m);
-const marca = "FROM RESULTADO_FINAL R";
-const miolo = cs.slice(cs.indexOf("WITH TRIBUTACAO_CBS"), cs.indexOf(marca) + marca.length);
-const a = norm(r), b = norm(miolo);
-if (a === b) console.log("IDENTICO: o miolo e a v1 com so as adaptacoes A1, A2, A4 e A5");
-else {
-  let i = 0;
-  while (a[i] === b[i]) i++;
-  console.log("DIFERE na posicao", i, "\nref:", a.slice(i - 60, i + 60), "\nAPI:", b.slice(i - 60, i + 60));
+
+const esperado = norm(r);
+const constante = norm(cs);
+
+if (constante.includes(esperado)) {
+  console.log(`IDENTICO: o miolo é a referência com só as adaptações A1, A2, A4 e A5 (${m} matrícula(s)).`);
+} else {
+  // Onde começa a divergir: o maior prefixo da referência que a constante contém.
+  let lo = 0, hi = esperado.length;
+  while (lo < hi) {
+    const meio = Math.ceil((lo + hi) / 2);
+    if (constante.includes(esperado.slice(0, meio))) lo = meio; else hi = meio - 1;
+  }
+  console.log(`DIFERE a partir do caractere ${lo} da referência adaptada:\n  …${esperado.slice(Math.max(0, lo - 80), lo + 80)}…`);
   process.exit(1);
 }
-console.log("binds na ordem:", cs.match(/:[a-zA-Z]+\d*/g).join(" "));
+
+const binds = [...esperado.matchAll(/:[a-zA-Z]+\d*/g)].map((x) => x[0]);
+console.log(`binds na ordem (${binds.length}): ${binds.join(" ")}`);

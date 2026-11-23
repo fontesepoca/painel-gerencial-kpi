@@ -15,8 +15,12 @@ export interface FiltroSimulador {
 }
 
 export interface ProdutoSimulado {
+  /** A filial da linha (SQL v2). */
+  codFilial: string | null;
   codProd: number;
   descricao: string;
+  /** `PCPRODUT.CLASSEVENDA` (SQL v2). */
+  classeVenda: string | null;
   ncm: string | null;
   codigoTributacao: string | null;
   descricaoTributacao: string | null;
@@ -53,6 +57,8 @@ export interface ProdutoSimulado {
   perCofinsSaid: number | null;
   indice: number | null;
   prFuturo: number | null;
+  /** `PRECOFINAL` do SQL v2: o preço futuro mais o `VLST` da tabela de preço. */
+  prFinal: number | null;
 }
 
 /** Os percentuais que o quadro do produto deixa editar (D21). */
@@ -76,6 +82,11 @@ export interface AjusteDaLinha {
   preco?: string;
   /** Os percentuais trocados no quadro. Ausente ou vazio = os do SQL. */
   percentuais?: Partial<Record<CampoPercentual, number>>;
+  /**
+   * O ST em R$ trocado no quadro (SQL v2, decisão V2). Ausente = o `VLST` do SQL — inclusive nas
+   * simulações salvas antes da v2, que não têm o campo.
+   */
+  st?: number;
 }
 
 /** Um produto que não existe no cadastro, digitado inteiro no quadro (D23). */
@@ -84,6 +95,8 @@ export interface ProdutoNovo {
   descricao: string;
   preco: number;
   percentuais: Record<CampoPercentual, number>;
+  /** O ST em R$ (SQL v2). Opcional: produto novo salvo antes da v2 não tem, e conta como zero. */
+  st?: number;
 }
 
 export interface ConsultaSimulador {

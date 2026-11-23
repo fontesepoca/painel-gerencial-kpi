@@ -11,6 +11,7 @@ import {
   percentuaisDe,
   percentuaisEfetivos,
   precoEfetivo,
+  stEfetivo,
   type PercentuaisDaLinha,
 } from "@/lib/simuladorPreco";
 import type {
@@ -49,6 +50,9 @@ type Props =
       onFechar: () => void;
     };
 
+/** Foco de teclado visível nos botões do quadro — o mesmo anel da tabela e da página. */
+const FOCO = "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary-ring)]";
+
 /** Número para dentro de um campo: vírgula decimal, sem separador de milhar. */
 const paraCampo = (valor: number | null) => (valor === null ? "" : String(valor).replace(".", ","));
 
@@ -59,13 +63,18 @@ export function QuadroSimulacao(props: Props) {
   // Os valores de referência: os do SQL (produto do cadastro) ou zero (produto novo). São eles
   // que o ↺ de cada campo devolve, e é contra eles que um campo conta como "alterado".
   // Fixa durante a vida do quadro: ele é montado de novo a cada abertura.
-  const [referencia] = useState<{ preco: number | null; percentuais: PercentuaisDaLinha }>(() => {
+  const [referencia] = useState<{ preco: number | null; percentuais: PercentuaisDaLinha; st: number }>(() => {
     if (props.modo === "existente") {
-      return { preco: props.produto.vlUltPCompra, percentuais: percentuaisDe(props.produto) };
+      return {
+        preco: props.produto.vlUltPCompra,
+        percentuais: percentuaisDe(props.produto),
+        st: props.produto.vlSt ?? 0,
+      };
     }
     return {
       preco: null,
       percentuais: Object.fromEntries(CAMPOS_PERCENTUAIS.map(({ campo }) => [campo, 0])) as PercentuaisDaLinha,
+      st: 0,
     };
   });
 
@@ -75,6 +84,10 @@ export function QuadroSimulacao(props: Props) {
     if (props.modo === "existente") return paraCampo(precoEfetivo(props.produto, props.ajuste));
     return props.inicial ? paraCampo(props.inicial.preco) : "";
   });
+  // O ST em R$ (SQL v2, decisão V2): do quadro anterior, do ajuste, ou do SQL.
+  const [st, setSt] = useState(() =>
+    paraCampo(props.modo === "existente" ? stEfetivo(props.produto, props.ajuste) : (props.inicial?.st ?? 0)),
+  );
   const [percentuais, setPercentuais] = useState<Record<CampoPercentual, string>>(() => {
     const partida =
       props.modo === "existente"
@@ -102,7 +115,11 @@ export function QuadroSimulacao(props: Props) {
   const invalidos = CAMPOS_PERCENTUAIS.filter(({ campo }) => Number.isNaN(lidos[campo])).map((c) => c.campo);
 
   const precoUsado = precoLido === null || precoInvalido ? (referencia.preco ?? 0) : precoLido;
-  const r = invalidos.length === 0 && !precoInvalido ? calcular(precoUsado, lidos) : null;
+  // ST: em reais, nunca negativo (lerPreco). Vazio volta ao do SQL (zero no produto novo).
+  const stLido = lerPreco(st);
+  const stInvalido = Number.isNaN(stLido);
+  const stUsado = stLido === null || stInvalido ? referencia.st : stLido;
+  const r = invalidos.length === 0 && !precoInvalido && !stInvalido ? calcular(precoUsado, lidos, stUsado) : null;
 
   const faltaDescricao = props.modo === "novo" && descricao.trim() === "";
   const faltaPreco = props.modo === "novo" && precoLido === null;
@@ -120,6 +137,7 @@ export function QuadroSimulacao(props: Props) {
       const ajuste: AjusteDaLinha = {};
       if (precoUsado !== referencia.preco) ajuste.preco = preco;
       if (Object.keys(trocados).length > 0) ajuste.percentuais = trocados;
+      if (stUsado !== referencia.st) ajuste.st = stUsado;
       props.onConfirmar(Object.keys(ajuste).length > 0 ? ajuste : undefined);
     } else {
       props.onConfirmar({
@@ -127,14 +145,16 @@ export function QuadroSimulacao(props: Props) {
         descricao: descricao.trim(),
         preco: precoUsado,
         percentuais: lidos,
+        st: stUsado,
       });
     }
   };
 
   const p = props.modo === "existente" ? props.produto : null;
   const semPreco = r !== null && (r.indice <= 0 || r.prFuturo === null);
+  // A variação é do PREÇO FINAL (V1): é ele que está em destaque.
   const variacao =
-    p && r && !semPreco && p.prFuturo !== null && r.prFuturo !== null ? r.prFuturo - p.prFuturo : null;
+    p && r && !semPreco && p.prFinal !== null && r.prFinal !== null ? r.prFinal - p.prFinal : null;
 
   return (
     <dialog
@@ -176,7 +196,7 @@ export function QuadroSimulacao(props: Props) {
             type="button"
             onClick={props.onFechar}
             aria-label="Fechar sem confirmar"
-            className="grid size-8 place-items-center rounded-[var(--radius-md)] text-[var(--text-muted)] hover:bg-[var(--surface-3)] hover:text-[var(--text-primary)]"
+            className={cn(FOCO, "grid size-8 place-items-center rounded-[var(--radius-md)] text-[var(--text-muted)] hover:bg-[var(--surface-3)] hover:text-[var(--text-primary)]")}
           >
             ✕
           </button>
@@ -245,9 +265,26 @@ export function QuadroSimulacao(props: Props) {
               );
             })}
 
-            <p className="text-[length:var(--fs-apoio)] text-[var(--text-muted)] sm:col-span-2">
-              ST fora da conta: a versão 1 do SQL fixa o valor em zero.
-            </p>
+            <Campo
+              rotulo="ST (R$)"
+              className="sm:col-span-2"
+              info="O VLST da tabela de preço. Não depende do preço de compra; entra só no preço final."
+              erro={stInvalido ? "Valor inválido." : undefined}
+              alterado={p !== null && !stInvalido && stUsado !== referencia.st}
+              original={p ? formatarValor3(referencia.st) : undefined}
+              onRedefinir={p ? () => setSt(paraCampo(referencia.st)) : undefined}
+            >
+              {(id) => (
+                <input
+                  id={id}
+                  inputMode="decimal"
+                  value={st}
+                  placeholder="0"
+                  onChange={(e) => setSt(e.target.value)}
+                  className={cn(campo(stInvalido, p !== null && stUsado !== referencia.st), "tabular text-right")}
+                />
+              )}
+            </Campo>
           </div>
 
           {/* ── O resultado ── */}
@@ -268,20 +305,23 @@ export function QuadroSimulacao(props: Props) {
                 <Resultado rotulo="Custo calculado" valor={r.custoCalc} forte />
                 <Resultado rotulo="Índice" texto={r.indice.toFixed(6).replace(".", ",")} apagado />
 
+                <Resultado rotulo="Preço futuro (sem ST)" texto={semPreco ? "—" : formatarValor3(r.prFuturo ?? 0)} forte />
+                <Resultado rotulo="+ ST" valor={r.vlSt} />
+
                 <div className="mt-2 rounded-[var(--radius-md)] bg-[var(--positive-glow)] px-3 py-2">
                   <div className="text-[length:var(--fs-rotulo)] font-medium tracking-[0.08em] text-[var(--text-muted)] uppercase">
-                    Preço futuro
+                    Preço final
                   </div>
                   {semPreco ? (
                     <div className="text-[var(--warning)]">— impostos + margem ≥ 100%</div>
                   ) : (
                     <div className="flex items-baseline justify-between gap-2">
                       <span className="tabular text-[length:var(--fs-titulo)] font-semibold">
-                        {formatarValor3(r.prFuturo ?? 0)}
+                        {formatarValor3(r.prFinal ?? 0)}
                       </span>
                       {/* D27: produto novo não tem com que comparar. */}
                       {variacao !== null && variacao !== 0 && (
-                        <span className="tabular text-[length:var(--fs-apoio)] text-[var(--text-secondary)]" title={`SQL: ${formatarValor3(p?.prFuturo ?? 0)}`}>
+                        <span className="tabular text-[length:var(--fs-apoio)] text-[var(--text-secondary)]" title={`SQL: ${formatarValor3(p?.prFinal ?? 0)}`}>
                           {variacao > 0 ? "▲ +" : "▼ −"}
                           {formatarValor3(Math.abs(variacao))}
                         </span>
@@ -298,7 +338,7 @@ export function QuadroSimulacao(props: Props) {
           <button
             type="button"
             onClick={props.onFechar}
-            className="h-[var(--altura-controle)] rounded-[var(--radius-md)] border border-[var(--border-strong)] px-4 text-[var(--text-secondary)] hover:bg-[var(--surface-3)] hover:text-[var(--text-primary)]"
+            className={cn(FOCO, "h-[var(--altura-controle)] rounded-[var(--radius-md)] border border-[var(--border-strong)] px-4 text-[var(--text-secondary)] hover:bg-[var(--surface-3)] hover:text-[var(--text-primary)]")}
           >
             Cancelar
           </button>
@@ -306,6 +346,7 @@ export function QuadroSimulacao(props: Props) {
             type="submit"
             disabled={!podeConfirmar}
             className={cn(
+              FOCO,
               "h-[var(--altura-controle)] rounded-[var(--radius-md)] px-5 font-medium",
               podeConfirmar
                 ? "bg-[var(--primary)] text-white hover:brightness-110"
@@ -372,7 +413,7 @@ function Campo({
             type="button"
             onClick={onRedefinir}
             title="Voltar ao valor do SQL"
-            className="text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+            className={cn(FOCO, "rounded-[var(--radius-sm)] px-1 text-[var(--text-muted)] hover:text-[var(--text-primary)]")}
           >
             ↺
           </button>

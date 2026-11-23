@@ -48,11 +48,12 @@ public sealed class SimuladorPrecoService
     }
 
     private static ProdutoSimuladoDto ParaDto(ProdutoSimulado p) => new(
-        p.CodProd, p.Descricao, p.Ncm, p.CodigoTributacao, p.DescricaoTributacao, p.TipoImposto,
+        p.CodFilial, p.CodProd, p.Descricao, p.ClasseVenda,
+        p.Ncm, p.CodigoTributacao, p.DescricaoTributacao, p.TipoImposto,
         p.VlUltPCompra, p.PercIpi, p.VlIpi, p.PercSt, p.VlSt,
         p.PercIcmsEnt, p.PercBaseRedEnt, p.PercIcmCusto, p.VlIcmsEnt,
         p.PerPisEnt, p.VlPisEnt, p.PerCofinsEnt, p.VlCofinsEnt,
         p.PercFreteFobEnt, p.VlFreteFobEnt,
         p.CustoAntesCbs, p.PercCbs, p.BaseCbs, p.VlCbs, p.CustoCalc,
-        p.Margem, p.PercIcmsSaid, p.PerPisSaid, p.PerCofinsSaid, p.Indice, p.PrFuturo);
+        p.Margem, p.PercIcmsSaid, p.PerPisSaid, p.PerCofinsSaid, p.Indice, p.PrFuturo, p.PrFinal);
 }

@@ -111,6 +111,7 @@ export function FiltrosSimulador({
         title={motivo ?? undefined}
         className={cn(
           "flex h-[var(--altura-controle)] items-center justify-center gap-1.5 rounded-[var(--radius-md)] px-6 text-[length:var(--fs-base)] font-medium whitespace-nowrap",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary-ring)]",
           "transition-colors duration-[var(--dur-fast)] sm:col-span-2 lg:col-span-1",
           pode
             ? "bg-[var(--primary)] text-white hover:brightness-110"

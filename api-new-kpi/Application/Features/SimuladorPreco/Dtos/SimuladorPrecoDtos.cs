@@ -14,8 +14,10 @@ public record SimuladorPrecoFiltroDto(
 /// onde nada mudou.
 /// </summary>
 public record ProdutoSimuladoDto(
+    string? CodFilial,
     decimal CodProd,
     string Descricao,
+    string? ClasseVenda,
     string? Ncm,
     string? CodigoTributacao,
     string? DescricaoTributacao,
@@ -48,7 +50,8 @@ public record ProdutoSimuladoDto(
     decimal? PerPisSaid,
     decimal? PerCofinsSaid,
     decimal? Indice,
-    decimal? PrFuturo);
+    decimal? PrFuturo,
+    decimal? PrFinal);
 
 /// <summary>
 /// A resposta da consulta. A <see cref="Base"/> volta junto pelo mesmo motivo do DRE: a tela

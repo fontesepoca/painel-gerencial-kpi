@@ -10,6 +10,7 @@ import {
   percentuaisDe,
   percentuaisEfetivos,
   precoEfetivo,
+  stEfetivo,
 } from "@/lib/simuladorPreco";
 import type { AjusteDaLinha, CampoPercentual, ProdutoSimulado } from "@/types/simulador-preco";
 
@@ -38,13 +39,54 @@ import type { AjusteDaLinha, CampoPercentual, ProdutoSimulado } from "@/types/si
  */
 export const chaveDaLinha = (p: ProdutoSimulado) => `${p.codProd}|${p.codigoTributacao ?? "-"}`;
 
+/*
+ * AS CLASSES DA TABELA SÃO AS DO DRE (23/11/2026, docs/superpowers/specs/
+ * 2026-11-23-simulador-alinhamento-visual-design.md): `.tabela-rolagem`, `.celula-descricao`,
+ * `.largura-da-descricao`, `.col-bloco` e `.col-interna`, todas em `app/globals.css`. Com elas
+ * vêm de graça o teto de 50vw da coluna fixa no celular, a costura do cabeçalho fixo (o texto do
+ * corpo não vaza sob ele) e os divisores desenhados por dentro da célula.
+ *
+ * FUNDO POR `style`, E NÃO POR CLASSE, ONDE O `globals.css` JÁ PINTA. As regras de lá não estão
+ * em `@layer`, e por isso vencem as utilitárias do Tailwind: `.tabela-rolagem thead th` e
+ * `.celula-descricao` fixam o fundo, e um `bg-…` nessas células é ignorado sem erro nenhum.
+ */
 const TH =
   "px-[var(--celula-x)] py-1.5 text-left text-[length:var(--fs-rotulo)] font-medium uppercase tracking-[0.08em] text-[var(--text-muted)] whitespace-nowrap";
 const TH_NUM = cn(TH, "text-right");
+/** A faixa de cima do cabeçalho — os GRUPOS —, no desenho da faixa dos meses do DRE. */
+const TH_GRUPO =
+  "px-[var(--celula-x)] pt-3 pb-1 text-center text-[length:var(--fs-rotulo)] font-semibold uppercase tracking-[0.14em] text-[var(--text-primary)] whitespace-nowrap";
+/**
+ * As colunas depois da do Produto: Compra (1), Entrada (5), Custo (3), Saída (5) e Preço (3) — SQL v2:
+ * o ST saiu da Entrada e o grupo Preço tem Preço futuro, ST e Preço final.
+ * É o `colSpan` da linha de título dos grupos — com 17 ele criava uma coluna fantasma (revisão
+ * final, 23/11/2026). Coluna nova no cabeçalho muda este número junto.
+ */
+const COLUNAS_DEPOIS_DO_PRODUTO = 1 + 5 + 3 + 5 + 3;
+/** A tabela inteira: a coluna do Produto e as de depois. */
+const TOTAL_DE_COLUNAS = 1 + COLUNAS_DEPOIS_DO_PRODUTO;
 const TD = "px-[var(--celula-x)] py-[var(--celula-y)] align-top";
 const TD_NUM = cn(TD, "tabular text-right whitespace-nowrap");
-/** Divisor entre GRUPOS de colunas (Entrada, Custo, Saída…), o mesmo do DRE entre blocos. */
-const BLOCO = "border-l border-[var(--divisor-bloco)]";
+/** Foco de teclado visível em todo botão da tabela (o piso de acessibilidade da spec). */
+const FOCO =
+  "rounded-[var(--radius-sm)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary-ring)]";
+/*
+ * DOIS JEITOS DE PINTAR, CONFORME A CÉLULA (revisão final de 23/11/2026):
+ *
+ * - CABEÇALHO: `backgroundImage`, nunca `background`. `--primary-dim` e `--positive-glow` são
+ *   TRANSLÚCIDOS (8% e 12%). Trocar o fundo do `th` por eles apagaria o `--surface-1` opaco que
+ *   `.tabela-rolagem thead th` dá, e os números do corpo apareceriam através do cabeçalho fixo
+ *   ao rolar. Como camada de imagem, a cor compõe POR CIMA do fundo opaco, que fica.
+ * - CORPO: `backgroundColor`, nunca o atalho `background`. O realce sob o ponteiro e a zebra são
+ *   `background-image` pintados pelo `globals.css`, e o atalho os zeraria só nessas células.
+ */
+const camada = (cor: string) => ({ backgroundImage: `linear-gradient(${cor}, ${cor})` });
+const TH_FUNDO_GRUPO = camada("var(--surface-2)");
+const TH_FUNDO_COMPRA = camada("var(--primary-dim)");
+const TH_FUNDO_PRECO = camada("var(--positive-glow)");
+const TD_FUNDO_SIMULADA = { backgroundColor: "var(--surface-2)" };
+const TD_FUNDO_COMPRA = { backgroundColor: "var(--primary-dim)" };
+const TD_FUNDO_PRECO = { backgroundColor: "var(--positive-glow)" };
 
 export function TabelaSimulador({
   linhas,
@@ -52,64 +94,99 @@ export function TabelaSimulador({
   onPreco,
   onRedefinir,
   onAbrir,
-  modo = "consulta",
+  novos,
+  onAbrirNovo,
+  onRemoverNovo,
   className,
 }: {
+  /** Os produtos da consulta — só os da página atual (a página pagina; spec de 23/11/2026). */
   linhas: { produto: ProdutoSimulado; chave: string }[];
   /** O que foi alterado, por chave de linha. Ausente = a linha do SQL. */
   ajustes: Readonly<Record<string, AjusteDaLinha>>;
   onPreco: (chave: string, texto: string) => void;
-  /** Volta a linha inteira ao SQL; no modo `novo`, remove o produto. */
+  /** Volta a linha inteira ao SQL. */
   onRedefinir: (chave: string) => void;
   onAbrir: (chave: string) => void;
-  modo?: "consulta" | "novo";
+  /**
+   * Os produtos novos simulados, num grupo NO TOPO desta mesma tabela (D26, revista em
+   * 23/11/2026). Eram uma segunda tabela, e cada tabela mede as colunas pelo próprio conteúdo:
+   * as colunas nunca batiam. Na mesma tabela batem por construção, e aparecem em toda página.
+   */
+  novos: { produto: ProdutoSimulado; chave: string }[];
+  onAbrirNovo: (chave: string) => void;
+  onRemoverNovo: (chave: string) => void;
   className?: string;
 }) {
   return (
-    // `overflow-auto`: a tabela rola DENTRO do contêiner, e o cabeçalho e as colunas do produto
-    // ficam grudados (sticky) enquanto ela rola.
-    <div className={cn("overflow-auto rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface-1)]", className)}>
-      <table className="w-max min-w-full border-separate border-spacing-0 text-[length:var(--fs-base)]">
-        <thead className="sticky top-0 z-20 bg-[var(--surface-2)]">
-          <tr>
-            <th colSpan={2} className={cn(TH, "sticky left-0 z-30 bg-[var(--surface-2)]")}>
-              {modo === "novo" ? "Produto novo" : "Produto"}
-            </th>
-            <th className={cn(TH, BLOCO, "bg-[var(--primary-dim)] text-[var(--primary)]")}>Compra</th>
-            <th colSpan={6} className={cn(TH, BLOCO)}>Entrada</th>
-            <th colSpan={3} className={cn(TH, BLOCO)}>Custo</th>
-            <th colSpan={5} className={cn(TH, BLOCO)}>Saída</th>
-            <th className={cn(TH, BLOCO, "bg-[var(--positive-glow)] text-[var(--positive)]")}>Preço</th>
+    // `.tabela-rolagem`: a tabela rola DENTRO do contêiner, com o cabeçalho e a coluna do produto
+    // grudados enquanto ela rola — as mesmas regras da tabela do DRE.
+    <div className={cn("tabela-rolagem rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface-1)]", className)}>
+      <table className="w-full border-collapse text-[length:var(--fs-base)]">
+        <thead>
+          <tr className="border-b border-[var(--border)]">
+            <th className="celula-descricao" style={TH_FUNDO_GRUPO} />
+            <th className={cn(TH_GRUPO, "col-bloco text-[var(--primary)]")} style={TH_FUNDO_COMPRA}>Compra</th>
+            <th colSpan={5} className={cn(TH_GRUPO, "col-bloco")} style={TH_FUNDO_GRUPO}>Entrada</th>
+            <th colSpan={3} className={cn(TH_GRUPO, "col-bloco")} style={TH_FUNDO_GRUPO}>Custo</th>
+            <th colSpan={5} className={cn(TH_GRUPO, "col-bloco")} style={TH_FUNDO_GRUPO}>Saída</th>
+            <th colSpan={3} className={cn(TH_GRUPO, "col-bloco text-[var(--positive)]")} style={TH_FUNDO_PRECO}>Preço</th>
           </tr>
-          <tr>
-            <th className={cn(TH, "sticky left-0 z-30 w-20 bg-[var(--surface-2)]")}>Código</th>
-            <th className={cn(TH, "sticky left-20 z-30 min-w-[16rem] bg-[var(--surface-2)]")}>Descrição</th>
-            <th className={cn(TH_NUM, BLOCO, "bg-[var(--primary-dim)]")}>Preço de compra</th>
-            <th className={cn(TH_NUM, BLOCO)}>IPI</th>
-            <th className={TH_NUM} title="Na versão 1 do SQL o ST é fixo em zero e não entra na conta.">ST</th>
-            <th className={TH_NUM}>ICMS</th>
-            <th className={TH_NUM}>PIS</th>
-            <th className={TH_NUM}>COFINS</th>
-            <th className={TH_NUM}>Frete FOB</th>
-            <th className={cn(TH_NUM, BLOCO)}>Antes da CBS</th>
-            <th className={TH_NUM}>CBS</th>
-            <th className={TH_NUM}>Custo</th>
-            <th className={cn(TH_NUM, BLOCO)}>Margem</th>
-            <th className={TH_NUM}>ICMS</th>
-            <th className={TH_NUM}>PIS</th>
-            <th className={TH_NUM}>COFINS</th>
-            <th className={TH_NUM}>Índice</th>
-            <th className={cn(TH_NUM, BLOCO, "bg-[var(--positive-glow)]")}>Preço futuro</th>
+          <tr className="border-b border-[var(--border-strong)]">
+            <th className={cn(TH, "celula-descricao largura-da-descricao")}>Produto</th>
+            <th className={cn(TH_NUM, "col-bloco")} style={TH_FUNDO_COMPRA}>Preço de compra</th>
+            <th className={cn(TH_NUM, "col-bloco")}>IPI</th>
+            <th className={cn(TH_NUM, "col-interna")}>ICMS</th>
+            <th className={cn(TH_NUM, "col-interna")}>PIS</th>
+            <th className={cn(TH_NUM, "col-interna")}>COFINS</th>
+            <th className={cn(TH_NUM, "col-interna")}>Frete FOB</th>
+            <th className={cn(TH_NUM, "col-bloco")}>Antes da CBS</th>
+            <th className={cn(TH_NUM, "col-interna")}>CBS</th>
+            <th className={cn(TH_NUM, "col-interna")}>Custo</th>
+            <th className={cn(TH_NUM, "col-bloco")}>Margem</th>
+            <th className={cn(TH_NUM, "col-interna")}>ICMS</th>
+            <th className={cn(TH_NUM, "col-interna")}>PIS</th>
+            <th className={cn(TH_NUM, "col-interna")}>COFINS</th>
+            <th className={cn(TH_NUM, "col-interna")}>Índice</th>
+            <th className={cn(TH_NUM, "col-bloco")} title="Sem o ST: o PR_FUTURO do SQL.">Preço futuro</th>
+            <th className={cn(TH_NUM, "col-interna")} title="O VLST da tabela de preço da região, em R$. Não depende do preço de compra.">ST</th>
+            <th className={cn(TH_NUM, "col-interna")} style={TH_FUNDO_PRECO}>Preço final</th>
           </tr>
         </thead>
         <tbody>
+          {novos.length > 0 && (
+            <>
+              <TituloDoGrupo texto={`Produtos novos simulados (${novos.length})`} />
+              {novos.map(({ produto, chave }) => (
+                <Linha
+                  key={chave}
+                  produto={produto}
+                  chave={chave}
+                  ajuste={undefined}
+                  modo="novo"
+                  onPreco={onPreco}
+                  onRedefinir={onRemoverNovo}
+                  onAbrir={onAbrirNovo}
+                />
+              ))}
+              {linhas.length > 0 && (
+                <>
+                  {/* Um respiro entre os grupos: o comprador não confunde produto novo com produto
+                      da consulta (spec salvar-limpar, 23/11/2026). */}
+                  <tr aria-hidden="true">
+                    <td colSpan={TOTAL_DE_COLUNAS} className="h-5 border-0 p-0" style={{ backgroundColor: "var(--surface-1)" }} />
+                  </tr>
+                  <TituloDoGrupo texto="Produtos da consulta" />
+                </>
+              )}
+            </>
+          )}
           {linhas.map(({ produto, chave }) => (
             <Linha
               key={chave}
               produto={produto}
               chave={chave}
               ajuste={ajustes[chave]}
-              modo={modo}
+              modo="consulta"
               onPreco={onPreco}
               onRedefinir={onRedefinir}
               onAbrir={onAbrir}
@@ -122,8 +199,25 @@ export function TabelaSimulador({
 }
 
 /**
- * Uma linha. `memo`: digitar num preço só redesenha a linha daquele preço — com quase dez mil
- * produtos na tela (sp6), redesenhar todas a cada tecla seria sentido.
+ * A linha que abre um grupo dentro da tabela ("Produtos novos simulados", "Produtos da
+ * consulta"). Uma célula só, da largura da tabela; o texto fica no CENTRO DA ÁREA VISÍVEL
+ * (spec salvar-limpar, 23/11/2026) e acompanha a rolagem lateral: `sticky` com `left: 50%` o
+ * segura no meio do que está à vista, e o `translateX(-50%)` centra o próprio texto. Por isso a
+ * célula é `text-left`: com `text-center` o texto nasceria no meio da tabela inteira, fora da
+ * vista numa tela estreita. Fundo por `backgroundColor` (ver o topo do arquivo).
+ */
+function TituloDoGrupo({ texto }: { texto: string }) {
+  return (
+    <tr className="border-b border-[var(--border-strong)]">
+      <th scope="colgroup" colSpan={TOTAL_DE_COLUNAS} className={cn(TH_GRUPO, "text-left")} style={TD_FUNDO_SIMULADA}>
+        <span className="sticky left-1/2 inline-block -translate-x-1/2">{texto}</span>
+      </th>
+    </tr>
+  );
+}
+
+/**
+ * Uma linha. `memo`: digitar num preço só redesenha a linha daquele preço.
  */
 const Linha = memo(function Linha({
   produto: p,
@@ -150,7 +244,7 @@ const Linha = memo(function Linha({
 
   // Simulado: a nossa conta, com o preço e os percentuais que valem. Senão: o SQL, como veio.
   const r = useMemo(
-    () => (simulado ? calcular(precoEfetivo(p, ajuste), percentuaisEfetivos(p, ajuste)) : null),
+    () => (simulado ? calcular(precoEfetivo(p, ajuste), percentuaisEfetivos(p, ajuste), stEfetivo(p, ajuste)) : null),
     [simulado, p, ajuste],
   );
   const pc = simulado ? percentuaisEfetivos(p, ajuste) : percentuaisDe(p);
@@ -159,53 +253,58 @@ const Linha = memo(function Linha({
     (r ? r[k] : p[k]) as number | null;
 
   const prFuturo = vl("prFuturo");
+  const prFinal = vl("prFinal");
   const indice = vl("indice");
   // D16: índice ≤ 0 (impostos + margem ≥ 100%) não tem preço que faça sentido.
   const semPreco = indice === null || indice <= 0 || prFuturo === null;
   const variacao =
-    simulado && !semPreco && p.prFuturo !== null && prFuturo !== null ? prFuturo - p.prFuturo : null;
+    simulado && !semPreco && p.prFinal !== null && prFinal !== null ? prFinal - p.prFinal : null;
 
-  const fundoFixo = simulado ? "bg-[var(--surface-2)]" : "bg-[var(--surface-1)]";
   const temAjuste = ajuste !== undefined;
 
   return (
-    <tr className={cn("group hover:bg-[var(--realce-linha)]", simulado && "bg-[var(--surface-2)]")}>
-      {/* A marca da linha simulada é a borda à esquerda do código — discreta, e some no ↺. */}
+    // A LINHA DO DRE (TabelaDre.tsx): o realce sob o ponteiro mora no globals.css ("A LINHA SOB O
+    // PONTEIRO"), que o pinta célula a célula — um `hover:bg-…` aqui o dobraria nas células
+    // comuns e não chegaria às que têm fundo próprio. A zebra é a do DRE, mas só em linha não
+    // simulada: `odd:` tem especificidade maior e apagaria o fundo da simulada.
+    <tr className={cn("group border-b border-[var(--border)]", simulado ? "bg-[var(--surface-2)]" : "odd:bg-[var(--zebra)]")}>
+      {/*
+        UMA COLUNA FIXA SÓ, com o código dentro (spec de 23/11/2026, objetivo 2). Duas colunas
+        fixas lado a lado é o defeito documentado no globals.css: o navegador não respeita a
+        largura pedida, e os valores passam pela fresta entre elas.
+
+        A marca da linha simulada é uma sombra por dentro à esquerda — com `border-collapse` a
+        borda é da tabela, e não da célula. O fundo vai por `style` (ver o topo do arquivo).
+      */}
       <td
-        className={cn(
-          TD,
-          "tabular sticky left-0 z-10 w-20 border-b border-l-2 border-b-[var(--border)]",
-          simulado ? "border-l-[var(--primary)]" : "border-l-transparent",
-          fundoFixo,
-        )}
+        className={cn(TD, "celula-descricao largura-da-descricao", simulado && "shadow-[inset_3px_0_0_var(--primary)]")}
+        style={simulado ? TD_FUNDO_SIMULADA : undefined}
       >
-        {novo ? (
-          <span className="rounded-[var(--radius-sm)] bg-[var(--primary-dim)] px-1.5 py-0.5 text-[length:var(--fs-apoio)] font-medium text-[var(--primary)]">
-            NOVO
-          </span>
-        ) : (
-          <button type="button" onClick={() => onAbrir(chave)} className="hover:text-[var(--primary)] hover:underline" title="Abrir o quadro do produto">
-            {p.codProd}
-          </button>
-        )}
-      </td>
-      <td className={cn(TD, "sticky left-20 z-10 max-w-[22rem] min-w-[16rem] border-b border-[var(--border)]", fundoFixo)}>
         {/* O produto inteiro é o botão do quadro (D21): é onde a mão vai para "abrir o item". */}
         <button
           type="button"
           onClick={() => onAbrir(chave)}
-          className="block w-full text-left"
+          className={cn(FOCO, "block w-full text-left")}
           title={novo ? "Abrir o quadro para editar" : "Abrir o quadro do produto"}
         >
-          <span className="line-clamp-2 text-[var(--text-primary)] group-hover:text-[var(--primary)]">{p.descricao}</span>
+          <span className="line-clamp-2 text-[var(--text-primary)] group-hover:text-[var(--primary)]">
+            {novo ? (
+              <span className="mr-1.5 rounded-[var(--radius-sm)] bg-[var(--primary-dim)] px-1.5 py-0.5 text-[length:var(--fs-apoio)] font-medium text-[var(--primary)]">
+                NOVO
+              </span>
+            ) : (
+              <span className="tabular mr-1.5 text-[var(--text-muted)]">{p.codProd}</span>
+            )}
+            {p.descricao}
+          </span>
           <span className="mt-0.5 block text-[length:var(--fs-apoio)] text-[var(--text-muted)]">
-            {novo ? "Produto hipotético · percentuais digitados" : <>NCM {p.ncm ?? "—"}{p.descricaoTributacao && ` · ${p.descricaoTributacao}`}</>}
+            {novo ? "Produto hipotético · percentuais digitados" : <>NCM {p.ncm ?? "—"}{p.descricaoTributacao && ` · ${p.descricaoTributacao}`}{p.classeVenda && ` · Classe ${p.classeVenda}`}</>}
           </span>
         </button>
       </td>
 
       {/* ── Compra: o único campo editável da célula (D10) ── */}
-      <td className={cn(TD, BLOCO, "border-b border-b-[var(--border)] bg-[var(--primary-dim)]")}>
+      <td className={cn(TD, "col-bloco")} style={TD_FUNDO_COMPRA}>
         <div className="flex items-center justify-end gap-1">
           {novo ? (
             <span className="tabular py-1">{formatarValor3(p.vlUltPCompra ?? 0)}</span>
@@ -225,7 +324,9 @@ const Linha = memo(function Linha({
                 }
               }}
               className={cn(
-                "tabular h-8 w-28 rounded-[var(--radius-sm)] border bg-[var(--surface-1)] px-2 text-right",
+                // `em`, e não `rem`: na leitura ampliada a fonte vai de 14 para 18px sem mudar a
+                // raiz, e uma largura em rem cortaria `1.234,567`.
+                "tabular h-8 w-[8.5em] rounded-[var(--radius-sm)] border bg-[var(--surface-1)] px-2 text-right",
                 "focus:outline-none focus:ring-2 focus:ring-[var(--primary-ring)]",
                 invalido
                   ? "border-[var(--negative)] text-[var(--negative)]"
@@ -241,7 +342,8 @@ const Linha = memo(function Linha({
             title={novo ? "Remover este produto novo" : "Voltar a linha ao SQL: preço e percentuais"}
             aria-label={novo ? `Remover o produto novo ${p.descricao}` : `Voltar o produto ${p.codProd} ao SQL`}
             className={cn(
-              "grid size-6 place-items-center rounded-[var(--radius-sm)] text-[var(--text-muted)] hover:bg-[var(--surface-3)]",
+              FOCO,
+              "grid size-6 place-items-center text-[var(--text-muted)] hover:bg-[var(--surface-3)]",
               novo ? "hover:text-[var(--negative)]" : "hover:text-[var(--text-primary)]",
               !novo && !temAjuste && "invisible",
             )}
@@ -261,12 +363,6 @@ const Linha = memo(function Linha({
       {/* ── Entrada ── */}
       <ValorEPercentual valor={vl("vlIpi")} percentual={pc.percIpi} trocado={trocado("percIpi")} original={p.percIpi} bloco />
       <ValorEPercentual
-        valor={vl("vlSt")}
-        percentual={p.percSt}
-        titulo="O % ST é só informativo na versão 1: o SQL fixa o valor em zero."
-        apagado
-      />
-      <ValorEPercentual
         valor={vl("vlIcmsEnt")}
         percentual={vl("percIcmCusto")}
         trocado={trocado("percIcmsEnt") || trocado("percBaseRedEnt")}
@@ -282,7 +378,7 @@ const Linha = memo(function Linha({
       <ValorEPercentual valor={vl("vlFreteFobEnt")} percentual={pc.percFreteFob} trocado={trocado("percFreteFob")} original={p.percFreteFobEnt} />
 
       {/* ── Custo ── */}
-      <td className={cn(TD_NUM, BLOCO, "border-b border-b-[var(--border)]")}>{numero(vl("custoAntesCbs"))}</td>
+      <td className={cn(TD_NUM, "col-bloco")}>{numero(vl("custoAntesCbs"))}</td>
       <ValorEPercentual
         valor={vl("vlCbs")}
         percentual={pc.percCbs}
@@ -290,33 +386,48 @@ const Linha = memo(function Linha({
         original={p.percCbs}
         titulo={`Base da CBS: ${numero(vl("baseCbs"))}${novo ? "" : p.codigoTributacao ? ` · tributação ${p.codigoTributacao}` : " · sem tributação para o NCM"}`}
       />
-      <td className={cn(TD_NUM, "border-b border-[var(--border)] font-semibold text-[var(--text-primary)]")}>{numero(vl("custoCalc"))}</td>
+      <td className={cn(TD_NUM, "col-interna font-semibold text-[var(--text-primary)]")}>{numero(vl("custoCalc"))}</td>
 
       {/* ── Saída ── */}
       <Percentual valor={pc.margem} trocado={trocado("margem")} original={p.margem} bloco />
       <Percentual valor={pc.percIcmsSaid} trocado={trocado("percIcmsSaid")} original={p.percIcmsSaid} />
       <Percentual valor={pc.perPis} trocado={trocado("perPis")} original={p.perPisSaid} />
       <Percentual valor={pc.perCofins} trocado={trocado("perCofins")} original={p.perCofinsSaid} />
-      <td className={cn(TD_NUM, "border-b border-[var(--border)]")}>{indice === null ? "—" : indice.toFixed(6).replace(".", ",")}</td>
+      <td className={cn(TD_NUM, "col-interna")}>{indice === null ? "—" : indice.toFixed(6).replace(".", ",")}</td>
 
-      {/* ── Preço futuro ── */}
-      <td className={cn(TD_NUM, BLOCO, "border-b border-b-[var(--border)] bg-[var(--positive-glow)]")}>
+      {/* ── Preço (SQL v2): futuro sem ST, o ST da tabela de preço, e o FINAL em destaque (V1) ── */}
+      <td className={cn(TD_NUM, "col-bloco")}>
+        {semPreco ? <span className="text-[var(--warning)]">—</span> : numero(prFuturo)}
+      </td>
+      <td
+        className={cn(TD_NUM, "col-interna", ajuste?.st !== undefined ? "font-medium text-[var(--primary)]" : "text-[var(--text-secondary)]")}
+        title={
+          ajuste?.st !== undefined
+            ? `Alterado no quadro · SQL: ${numero(p.vlSt)}`
+            : p.percSt
+              ? `% ST de entrada: ${formatarPercentualLivre(p.percSt)}% (informativo: na v2 o ST que entra é o da tabela de preço)`
+              : undefined
+        }
+      >
+        {numero(vl("vlSt"))}
+      </td>
+      <td className={cn(TD_NUM, "col-interna")} style={TD_FUNDO_PRECO}>
         {semPreco ? (
           <span
             className="text-[var(--warning)]"
-            title={`Impostos + margem ≥ 100%: o índice é ${indice ?? "nulo"}. O resultado da conta é ${prFuturo === null ? "nulo" : formatarValor3(prFuturo)}.`}
+            title={`Impostos + margem ≥ 100%: o índice é ${indice ?? "nulo"}. O resultado da conta é ${prFinal === null ? "nulo" : formatarValor3(prFinal)}.`}
           >
             — <span className="text-[length:var(--fs-apoio)]">impostos + margem ≥ 100%</span>
           </span>
         ) : (
           <>
-            <div className="font-semibold text-[var(--text-primary)]">{numero(prFuturo)}</div>
+            <div className="font-semibold text-[var(--text-primary)]">{numero(prFinal)}</div>
             {variacao !== null && variacao !== 0 && (
-              // Cor neutra de propósito: preço futuro subir não é "ruim" nem "bom" por si — é o
-              // que a simulação quer mostrar. A seta diz o sentido sem julgar.
+              // Cor neutra de propósito: preço subir não é "ruim" nem "bom" por si — é o que a
+              // simulação quer mostrar. A seta diz o sentido sem julgar.
               <div
                 className="text-[length:var(--fs-apoio)] text-[var(--text-secondary)]"
-                title={`SQL: ${numero(p.prFuturo)}`}
+                title={`SQL: ${numero(p.prFinal)}`}
               >
                 {variacao > 0 ? "▲ +" : "▼ −"}
                 {formatarValor3(Math.abs(variacao))}
@@ -376,7 +487,7 @@ function ValorEPercentual({
 }) {
   return (
     <td
-      className={cn(TD_NUM, "border-b border-b-[var(--border)]", bloco && BLOCO, apagado && "opacity-60")}
+      className={cn(TD_NUM, bloco ? "col-bloco" : "col-interna", apagado && "opacity-60")}
       title={trocado ? `Alterado no quadro · SQL: ${percentual(original ?? null)}` : titulo}
     >
       <div className="text-[var(--text-primary)]">{numero(valor)}</div>
@@ -402,8 +513,7 @@ function Percentual({
     <td
       className={cn(
         TD_NUM,
-        "border-b border-b-[var(--border)]",
-        bloco && BLOCO,
+        bloco ? "col-bloco" : "col-interna",
         trocado ? "font-medium text-[var(--primary)]" : "text-[var(--text-secondary)]",
       )}
       title={trocado ? `Alterado no quadro · SQL: ${percentual(original ?? null)}` : undefined}

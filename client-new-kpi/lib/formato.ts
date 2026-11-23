@@ -69,6 +69,27 @@ export function formatarPercentualLivre(valor: number): string {
   return valor < 0 ? `(${texto})` : texto;
 }
 
+const SO_HORA = new Intl.DateTimeFormat("pt-BR", { hour: "2-digit", minute: "2-digit" });
+const DIA_E_MES = new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "2-digit" });
+
+/**
+ * "Consultado às 14:32" quando a consulta é de hoje; "Consultado em 22/11 às 14:32" quando não é
+ * (e com o ano, se for de outro ano). Revisão final de 23/11/2026: uma tela de simulador deixada
+ * aberta de um dia para o outro mostraria a consulta de ontem com cara de ser de hoje.
+ *
+ * @param agora injetável para o teste (sp12); na tela, `new Date()`.
+ */
+export function formatarMomentoDaConsulta(iso: string, agora: Date = new Date()): string {
+  const quando = new Date(iso);
+  const hora = SO_HORA.format(quando);
+  const mesmoAno = quando.getFullYear() === agora.getFullYear();
+  if (mesmoAno && quando.getMonth() === agora.getMonth() && quando.getDate() === agora.getDate()) {
+    return `Consultado às ${hora}`;
+  }
+  const dia = mesmoAno ? DIA_E_MES.format(quando) : DATA_CURTA.format(quando);
+  return `Consultado em ${dia} às ${hora}`;
+}
+
 /** `2026-08-01` → `01/08/2026`. Sem fuso: a data vem sem hora e é local. */
 export function formatarDataIso(iso: string): string {
   const partes = iso.split("-");
