@@ -5,6 +5,7 @@ import Link from "next/link";
 import { MenuDoUsuario } from "./MenuDoUsuario";
 import { BotaoTrocaDeBase } from "./BotaoTrocaDeBase";
 import { ControlesDeExibicao } from "./ControlesDeExibicao";
+import { BarraDeModulos } from "./BarraDeModulos";
 
 /**
  * Casca da aplicação: sidebar estreita + header com trilha de navegação e os
@@ -37,6 +38,10 @@ export function AppShell({
           <span aria-hidden>E</span>
           <span className="sr-only">Época Analytics — tela inicial</span>
         </Link>
+
+        {/* Um ícone por módulo; as telas abrem num painel ao lado. Ver lib/navegacao.ts. */}
+        <span aria-hidden className="my-1 h-px w-6 bg-[var(--border-strong)]" />
+        <BarraDeModulos />
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">

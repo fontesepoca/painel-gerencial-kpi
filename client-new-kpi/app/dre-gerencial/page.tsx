@@ -48,6 +48,9 @@ export default function DreGerencialPage() {
   // contas começa escondida, o punho de mover começa à vista.
   const [mostrarSelecao, setMostrarSelecao] = useState(false);
   const [mostrarPunho, setMostrarPunho] = useState(true);
+  // O código de cada linha à esquerda da descrição — desligado por padrão, como a tela era
+  // (10/11/2026, pedido do Gabriel).
+  const [mostrarCodigos, setMostrarCodigos] = useState(false);
 
   /**
    * As colunas de análise, ligadas por padrão.
@@ -165,6 +168,8 @@ export default function DreGerencialPage() {
               soTotal &&
               apuracao.periodos.length > 2 &&
               !mostraVariacao(apuracao.modo, apuracao.periodos),
+            // A coluna "Código", como a tela (10/11/2026).
+            codigos: mostrarCodigos,
           },
           baseDaSessao,
         );
@@ -188,6 +193,7 @@ export default function DreGerencialPage() {
       mostrarProvisionado,
       semTotal,
       soTotal,
+      mostrarCodigos,
       baseDaSessao,
     ],
   );
@@ -556,6 +562,13 @@ export default function DreGerencialPage() {
                             marcada: mostrarPunho,
                             onMudar: setMostrarPunho,
                           },
+                          {
+                            id: "codigos",
+                            rotulo: "Códigos",
+                            apoio: "O número da conta, grupo ou centro à esquerda da descrição; traço nos totalizadores",
+                            marcada: mostrarCodigos,
+                            onMudar: setMostrarCodigos,
+                          },
                         ],
                       },
                     ]}
@@ -606,6 +619,7 @@ export default function DreGerencialPage() {
                   mostrarInformativos,
                   mostrarSelecao,
                   mostrarPunho,
+                  mostrarCodigos,
                   mostrarAv,
                   mostrarAh,
                   mostrarProvisionado: mostrarProvisionado && temProvisionado,

@@ -3,7 +3,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ModalMoverLinha, type MovimentoPendente } from "./ModalMoverLinha";
 import { ModalDetalhe } from "./ModalDetalhe";
-import { ModalConfirmarDetalhe, type DetalhePendente } from "./ModalConfirmarDetalhe";
+import {
+  ModalConfirmarDetalhe,
+  type DetalhePendente,
+} from "./ModalConfirmarDetalhe";
 import { paraApi, useDetalhe } from "@/hooks/useDreGerencial";
 import { useOcultarBaixas } from "@/hooks/useOcultarBaixas";
 import { composicaoDaLinha } from "@/lib/composicaoDoTotal";
@@ -49,9 +52,16 @@ import {
   mesmosValores,
   recalcular,
 } from "@/lib/recalculoDoDre";
-import { rotulosDoDinheiro, type RotulosDoDinheiro } from "@/lib/rotulosDoDinheiro";
+import { codigoDaLinha } from "@/lib/codigoDaLinha";
+import {
+  rotulosDoDinheiro,
+  type RotulosDoDinheiro,
+} from "@/lib/rotulosDoDinheiro";
 import type { SituacaoDoDetalhe } from "@/lib/colunaDoTotal";
-import { comPercentuaisRp, sentidoDaLinha } from "@/lib/percentuaisComProvisionado";
+import {
+  comPercentuaisRp,
+  sentidoDaLinha,
+} from "@/lib/percentuaisComProvisionado";
 import type {
   FiltroApuracao,
   LinhaDre,
@@ -85,7 +95,10 @@ interface PedidoDetalhe {
 }
 
 /** Dias de um recorte, inclusive as duas pontas. */
-function diasDoRecorte(periodo: { dataInicio: string; dataFim: string }): number {
+function diasDoRecorte(periodo: {
+  dataInicio: string;
+  dataFim: string;
+}): number {
   const a = Date.parse(`${periodo.dataInicio}T00:00:00`);
   const b = Date.parse(`${periodo.dataFim}T00:00:00`);
   if (Number.isNaN(a) || Number.isNaN(b)) return 0;
@@ -108,6 +121,7 @@ export function TabelaDre({
   mostrarInformativos = true,
   mostrarSelecao = false,
   mostrarPunho = true,
+  mostrarCodigos = false,
   mostrarAv,
   mostrarAh: mostrarAhPedido,
   mostrarProvisionado = false,
@@ -138,6 +152,11 @@ export function TabelaDre({
    * ligado por padrão (06/11/2026). Desligado, a coluna da descrição fica só com o nome.
    */
   mostrarPunho?: boolean;
+  /**
+   * O código de cada linha à esquerda da descrição — "Códigos" no menu Exibição, desligado
+   * por padrão (10/11/2026). Calculada mostra o traço (`codigoDaLinha`).
+   */
+  mostrarCodigos?: boolean;
   /** A coluna `AV %` aparece. Decidido na barra de controles, ligado por padrão. */
   mostrarAv: boolean;
   /**
@@ -200,7 +219,10 @@ export function TabelaDre({
   // A base da sessão entra na chave da ordem salva. Sem sessão ainda, `""` — e o hook, sem
   // base, não lê nem grava: melhor a ordem do cadastro por um instante que a de outra base.
   const { data: usuario } = useSessao();
-  const { ordem, arrastadas, salvar, limpar } = useOrdemSalva(usuario?.base.id ?? "", filtro.analise);
+  const { ordem, arrastadas, salvar, limpar } = useOrdemSalva(
+    usuario?.base.id ?? "",
+    filtro.analise,
+  );
 
   // `linhas` é sempre a ordem do cadastro, como veio da API — é a referência contra a
   // qual tudo aqui é medido. `ordenadas` é o que a pessoa vê, **com os totais refeitos
@@ -243,7 +265,11 @@ export function TabelaDre({
    * clique. A primeira ação é exportar o detalhamento de TODAS as colunas de uma vez — um
    * Excel por mês, num `.zip` (`lib/exportarDetalhesDaLinha.ts`).
    */
-  const [menuDaLinha, setMenuDaLinha] = useState<{ x: number; y: number; linha: LinhaDre } | null>(null);
+  const [menuDaLinha, setMenuDaLinha] = useState<{
+    x: number;
+    y: number;
+    linha: LinhaDre;
+  } | null>(null);
   const fecharMenuDaLinha = useCallback(() => setMenuDaLinha(null), []);
   const [ocultarBaixas] = useOcultarBaixas();
 
@@ -336,7 +362,12 @@ export function TabelaDre({
           linhas,
           caminhos,
           nomeDoZip,
-          filtro: { filiais, regime, analise, ...(fornecedores ? { fornecedores } : {}) },
+          filtro: {
+            filiais,
+            regime,
+            analise,
+            ...(fornecedores ? { fornecedores } : {}),
+          },
           ocultarBaixas,
           baseDaSessao: usuario?.base.id,
           signal: controle.signal,
@@ -475,14 +506,15 @@ export function TabelaDre({
     // que não é o do cadastro"; nela, ele mentiria.
     const somam = informativasQueSomam(ordenadas, linhas, arrastadas);
     const fora = contasDeslocadas(ordenadas, linhas);
-    for (const l of ordenadas) if (l.naoSoma && !somam.has(l.chaveOrdem)) fora.delete(l.chaveOrdem);
+    for (const l of ordenadas)
+      if (l.naoSoma && !somam.has(l.chaveOrdem)) fora.delete(l.chaveOrdem);
     return fora;
   }, [ordenadas, linhas, arrastadas]);
 
-  // Esconde por AUSÊNCIA DE MOVIMENTO, não por valor zero — é o critério da 9815.
-  // `DESCONTO FUNCIONÁRIOS` fecha em 0,00 com 16 lançamentos e continua na tela.
+  // Esconde a linha ZERADA em todas as colunas, tenha lançamento ou não — `semMovimento` vem
+  // assim da API desde 11/11/2026 (divergência 22; a 9815 escondia só a conta sem lançamento).
   //
-  // Uma linha só com título EM ABERTO não tem movimento pelo critério da 9815, e aparece só
+  // Uma linha só com título EM ABERTO fecha em zero no pago, e aparece só
   // com o Provisionado ligado — é ele que explica por que ela está ali. Desligado, a tela é
   // a de antes (D9 da spec de 14/10/2026).
   //
@@ -495,7 +527,9 @@ export function TabelaDre({
       ordenadas.filter(
         (l) =>
           (mostrarInformativos || !l.naoSoma) &&
-          (mostrarZeradas || !l.semMovimento || (mostrarProvisionado && l.comAberto === true)),
+          (mostrarZeradas ||
+            !l.semMovimento ||
+            (mostrarProvisionado && l.comAberto === true)),
       ),
     [ordenadas, mostrarZeradas, mostrarProvisionado, mostrarInformativos],
   );
@@ -523,23 +557,33 @@ export function TabelaDre({
    * limpar, e sem marcar por engano uma conta de outro período.
    */
   const assinaturaDaApuracao = `${periodos.map((p) => p.mesAno).join(",")}|${filtro.filiais.join(",")}|${filtro.regime}|${filtro.analise}`;
-  const [selecao, setSelecao] = useState<{ assinatura: string; chaves: Set<string> }>({
+  const [selecao, setSelecao] = useState<{
+    assinatura: string;
+    chaves: Set<string>;
+  }>({
     assinatura: "",
     chaves: new Set(),
   });
   const selecionadas = useMemo(
-    () => (selecao.assinatura === assinaturaDaApuracao ? selecao.chaves : new Set<string>()),
+    () =>
+      selecao.assinatura === assinaturaDaApuracao
+        ? selecao.chaves
+        : new Set<string>(),
     [selecao, assinaturaDaApuracao],
   );
   // Tem o que exportar a linha com detalhamento (a conta) ou com composição (o totalizador,
   // desde 06/11/2026) — a mesma condição do botão direito, `paraExportar`.
   const selecionaveis = useMemo(() => visiveis.filter(exportavel), [visiveis]);
-  const marcadasNaTela = selecionaveis.filter((l) => selecionadas.has(l.chaveOrdem));
+  const marcadasNaTela = selecionaveis.filter((l) =>
+    selecionadas.has(l.chaveOrdem),
+  );
 
   const alternarSelecao = useCallback(
     (chave: string) =>
       setSelecao((atual) => {
-        const chaves = new Set(atual.assinatura === assinaturaDaApuracao ? atual.chaves : []);
+        const chaves = new Set(
+          atual.assinatura === assinaturaDaApuracao ? atual.chaves : [],
+        );
         if (chaves.has(chave)) chaves.delete(chave);
         else chaves.add(chave);
         return { assinatura: assinaturaDaApuracao, chaves };
@@ -552,13 +596,16 @@ export function TabelaDre({
     (marcar: boolean) =>
       setSelecao({
         assinatura: assinaturaDaApuracao,
-        chaves: marcar ? new Set(selecionaveis.map((l) => l.chaveOrdem)) : new Set(),
+        chaves: marcar
+          ? new Set(selecionaveis.map((l) => l.chaveOrdem))
+          : new Set(),
       }),
     [assinaturaDaApuracao, selecionaveis],
   );
 
   const indiceCompleto = useCallback(
-    (chaveOrdem: string) => ordenadas.findIndex((l) => l.chaveOrdem === chaveOrdem),
+    (chaveOrdem: string) =>
+      ordenadas.findIndex((l) => l.chaveOrdem === chaveOrdem),
     [ordenadas],
   );
 
@@ -601,14 +648,18 @@ export function TabelaDre({
         novasArrastadas,
       );
       const nomeCurto = linha.descricao.trim();
-      const novoIndice = nova.findIndex((l) => l.chaveOrdem === linha.chaveOrdem);
+      const novoIndice = nova.findIndex(
+        (l) => l.chaveOrdem === linha.chaveOrdem,
+      );
 
       // Quais totalizadores mudam de valor, comparado com o que está na tela agora.
       const totais = refeita
         .filter((l) => l.calculada && l.papel)
         .map((l) => ({
           rotulo: l.descricao.trim(),
-          antes: ordenadas.find((o) => o.chaveOrdem === l.chaveOrdem)?.total.valor ?? 0,
+          antes:
+            ordenadas.find((o) => o.chaveOrdem === l.chaveOrdem)?.total.valor ??
+            0,
           depois: l.total.valor,
         }))
         .filter((t) => Math.abs(t.depois - t.antes) > 0.005);
@@ -625,7 +676,10 @@ export function TabelaDre({
       // `informativasQueSomam`). Devolvida ao lugar, ou trocada de vizinho, o modal não promete
       // total nenhum a ela, como o selo da própria linha diz.
       const informativaSomando =
-        linha.naoSoma && informativasQueSomam(nova, linhas, novasArrastadas).has(linha.chaveOrdem);
+        linha.naoSoma &&
+        informativasQueSomam(nova, linhas, novasArrastadas).has(
+          linha.chaveOrdem,
+        );
       const somaEm =
         ancora === null || (linha.naoSoma && !informativaSomando)
           ? null
@@ -713,7 +767,11 @@ export function TabelaDre({
       anterior = agora;
 
       const r = cx.getBoundingClientRect();
-      cx.scrollTop += passoDeRolagem(ponteiroY.current, { topo: r.top, base: r.bottom }, dt);
+      cx.scrollTop += passoDeRolagem(
+        ponteiroY.current,
+        { topo: r.top, base: r.bottom },
+        dt,
+      );
 
       quadro = requestAnimationFrame(passo);
     };
@@ -785,12 +843,18 @@ export function TabelaDre({
    * nulo e o recorte é o período todo.
    */
   const abrirDetalhe = useCallback(
-    (linha: LinhaDre, mesAno: string | null, situacao: SituacaoDoDetalhe = "realizado") => {
+    (
+      linha: LinhaDre,
+      mesAno: string | null,
+      situacao: SituacaoDoDetalhe = "realizado",
+    ) => {
       const provisionado = situacao === "provisionado";
       const ambos = situacao === "ambos";
       if (!linha.detalhe) return;
 
-      const coluna = mesAno ? periodos.find((pp) => pp.mesAno === mesAno) : null;
+      const coluna = mesAno
+        ? periodos.find((pp) => pp.mesAno === mesAno)
+        : null;
 
       // Coluna que não existe mais na resposta: não inventa recorte. Um intervalo chutado
       // devolveria números que não são os da célula clicada.
@@ -802,17 +866,28 @@ export function TabelaDre({
 
       // O valor da célula vai junto: é contra ele que o resumo do cálculo se confere.
       // No Provisionado, a célula é o aberto — é contra ELE que o rodapé tem de fechar.
-      const celula = mesAno ? linha.valores.find((v) => v.mesAno === mesAno) : null;
+      const celula = mesAno
+        ? linha.valores.find((v) => v.mesAno === mesAno)
+        : null;
       const realizado = mesAno ? (celula?.valor ?? 0) : linha.total.valor;
-      const aberto = (mesAno ? celula?.provisionado : linha.total.provisionado) ?? 0;
+      const aberto =
+        (mesAno ? celula?.provisionado : linha.total.provisionado) ?? 0;
       // No Total (R + P) a célula é a soma dos dois lados, e é contra ela que o rodapé fecha.
-      const valorDaLinha = ambos ? realizado + aberto : provisionado ? aberto : realizado;
+      const valorDaLinha = ambos
+        ? realizado + aberto
+        : provisionado
+          ? aberto
+          : realizado;
 
       const pedido = {
         tipo: linha.detalhe,
         titulo:
           `${linha.descricao.trim()} · ${coluna?.rotulo ?? "Total do período"}` +
-          (provisionado ? " · Títulos em aberto" : ambos ? " · Realizado + Provisionado" : ""),
+          (provisionado
+            ? " · Títulos em aberto"
+            : ambos
+              ? " · Realizado + Provisionado"
+              : ""),
         periodo,
         linha: { descricao: linha.descricao.trim(), valor: valorDaLinha },
         provisionado,
@@ -860,7 +935,10 @@ export function TabelaDre({
       setComposicao({
         titulo: `${linha.descricao.trim()} · ${coluna}`,
         total,
-        parcelas: parcelas.map((p) => ({ ...p, semMovimento: p.semMovimento ?? false })),
+        parcelas: parcelas.map((p) => ({
+          ...p,
+          semMovimento: p.semMovimento ?? false,
+        })),
       });
     },
     [ordenadas, periodos],
@@ -909,7 +987,10 @@ export function TabelaDre({
     [detalhe, consultaDetalhe.data, filiaisApuradas, ocultarBaixas],
   );
 
-  const abrirEmNovaAba = useCallback(() => levarParaPagina(false), [levarParaPagina]);
+  const abrirEmNovaAba = useCallback(
+    () => levarParaPagina(false),
+    [levarParaPagina],
+  );
 
   /**
    * Imprimir **pela página dedicada**, não pelo diálogo.
@@ -919,7 +1000,10 @@ export function TabelaDre({
    * resto cortado — numa lista de 15 mil clientes, o pior defeito possível. A página é
    * HTML em fluxo normal, então pagina e repete o cabeçalho.
    */
-  const imprimirEmNovaAba = useCallback(() => levarParaPagina(true), [levarParaPagina]);
+  const imprimirEmNovaAba = useCallback(
+    () => levarParaPagina(true),
+    [levarParaPagina],
+  );
 
   /**
    * O Excel sai **daqui**, sem passar pela outra aba.
@@ -953,7 +1037,11 @@ export function TabelaDre({
    * `abrirDetalhe` carregar o recorte da célula em vez de derivá-lo do mês.
    */
   const abrirNotasDoMotivo = useCallback(
-    (motivo: { codMotivo: number | null; motivo: string | null; vlDevolucao: number }) => {
+    (motivo: {
+      codMotivo: number | null;
+      motivo: string | null;
+      vlDevolucao: number;
+    }) => {
       if (!detalhe) return;
 
       const nome = motivo.motivo?.trim() || "Sem motivo cadastrado";
@@ -1069,7 +1157,8 @@ export function TabelaDre({
    */
   // Provisionado e Total entram SÓ nos meses com título em aberto (spec D8): mês todo pago
   // fica como sempre foi. Por isso a largura passou a ser por período.
-  const provisionadoNoMes = (p: PeriodoDre) => mostrarProvisionado && p.temProvisionado === true;
+  const provisionadoNoMes = (p: PeriodoDre) =>
+    mostrarProvisionado && p.temProvisionado === true;
   // Vl. Realizado / Provisionado / Total (R + P) em competência; "Valor" em caixa. Os
   // mesmos nomes do Excel — ver `lib/rotulosDoDinheiro.ts`.
   const nomes = rotulosDoDinheiro(filtro.regime);
@@ -1077,7 +1166,10 @@ export function TabelaDre({
   // bloco é Δ entre duas colunas e não uma soma.
   const provisionadoNoFim = !variacaoNoFim && periodos.some(provisionadoNoMes);
   const colunasPorMes = (p: PeriodoDre) =>
-    1 + (mostrarAv ? 1 : 0) + (mostrarAh ? 1 : 0) + (provisionadoNoMes(p) ? 2 : 0);
+    1 +
+    (mostrarAv ? 1 : 0) +
+    (mostrarAh ? 1 : 0) +
+    (provisionadoNoMes(p) ? 2 : 0);
 
   // O bloco final: variação são duas colunas; o total é valor, %AV e média — e a média
   // fica, porque não é análise, é o valor médio das colunas.
@@ -1086,7 +1178,10 @@ export function TabelaDre({
   // que está lá. A média fica sempre: não é análise, é o valor médio das colunas.
   const colunasDoFim = variacaoNoFim
     ? 2
-    : 2 + (mostrarAv ? 1 : 0) + (mostrarAh ? 1 : 0) + (provisionadoNoFim ? 2 : 0);
+    : 2 +
+      (mostrarAv ? 1 : 0) +
+      (mostrarAh ? 1 : 0) +
+      (provisionadoNoFim ? 2 : 0);
 
   // Dois lados do comparativo podem cair no mesmo mês — 28/08–03/09 contra 05/09–11/09 põe
   // `Setembro/2026` duas vezes no cabeçalho. Aí, e só aí, o rótulo passa a levar os dias.
@@ -1096,7 +1191,9 @@ export function TabelaDre({
   // Sem isso, 26% e 73% ficariam quase indistinguíveis perto das Receitas Líquidas.
   const maiorAv = Math.max(
     ...visiveis.flatMap((l) =>
-      l.valores.map((v) => Math.abs(v.percentualAv ?? 0)).filter((n) => n < 100),
+      l.valores
+        .map((v) => Math.abs(v.percentualAv ?? 0))
+        .filter((n) => n < 100),
     ),
     1,
   );
@@ -1104,99 +1201,111 @@ export function TabelaDre({
   return (
     <>
       {!soPapel && (
-      <>
-      {/* A BARRA DA SELEÇÃO (06/11/2026, pedido do Gabriel). Existe enquanto "Selecionar
+        <>
+          {/* A BARRA DA SELEÇÃO (06/11/2026, pedido do Gabriel). Existe enquanto "Selecionar
           linhas" estiver ligado no menu Exibição, e diz o que fazer em cada momento: sem
           nada marcado, como começar; com contas marcadas, quantas e a ação. Fica fora da
           `barra-reordenar` de propósito — aquela some no toque, e marcar uma caixa funciona
           com o dedo. */}
-      {mostrarSelecao && (
-        <div className="nao-imprime flex flex-wrap items-center gap-x-5 gap-y-2 border-b border-[var(--border)] bg-[var(--surface-2)] px-4 py-2">
-          {marcadasNaTela.length === 0 ? (
-            <p className="text-[length:var(--fs-apoio)] text-[var(--text-muted)]">
-              Marque as linhas — ou todas, no cabeçalho — para exportar o detalhamento delas
-              num arquivo só.
-            </p>
-          ) : (
-            <>
-              <p role="status" className="text-[length:var(--fs-apoio)] text-[var(--text-secondary)]">
-                <strong className="font-semibold text-[var(--text-primary)]">
-                  {marcadasNaTela.length === 1
-                    ? "1 linha selecionada"
-                    : `${marcadasNaTela.length} linhas selecionadas`}
-                </strong>{" "}
-                · {marcadasNaTela.length * periodos.length}{" "}
-                {marcadasNaTela.length * periodos.length === 1 ? "planilha" : "planilhas"} no .zip
-                {/* As contas vão em lote (uma consulta por bloco × coluna), mas "Selecionar
+          {mostrarSelecao && (
+            <div className="nao-imprime flex flex-wrap items-center gap-x-5 gap-y-2 border-b border-[var(--border)] bg-[var(--surface-2)] px-4 py-2">
+              {marcadasNaTela.length === 0 ? (
+                <p className="text-[length:var(--fs-apoio)] text-[var(--text-muted)]">
+                  Marque as linhas — ou todas, no cabeçalho — para exportar o
+                  detalhamento delas num arquivo só.
+                </p>
+              ) : (
+                <>
+                  <p
+                    role="status"
+                    className="text-[length:var(--fs-apoio)] text-[var(--text-secondary)]"
+                  >
+                    <strong className="font-semibold text-[var(--text-primary)]">
+                      {marcadasNaTela.length === 1
+                        ? "1 linha selecionada"
+                        : `${marcadasNaTela.length} linhas selecionadas`}
+                    </strong>{" "}
+                    · {marcadasNaTela.length * periodos.length}{" "}
+                    {marcadasNaTela.length * periodos.length === 1
+                      ? "planilha"
+                      : "planilhas"}{" "}
+                    no .zip
+                    {/* As contas vão em lote (uma consulta por bloco × coluna), mas "Selecionar
                     todas" em doze meses ainda são centenas de planilhas — a pessoa precisa
                     saber antes de clicar. */}
-                {marcadasNaTela.filter((l) => l.detalhe).length * periodos.length > 24 && (
-                  <span className="text-[var(--warning)]">
-                    {" "}
-                    — as contas são consultadas em lote: pode levar alguns minutos
-                  </span>
-                )}
-              </p>
-              <button
-                type="button"
-                onClick={() => exportarSelecionadas(marcadasNaTela)}
-                disabled={!!exportacao?.cancelar}
-                className="rounded-[var(--radius-md)] bg-[var(--primary)] px-3 py-1.5 text-[length:var(--fs-apoio)] font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-wait disabled:opacity-60"
-              >
-                Exportar detalhamento (.zip)
-              </button>
-              <button
-                type="button"
-                onClick={() => selecionarTodas(false)}
-                className="text-[length:var(--fs-apoio)] font-medium text-[var(--primary)] underline underline-offset-4 hover:opacity-80"
-              >
-                Limpar seleção
-              </button>
-            </>
+                    {marcadasNaTela.filter((l) => l.detalhe).length *
+                      periodos.length >
+                      24 && (
+                      <span className="text-[var(--warning)]">
+                        {" "}
+                        — as contas são consultadas em lote: pode levar alguns
+                        minutos
+                      </span>
+                    )}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => exportarSelecionadas(marcadasNaTela)}
+                    disabled={!!exportacao?.cancelar}
+                    className="rounded-[var(--radius-md)] bg-[var(--primary)] px-3 py-1.5 text-[length:var(--fs-apoio)] font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-wait disabled:opacity-60"
+                  >
+                    Exportar detalhamento (.zip)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => selecionarTodas(false)}
+                    className="text-[length:var(--fs-apoio)] font-medium text-[var(--primary)] underline underline-offset-4 hover:opacity-80"
+                  >
+                    Limpar seleção
+                  </button>
+                </>
+              )}
+            </div>
           )}
-        </div>
-      )}
 
-      {/* `barra-reordenar` sai em dispositivo de toque: ela explica um gesto de mouse e
+          {/* `barra-reordenar` sai em dispositivo de toque: ela explica um gesto de mouse e
           um atalho de teclado, e o celular não tem nenhum dos dois. Com "Mover linhas"
           desligado (06/11/2026) a dica sai junto com o punho, e a barra só existe se ainda
           tiver o que dizer — o aviso de reordenado, o filtro, o restaurar. */}
-      {(mostrarPunho || totaisPersonalizados || filtrando || personalizada) && (
-      <div className="barra-reordenar nao-imprime flex flex-wrap items-center justify-between gap-x-6 gap-y-2 border-b border-[var(--border)] px-4 py-2">
-        {/* O AVISO OCUPA O LUGAR DA DICA, e não uma faixa própria embaixo dela.
+          {(mostrarPunho ||
+            totaisPersonalizados ||
+            filtrando ||
+            personalizada) && (
+            <div className="barra-reordenar nao-imprime flex flex-wrap items-center justify-between gap-x-6 gap-y-2 border-b border-[var(--border)] px-4 py-2">
+              {/* O AVISO OCUPA O LUGAR DA DICA, e não uma faixa própria embaixo dela.
 
             A faixa separada custava uma linha inteira no alto da tabela — a região mais
             disputada da tela, logo acima dos números. E as duas frases nunca precisam ser
             lidas juntas: quem já reordenou não precisa mais da instrução de como arrastar. */}
-        {totaisPersonalizados ? (
-          <p
-            role="status"
-            className="text-[length:var(--fs-apoio)] text-[var(--text-secondary)]"
-          >
-            <span
-              aria-hidden
-              className="mr-2 inline-block rounded-[var(--radius-sm)] bg-[var(--warning-glow)] px-1.5 py-0.5 text-[length:var(--fs-rotulo)] font-semibold tracking-[0.1em] text-[var(--warning)] uppercase"
-            >
-              Reordenado
-            </span>
-            <strong className="font-semibold text-[var(--text-primary)]">
-              Estes totais não são os da apuração
-            </strong>{" "}
-            — eles seguem a ordem desta tela, que fica só neste navegador.
-          </p>
-        ) : mostrarPunho ? (
-          <p className="text-[length:var(--fs-apoio)] text-[var(--text-muted)]">
-            Arraste uma conta pelo punho{" "}
-            <span aria-hidden className="text-[var(--text-secondary)]">
-              ⠿
-            </span>{" "}
-            para mudá-la de bloco, ou use <kbd className="tecla">Alt</kbd> +{" "}
-            <kbd className="tecla">↑</kbd> <kbd className="tecla">↓</kbd>. Os totais se
-            refazem.
-          </p>
-        ) : null}
+              {totaisPersonalizados ? (
+                <p
+                  role="status"
+                  className="text-[length:var(--fs-apoio)] text-[var(--text-secondary)]"
+                >
+                  <span
+                    aria-hidden
+                    className="mr-2 inline-block rounded-[var(--radius-sm)] bg-[var(--warning-glow)] px-1.5 py-0.5 text-[length:var(--fs-rotulo)] font-semibold tracking-[0.1em] text-[var(--warning)] uppercase"
+                  >
+                    Reordenado
+                  </span>
+                  <strong className="font-semibold text-[var(--text-primary)]">
+                    Estes totais não são os da apuração
+                  </strong>{" "}
+                  — eles seguem a ordem desta tela, que fica só neste navegador.
+                </p>
+              ) : mostrarPunho ? (
+                <p className="text-[length:var(--fs-apoio)] text-[var(--text-muted)]">
+                  Arraste uma conta pelo punho{" "}
+                  <span aria-hidden className="text-[var(--text-secondary)]">
+                    ⠿
+                  </span>{" "}
+                  para mudá-la de bloco, ou use <kbd className="tecla">Alt</kbd>{" "}
+                  + <kbd className="tecla">↑</kbd>{" "}
+                  <kbd className="tecla">↓</kbd>. Os totais se refazem.
+                </p>
+              ) : null}
 
-        {/* ENQUANTO FILTRA, A TABELA NÃO É O DRE.
+              {/* ENQUANTO FILTRA, A TABELA NÃO É O DRE.
 
             As linhas calculadas saem junto com as que não casam — ver `filtrarLinhas` —, e
             este aviso é o que diz por que o `LUCRO BRUTO` sumiu. Sem ele, a tabela
@@ -1204,38 +1313,38 @@ export function TabelaDre({
 
             `role="status"` porque a contagem muda a cada tecla: quem usa leitor de tela
             precisa ouvir quantas linhas sobraram sem sair do campo. */}
-        {filtrando && (
-          <p
-            role="status"
-            className="w-full text-[length:var(--fs-apoio)] text-[var(--text-secondary)]"
-          >
-            Filtrando por{" "}
-            <strong className="font-semibold text-[var(--text-primary)]">
-              “{filtroDeLinhas.trim()}”
-            </strong>{" "}
-            — {visiveis.length} de {comMovimento.filter((l) => !l.calculada).length} linhas.
-            Os totalizadores ficam ocultos: eles somam a apuração inteira, não o que está à
-            vista.
-          </p>
-        )}
+              {filtrando && (
+                <p
+                  role="status"
+                  className="w-full text-[length:var(--fs-apoio)] text-[var(--text-secondary)]"
+                >
+                  Filtrando por{" "}
+                  <strong className="font-semibold text-[var(--text-primary)]">
+                    “{filtroDeLinhas.trim()}”
+                  </strong>{" "}
+                  — {visiveis.length} de{" "}
+                  {comMovimento.filter((l) => !l.calculada).length} linhas. Os
+                  totalizadores ficam ocultos: eles somam a apuração inteira,
+                  não o que está à vista.
+                </p>
+              )}
 
-        <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
-          {personalizada && (
-            <button
-              type="button"
-              onClick={restaurar}
-              className="text-[length:var(--fs-apoio)] font-medium text-[var(--primary)] underline underline-offset-4 hover:opacity-80"
-            >
-              {totaisPersonalizados
-                ? "Ver os números do cadastro"
-                : "Restaurar ordem do cadastro"}
-            </button>
+              <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+                {personalizada && (
+                  <button
+                    type="button"
+                    onClick={restaurar}
+                    className="text-[length:var(--fs-apoio)] font-medium text-[var(--primary)] underline underline-offset-4 hover:opacity-80"
+                  >
+                    {totaisPersonalizados
+                      ? "Ver os números do cadastro"
+                      : "Restaurar ordem do cadastro"}
+                  </button>
+                )}
+              </div>
+            </div>
           )}
-        </div>
-      </div>
-      )}
-
-      </>
+        </>
       )}
 
       {/* A MARCA QUE VAI PARA O PAPEL.
@@ -1253,8 +1362,9 @@ export function TabelaDre({
           personaliza total nenhum, e acender o aviso ali o gastaria à toa. */}
       {avisoNoPapel && (totaisPersonalizados || deslocadas.size > 0) && (
         <p className="so-no-papel border-b border-[var(--warning)] bg-[var(--warning-glow)] px-4 py-2 text-[length:var(--fs-apoio)] text-[var(--text-primary)]">
-          <strong className="font-semibold">Totais reordenados.</strong> Estes números não são
-          os da apuração — eles seguem a ordem em que a tabela foi lida.
+          <strong className="font-semibold">Totais reordenados.</strong> Estes
+          números não são os da apuração — eles seguem a ordem em que a tabela
+          foi lida.
           {/* A LEGENDA DO ASTERISCO.
               No papel o selo vira `*` ao lado do nome, e um asterisco sem legenda é um
               enfeite: é aqui que ele passa a querer dizer alguma coisa. Fica na mesma faixa
@@ -1263,8 +1373,9 @@ export function TabelaDre({
           {deslocadas.size > 0 && (
             <>
               {" "}
-              <strong className="font-semibold">*</strong> conta movida para outro bloco: ela
-              soma no total abaixo dela, e não no que o cadastro lhe deu.
+              <strong className="font-semibold">*</strong> conta movida para
+              outro bloco: ela soma no total abaixo dela, e não no que o
+              cadastro lhe deu.
             </>
           )}
         </p>
@@ -1280,43 +1391,55 @@ export function TabelaDre({
         }}
         className="tabela-rolagem"
       >
-        <table className="w-full border-collapse text-[length:var(--fs-base)]">
+        <table
+          className={cn(
+            "w-full border-collapse text-[length:var(--fs-base)]",
+            // Alarga a coluna fixa para o código não comer o espaço do nome — ver globals.css.
+            mostrarCodigos && "com-codigos",
+          )}
+        >
           <thead>
             {multiMes && (
               <tr className="border-b border-[var(--border)]">
                 <th className="celula-descricao" />
-                {mostrarMeses && periodos.map((p, i) => naFaixa(i) && (
-                  <th
-                    key={p.mesAno}
-                    colSpan={colunasPorMes(p)}
-                    className={cn(
-                      "px-[var(--celula-x)] pt-3 pb-1 text-center text-[length:var(--fs-rotulo)] font-semibold tracking-[0.14em] text-[var(--text-secondary)] uppercase",
-                      // Uma cor por mês, para o olho não perder de vista a que coluna
-                      // pertence o número que está lendo — ver o bloco FAIXA DE COR POR
-                      // COLUNA em globals.css. O ciclo de quatro recomeça longe o bastante
-                      // para duas faixas iguais nunca se compararem na mesma tela.
-                      faixaDoMes(i),
-                      // Cada mês abre um BLOCO (.col-bloco); a virada de intervalo do
-                      // comparativo é a única divisão mais forte que essa — sem ela os dois
-                      // lados da comparação se misturam num campo contínuo de colunas. Ver
-                      // "As divisões verticais" em globals.css.
-                      i > 0 && abreBloco(periodos, i) ? "col-intervalo" : "col-bloco",
-                    )}
-                  >
-                    {rotulos[i]}
-                  </th>
-                ))}
+                {mostrarMeses &&
+                  periodos.map(
+                    (p, i) =>
+                      naFaixa(i) && (
+                        <th
+                          key={p.mesAno}
+                          colSpan={colunasPorMes(p)}
+                          className={cn(
+                            "px-[var(--celula-x)] pt-3 pb-1 text-center text-[length:var(--fs-rotulo)] font-semibold tracking-[0.14em] text-[var(--text-secondary)] uppercase",
+                            // Uma cor por mês, para o olho não perder de vista a que coluna
+                            // pertence o número que está lendo — ver o bloco FAIXA DE COR POR
+                            // COLUNA em globals.css. O ciclo de quatro recomeça longe o bastante
+                            // para duas faixas iguais nunca se compararem na mesma tela.
+                            faixaDoMes(i),
+                            // Cada mês abre um BLOCO (.col-bloco); a virada de intervalo do
+                            // comparativo é a única divisão mais forte que essa — sem ela os dois
+                            // lados da comparação se misturam num campo contínuo de colunas. Ver
+                            // "As divisões verticais" em globals.css.
+                            i > 0 && abreBloco(periodos, i)
+                              ? "col-intervalo"
+                              : "col-bloco",
+                          )}
+                        >
+                          {rotulos[i]}
+                        </th>
+                      ),
+                  )}
                 {blocoNoFim && (
-                <th
-                  colSpan={colunasDoFim}
-                  className="col-bloco bg-[var(--surface-2)] px-[var(--celula-x)] pt-3 pb-1 text-center text-[length:var(--fs-rotulo)] font-semibold tracking-[0.14em] text-[var(--text-primary)] uppercase"
-                >
-                  {/* `Jan–Mar/2025 → Jun–Set/2026` em vez de "Variação": no comparativo os
+                  <th
+                    colSpan={colunasDoFim}
+                    className="col-bloco bg-[var(--surface-2)] px-[var(--celula-x)] pt-3 pb-1 text-center text-[length:var(--fs-rotulo)] font-semibold tracking-[0.14em] text-[var(--text-primary)] uppercase"
+                  >
+                    {/* `Jan–Mar/2025 → Jun–Set/2026` em vez de "Variação": no comparativo os
                       dois lados são intervalos INTEIROS, e sem o rótulo quem olha a coluna Δ
                       supõe que ela compara os dois últimos meses — que é outra conta, a da
                       coluna `AH %`. */}
-                  {variacaoNoFim ? rotuloDaVariacao(modo, periodos) : "Total"}
-                </th>
+                    {variacaoNoFim ? rotuloDaVariacao(modo, periodos) : "Total"}
+                  </th>
                 )}
               </tr>
             )}
@@ -1328,29 +1451,37 @@ export function TabelaDre({
               <Th className="celula-descricao largura-da-descricao" aEsquerda>
                 {/* SELECIONAR TODAS (06/11/2026): no mesmo lugar dos checkboxes das linhas,
                     para a coluna de caixas começar no cabeçalho, como numa planilha. */}
-                {mostrarSelecao && !soPapel && selecionaveis.length > 0 ? (
-                  <span className="flex items-center gap-2">
+                <span className="flex items-center gap-2">
+                  {/* OS CÓDIGOS (10/11/2026): na mesma célula fixa, e não numa coluna fixa
+                      a mais — duas colunas fixas não concordavam no pixel (ver a célula da
+                      linha). A faixa tem largura própria e divisória, e se lê como coluna. */}
+                  {mostrarCodigos && (
+                    <span className="codigo-da-linha">Código</span>
+                  )}
+                  {mostrarSelecao && !soPapel && selecionaveis.length > 0 && (
                     <SelecionarTodas
                       marcadas={marcadasNaTela.length}
                       total={selecionaveis.length}
                       onMudar={selecionarTodas}
                     />
-                    Descrição
-                  </span>
-                ) : (
-                  "Descrição"
-                )}
+                  )}
+                  Descrição
+                </span>
               </Th>
-              {mostrarMeses && periodos.map((p, i) => naFaixa(i) && (
-                <ColunasCabecalho
-                  key={p.mesAno}
-                  faixa={faixaDoMes(i)}
-                  mostrarAv={mostrarAv}
-                  mostrarAh={mostrarAh}
-                  provisionado={provisionadoNoMes(p)}
-                  nomes={nomes}
-                />
-              ))}
+              {mostrarMeses &&
+                periodos.map(
+                  (p, i) =>
+                    naFaixa(i) && (
+                      <ColunasCabecalho
+                        key={p.mesAno}
+                        faixa={faixaDoMes(i)}
+                        mostrarAv={mostrarAv}
+                        mostrarAh={mostrarAh}
+                        provisionado={provisionadoNoMes(p)}
+                        nomes={nomes}
+                      />
+                    ),
+                )}
               {blocoNoFim &&
                 (variacaoNoFim ? (
                   <ColunasCabecalhoVariacao />
@@ -1390,7 +1521,9 @@ export function TabelaDre({
                   modo={modo}
                   arrastando={arrasto === indice}
                   indicadorAcima={indicador === linha.chaveOrdem}
-                  indicadorAbaixo={indicador === null && linha === visiveis.at(-1)}
+                  indicadorAbaixo={
+                    indicador === null && linha === visiveis.at(-1)
+                  }
                   onArrastarInicio={() => setArrasto(indice)}
                   onArrastarSobre={(destino) => setAlvo(destino)}
                   onSoltar={(destino) => {
@@ -1407,10 +1540,13 @@ export function TabelaDre({
                   onTeclado={(direcao) => moverPorTeclado(indice, direcao)}
                   onMenu={(x, y) => setMenuDaLinha({ x, y, linha })}
                   mostrarPunho={mostrarPunho && !soPapel}
+                  codigo={mostrarCodigos ? codigoDaLinha(linha) : null}
                   selecao={
                     mostrarSelecao && !soPapel
                       ? {
-                          marcada: exportavel(linha) ? selecionadas.has(linha.chaveOrdem) : null,
+                          marcada: exportavel(linha)
+                            ? selecionadas.has(linha.chaveOrdem)
+                            : null,
                           onAlternar: () => alternarSelecao(linha.chaveOrdem),
                         }
                       : null
@@ -1421,7 +1557,11 @@ export function TabelaDre({
                   onDetalheProvisionado={
                     linha.detalhe && !linha.calculada
                       ? (mesAno, ambos) =>
-                          abrirDetalhe(linha, mesAno, ambos ? "ambos" : "provisionado")
+                          abrirDetalhe(
+                            linha,
+                            mesAno,
+                            ambos ? "ambos" : "provisionado",
+                          )
                       : null
                   }
                   onDetalhe={
@@ -1442,130 +1582,148 @@ export function TabelaDre({
       </div>
 
       {!soPapel && (
-      <>
-      <p role="status" aria-live="polite" className="sr-only">
-        {anuncio}
-      </p>
+        <>
+          <p role="status" aria-live="polite" className="sr-only">
+            {anuncio}
+          </p>
 
-      <ModalMoverLinha
-        pendente={pendente}
-        onConfirmar={confirmar}
-        onCancelar={() => setPendente(null)}
-      />
+          <ModalMoverLinha
+            pendente={pendente}
+            onConfirmar={confirmar}
+            onCancelar={() => setPendente(null)}
+          />
 
-      {menuDaLinha && (
-        <MenuDaLinha
-          x={menuDaLinha.x}
-          y={menuDaLinha.y}
-          titulo={menuDaLinha.linha.descricao.trim()}
-          onFechar={fecharMenuDaLinha}
-          grupos={[
-            {
-              titulo: "Exportar todo o detalhamento",
-              acoes: [
+          {menuDaLinha && (
+            <MenuDaLinha
+              x={menuDaLinha.x}
+              y={menuDaLinha.y}
+              titulo={menuDaLinha.linha.descricao.trim()}
+              onFechar={fecharMenuDaLinha}
+              grupos={[
                 {
-                  id: "excel-zip",
-                  rotulo: "Excel (.zip)",
-                  // O totalizador exporta a COMPOSIÇÃO (06/11/2026) — ver `paraExportar`.
-                  apoio: menuDaLinha.linha.detalhe
-                    ? `Um arquivo por coluna — ${periodos.length} ${periodos.length === 1 ? "arquivo" : "arquivos"}, num .zip`
-                    : `A composição do total, um arquivo por coluna — ${periodos.length} ${periodos.length === 1 ? "arquivo" : "arquivos"}, num .zip`,
-                  motivo: !exportavel(menuDaLinha.linha)
-                    ? "Esta linha não tem detalhamento nem composição para exportar."
-                    : exportacao?.cancelar
-                      ? "Já há uma exportação em andamento."
-                      : null,
-                  onEscolher: () => void exportarTudo(menuDaLinha.linha),
+                  titulo: "Exportar todo o detalhamento",
+                  acoes: [
+                    {
+                      id: "excel-zip",
+                      rotulo: "Excel (.zip)",
+                      // O totalizador exporta a COMPOSIÇÃO (06/11/2026) — ver `paraExportar`.
+                      apoio: menuDaLinha.linha.detalhe
+                        ? `Um arquivo por coluna — ${periodos.length} ${periodos.length === 1 ? "arquivo" : "arquivos"}, num .zip`
+                        : `A composição do total, um arquivo por coluna — ${periodos.length} ${periodos.length === 1 ? "arquivo" : "arquivos"}, num .zip`,
+                      motivo: !exportavel(menuDaLinha.linha)
+                        ? "Esta linha não tem detalhamento nem composição para exportar."
+                        : exportacao?.cancelar
+                          ? "Já há uma exportação em andamento."
+                          : null,
+                      onEscolher: () => void exportarTudo(menuDaLinha.linha),
+                    },
+                  ],
                 },
-              ],
-            },
-          ]}
-        />
-      )}
-
-      {exportacao && (
-        <div
-          role="status"
-          aria-live="polite"
-          className="nao-imprime fixed right-4 bottom-4 z-50 flex max-w-sm items-start gap-3 rounded-[var(--radius-lg)] border border-[var(--border-strong)] bg-[var(--surface-2)] px-4 py-3 text-[length:var(--fs-apoio)] shadow-[var(--shadow-float)]"
-        >
-          <div className={exportacao.erro ? "text-[var(--negative)]" : "text-[var(--text-primary)]"}>
-            {exportacao.erro ?? exportacao.aviso ?? (
-              <>
-                <p>
-                  Exportando <strong className="font-semibold">{exportacao.conta}</strong>:{" "}
-                  <span className="tabular">
-                    {exportacao.feitos} de {exportacao.total}
-                  </span>{" "}
-                  {exportacao.total === 1 ? "planilha" : "planilhas"}…
-                </p>
-                {exportacao.agora && (
-                  <p className="mt-0.5 text-[var(--text-secondary)]">{exportacao.agora}</p>
-                )}
-              </>
-            )}
-          </div>
-          {exportacao.cancelar ? (
-            <button
-              type="button"
-              onClick={exportacao.cancelar}
-              className="shrink-0 cursor-pointer font-medium text-[var(--text-secondary)] underline underline-offset-4 hover:text-[var(--text-primary)]"
-            >
-              Cancelar
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={() => setExportacao(null)}
-              className="shrink-0 cursor-pointer font-medium text-[var(--text-secondary)] underline underline-offset-4 hover:text-[var(--text-primary)]"
-            >
-              Fechar
-            </button>
+              ]}
+            />
           )}
-        </div>
-      )}
 
-      <ModalConfirmarDetalhe
-        pendente={detalhePendente?.aviso ?? null}
-        onConfirmar={() => {
-          if (detalhePendente) consultarDetalhe(detalhePendente.pedido);
-          setDetalhePendente(null);
-        }}
-        onCancelar={() => setDetalhePendente(null)}
-      />
+          {exportacao && (
+            <div
+              role="status"
+              aria-live="polite"
+              className="nao-imprime fixed right-4 bottom-4 z-50 flex max-w-sm items-start gap-3 rounded-[var(--radius-lg)] border border-[var(--border-strong)] bg-[var(--surface-2)] px-4 py-3 text-[length:var(--fs-apoio)] shadow-[var(--shadow-float)]"
+            >
+              <div
+                className={
+                  exportacao.erro
+                    ? "text-[var(--negative)]"
+                    : "text-[var(--text-primary)]"
+                }
+              >
+                {exportacao.erro ?? exportacao.aviso ?? (
+                  <>
+                    <p>
+                      Exportando{" "}
+                      <strong className="font-semibold">
+                        {exportacao.conta}
+                      </strong>
+                      :{" "}
+                      <span className="tabular">
+                        {exportacao.feitos} de {exportacao.total}
+                      </span>{" "}
+                      {exportacao.total === 1 ? "planilha" : "planilhas"}…
+                    </p>
+                    {exportacao.agora && (
+                      <p className="mt-0.5 text-[var(--text-secondary)]">
+                        {exportacao.agora}
+                      </p>
+                    )}
+                  </>
+                )}
+              </div>
+              {exportacao.cancelar ? (
+                <button
+                  type="button"
+                  onClick={exportacao.cancelar}
+                  className="shrink-0 cursor-pointer font-medium text-[var(--text-secondary)] underline underline-offset-4 hover:text-[var(--text-primary)]"
+                >
+                  Cancelar
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setExportacao(null)}
+                  className="shrink-0 cursor-pointer font-medium text-[var(--text-secondary)] underline underline-offset-4 hover:text-[var(--text-primary)]"
+                >
+                  Fechar
+                </button>
+              )}
+            </div>
+          )}
 
-      <ModalDetalhe
-        aberto={detalhe !== null || composicao !== null}
-        titulo={detalhe?.titulo ?? composicao?.titulo ?? ""}
-        periodo={detalhe?.periodo ?? null}
-        dados={consultaDetalhe.data}
-        linha={detalhe?.linha ?? null}
-        composicao={composicao}
-        carregando={detalhe !== null && consultaDetalhe.isPending}
-        erro={
-          consultaDetalhe.error instanceof Error ? consultaDetalhe.error.message : null
-        }
-        onFechar={fecharDetalhe}
-        // A composição dos totalizadores não vai para página: ela é aritmética sobre
-        // linhas que estão na tabela atrás do modal, e fora daqui perde a referência.
-        onAbrirEmNovaAba={composicao ? null : abrirEmNovaAba}
-        onImprimir={composicao ? null : imprimirEmNovaAba}
-        // A composição não tem Excel pelo mesmo motivo de não ter página: ela é aritmética
-        // sobre as linhas da tabela atrás do modal, e a tabela inteira já exporta.
-        onExcel={composicao || !detalhe || !consultaDetalhe.data ? null : exportarExcel}
-        excelOcupado={exportando}
-        avisoDaAba={avisoDaAba ?? erroExcel}
-        // Só a tela de motivos desce um nível. Nas outras a prop não vai, e a tabela
-        // deixa de se anunciar como clicável em vez de oferecer um clique morto.
-        onAbrirNotas={
-          consultaDetalhe.data?.tipo === "devolucao-por-motivo"
-            ? abrirNotasDoMotivo
-            : undefined
-        }
-        voltarPara={nivelAnterior?.rotulo ?? null}
-        onVoltar={nivelAnterior ? voltarUmNivel : undefined}
-      />
-      </>
+          <ModalConfirmarDetalhe
+            pendente={detalhePendente?.aviso ?? null}
+            onConfirmar={() => {
+              if (detalhePendente) consultarDetalhe(detalhePendente.pedido);
+              setDetalhePendente(null);
+            }}
+            onCancelar={() => setDetalhePendente(null)}
+          />
+
+          <ModalDetalhe
+            aberto={detalhe !== null || composicao !== null}
+            titulo={detalhe?.titulo ?? composicao?.titulo ?? ""}
+            periodo={detalhe?.periodo ?? null}
+            dados={consultaDetalhe.data}
+            linha={detalhe?.linha ?? null}
+            composicao={composicao}
+            carregando={detalhe !== null && consultaDetalhe.isPending}
+            erro={
+              consultaDetalhe.error instanceof Error
+                ? consultaDetalhe.error.message
+                : null
+            }
+            onFechar={fecharDetalhe}
+            // A composição dos totalizadores não vai para página: ela é aritmética sobre
+            // linhas que estão na tabela atrás do modal, e fora daqui perde a referência.
+            onAbrirEmNovaAba={composicao ? null : abrirEmNovaAba}
+            onImprimir={composicao ? null : imprimirEmNovaAba}
+            // A composição não tem Excel pelo mesmo motivo de não ter página: ela é aritmética
+            // sobre as linhas da tabela atrás do modal, e a tabela inteira já exporta.
+            onExcel={
+              composicao || !detalhe || !consultaDetalhe.data
+                ? null
+                : exportarExcel
+            }
+            excelOcupado={exportando}
+            avisoDaAba={avisoDaAba ?? erroExcel}
+            // Só a tela de motivos desce um nível. Nas outras a prop não vai, e a tabela
+            // deixa de se anunciar como clicável em vez de oferecer um clique morto.
+            onAbrirNotas={
+              consultaDetalhe.data?.tipo === "devolucao-por-motivo"
+                ? abrirNotasDoMotivo
+                : undefined
+            }
+            voltarPara={nivelAnterior?.rotulo ?? null}
+            onVoltar={nivelAnterior ? voltarUmNivel : undefined}
+          />
+        </>
       )}
     </>
   );
@@ -1770,7 +1928,11 @@ function SelecionarTodas({
       type="checkbox"
       checked={todas}
       onChange={() => onMudar(!todas)}
-      aria-label={todas ? "Desmarcar todas as contas" : "Selecionar todas as contas à vista"}
+      aria-label={
+        todas
+          ? "Desmarcar todas as contas"
+          : "Selecionar todas as contas à vista"
+      }
       className="selecao-da-linha nao-imprime shrink-0"
     />
   );
@@ -1842,12 +2004,15 @@ function Linha({
   percentuaisRp,
   onDetalheProvisionado,
   mostrarPunho,
+  codigo,
   selecao,
 }: {
   linha: LinhaDre;
   indice: number;
   /** O punho ⠿ de mover aparece — "Mover linhas" no menu Exibição (06/11/2026). */
   mostrarPunho: boolean;
+  /** O código da linha, ou o traço — `null` com "Códigos" desligado (10/11/2026). */
+  codigo: string | null;
   /**
    * O checkbox de seleção da linha — "Selecionar linhas" no menu Exibição (06/11/2026).
    * `null` com a opção desligada; `marcada: null` numa linha que não abre detalhamento
@@ -1897,7 +2062,9 @@ function Linha({
    */
   percentuaisRp: boolean;
   /** Os títulos em aberto da célula. `null` em totalizador. */
-  onDetalheProvisionado: ((mesAno: string | null, ambos?: boolean) => void) | null;
+  onDetalheProvisionado:
+    | ((mesAno: string | null, ambos?: boolean) => void)
+    | null;
 }) {
   // Metade de cima da linha solta antes dela; metade de baixo, depois.
   const destinoDoPonteiro = (e: React.DragEvent<HTMLTableRowElement>) => {
@@ -1942,7 +2109,8 @@ function Linha({
         linha.totalizadora && "linha-totalizadora bg-[var(--surface-2)]",
         // RESULTADO OPERACIONAL e LUCRO LIQUIDO são os dois resultados do DRE: borda grossa
         // em cima e embaixo, para se destacarem dos outros totalizadores (15/10/2026).
-        (linha.papel === "resultado-operacional" || linha.papel === "lucro-liquido") &&
+        (linha.papel === "resultado-operacional" ||
+          linha.papel === "lucro-liquido") &&
           "linha-resultado",
         arrastando && "linha-arrastando",
         indicadorAcima && "alvo-acima",
@@ -1968,9 +2136,19 @@ function Linha({
         }}
       >
         <div className="flex items-center gap-2">
-          {/* LINHA CALCULADA NÃO SE MOVIA — de 15/09/2026 até 10/11/2026, quando a branch de
-              teste liberou o arraste de todas as linhas (pedido do Gabriel). O texto abaixo é o
-              motivo da trava, mantido para quem levar isto à main.
+          {codigo !== null && (
+            <span
+              className="codigo-da-linha"
+              title={
+                codigo === "—"
+                  ? "Linha calculada: sem código"
+                  : `Código ${codigo}`
+              }
+            >
+              {codigo}
+            </span>
+          )}
+          {/* LINHA CALCULADA NÃO SE MOVE — desde 15/09/2026.
 
               Elas são as âncoras que definem os blocos: onde uma conta está em relação a
               elas é o que decide de que total ela participa. Movê-las redefiniria todos os
@@ -2058,32 +2236,44 @@ function Linha({
         </div>
       </td>
 
-      {mostrarMeses && linha.valores.map((v, i) => naFaixa(i) && (
-        <BlocoMes
-          key={v.mesAno}
-          faixa={faixaDoMes(i)}
-          valor={v.valor}
-          av={v.percentualAv}
-          // A célula do %AV vira participação na linha das RECEITAS LIQUIDAS, quando há
-          // fornecedor filtrado — o P.23,852% da 9815. Ver `BarraAv`.
-          participacao={comFornecedor && linha.papel === "receitas-liquidas"}
-          ah={v.percentualAh}
-          mostrarAv={mostrarAv}
-          mostrarAh={mostrarAh}
-          totalDaLinha={sentido}
-          maiorAv={maiorAv}
-          destaque={linha.totalizadora}
-          onDetalhe={onDetalhe ? () => onDetalhe(v.mesAno) : null}
-          comProvisionado={periodos.some((p) => p.mesAno === v.mesAno && provisionadoNoMes(p))}
-          provisionado={v.provisionado}
-          onDetalheProvisionado={
-            onDetalheProvisionado ? () => onDetalheProvisionado(v.mesAno) : null
-          }
-          onDetalheRp={
-            onDetalheProvisionado ? () => onDetalheProvisionado(v.mesAno, true) : null
-          }
-        />
-      ))}
+      {mostrarMeses &&
+        linha.valores.map(
+          (v, i) =>
+            naFaixa(i) && (
+              <BlocoMes
+                key={v.mesAno}
+                faixa={faixaDoMes(i)}
+                valor={v.valor}
+                av={v.percentualAv}
+                // A célula do %AV vira participação na linha das RECEITAS LIQUIDAS, quando há
+                // fornecedor filtrado — o P.23,852% da 9815. Ver `BarraAv`.
+                participacao={
+                  comFornecedor && linha.papel === "receitas-liquidas"
+                }
+                ah={v.percentualAh}
+                mostrarAv={mostrarAv}
+                mostrarAh={mostrarAh}
+                totalDaLinha={sentido}
+                maiorAv={maiorAv}
+                destaque={linha.totalizadora}
+                onDetalhe={onDetalhe ? () => onDetalhe(v.mesAno) : null}
+                comProvisionado={periodos.some(
+                  (p) => p.mesAno === v.mesAno && provisionadoNoMes(p),
+                )}
+                provisionado={v.provisionado}
+                onDetalheProvisionado={
+                  onDetalheProvisionado
+                    ? () => onDetalheProvisionado(v.mesAno)
+                    : null
+                }
+                onDetalheRp={
+                  onDetalheProvisionado
+                    ? () => onDetalheProvisionado(v.mesAno, true)
+                    : null
+                }
+              />
+            ),
+        )}
 
       {blocoNoFim &&
         (variacaoNoFim ? (
@@ -2116,7 +2306,9 @@ function Linha({
               onDetalheProvisionado ? () => onDetalheProvisionado(null) : null
             }
             onDetalheRp={
-              onDetalheProvisionado ? () => onDetalheProvisionado(null, true) : null
+              onDetalheProvisionado
+                ? () => onDetalheProvisionado(null, true)
+                : null
             }
             total
           />
@@ -2176,7 +2368,11 @@ function BlocoMes({
 }) {
   // Totalizador em NEGRITO, e não semibold — pedido de 15/10/2026: o resultado tem de saltar
   // da coluna sem precisar ler a descrição.
-  const celula = cn(CELULA, "whitespace-nowrap tabular", destaque && "font-bold");
+  const celula = cn(
+    CELULA,
+    "whitespace-nowrap tabular",
+    destaque && "font-bold",
+  );
   // O SINAL EM COR, dos dois lados (15/10/2026): negativo vermelho, positivo verde, zero
   // apagado. Antes só o negativo tinha cor, e o positivo saía na cor do texto.
   const corValor = (v: number) =>
@@ -2226,7 +2422,12 @@ function BlocoMes({
         <CelulasDoProvisionado
           valor={valor}
           provisionado={provisionado ?? null}
-          classe={cn(celula, "col-interna text-right", f, total && "bg-[var(--surface-2)]")}
+          classe={cn(
+            celula,
+            "col-interna text-right",
+            f,
+            total && "bg-[var(--surface-2)]",
+          )}
           corValor={corValor}
           onDetalhe={onDetalheProvisionado ?? null}
           onDetalheTotal={onDetalheRp ?? null}
@@ -2234,18 +2435,40 @@ function BlocoMes({
       )}
 
       {mostrarAv && (
-        <td className={cn(CELULA, "col-interna", f, total && "bg-[var(--surface-2)]")}>
-          <BarraAv percentual={av} maior={maiorAv} participacao={participacao} />
+        <td
+          className={cn(
+            CELULA,
+            "col-interna",
+            f,
+            total && "bg-[var(--surface-2)]",
+          )}
+        >
+          <BarraAv
+            percentual={av}
+            maior={maiorAv}
+            participacao={participacao}
+          />
         </td>
       )}
 
       {total ? (
         <>
-          <td className={cn(celula, "col-interna bg-[var(--surface-2)] text-right", corValor(media ?? 0))}>
+          <td
+            className={cn(
+              celula,
+              "col-interna bg-[var(--surface-2)] text-right",
+              corValor(media ?? 0),
+            )}
+          >
             {formatarValor(media ?? 0)}
           </td>
           {mostrarAh && (
-            <td className={cn(celula, "col-interna bg-[var(--surface-2)] text-right")}>
+            <td
+              className={cn(
+                celula,
+                "col-interna bg-[var(--surface-2)] text-right",
+              )}
+            >
               {/* O MESMO componente das colunas de mês, e de propósito: a soma é um %AH
                   como os outros, e lê-la com outra cor ou outro sinal faria o olho
                   procurar uma diferença que não existe. */}
@@ -2391,7 +2614,9 @@ function BarraAv({
       >
         <span className="tabular text-[length:var(--fs-apoio)] font-semibold text-[var(--primary)]">
           <span className="so-na-tela">P.{formatarPercentual(percentual)}</span>
-          <span className="so-no-papel">P.{formatarPercentual(percentual, 1)}</span>
+          <span className="so-no-papel">
+            P.{formatarPercentual(percentual, 1)}
+          </span>
         </span>
       </div>
     );
@@ -2554,4 +2779,3 @@ function SeloInformativo() {
     </span>
   );
 }
-

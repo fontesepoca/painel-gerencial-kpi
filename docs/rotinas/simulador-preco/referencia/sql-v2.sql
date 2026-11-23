@@ -1,0 +1,150 @@
+-- ============================================================================
+-- SQL do simulador de preço — VERSÃO 2, como foi entregue pelo gestor em 23/11/2026.
+--
+-- Substitui a v1 (sql-v1.sql, guardada ao lado, NÃO por cima): o histórico entre as
+-- versões é o que explica uma mudança de número na tela.
+--
+-- NÃO EDITAR. É a referência contra a qual a API e o recálculo da tela são conferidos.
+-- ============================================================================
+
+SELECT B.CODFILIAL, B.CODPROD, B.DESCRICAO, B.CLASSEVENDA, B.NCM, B.CODIGO_TRIBUTACAO, B.DESCRICAO_TRIBUTACAO, B.TIPO_IMPOSTO,
+       B.VLULTPCOMPRA, B.PERCIPI, B.VLIPI, B.PERCST, B.PERCICMS_ENT, B.PERC_BASE_RED_ENT,
+       B.PERCICM_CUSTO, B.VLICMS AS VLICMS_ENT, B.PERPIS AS PERPIS_ENT, B.VLPIS AS VLPIS_ENT,
+       B.PERCOFINS AS PERCOFINS_ENT, B.VLCOFINS AS VLCOFINS_ENT, B.PERCFRETEFOB AS PERCFRETEFOB_ENT,
+       B.VLFRETEFOB AS VLFRETEFOB_ENT, B.CUSTO_ANTES_CBS, B.PERC_CBS, B.BASE_CBS, B.VLCBS,
+       ROUND(NVL(B.CUSTO_ANTES_CBS,0) - NVL(B.VLCBS,0),3) AS CUSTO_CALC,
+       B.MARGEM, B.PERCICMS_SAID, B.PERPIS AS PERPIS_SAID, B.PERCOFINS AS PERCOFINS_SAID, B.VLST,
+       ROUND(1 - (NVL(B.MARGEM,0) + NVL(B.PERCICMS_SAID,0) + NVL(B.PERPIS,0) +
+             NVL(B.PERCOFINS,0) + NVL(B.PERC_CBS,0)) / 100,6) AS INDICE,
+       ROUND((NVL(B.CUSTO_ANTES_CBS,0) - NVL(B.VLCBS,0)) /
+             NULLIF(1 - (NVL(B.MARGEM,0) + NVL(B.PERCICMS_SAID,0) + NVL(B.PERPIS,0) +
+                    NVL(B.PERCOFINS,0) + NVL(B.PERC_CBS,0)) / 100,0),3) AS PR_FUTURO,
+       ROUND((NVL(B.CUSTO_ANTES_CBS,0) - NVL(B.VLCBS,0)) /
+             NULLIF(1 - (NVL(B.MARGEM,0) + NVL(B.PERCICMS_SAID,0) + NVL(B.PERPIS,0) +
+                    NVL(B.PERCOFINS,0) + NVL(B.PERC_CBS,0)) / 100,0) + NVL(B.VLST,0),3) AS PRECOFINAL
+  FROM (SELECT E.CODFILIAL, P.CODPROD, P.DESCRICAO, P.CLASSEVENDA, P.NBM AS NCM, CBS.CODIGO_TRIBUTACAO,
+               CBS.DESCRICAO_TRIBUTACAO, PF.CHAVENATURAL AS TIPO_IMPOSTO,
+               NVL(:PCOMPRA,NVL(E.VLULTPCOMPRA,0)) AS VLULTPCOMPRA,
+               CASE WHEN NVL(F.TIPOFORNEC,'I') = 'I' OR NVL(F.EQUIPINDUSTRIA,'N') = 'S'
+                    THEN NVL(TE.PERIPI,0) ELSE 0 END AS PERCIPI,
+               ROUND(NVL(:PCOMPRA,NVL(E.VLULTPCOMPRA,0)) *
+                     CASE WHEN NVL(F.TIPOFORNEC,'I') = 'I' OR NVL(F.EQUIPINDUSTRIA,'N') = 'S'
+                          THEN NVL(TE.PERIPI,0) ELSE 0 END / 100,3) AS VLIPI,
+               NVL(TE.PERCST,0) AS PERCST,
+               NVL(PF.PERCICMS_ENT,0) AS PERCICMS_ENT,
+               NVL(PF.PERC_BASE_RED,0) AS PERC_BASE_RED_ENT,
+               DECODE(NVL(PF.PERC_BASE_RED,0),0,NVL(PF.PERCICMS_ENT,0),
+                      NVL(PF.PERCICMS_ENT,0) * NVL(PF.PERC_BASE_RED,0) / 100) AS PERCICM_CUSTO,
+               ROUND(NVL(:PCOMPRA,NVL(E.VLULTPCOMPRA,0)) *
+                     DECODE(NVL(PF.PERC_BASE_RED,0),0,NVL(PF.PERCICMS_ENT,0),
+                            NVL(PF.PERCICMS_ENT,0) * NVL(PF.PERC_BASE_RED,0) / 100) / 100,3) AS VLICMS,
+               NVL(EXP.PERPIS,NVL(TE.PERPIS,NVL(P.PERPIS,0))) AS PERPIS,
+               ROUND((NVL(:PCOMPRA,NVL(E.VLULTPCOMPRA,0)) -
+                      NVL(:PCOMPRA,NVL(E.VLULTPCOMPRA,0)) *
+                      DECODE(NVL(PF.PERC_BASE_RED,0),0,NVL(PF.PERCICMS_ENT,0),
+                             NVL(PF.PERCICMS_ENT,0) * NVL(PF.PERC_BASE_RED,0) / 100) / 100) *
+                      ABS(NVL(EXP.PERPIS,NVL(TE.PERPIS,NVL(P.PERPIS,0)))) / 100,3) AS VLPIS,
+               NVL(EXP.PERCOFINS,NVL(TE.PERCOFINS,NVL(P.PERCOFINS,0))) AS PERCOFINS,
+               ROUND((NVL(:PCOMPRA,NVL(E.VLULTPCOMPRA,0)) -
+                      NVL(:PCOMPRA,NVL(E.VLULTPCOMPRA,0)) *
+                      DECODE(NVL(PF.PERC_BASE_RED,0),0,NVL(PF.PERCICMS_ENT,0),
+                             NVL(PF.PERCICMS_ENT,0) * NVL(PF.PERC_BASE_RED,0) / 100) / 100) *
+                      ABS(NVL(EXP.PERCOFINS,NVL(TE.PERCOFINS,NVL(P.PERCOFINS,0)))) / 100,3) AS VLCOFINS,
+               DECODE(NVL(F.USAFRETEFOBPORFORNEC,'N'),'S',NVL(FF.PERCFRETEFOB,0),
+                      NVL(TE.PERCFRETEFOB,0)) AS PERCFRETEFOB,
+               ROUND(NVL(:PCOMPRA,NVL(E.VLULTPCOMPRA,0)) *
+                     DECODE(NVL(F.USAFRETEFOBPORFORNEC,'N'),'S',NVL(FF.PERCFRETEFOB,0),
+                            NVL(TE.PERCFRETEFOB,0)) / 100,3) AS VLFRETEFOB,
+               NVL(TP.MARGEM,0) AS MARGEM,
+               NVL(PF.PERCICMS_SAID,0) AS PERCICMS_SAID,
+               NVL(TP.VLST,0) AS VLST,
+               NVL(CBS.PERC_CBS,0) AS PERC_CBS,
+               ROUND(NVL(:PCOMPRA,NVL(E.VLULTPCOMPRA,0)) -
+                     NVL(:PCOMPRA,NVL(E.VLULTPCOMPRA,0)) *
+                     DECODE(NVL(PF.PERC_BASE_RED,0),0,NVL(PF.PERCICMS_ENT,0),
+                            NVL(PF.PERCICMS_ENT,0) * NVL(PF.PERC_BASE_RED,0) / 100) / 100 -
+                     NVL(:PCOMPRA,NVL(E.VLULTPCOMPRA,0)) *
+                     CASE WHEN NVL(F.TIPOFORNEC,'I') = 'I' OR NVL(F.EQUIPINDUSTRIA,'N') = 'S'
+                          THEN NVL(TE.PERIPI,0) ELSE 0 END / 100,3) AS BASE_CBS,
+               ROUND((NVL(:PCOMPRA,NVL(E.VLULTPCOMPRA,0)) -
+                      NVL(:PCOMPRA,NVL(E.VLULTPCOMPRA,0)) *
+                      DECODE(NVL(PF.PERC_BASE_RED,0),0,NVL(PF.PERCICMS_ENT,0),
+                             NVL(PF.PERCICMS_ENT,0) * NVL(PF.PERC_BASE_RED,0) / 100) / 100 -
+                      NVL(:PCOMPRA,NVL(E.VLULTPCOMPRA,0)) *
+                      CASE WHEN NVL(F.TIPOFORNEC,'I') = 'I' OR NVL(F.EQUIPINDUSTRIA,'N') = 'S'
+                           THEN NVL(TE.PERIPI,0) ELSE 0 END / 100) *
+                      NVL(CBS.PERC_CBS,0) / 100,3) AS VLCBS,
+               ROUND(NVL(:PCOMPRA,NVL(E.VLULTPCOMPRA,0)) +
+                     NVL(:PCOMPRA,NVL(E.VLULTPCOMPRA,0)) *
+                     CASE WHEN NVL(F.TIPOFORNEC,'I') = 'I' OR NVL(F.EQUIPINDUSTRIA,'N') = 'S'
+                          THEN NVL(TE.PERIPI,0) ELSE 0 END / 100 -
+                     NVL(:PCOMPRA,NVL(E.VLULTPCOMPRA,0)) *
+                     DECODE(NVL(PF.PERC_BASE_RED,0),0,NVL(PF.PERCICMS_ENT,0),
+                            NVL(PF.PERCICMS_ENT,0) * NVL(PF.PERC_BASE_RED,0) / 100) / 100 -
+                     (NVL(:PCOMPRA,NVL(E.VLULTPCOMPRA,0)) -
+                      NVL(:PCOMPRA,NVL(E.VLULTPCOMPRA,0)) *
+                      DECODE(NVL(PF.PERC_BASE_RED,0),0,NVL(PF.PERCICMS_ENT,0),
+                             NVL(PF.PERCICMS_ENT,0) * NVL(PF.PERC_BASE_RED,0) / 100) / 100) *
+                      ABS(NVL(EXP.PERPIS,NVL(TE.PERPIS,NVL(P.PERPIS,0)))) / 100 -
+                     (NVL(:PCOMPRA,NVL(E.VLULTPCOMPRA,0)) -
+                      NVL(:PCOMPRA,NVL(E.VLULTPCOMPRA,0)) *
+                      DECODE(NVL(PF.PERC_BASE_RED,0),0,NVL(PF.PERCICMS_ENT,0),
+                             NVL(PF.PERCICMS_ENT,0) * NVL(PF.PERC_BASE_RED,0) / 100) / 100) *
+                      ABS(NVL(EXP.PERCOFINS,NVL(TE.PERCOFINS,NVL(P.PERCOFINS,0)))) / 100 +
+                     NVL(:PCOMPRA,NVL(E.VLULTPCOMPRA,0)) *
+                     DECODE(NVL(F.USAFRETEFOBPORFORNEC,'N'),'S',NVL(FF.PERCFRETEFOB,0),
+                            NVL(TE.PERCFRETEFOB,0)) / 100,3) AS CUSTO_ANTES_CBS
+          FROM PCPRODUT P, PCTABTRIBENT TE, PCFILIAL FIL, PCFORNEC F, PCFORNECFILIAL FF,
+               PCPRODFILIAL PF, PCCONSUM CON, PCEST E, PCPRINCIPATIVO PA, PCSECAO S,
+               PCDEPTO D, PCLINHAPROD LP, PCCATEGORIA CAT, PCEXPISCOFINSITEM EXP,
+               PCREGIAO REG, PCTABPR TP, PCTRIBUT TR,
+               (SELECT T.CODIGO_TRIBUTACAO, T.DESCRICAO_TRIBUTACAO, N.NCM,
+                       REGEXP_REPLACE(TO_CHAR(N.NCM),'[^0-9]','') AS NCM_NORMALIZADO,
+                       NVL(T.PERC_CBS,0) AS PERC_CBS
+                  FROM PCTRIBUTACAO T, PCTRIBUTACAO_FILTRO_NCM N
+                 WHERE T.CODIGO_TRIBUTACAO = N.CODIGO_TRIBUTACAO) CBS
+         WHERE P.CODPROD = TE.CODPROD
+           AND P.CODEPTO = S.CODEPTO
+           AND P.CODSEC = S.CODSEC
+           AND P.CODEPTO = D.CODEPTO
+           AND TE.UFDESTINO = FIL.UF
+           AND TE.UFORIGEM = F.ESTADO
+           AND F.CODFORNEC = P.CODFORNEC
+           AND F.CODFORNEC = FF.CODFORNEC
+           AND P.CODPROD = PF.CODPROD
+           AND PF.CODFILIAL = DECODE(NVL(P.CODFILIAL,'99'),'99',FIL.CODIGO,P.CODFILIAL)
+           AND PF.CODFILIAL = FIL.CODIGO
+           AND PF.CODFILIAL = E.CODFILIAL
+           AND PF.CODPROD = E.CODPROD
+           AND PF.CODFILIAL = FF.CODFILIAL
+           AND P.CODPRINCIPATIVO = PA.CODPRINCIPATIVO(+)
+           AND P.CODLINHAPROD = LP.CODLINHA(+)
+           AND P.CODCATEGORIA = CAT.CODCATEGORIA(+)
+           AND P.CODSEC = CAT.CODSEC(+)
+           AND TP.CODST = TR.CODST
+           AND TE.CODEXCECAOPISCOFINS = EXP.CODEXCECAO(+)
+           AND EXP.TIPOMOVIMENTACAO(+) = '1E'
+           AND TE.CODFISCALENT = EXP.CODFISCAL(+)
+           AND F.SUFRAMA = EXP.SUFRAMA(+)
+           AND F.TIPOPESSOA = EXP.TIPOPESSOA(+)
+           AND P.CODPROD = TP.CODPROD
+           AND TP.NUMREGIAO = :NUMREGIAO
+           AND REG.NUMREGIAO = TP.NUMREGIAO
+           AND NVL(P.PRECIFICESTRANGEIRA,'N') = 'N'
+           AND P.DTEXCLUSAO IS NULL
+           AND NVL(PF.FORALINHA,'XX') = 'N'
+           AND F.CODFORNEC = DECODE(NVL(:CODFORNEC,0),0,P.CODFORNEC,:CODFORNEC)
+           AND EXISTS (SELECT 1
+                         FROM PCLIB
+                        WHERE CODTABELA = TO_CHAR(3)
+                          AND (CODIGON = NVL(P.CODFORNEC,CODIGON) OR CODIGON = 999999)
+                          AND CODFUNC = 1
+                          AND CODIGOA IS NOT NULL)
+           AND EXISTS (SELECT 1
+                         FROM PCLIB
+                        WHERE CODTABELA = TO_CHAR(2)
+                          AND (CODIGON = NVL(P.CODEPTO,CODIGON) OR CODIGON = 9999)
+                          AND CODFUNC = 1
+                          AND CODIGOA IS NOT NULL)
+           AND E.CODFILIAL IN (:CODFILIAL)
+           AND REGEXP_REPLACE(TO_CHAR(P.NBM),'[^0-9]','') = CBS.NCM_NORMALIZADO(+)) B;

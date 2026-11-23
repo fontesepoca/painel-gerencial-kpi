@@ -37,6 +37,59 @@ export function formatarPercentual(valor: number | null, casas: 0 | 1 | 2 | 3 = 
   return valor < 0 ? `(${texto})` : texto;
 }
 
+const MILESIMOS = new Intl.NumberFormat("pt-BR", {
+  minimumFractionDigits: 3,
+  maximumFractionDigits: 3,
+});
+
+/**
+ * Valor com TRÊS casas, negativo entre parênteses — para o simulador de preço, onde o SQL
+ * arredonda em três casas e a tela mostra exatamente o número dele (decisão de 18/11/2026).
+ * Duas casas esconderiam a terceira e fariam a tela "discordar" do SQL por arredondamento.
+ */
+export function formatarValor3(valor: number): string {
+  const texto = MILESIMOS.format(Math.abs(valor));
+  return valor < 0 ? `(${texto})` : texto;
+}
+
+const PERCENTUAL_LIVRE = new Intl.NumberFormat("pt-BR", {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 4,
+});
+
+/**
+ * Percentual cadastrado, de duas a quatro casas, negativo entre parênteses.
+ *
+ * <b>Até quatro casas</b> porque há percentual que o SQL não arredonda: o ICMS de custo com
+ * base reduzida sai `18 × 61,11 / 100 = 10,9998`, e duas casas o mostrariam como `11,00` —
+ * um número que não está em lugar nenhum da conta.
+ */
+export function formatarPercentualLivre(valor: number): string {
+  const texto = PERCENTUAL_LIVRE.format(Math.abs(valor));
+  return valor < 0 ? `(${texto})` : texto;
+}
+
+const SO_HORA = new Intl.DateTimeFormat("pt-BR", { hour: "2-digit", minute: "2-digit" });
+const DIA_E_MES = new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "2-digit" });
+
+/**
+ * "Consultado às 14:32" quando a consulta é de hoje; "Consultado em 22/11 às 14:32" quando não é
+ * (e com o ano, se for de outro ano). Revisão final de 23/11/2026: uma tela de simulador deixada
+ * aberta de um dia para o outro mostraria a consulta de ontem com cara de ser de hoje.
+ *
+ * @param agora injetável para o teste (sp12); na tela, `new Date()`.
+ */
+export function formatarMomentoDaConsulta(iso: string, agora: Date = new Date()): string {
+  const quando = new Date(iso);
+  const hora = SO_HORA.format(quando);
+  const mesmoAno = quando.getFullYear() === agora.getFullYear();
+  if (mesmoAno && quando.getMonth() === agora.getMonth() && quando.getDate() === agora.getDate()) {
+    return `Consultado às ${hora}`;
+  }
+  const dia = mesmoAno ? DIA_E_MES.format(quando) : DATA_CURTA.format(quando);
+  return `Consultado em ${dia} às ${hora}`;
+}
+
 /** `2026-08-01` → `01/08/2026`. Sem fuso: a data vem sem hora e é local. */
 export function formatarDataIso(iso: string): string {
   const partes = iso.split("-");
