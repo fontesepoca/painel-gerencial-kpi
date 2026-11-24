@@ -49,6 +49,7 @@ import {
 } from "@/lib/recalculoDoDre";
 import { codigoDaLinha } from "@/lib/codigoDaLinha";
 import { rotulosDoDinheiro, type RotulosDoDinheiro } from "@/lib/rotulosDoDinheiro";
+import { colunasDoDinheiro, partesDaCelula, rotuloDoTotal } from "@/lib/confirmados";
 import type { SituacaoDoDetalhe } from "@/lib/colunaDoTotal";
 import { comPercentuaisRp, sentidoDaLinha } from "@/lib/percentuaisComProvisionado";
 import type {
@@ -81,6 +82,8 @@ interface PedidoDetalhe {
   provisionado?: boolean;
   /** A célula de Total (R + P): os pagos e os em aberto juntos (16/10/2026). */
   realizadoEProvisionado?: boolean;
+  /** Só os pagos (Vl. Realizado) ou só os confirmados (Vl. Confirmado) — 24/11/2026. */
+  parte?: "pagos" | "confirmados";
 }
 
 /** Dias de um recorte, inclusive as duas pontas. */
@@ -111,6 +114,7 @@ export function TabelaDre({
   mostrarAv,
   mostrarAh: mostrarAhPedido,
   mostrarProvisionado = false,
+  mostrarConfirmados = false,
   mostrarTotal = true,
   soTotal = false,
   faixa,
@@ -155,6 +159,11 @@ export function TabelaDre({
    * aberto. A página só liga quando existe algum — ver `temProvisionado` lá.
    */
   mostrarProvisionado?: boolean;
+  /**
+   * O Vl. Realizado dividido em Vl. Realizado (só o pago) e Vl. Confirmado — checkbox
+   * "Confirmados", desmarcado por padrão (24/11/2026). Só nos meses com confirmado.
+   */
+  mostrarConfirmados?: boolean;
   /** O bloco do período no fim da tabela (Total ou variação). Desligável desde 15/10/2026. */
   mostrarTotal?: boolean;
   /**
@@ -742,6 +751,7 @@ export function TabelaDre({
         sobra: pedido.tipo.sobra ?? null,
         provisionado: pedido.provisionado ?? false,
         realizadoEProvisionado: pedido.realizadoEProvisionado ?? false,
+        ...(pedido.parte ? { parte: pedido.parte } : {}),
       });
     },
     [filtro, consultaDetalhe],
@@ -762,9 +772,15 @@ export function TabelaDre({
    * nulo e o recorte é o período todo.
    */
   const abrirDetalhe = useCallback(
-    (linha: LinhaDre, mesAno: string | null, situacao: SituacaoDoDetalhe = "realizado") => {
+    (
+      linha: LinhaDre,
+      mesAno: string | null,
+      // "pagos" e "confirmados": o Vl. Realizado dividido pelo checkbox "Confirmados" (24/11/2026).
+      situacao: SituacaoDoDetalhe | "pagos" | "confirmados" = "realizado",
+    ) => {
       const provisionado = situacao === "provisionado";
       const ambos = situacao === "ambos";
+      const parte = situacao === "pagos" || situacao === "confirmados" ? situacao : undefined;
       if (!linha.detalhe) return;
 
       const coluna = mesAno ? periodos.find((pp) => pp.mesAno === mesAno) : null;
@@ -782,18 +798,39 @@ export function TabelaDre({
       const celula = mesAno ? linha.valores.find((v) => v.mesAno === mesAno) : null;
       const realizado = mesAno ? (celula?.valor ?? 0) : linha.total.valor;
       const aberto = (mesAno ? celula?.provisionado : linha.total.provisionado) ?? 0;
+      // O confirmado da célula: o `realizado` acima é pago + confirmado (divergência 20).
+      const confirmado = (mesAno ? celula?.confirmado : linha.total.confirmado) ?? 0;
       // No Total (R + P) a célula é a soma dos dois lados, e é contra ela que o rodapé fecha.
-      const valorDaLinha = ambos ? realizado + aberto : provisionado ? aberto : realizado;
+      // Com o Vl. Realizado dividido, cada parte fecha com a própria célula.
+      const valorDaLinha =
+        parte === "confirmados"
+          ? confirmado
+          : parte === "pagos"
+            ? Math.round((realizado - confirmado) * 100) / 100
+            : ambos
+              ? realizado + aberto
+              : provisionado
+                ? aberto
+                : realizado;
 
       const pedido = {
         tipo: linha.detalhe,
         titulo:
           `${linha.descricao.trim()} · ${coluna?.rotulo ?? "Total do período"}` +
-          (provisionado ? " · Títulos em aberto" : ambos ? " · Realizado + Provisionado" : ""),
+          (provisionado
+            ? " · Títulos em aberto"
+            : ambos
+              ? " · Realizado + Provisionado"
+              : parte === "confirmados"
+                ? " · Confirmados não pagos"
+                : parte === "pagos"
+                  ? " · Pagos"
+                  : ""),
         periodo,
         linha: { descricao: linha.descricao.trim(), valor: valorDaLinha },
         provisionado,
         realizadoEProvisionado: ambos,
+        parte,
       };
 
       // Recorte longo pergunta antes. Ver `ModalConfirmarDetalhe`: com colunas de ano, um
@@ -1053,8 +1090,16 @@ export function TabelaDre({
   // O bloco do período as ganha se algum mês tiver — e não no modo de variação, onde o
   // bloco é Δ entre duas colunas e não uma soma.
   const provisionadoNoFim = !variacaoNoFim && periodos.some(provisionadoNoMes);
+  // O Vl. Confirmado (24/11/2026) segue a mesma regra: só nos meses que têm algum.
+  const confirmadoNoMes = (p: PeriodoDre) => mostrarConfirmados && p.temConfirmado === true;
+  const confirmadoNoFim = !variacaoNoFim && periodos.some(confirmadoNoMes);
+  // As colunas de dinheiro além do Valor — Confirmado, Provisionado e o Total do que houver.
+  const extrasDoDinheiro = (comC: boolean, comP: boolean) => colunasDoDinheiro(comC, comP).length - 1;
   const colunasPorMes = (p: PeriodoDre) =>
-    1 + (mostrarAv ? 1 : 0) + (mostrarAh ? 1 : 0) + (provisionadoNoMes(p) ? 2 : 0);
+    1 +
+    (mostrarAv ? 1 : 0) +
+    (mostrarAh ? 1 : 0) +
+    extrasDoDinheiro(confirmadoNoMes(p), provisionadoNoMes(p));
 
   // O bloco final: variação são duas colunas; o total é valor, %AV e média — e a média
   // fica, porque não é análise, é o valor médio das colunas.
@@ -1063,7 +1108,10 @@ export function TabelaDre({
   // que está lá. A média fica sempre: não é análise, é o valor médio das colunas.
   const colunasDoFim = variacaoNoFim
     ? 2
-    : 2 + (mostrarAv ? 1 : 0) + (mostrarAh ? 1 : 0) + (provisionadoNoFim ? 2 : 0);
+    : 2 +
+      (mostrarAv ? 1 : 0) +
+      (mostrarAh ? 1 : 0) +
+      extrasDoDinheiro(confirmadoNoFim, provisionadoNoFim);
 
   // Dois lados do comparativo podem cair no mesmo mês — 28/08–03/09 contra 05/09–11/09 põe
   // `Setembro/2026` duas vezes no cabeçalho. Aí, e só aí, o rótulo passa a levar os dias.
@@ -1333,6 +1381,7 @@ export function TabelaDre({
                   mostrarAv={mostrarAv}
                   mostrarAh={mostrarAh}
                   provisionado={provisionadoNoMes(p)}
+                  confirmado={confirmadoNoMes(p)}
                   nomes={nomes}
                 />
               ))}
@@ -1344,6 +1393,7 @@ export function TabelaDre({
                     mostrarAv={mostrarAv}
                     mostrarAh={mostrarAh}
                     provisionado={provisionadoNoFim}
+                    confirmado={confirmadoNoFim}
                     nomes={nomes}
                     total
                   />
@@ -1403,6 +1453,15 @@ export function TabelaDre({
                   }
                   provisionadoNoMes={provisionadoNoMes}
                   provisionadoNoFim={provisionadoNoFim}
+                  confirmadoNoMes={confirmadoNoMes}
+                  confirmadoNoFim={confirmadoNoFim}
+                  // Só linha de conta se divide em pagos e confirmados — o totalizador segue
+                  // abrindo a composição.
+                  onDetalheParte={
+                    linha.detalhe && !linha.calculada
+                      ? (mesAno, parte) => abrirDetalhe(linha, mesAno, parte)
+                      : null
+                  }
                   // Só linha de conta tem títulos em aberto — totalizador não tem Provisionado.
                   onDetalheProvisionado={
                     linha.detalhe && !linha.calculada
@@ -1562,6 +1621,7 @@ function ColunasCabecalho({
   mostrarAv,
   mostrarAh,
   provisionado,
+  confirmado,
   nomes,
   total,
 }: {
@@ -1571,33 +1631,52 @@ function ColunasCabecalho({
   mostrarAh?: boolean;
   /** As colunas Provisionado e Total, logo depois do Valor. */
   provisionado?: boolean;
+  /** A coluna Vl. Confirmado, entre o Vl. Realizado e o Provisionado (24/11/2026). */
+  confirmado?: boolean;
   /** Os nomes das três colunas de dinheiro, que dependem do regime. */
   nomes: RotulosDoDinheiro;
   total?: boolean;
 }) {
+  const parcelas = [
+    nomes.valor,
+    ...(confirmado ? [nomes.confirmado] : []),
+    ...(provisionado ? [nomes.provisionado] : []),
+  ];
+
   return (
     <>
-      {/* O Valor abre o bloco (linha grossa); as outras colunas, linha fina. */}
-      <Th className={cn("col-bloco", faixa)}>{nomes.valor}</Th>
+      {/* O Valor abre o bloco (linha grossa); as outras colunas, linha fina. Com o Vl.
+          Confirmado ao lado, o Vl. Realizado é só o pago — o title diz isso. */}
+      <Th
+        className={cn("col-bloco", faixa)}
+        title={confirmado ? "Só o que já foi pago — o valor da rotina 9815" : undefined}
+      >
+        {nomes.valor}
+      </Th>
       {/* O DINHEIRO JUNTO, e a análise depois — pedido do Gabriel em 14/10/2026:
-          Valor / Provisionado / Total / AV % (/ Média) / AH %. Lado a lado, o Total se
-          confere sem os olhos saltarem os percentuais. %AV e %AH continuam falando só do
-          Valor (o pago, fiel à 9815): o title dos dois cabeçalhos novos diz o que são. */}
+          Valor / Confirmado / Provisionado / Total / AV % (/ Média) / AH %. Lado a lado, o
+          Total se confere sem os olhos saltarem os percentuais. %AV e %AH não mudam com o
+          Confirmado (24/11/2026): o title dos cabeçalhos diz o que cada um é. */}
+      {confirmado && (
+        <Th
+          className={cn("col-interna", faixa)}
+          title="Títulos confirmados (TIPOLANC = C) ainda não pagos"
+        >
+          {nomes.confirmado}
+        </Th>
+      )}
       {provisionado && (
-        <>
-          <Th
-            className={cn("col-interna", faixa)}
-            title="Títulos do mês ainda não pagos e não confirmados (TIPOLANC diferente de C)"
-          >
-            {nomes.provisionado}
-          </Th>
-          <Th
-            className={cn("col-interna", faixa)}
-            title={`${nomes.valor} + ${nomes.provisionado}`}
-          >
-            {nomes.total}
-          </Th>
-        </>
+        <Th
+          className={cn("col-interna", faixa)}
+          title="Títulos do mês ainda não pagos e não confirmados (TIPOLANC diferente de C)"
+        >
+          {nomes.provisionado}
+        </Th>
+      )}
+      {(confirmado || provisionado) && (
+        <Th className={cn("col-interna", faixa)} title={parcelas.join(" + ")}>
+          {rotuloDoTotal(!!confirmado, !!provisionado)}
+        </Th>
       )}
       {mostrarAv && <Th className={cn("col-interna w-[9rem]", faixa)}>AV %</Th>}
       {/* A coluna some de verdade quando desligada — não fica uma `th` vazia ocupando
@@ -1827,6 +1906,9 @@ function Linha({
   provisionadoNoFim,
   percentuaisRp,
   onDetalheProvisionado,
+  confirmadoNoMes,
+  confirmadoNoFim,
+  onDetalheParte,
   mostrarPunho,
   codigo,
   selecao,
@@ -1887,6 +1969,11 @@ function Linha({
   percentuaisRp: boolean;
   /** Os títulos em aberto da célula. `null` em totalizador. */
   onDetalheProvisionado: ((mesAno: string | null, ambos?: boolean) => void) | null;
+  /** O mês ganha o Vl. Confirmado (checkbox "Confirmados", 24/11/2026). */
+  confirmadoNoMes: (p: PeriodoDre) => boolean;
+  confirmadoNoFim: boolean;
+  /** Só os pagos ou só os confirmados da célula. `null` em totalizador. */
+  onDetalheParte: ((mesAno: string | null, parte: "pagos" | "confirmados") => void) | null;
 }) {
   // Metade de cima da linha solta antes dela; metade de baixo, depois.
   const destinoDoPonteiro = (e: React.DragEvent<HTMLTableRowElement>) => {
@@ -2076,6 +2163,9 @@ function Linha({
           onDetalheRp={
             onDetalheProvisionado ? () => onDetalheProvisionado(v.mesAno, true) : null
           }
+          comConfirmado={periodos.some((p) => p.mesAno === v.mesAno && confirmadoNoMes(p))}
+          confirmado={v.confirmado}
+          onDetalheParte={onDetalheParte ? (parte) => onDetalheParte(v.mesAno, parte) : null}
         />
       ))}
 
@@ -2112,6 +2202,9 @@ function Linha({
             onDetalheRp={
               onDetalheProvisionado ? () => onDetalheProvisionado(null, true) : null
             }
+            comConfirmado={confirmadoNoFim}
+            confirmado={linha.total.confirmado}
+            onDetalheParte={onDetalheParte ? (parte) => onDetalheParte(null, parte) : null}
             total
           />
         ))}
@@ -2137,6 +2230,9 @@ function BlocoMes({
   provisionado,
   onDetalheProvisionado,
   onDetalheRp,
+  comConfirmado,
+  confirmado,
+  onDetalheParte,
 }: {
   /** A classe da cor do mês (`faixa-mes-N`), aplicada a todas as células dele. */
   faixa?: string;
@@ -2167,6 +2263,12 @@ function BlocoMes({
   onDetalheProvisionado?: (() => void) | null;
   /** O Total (R + P) da célula: pagos e em aberto juntos. */
   onDetalheRp?: (() => void) | null;
+  /** Esta coluna separa o Vl. Confirmado do Vl. Realizado (checkbox "Confirmados"). */
+  comConfirmado?: boolean;
+  /** Quanto do `valor` é confirmado não pago; `null` na linha que não tem (receita, CMV). */
+  confirmado?: number | null;
+  /** Os lançamentos de uma PARTE do realizado: só os pagos, ou só os confirmados. */
+  onDetalheParte?: ((parte: "pagos" | "confirmados") => void) | null;
 }) {
   // Totalizador em NEGRITO, e não semibold — pedido de 15/10/2026: o resultado tem de saltar
   // da coluna sem precisar ler a descrição.
@@ -2182,48 +2284,102 @@ function BlocoMes({
   // A cor do mês desce pela coluna inteira — ver FAIXA DE COR POR COLUNA em globals.css.
   const f = total ? undefined : faixa;
 
+  // As parcelas da célula — ver `lib/confirmados.ts`. Com "Confirmados" desligado, o
+  // `realizado` é o próprio `valor` e o resto é como sempre foi.
+  const partes = partesDaCelula(valor, confirmado, provisionado, !!comConfirmado, !!comProvisionado);
+  // Com o Vl. Confirmado ao lado, a célula Vl. Realizado é SÓ o pago, e o duplo clique nela
+  // tem de listar só os pagos — senão o rodapé não fecharia com ela. O totalizador não tem
+  // `onDetalheParte`: a composição dele soma o valor de sempre (pago + confirmado), que aí é o
+  // Total (R + C) — é lá que ela abre, e não numa célula com a qual não fecharia.
+  const abreValor =
+    partes.confirmado === null ? onDetalhe : onDetalheParte ? () => onDetalheParte("pagos") : null;
+  const classeInterna = cn(celula, "col-interna text-right", f, total && "bg-[var(--surface-2)]");
+
   return (
     <>
       {/* Duplo clique, como na 9815. Só nas linhas que abrem detalhamento — o servidor
           é quem diz quais, no campo `detalhe` da linha. */}
       <td
-        onDoubleClick={onDetalhe ?? undefined}
+        onDoubleClick={abreValor ?? undefined}
         className={cn(
           celula,
           "text-right",
-          corValor(valor),
+          corValor(partes.realizado),
           // Toda célula de Valor abre um bloco — de cada mês e do total.
           "col-bloco",
           f,
           total && "bg-[var(--surface-2)]",
-          onDetalhe && "tem-detalhe",
+          abreValor && "tem-detalhe",
         )}
       >
-        {onDetalhe ? (
+        {abreValor ? (
           // O botão existe para o teclado: duplo clique não tem equivalente sem mouse, e
           // sem ele a tela inteira ficaria fora de alcance de quem navega por tabulação.
           <button
             type="button"
-            onClick={onDetalhe}
-            title="Ver de onde vem este valor"
+            onClick={abreValor}
+            title={partes.confirmado !== null ? "Ver os lançamentos pagos" : "Ver de onde vem este valor"}
             className="valor-clicavel"
           >
-            {formatarValor(valor)}
+            {formatarValor(partes.realizado)}
           </button>
         ) : (
-          formatarValor(valor)
+          formatarValor(partes.realizado)
         )}
       </td>
 
-      {/* Logo depois do Valor, na mesma ordem do cabeçalho (ColunasCabecalho). */}
-      {comProvisionado && (
-        <CelulasDoProvisionado
-          valor={valor}
-          provisionado={provisionado ?? null}
-          classe={cn(celula, "col-interna text-right", f, total && "bg-[var(--surface-2)]")}
+      {/* Logo depois do Valor, na mesma ordem do cabeçalho (ColunasCabecalho): Vl. Confirmado,
+          Provisionado e o Total do que estiver na tela. */}
+      {comConfirmado && (
+        <CelulaDeDinheiro
+          valor={partes.confirmado}
+          classe={classeInterna}
           corValor={corValor}
-          onDetalhe={onDetalheProvisionado ?? null}
-          onDetalheTotal={onDetalheRp ?? null}
+          // Zero confirmado daria uma lista vazia: não abre.
+          onDetalhe={
+            onDetalheParte && partes.confirmado !== null && partes.confirmado !== 0
+              ? () => onDetalheParte("confirmados")
+              : null
+          }
+          titulo="Ver os títulos confirmados ainda não pagos"
+        />
+      )}
+      {comProvisionado && (
+        <CelulaDeDinheiro
+          valor={partes.provisionado}
+          classe={classeInterna}
+          corValor={corValor}
+          // O detalhe só abre quando há o que listar: zero em aberto daria uma tela vazia.
+          onDetalhe={
+            onDetalheProvisionado && partes.provisionado !== null && partes.provisionado !== 0
+              ? onDetalheProvisionado
+              : null
+          }
+          titulo="Ver os títulos em aberto"
+        />
+      )}
+      {(comConfirmado || comProvisionado) && (
+        <CelulaDeDinheiro
+          valor={partes.total}
+          classe={classeInterna}
+          corValor={corValor}
+          // O TOTAL ABRE TODOS OS LADOS QUE SOMA (16/10/2026): com o Provisionado, os pagos, os
+          // confirmados e os em aberto; só com os Confirmados, o realizado inteiro — pagos e
+          // confirmados, a lista de sempre do Vl. Realizado.
+          onDetalhe={
+            partes.total === null
+              ? null
+              : comProvisionado
+                ? (onDetalheRp ?? null)
+                : // Total (R + C) é o valor de sempre: abre o que o Valor abria — a lista de
+                  // pagos e confirmados na conta, a composição no totalizador.
+                  (onDetalhe ?? null)
+          }
+          titulo={
+            comProvisionado
+              ? "Ver os lançamentos pagos e os títulos em aberto"
+              : "Ver os lançamentos pagos e os confirmados"
+          }
         />
       )}
 
@@ -2257,92 +2413,53 @@ function BlocoMes({
 }
 
 /**
- * Provisionado e Total de uma célula (competência, 14/10/2026).
+ * Uma célula de dinheiro depois do Valor: Vl. Confirmado, Provisionado ou o Total do que
+ * estiver na tela (competência — 14/10/2026 o Provisionado, 24/11/2026 o Confirmado).
  *
- * <b>O Provisionado abre os títulos em aberto</b> com duplo clique, como o Valor abre os
- * pagos — é por ele que se cobra quem lançou e não pagou. O Total não abre nada: é a soma
- * de duas células que já estão na tela, como o bloco de variação dos modos de ano.
+ * <b>Cada uma abre a própria lista</b> com duplo clique: o Confirmado, os títulos confirmados
+ * ainda não pagos; o Provisionado, os em aberto — é por ele que se cobra quem lançou e não
+ * pagou —; o Total, todos os lados que ele soma, com a coluna Situação dizendo de onde veio
+ * cada um e o rodapé fechando com a célula (16/10/2026).
  *
- * Linha calculada (totalizadores, receita, CMV) fica com as duas vazias: o Provisionado
- * não entra em totalizador nenhum nesta versão (opção 2 da spec, §8 para a evolução).
+ * <b>`null` é o traço</b>: receita, deduções, CMV e LUCRO BRUTO não têm conta a pagar. Em
+ * branco parecia célula esquecida, e "0,00" afirmaria um zero que não existe — o MESMO traço
+ * do %AV e do %AH quando não há valor (pedido de 14/10/2026).
  */
-function CelulasDoProvisionado({
+function CelulaDeDinheiro({
   valor,
-  provisionado,
   classe,
   corValor,
   onDetalhe,
-  onDetalheTotal,
+  titulo,
 }: {
-  valor: number;
-  provisionado: number | null;
+  valor: number | null;
   classe: string;
   corValor: (v: number) => string;
   onDetalhe: (() => void) | null;
-  /** O Total (R + P) abre os pagos e os em aberto numa lista só (16/10/2026). */
-  onDetalheTotal: (() => void) | null;
+  /** O que o clique mostra — vai no `title` do botão. */
+  titulo: string;
 }) {
-  // Sem provisionado (receita, deduções, CMV, LUCRO BRUTO): o MESMO traço do %AV e do %AH
-  // quando não há valor — pedido de 14/10/2026. Em branco parecia célula esquecida, e "0,00"
-  // afirmaria um zero que não existe: essas linhas não têm conta a pagar.
-  if (provisionado === null) {
+  if (valor === null) {
     return (
-      <>
-        <td className={classe}>
-          <Traco />
-        </td>
-        <td className={classe}>
-          <Traco />
-        </td>
-      </>
+      <td className={classe}>
+        <Traco />
+      </td>
     );
   }
 
-  const total = valor + provisionado;
-  // O detalhe só abre quando há o que listar: zero em aberto daria uma tela vazia.
-  const abre = onDetalhe !== null && provisionado !== 0;
-
   return (
-    <>
-      <td
-        onDoubleClick={abre ? onDetalhe : undefined}
-        className={cn(classe, corValor(provisionado), abre && "tem-detalhe")}
-      >
-        {abre ? (
-          <button
-            type="button"
-            onClick={onDetalhe}
-            title="Ver os títulos em aberto"
-            className="valor-clicavel"
-          >
-            {formatarValor(provisionado)}
-          </button>
-        ) : (
-          formatarValor(provisionado)
-        )}
-      </td>
-      {/* O TOTAL (R + P) ABRE OS DOIS LADOS (16/10/2026): os pagos e os títulos em aberto
-          numa lista só, com a coluna Situação dizendo de onde veio cada um, e o rodapé
-          fechando com esta célula. Até aqui ele não abria nada, por ser a soma de duas
-          células já clicáveis. */}
-      <td
-        onDoubleClick={onDetalheTotal ?? undefined}
-        className={cn(classe, corValor(total), onDetalheTotal && "tem-detalhe")}
-      >
-        {onDetalheTotal ? (
-          <button
-            type="button"
-            onClick={onDetalheTotal}
-            title="Ver os lançamentos pagos e os títulos em aberto"
-            className="valor-clicavel"
-          >
-            {formatarValor(total)}
-          </button>
-        ) : (
-          formatarValor(total)
-        )}
-      </td>
-    </>
+    <td
+      onDoubleClick={onDetalhe ?? undefined}
+      className={cn(classe, corValor(valor), onDetalhe && "tem-detalhe")}
+    >
+      {onDetalhe ? (
+        <button type="button" onClick={onDetalhe} title={titulo} className="valor-clicavel">
+          {formatarValor(valor)}
+        </button>
+      ) : (
+        formatarValor(valor)
+      )}
+    </td>
   );
 }
 

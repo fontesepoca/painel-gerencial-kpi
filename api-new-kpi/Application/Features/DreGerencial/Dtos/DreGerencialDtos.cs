@@ -149,7 +149,12 @@ public record PeriodoDto(
     /// A coluna tem algum título EM ABERTO, em qualquer linha (competência). É o que faz a
     /// tela desenhar Provisionado e Total nesta coluna — mês todo pago fica como sempre foi.
     /// </summary>
-    bool TemProvisionado = false);
+    bool TemProvisionado = false,
+    /// <summary>
+    /// A coluna tem algum confirmado NÃO pago (<c>TIPOLANC = 'C'</c>, competência). Com o
+    /// checkbox "Confirmados" ligado, a tela desenha o Vl. Confirmado nesta coluna (24/11/2026).
+    /// </summary>
+    bool TemConfirmado = false);
 
 /// <summary>Valor de uma linha em um mês.</summary>
 public record ValorMesDto(
@@ -175,7 +180,16 @@ public record ValorMesDto(
     /// %AH sobre <b>R + P</b>: o R + P desta coluna contra o da anterior (P = 0 onde não
     /// há aberto). Mesmas regras do <see cref="PercentualAh"/> e mesmos nulos do campo acima.
     /// </summary>
-    decimal? PercentualAhComProvisionado = null);
+    decimal? PercentualAhComProvisionado = null,
+    /// <summary>
+    /// Quanto do <see cref="Valor"/> é confirmado NÃO pago (<c>TIPOLANC = 'C'</c>), já rateado
+    /// como ele — <b>uma parte do Valor, não um valor a mais</b>. Com o checkbox "Confirmados",
+    /// a tela mostra Vl. Realizado = Valor − Confirmado (o número da 9815) e o Vl. Confirmado ao
+    /// lado (24/11/2026, divergência 23). Os totalizadores que somam despesa têm o seu, pelas
+    /// mesmas somas do Provisionado. Nulo em caixa, em receita, CMV e LUCRO BRUTO, e quando a
+    /// coluna não tem nenhum. %AV e %AH não mudam com ele.
+    /// </summary>
+    decimal? Confirmado = null);
 
 /// <summary>Bloco TOTAL da linha, somando os meses do período.</summary>
 /// <param name="Provisionado">
@@ -188,7 +202,9 @@ public record TotalLinhaDto(
     decimal? PercentualAv,
     decimal? Provisionado = null,
     /// <summary>%AV do período sobre o Total (R + P). Ver <see cref="ValorMesDto.PercentualAvComProvisionado"/>.</summary>
-    decimal? PercentualAvComProvisionado = null);
+    decimal? PercentualAvComProvisionado = null,
+    /// <summary>A soma dos <see cref="ValorMesDto.Confirmado"/> das colunas. Nulo quando nenhuma tem.</summary>
+    decimal? Confirmado = null);
 
 /// <summary>
 /// O detalhamento que esta linha abre com duplo clique, ou `null` se ela não abre nenhum.
@@ -356,7 +372,15 @@ public record DetalheFiltroDto(
     /// lançamento diz de qual lado veio em <see cref="DetalheLancamentoDto.EmAberto"/>. Só em
     /// competência e só em lançamentos. Vence <see cref="Provisionado"/>.
     /// </summary>
-    bool RealizadoEProvisionado = false);
+    bool RealizadoEProvisionado = false,
+    /// <summary>
+    /// Com o checkbox "Confirmados" (24/11/2026), o realizado de competência dividido em dois:
+    /// <c>"pagos"</c> — a célula Vl. Realizado, só o que foi pago (o filtro da 9815) — ou
+    /// <c>"confirmados"</c> — a célula Vl. Confirmado, os não pagos com <c>TIPOLANC = 'C'</c>.
+    /// Nulo é o realizado inteiro, como sempre. Só em competência e só em lançamentos; ignorado
+    /// com <see cref="Provisionado"/> ou <see cref="RealizadoEProvisionado"/>.
+    /// </summary>
+    string? Parte = null);
 
 /// <summary>Uma linha da tela "Receita por Cliente".</summary>
 public record DetalheClienteDto(

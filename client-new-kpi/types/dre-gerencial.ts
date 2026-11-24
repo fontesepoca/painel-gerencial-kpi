@@ -103,6 +103,11 @@ export interface PeriodoDre {
    * colunas Provisionado e Total — mês todo pago fica como sempre foi.
    */
   temProvisionado?: boolean;
+  /**
+   * A coluna tem algum confirmado NÃO pago (`TIPOLANC = 'C'`, competência). Com o checkbox
+   * "Confirmados" ligado, ela ganha a coluna Vl. Confirmado (24/11/2026).
+   */
+  temConfirmado?: boolean;
 }
 
 export interface ValorMes {
@@ -124,6 +129,13 @@ export interface ValorMes {
    */
   percentualAvComProvisionado?: number | null;
   percentualAhComProvisionado?: number | null;
+  /**
+   * Quanto do `valor` é confirmado NÃO pago (`TIPOLANC = 'C'`) — uma PARTE do valor, não um
+   * valor a mais (24/11/2026). Com o checkbox "Confirmados", a tela mostra Vl. Realizado =
+   * valor − confirmado e o Vl. Confirmado ao lado. Nulo em caixa, em receita, CMV e LUCRO
+   * BRUTO, e em coluna sem nenhum. Ver `lib/confirmados.ts`.
+   */
+  confirmado?: number | null;
 }
 
 export interface TotalLinha {
@@ -134,6 +146,8 @@ export interface TotalLinha {
   provisionado?: number | null;
   /** %AV do período sobre o Total (R + P). */
   percentualAvComProvisionado?: number | null;
+  /** A soma dos confirmados das colunas. Nulo quando nenhuma tem. */
+  confirmado?: number | null;
 }
 
 /**
@@ -268,6 +282,11 @@ export interface FiltroDetalhe extends FiltroApuracao {
   provisionado?: boolean;
   /** A célula de Total (R + P): os pagos E os em aberto numa lista só (16/10/2026). */
   realizadoEProvisionado?: boolean;
+  /**
+   * Com o checkbox "Confirmados" (24/11/2026): só os PAGOS (célula Vl. Realizado) ou só os
+   * confirmados não pagos (célula Vl. Confirmado). Ausente é o realizado inteiro.
+   */
+  parte?: "pagos" | "confirmados";
 }
 
 export interface DetalheCliente {

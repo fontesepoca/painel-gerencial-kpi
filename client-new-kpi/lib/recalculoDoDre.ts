@@ -298,6 +298,9 @@ export function recalcular(
 
   const acumulado = deltasPor((l, c) => l.valores[c]?.valor ?? 0);
   const acumuladoP = deltasPor((l, c) => l.valores[c]?.provisionado ?? 0);
+  // O CONFIRMADO (24/11/2026) anda junto, pelos mesmos encaixes: é uma parte do Valor, e o
+  // Vl. Realizado de um totalizador (Valor − Confirmado) tem de fechar depois do arraste também.
+  const acumuladoC = deltasPor((l, c) => l.valores[c]?.confirmado ?? 0);
 
   // ── aplicar ────────────────────────────────────────────────────────────────
   const valorDaAncora = (papel: PapelDaLinha, c: number): number | null => {
@@ -325,6 +328,17 @@ export function recalcular(
     return d !== 0 ? arredondar(v.provisionado + d) : v.provisionado;
   };
 
+  /** O Confirmado de uma coluna depois do arraste — a mesma regra do `provisionadoDe`. */
+  const confirmadoDe = (l: LinhaDre, c: number): number | null | undefined => {
+    const v = l.valores[c];
+    if (v === undefined) return undefined;
+    const d = l.calculada && l.papel ? (acumuladoC.get(l.papel)?.[c] ?? 0) : 0;
+    if (v.confirmado === null || v.confirmado === undefined) {
+      return d !== 0 ? arredondar(d) : v.confirmado;
+    }
+    return d !== 0 ? arredondar(v.confirmado + d) : v.confirmado;
+  };
+
   /** A âncora em R + P — a base do %AV R + P, com o aberto que um arraste tenha levado a ela. */
   const valorDaAncoraRp = (papel: PapelDaLinha, c: number): number | null => {
     const linha = ordenadas.find((l) => l.papel === papel);
@@ -347,11 +361,14 @@ export function recalcular(
     const novosValores: ValorMes[] = l.valores.map((v, c) => {
       const valor = delta ? arredondar(v.valor + (delta[c] ?? 0)) : v.valor;
       const provisionado = pDe(c);
+      const confirmado = confirmadoDe(l, c);
       const rp = valor + (provisionado ?? 0);
       return {
         ...v,
         valor,
         provisionado,
+        // Ausente fica ausente: uma API anterior a 24/11/2026 não manda o confirmado.
+        ...(confirmado !== undefined ? { confirmado } : {}),
         // As versões R + P se refazem só onde a API as mandou — ausente fica ausente.
         ...(v.percentualAvComProvisionado !== undefined
           ? { percentualAvComProvisionado: calcularAv(l, rp, c, valorDaAncoraRp, v.percentualAvComProvisionado) }
@@ -380,6 +397,8 @@ export function recalcular(
     const soma = novosValores.reduce((s, v) => s + v.valor, 0);
     const comP = novosValores.filter((v) => v.provisionado !== null && v.provisionado !== undefined);
     const somaP = comP.length === 0 ? l.total.provisionado : comP.reduce((s, v) => s + (v.provisionado ?? 0), 0);
+    const comC = novosValores.filter((v) => v.confirmado !== null && v.confirmado !== undefined);
+    const somaC = comC.length === 0 ? l.total.confirmado : comC.reduce((s, v) => s + (v.confirmado ?? 0), 0);
 
     return {
       ...l,
@@ -389,6 +408,7 @@ export function recalcular(
       total: {
         ...l.total,
         provisionado: somaP,
+        ...(somaC !== undefined ? { confirmado: somaC } : {}),
         ...(l.total.percentualAvComProvisionado !== undefined
           ? {
               percentualAvComProvisionado: calcularAvTotal(

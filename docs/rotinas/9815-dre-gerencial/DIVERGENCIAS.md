@@ -9,7 +9,7 @@ registrada. O que não estiver aqui é defeito, não escolha.
 cada exceção precisa de três coisas: a medida, o motivo de não ser reproduzível, e
 a aprovação do Gabriel.
 
-**Última revisão:** 07/10/2026.
+**Última revisão:** 24/11/2026.
 
 **Como este arquivo está organizado:** o índice, as divergências **em ordem numérica**, as
 quatro seções transversais — as regras que nenhuma branch pode desfazer, o que *não* é
@@ -40,8 +40,10 @@ linha no índice.
 | [17](#17-minas-rural-a-seção-sem-custo-é-a-1401--07102026) | Minas Rural: a seção tirada da venda e da devolução passa de `1601` para `1401` | todas, só no Minas Rural | **nenhum valor** nos meses medidos — jul a set/2026 | **ligada** em 07/10/2026 pela prova do trace · dc86 46/46 |
 | [18](#18-minas-rural-as-contas-de-icms-viram-a-3003007--07102026) | Minas Rural: conta de ICMS do grupo 303 vira a `3003007` na despesa e no detalhamento | todas, só no Minas Rural | **R$ 38.054,11** no lucro de agosto/2026 na filial 10 | **ligada** em 07/10/2026 · dc89 bate ao centavo |
 | [19](#19-as-colunas-provisionado-e-total-no-regime-competência--14102026) | Colunas **Provisionado** (títulos em aberto) e **Total** nos meses com aberto | todas, só em competência | colunas novas, também nos totalizadores de despesa; com o Provisionado ligado, **%AV e %AH sobre R + P** | **a pedido** em 14/10/2026 · dc92, dc93, dc94 |
+| [20](#20-título-confirmado-tipolanc--c-conta-como-realizado-em-competência--22102026) | Em competência, o título **não pago com `TIPOLANC = 'C'`** (confirmado) conta como **Vl. Realizado** — a 9815 soma só o pago | todas as linhas de despesa, só em competência | `COMPRAS - RAT` de nov/2026 na filial 7: 20.607,18 → **35.207,33**; `FINANCEIRO - RAT`: 58.519,76 → 73.341,28 | **a pedido** em 22/10/2026 · dc92 · medido em 24/11/2026 |
 | [21](#21-a-apuração-sem-as-baixas-estornadas-e-as-da-rotina-737-por-padrão--30102026) | Com o checkbox "Ocultar baixas estornadas e da rotina 737" — **marcado por padrão** —, a conta não soma baixa estornada nem a da 737 | todas as linhas de despesa; desmarcado, nada | `FINANCEIRO` de set/2026 na filial 25: 64.840,00 → **32.420,00**, e o lucro sobe o mesmo; na filial 7, as baixas vêm em pares e quase nada muda (704,14) | **a pedido** em 30/10/2026 · dc101 24/24, dc102 4/4 |
 | [22](#22-toda-linha-zerada-some-com-mostrar-zeradas-desmarcado--11112026) | Com "Mostrar zeradas" desmarcado, some toda linha zerada — também a que tem lançamentos que se anulam ou só lançamentos ocultos pelo checkbox de estornos | todas | **nenhum valor muda** — só quais linhas aparecem | **a pedido** em 11/11/2026 · dc109 |
+| [23](#23-o-checkbox-confirmados-separa-o-confirmado-do-realizado--24112026) | Checkbox **"Confirmados"**, desmarcado por padrão: marcado, o Vl. Realizado volta a ser só o pago (o da 9815) e o **Vl. Confirmado** ganha coluna; o Total soma o que está na tela | todas as linhas de despesa, só em competência | **nenhum valor muda** — separa a divergência 20 em duas colunas; %AV e %AH iguais | **a pedido** em 24/11/2026 · dc110, dc111, dc112 |
 
 ---
 
@@ -1619,6 +1621,25 @@ SELECT TIPOLANC, COUNT(*) AS titulos, SUM(NVL(VPAGO, VALOR)) AS valor
  ORDER BY TIPOLANC;
 ```
 
+### Medido — 24/11/2026
+
+Filial 7, 01 a 23/11/2026, competência, C. Custo Principal, comparando a 9815 e a web lado a
+lado. A diferença das três linhas da família `- RAT` é exatamente a soma dos confirmados não
+pagos do bloco operacional — conferida pela consulta lançamento a lançamento:
+
+| Linha | 9815 (só pago) | Confirmado não pago | Web (pago + confirmado) |
+|---|---:|---:|---:|
+| `COMPRAS - RAT` | 20.607,18 | 14.600,15 (15 títulos) | 35.207,33 |
+| `FINANCEIRO - RAT` | 58.519,76 | 14.786,52 (21) + 35,00 de conta subida, a divergência 14 | 73.341,28 |
+| `CONTABILIDADE - RAT` | 43.343,75 | 10.928,01 (18) | 27.848,76 |
+
+Na `CONTABILIDADE - RAT` a web bate com a base; a 9815 do print tem **26.423,00** a mais do que
+os 16.920,75 pagos do centro `1201`. A explicação provável é a divergência 12 — a 9815 agrupa
+todo centro `12xx` numa linha só —, ainda **não confirmada**: falta a consulta por centro
+principal do grupo `12`.
+
+O pedido que veio desta medição é a divergência 23: separar as duas partes na tela.
+
 ---
 
 ## 21. A apuração sem as baixas estornadas e as da rotina 737, por padrão — 30/10/2026
@@ -1762,6 +1783,80 @@ Prova: dc109 (o montador, com as três formas de zero e a linha com valor sem la
 
 Em `MontadorDre.Montar`, devolver a condição `qdeLancamentos == 0` ao `SemMovimento` —
 a contagem por linha está no histórico do git, no commit anterior a este.
+
+---
+
+## 23. O checkbox "Confirmados" separa o confirmado do realizado — 24/11/2026
+
+**Pedido do Gabriel**, depois da medição da divergência 20: o DRE novo mostrava mais despesa
+que a 9815 em `COMPRAS - RAT` e `FINANCEIRO - RAT`, e a diferença era o título confirmado ainda
+não pago, que desde 22/10 conta como realizado em competência.
+
+### O que a tela faz
+
+Um checkbox **"Confirmados"** no menu Exibição, **desmarcado por padrão**, que só aparece em
+competência e com algum confirmado não pago no período.
+
+- **Desmarcado:** nada muda. O Vl. Realizado continua sendo pago + confirmado (divergência 20).
+- **Marcado:** o Vl. Realizado passa a ser **só o pago — o número da 9815** — e o **Vl.
+  Confirmado** ganha coluna própria, só nos meses que têm algum. O Total soma o que está na
+  tela, e o nome diz o quê:
+
+| Checkboxes | Colunas de dinheiro de um mês |
+|---|---|
+| nenhum | Vl. Realizado |
+| só Provisionado | Vl. Realizado · Provisionado · Total (R + P) |
+| só Confirmados | Vl. Realizado · Vl. Confirmado · Total (R + C) |
+| os dois | Vl. Realizado · Vl. Confirmado · Provisionado · Total (R + C + P) |
+
+**Cada coluna fecha sozinha:** os totalizadores que somam despesa (`Sub-Total`, `RESULTADO
+OPERACIONAL`, `LUCRO LIQUIDO`…) têm o próprio confirmado, pelas mesmas somas do Provisionado, e
+o `LUCRO LIQUIDO` da coluna Vl. Realizado é o lucro só do pago. **%AV e %AH não mudam** com o
+checkbox — decisão do Gabriel.
+
+O **Total (R + C)** é sempre o Vl. Realizado de antes de marcar, e o **Total (R + C + P)**, o
+Total (R + P) de antes: o checkbox separa, não soma nada.
+
+### O que diverge da 9815
+
+Com o checkbox marcado, **o Vl. Realizado volta a ser o da 9815**; o que sobra em relação a ela
+são as outras regras desta página. Desmarcado, vale a divergência 20.
+
+### Como
+
+- **API:** em competência, a apuração faz uma **terceira consulta em paralelo**, a dos
+  confirmados não pagos — a mesma constante de despesas, trocando só o filtro para
+  `WHERE DTPAGTO IS NULL AND TIPOLANC = 'C'` (`ConsultasEmAberto.ConfirmadosNaoPagos`), com o
+  ramo de venda de ativo vazio. A consulta do Valor **não mudou um caractere** (dc86 60/60). O
+  montador devolve `Confirmado` em cada célula e no total — uma PARTE do Valor, não um valor a
+  mais —, e `TemConfirmado` em cada período. O checkbox de estornos tira o confirmado oculto
+  dos dois lados, para o Valor − Confirmado não errar.
+- **Conexões:** a apuração em competência passa de 3 para 4 consultas por recorte. No teto de
+  cinco anos são 21 conexões ao mesmo tempo contra um pool de 20 — a última espera a primeira
+  terminar. Mensal: 5.
+- **Detalhamento:** o duplo clique no Vl. Realizado dividido lista só os pagos (a consulta
+  original de lançamentos); no Vl. Confirmado, só os confirmados não pagos
+  (`ConsultasEmAberto.LancamentosConfirmados`); o parâmetro é `parte` no
+  `/api/dre-gerencial/detalhe`. Cada lista fecha com a própria célula. O totalizador, com o
+  Vl. Realizado dividido, abre a composição pelo Total (R + C), que é o número que ela soma.
+- **Tela, Excel e impressão:** a mesma regra, em `lib/confirmados.ts`.
+
+### Provas
+
+| | |
+|---|---|
+| dc110 36/36 | as quatro consultas e a de lançamentos trocam só o filtro, com os mesmos binds; o montador com a COMPRAS - RAT de novembro (−35.207,33 − −14.600,15 = −20.607,18), os totalizadores, o rateio por fornecedor, caixa e o checkbox de estornos |
+| dc111 19/19 | as colunas e os valores de cada célula nas quatro combinações de checkbox |
+| dc112 13/13 | o Excel igual à tela, e a reordenação de linhas preservando o confirmado |
+
+**Pendente, com a API e o banco:** apurar novembro/2026 na filial 7 e conferir a `COMPRAS - RAT`
+com o checkbox marcado — Vl. Realizado 20.607,18, Vl. Confirmado 14.600,15 —, e medir o tempo da
+apuração antes e depois da consulta nova.
+
+### Como reverter
+
+Tirar o `confirmadosTask` de `DreGerencialService.ApurarAsync` — sem a lista, o montador devolve
+`Confirmado` nulo, nenhum período tem `TemConfirmado` e o checkbox some sozinho da tela.
 
 ## As regras que nenhuma branch pode desfazer
 

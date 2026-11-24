@@ -42,10 +42,32 @@ public static class ConsultasEmAberto
     /// </summary>
     private const string AbertoNaoConfirmado = "WHERE DTPAGTO IS NULL AND NVL(TIPOLANC, 'X') <> 'C'";
 
+    /// <summary>
+    /// Confirmado NÃO pago — a parte do Vl. Realizado em competência que a 9815 não tem
+    /// (checkbox "Confirmados", 24/11/2026, divergência 23). É um SUBCONJUNTO de
+    /// <see cref="PagoOuConfirmado"/>: a tela mostra Vl. Realizado = Valor − Confirmado.
+    /// </summary>
+    private const string ConfirmadoNaoPago = "WHERE DTPAGTO IS NULL AND TIPOLANC = 'C'";
+
     /// <summary>Uma das quatro <c>DreGerencialQueries.Despesas*</c>, em aberto.</summary>
     public static string Despesas(string sqlDespesas) =>
         TrocarUmaVez(
             TrocarUmaVez(sqlDespesas, Pago, AbertoNaoConfirmado),
+            "nf.codfilial IN ({3})",
+            "nf.codfilial IN ({3}) AND 1 = 0");
+
+    /// <summary>
+    /// Uma das quatro <c>DreGerencialQueries.Despesas*</c>, só com os confirmados NÃO pagos
+    /// (24/11/2026). O ramo de venda de ativo fica vazio: é receita recebida, nunca título
+    /// confirmado — e no Valor ele já está inteiro.
+    ///
+    /// <para><b>O sinal de "ocultável" é o do REALIZADO</b>, e não o do provisionado: estes
+    /// lançamentos estão dentro do Valor, e o checkbox de estornos tem de tirá-los dos dois
+    /// lados igual, ou o Valor − Confirmado sairia errado.</para>
+    /// </summary>
+    public static string ConfirmadosNaoPagos(string sqlDespesas) =>
+        TrocarUmaVez(
+            TrocarUmaVez(sqlDespesas, Pago, ConfirmadoNaoPago),
             "nf.codfilial IN ({3})",
             "nf.codfilial IN ({3}) AND 1 = 0");
 
@@ -66,6 +88,16 @@ public static class ConsultasEmAberto
     /// <summary><see cref="DreDetalheQueries.Lancamentos"/>, realizado em competência.</summary>
     public static string LancamentosRealizadosEmCompetencia(string sqlLancamentos) =>
         TrocarUmaVez(sqlLancamentos, Pago + ") FIN", PagoOuConfirmado + ") FIN");
+
+    /// <summary>
+    /// <see cref="DreDetalheQueries.Lancamentos"/> só com os confirmados NÃO pagos — a célula
+    /// Vl. Confirmado (24/11/2026). Sem o ramo de venda de ativo, como na apuração.
+    /// </summary>
+    public static string LancamentosConfirmados(string sqlLancamentos) =>
+        TrocarUmaVez(
+            TrocarUmaVez(sqlLancamentos, Pago + ") FIN", ConfirmadoNaoPago + ") FIN"),
+            "nf.codfilial IN ({2})",
+            "nf.codfilial IN ({2}) AND 1 = 0");
 
     /// <summary>
     /// Troca um trecho que tem de aparecer <b>exatamente uma vez</b>. Zero ou duas vezes

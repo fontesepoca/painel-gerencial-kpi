@@ -64,6 +64,9 @@ export default function DreGerencialPage() {
   // As colunas Provisionado e Total (competência, 14/10/2026). Marcado ao abrir, como os
   // outros dois: quem não quer vê-las desmarca.
   const [mostrarProvisionado, setMostrarProvisionado] = useState(true);
+  // O Vl. Realizado dividido em pago e confirmado (24/11/2026, divergência 23). DESMARCADO ao
+  // abrir, a pedido do Gabriel: a tela abre como sempre, com o confirmado dentro do realizado.
+  const [mostrarConfirmados, setMostrarConfirmados] = useState(false);
   // O recorte das colunas (15/10/2026): sem o bloco Total no fim, ou só ele. Os dois se
   // excluem — marcar um desmarca o outro, no `MenuDeExibicao`.
   const [semTotal, setSemTotal] = useState(false);
@@ -155,6 +158,7 @@ export default function DreGerencialPage() {
             av: mostrarAv,
             ah: mostrarAh,
             provisionado: mostrarProvisionado,
+            confirmados: mostrarConfirmados,
             total: !semTotal,
             // A mesma condição de `podeSoTotal`, mas da apuração recebida: o callback vem
             // antes daquela constante.
@@ -185,6 +189,7 @@ export default function DreGerencialPage() {
       mostrarAv,
       mostrarAh,
       mostrarProvisionado,
+      mostrarConfirmados,
       semTotal,
       soTotal,
       mostrarCodigos,
@@ -248,6 +253,9 @@ export default function DreGerencialPage() {
   // diferente do %AH, que fica desabilitado, porque aqui não há "ainda não": não existe.
   const temProvisionado =
     dados?.periodos.some((p) => p.temProvisionado === true) ?? false;
+  // O mesmo para os Confirmados: só em competência, e só com algum confirmado não pago.
+  const temConfirmado =
+    dados?.periodos.some((p) => p.temConfirmado === true) ?? false;
   // "Só o Total" vale com MAIS DE DOIS meses — pedido do Gabriel — e só quando o bloco do fim
   // é um total: nos modos de ano ele pode ser a variação entre colunas, e a variação sozinha
   // não é o DRE de período nenhum.
@@ -496,6 +504,18 @@ export default function DreGerencialPage() {
                             onMudar: setMostrarProvisionado,
                             oculta: !temProvisionado,
                           },
+                          {
+                            // 24/11/2026, divergência 23: desmarcado, o Vl. Realizado é o
+                            // pago mais o confirmado, como desde 22/10; marcado, os dois se
+                            // separam e o Total soma o que estiver na tela.
+                            id: "confirmados",
+                            rotulo: "Confirmados",
+                            apoio:
+                              "Separa do Vl. Realizado os títulos confirmados ainda não pagos",
+                            marcada: mostrarConfirmados,
+                            onMudar: setMostrarConfirmados,
+                            oculta: !temConfirmado,
+                          },
                         ],
                       },
                       {
@@ -615,6 +635,7 @@ export default function DreGerencialPage() {
                   mostrarAv,
                   mostrarAh,
                   mostrarProvisionado: mostrarProvisionado && temProvisionado,
+                  mostrarConfirmados: mostrarConfirmados && temConfirmado,
                   mostrarTotal: !semTotal,
                   soTotal: soTotal && podeSoTotal,
                   filtroDeLinhas,

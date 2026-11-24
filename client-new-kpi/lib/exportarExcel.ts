@@ -13,6 +13,7 @@ import { codigoDaLinha } from "@/lib/codigoDaLinha";
 import { lerVariacao } from "@/lib/leituraDaVariacao";
 import { somaDosAh } from "@/lib/ahDoTotal";
 import { rotulosDoDinheiro } from "@/lib/rotulosDoDinheiro";
+import { colunasDoDinheiro, partesDaCelula, rotuloDoTotal } from "@/lib/confirmados";
 import { comPercentuaisRp, sentidoDaLinha } from "@/lib/percentuaisComProvisionado";
 import { mostraVariacao, rotuloDaVariacao, variacao } from "@/lib/modosDePeriodo";
 import type { Apuracao, LinhaDre, PeriodoDre } from "@/types/dre-gerencial";
@@ -56,6 +57,11 @@ export interface ColunasDeAnalise {
    * título em aberto (`PeriodoDre.temProvisionado`).
    */
   provisionado?: boolean;
+  /**
+   * O Vl. Realizado dividido em pago e Vl. Confirmado — o checkbox "Confirmados" (24/11/2026).
+   * Ausente: desligado, o estado inicial da tela. Ligado, só nos meses com confirmado.
+   */
+  confirmados?: boolean;
   /** O bloco do período no fim — "Sem a coluna Total" desliga (15/10/2026). Ausente: ligado. */
   total?: boolean;
   /** Só o bloco do período, sem os meses — "Só o Total" (15/10/2026). Vence o `total`. */
@@ -118,14 +124,45 @@ const provisionadoNoMes = (p: PeriodoDre, colunas: ColunasDeAnalise) =>
 const provisionadoNoFim = (dados: Apuracao, colunas: ColunasDeAnalise) =>
   dados.periodos.some((p) => provisionadoNoMes(p, colunas));
 
+/** Este mês ganha o Vl. Confirmado: o checkbox ligado E confirmado não pago nele (24/11/2026). */
+const confirmadoNoMes = (p: PeriodoDre, colunas: ColunasDeAnalise) =>
+  colunas.confirmados === true && p.temConfirmado === true;
+
+const confirmadoNoFim = (dados: Apuracao, colunas: ColunasDeAnalise) =>
+  dados.periodos.some((p) => confirmadoNoMes(p, colunas));
+
+/** As colunas de dinheiro além do Valor: Confirmado, Provisionado e o Total do que houver. */
+const extrasDoDinheiro = (comC: boolean, comP: boolean) => colunasDoDinheiro(comC, comP).length - 1;
+
+/** Os rótulos das colunas de dinheiro de um bloco — os MESMOS da tela (`ColunasCabecalho`). */
+function rotulosDoDinheiroDoBloco(nomes: ReturnType<typeof rotulosDoDinheiro>, comC: boolean, comP: boolean): Celula[] {
+  return [
+    txt(nomes.valor),
+    ...(comC ? [txt(nomes.confirmado)] : []),
+    ...(comP ? [txt(nomes.provisionado)] : []),
+    ...(comC || comP ? [txt(rotuloDoTotal(comC, comP))] : []),
+  ];
+}
+
 /**
- * Provisionado e Total de uma célula: vazios onde não se aplica — receita, deduções, CMV e
- * LUCRO BRUTO, que a API manda com provisionado nulo. Os totalizadores que somam despesa têm.
+ * As células de dinheiro de um bloco, pela MESMA regra da tela (`lib/confirmados.ts`): o Vl.
+ * Realizado (só o pago com o Confirmado ao lado), o Confirmado, o Provisionado e o Total. Vazias
+ * onde não se aplica — receita, deduções, CMV e LUCRO BRUTO, que a API manda com nulo.
  */
-function celulasDoProvisionado(valor: number, provisionado: number | null | undefined): Celula[] {
-  return provisionado === null || provisionado === undefined
-    ? [num(null, MOEDA), num(null, MOEDA)]
-    : [num(provisionado, MOEDA), num(valor + provisionado, MOEDA)];
+function celulasDoDinheiro(
+  valor: number | null,
+  confirmado: number | null | undefined,
+  provisionado: number | null | undefined,
+  comC: boolean,
+  comP: boolean,
+): Celula[] {
+  const partes = partesDaCelula(valor ?? 0, confirmado, provisionado, comC, comP);
+  return [
+    num(valor === null ? null : partes.realizado, MOEDA),
+    ...(comC ? [num(partes.confirmado, MOEDA)] : []),
+    ...(comP ? [num(partes.provisionado, MOEDA)] : []),
+    ...(comC || comP ? [num(partes.total, MOEDA)] : []),
+  ];
 }
 
 /**
@@ -143,7 +180,7 @@ function blocoFinal(dados: Apuracao, colunas: ColunasDeAnalise = TUDO) {
           2 +
           (colunas.av ? 1 : 0) +
           (colunas.ah ? 1 : 0) +
-          (provisionadoNoFim(dados, colunas) ? 2 : 0),
+          extrasDoDinheiro(confirmadoNoFim(dados, colunas), provisionadoNoFim(dados, colunas)),
         rotulo: "Total",
       };
 }
@@ -160,9 +197,11 @@ export function matrizDaApuracao(
   // regra da tela, e por isso a planilha de um mês nunca teve a coluna.
   const comAh = multiMes && colunas.ah;
   const porMes = (p: PeriodoDre) =>
-    1 + (colunas.av ? 1 : 0) + (comAh ? 1 : 0) + (provisionadoNoMes(p, colunas) ? 2 : 0);
+    1 + (colunas.av ? 1 : 0) + (comAh ? 1 : 0) +
+    extrasDoDinheiro(confirmadoNoMes(p, colunas), provisionadoNoMes(p, colunas));
   // O bloco do período só existe com mais de um mês; com um só, o mês é o período.
   const provNoFim = multiMes && provisionadoNoFim(dados, colunas);
+  const confNoFim = multiMes && confirmadoNoFim(dados, colunas);
   const { meses, blocoNoFim } = recorte(dados, colunas);
 
   // Os MESMOS nomes da tela — Vl. Realizado / Provisionado / Total (R + P) em competência.
@@ -176,8 +215,7 @@ export function matrizDaApuracao(
     // inteira a partir do segundo mês.
     faixaMeses.push(txt(p.rotulo), ...Array.from({ length: porMes(p) - 1 }, () => txt("")));
     // O dinheiro junto — Valor, Provisionado, Total — e a análise depois (14/10/2026).
-    rotulos.push(txt(nomes.valor));
-    if (provisionadoNoMes(p, colunas)) rotulos.push(txt(nomes.provisionado), txt(nomes.total));
+    rotulos.push(...rotulosDoDinheiroDoBloco(nomes, confirmadoNoMes(p, colunas), provisionadoNoMes(p, colunas)));
     if (colunas.av) rotulos.push(txt("AV %"));
     if (comAh) rotulos.push(txt("AH %"));
   }
@@ -188,8 +226,7 @@ export function matrizDaApuracao(
       ...(fim.variacao
         ? [txt("Δ Valor"), txt("Δ %")]
         : [
-            txt(nomes.valor),
-            ...(provNoFim ? [txt(nomes.provisionado), txt(nomes.total)] : []),
+            ...rotulosDoDinheiroDoBloco(nomes, confNoFim, provNoFim),
             ...(colunas.av ? [txt("AV %")] : []),
             txt("Média"),
             // A soma dos %AH fecha a linha, como na tela.
@@ -207,10 +244,12 @@ export function matrizDaApuracao(
 
     for (const p of meses) {
       const v = linha.valores.find((x) => x.mesAno === p.mesAno);
-      celulas.push(num(v?.valor ?? null, MOEDA));
-      if (provisionadoNoMes(p, colunas)) {
-        celulas.push(...celulasDoProvisionado(v?.valor ?? 0, v?.provisionado));
-      }
+      celulas.push(
+        ...celulasDoDinheiro(
+          v?.valor ?? null, v?.confirmado, v?.provisionado,
+          confirmadoNoMes(p, colunas), provisionadoNoMes(p, colunas),
+        ),
+      );
       if (colunas.av) celulas.push(num(v?.percentualAv ?? null, PERCENTUAL_3));
       if (comAh) celulas.push(num(v?.percentualAh ?? null, PERCENTUAL_3));
     }
@@ -219,12 +258,11 @@ export function matrizDaApuracao(
       const v = variacao(linha.valores, dados.periodos, dados.modo);
       celulas.push(num(v?.absoluta ?? null, MOEDA), num(v?.percentual ?? null, PERCENTUAL_3));
     } else if (blocoNoFim) {
-      celulas.push(num(linha.total.valor, MOEDA));
-      if (provNoFim) {
-        celulas.push(
-          ...celulasDoProvisionado(linha.total.valor, linha.total.provisionado),
-        );
-      }
+      celulas.push(
+        ...celulasDoDinheiro(
+          linha.total.valor, linha.total.confirmado, linha.total.provisionado, confNoFim, provNoFim,
+        ),
+      );
       if (colunas.av) celulas.push(num(linha.total.percentualAv, PERCENTUAL_3));
       celulas.push(num(linha.total.media, MOEDA));
       // A MESMA função da tela, e não uma soma escrita de novo aqui: duas somas do mesmo
@@ -462,7 +500,8 @@ export function planilhaDaApuracao(
   const fim = blocoFinal(dados, { ...analise, ah: comAh });
   const { meses, blocoNoFim } = recorte(dados, analise);
   const larguras = meses.map(
-    (p) => 1 + (analise.av ? 1 : 0) + (comAh ? 1 : 0) + (provisionadoNoMes(p, analise) ? 2 : 0),
+    (p) => 1 + (analise.av ? 1 : 0) + (comAh ? 1 : 0) +
+      extrasDoDinheiro(confirmadoNoMes(p, analise), provisionadoNoMes(p, analise)),
   );
   if (blocoNoFim) larguras.push(fim.largura);
 

@@ -13,12 +13,18 @@
  */
 export interface RotulosDoDinheiro {
   valor: string;
+  /** A parte do realizado ainda não paga, com TIPOLANC = 'C' (checkbox "Confirmados", 24/11/2026). */
+  confirmado: string;
   provisionado: string;
+  /**
+   * O Total de quando só o Provisionado está ligado. Com o Vl. Confirmado na tela o nome muda
+   * para dizer o que soma — ver `rotuloDoTotal` em `lib/confirmados.ts`.
+   */
   total: string;
 }
 
 export function rotulosDoDinheiro(regime: string | null | undefined): RotulosDoDinheiro {
   return regime === "competencia"
-    ? { valor: "Vl. Realizado", provisionado: "Provisionado", total: "Total (R + P)" }
-    : { valor: "Valor", provisionado: "Provisionado", total: "Total (R + P)" };
+    ? { valor: "Vl. Realizado", confirmado: "Vl. Confirmado", provisionado: "Provisionado", total: "Total (R + P)" }
+    : { valor: "Valor", confirmado: "Vl. Confirmado", provisionado: "Provisionado", total: "Total (R + P)" };
 }
