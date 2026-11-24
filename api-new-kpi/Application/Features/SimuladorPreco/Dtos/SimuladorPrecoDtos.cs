@@ -1,12 +1,22 @@
+using Epoca.Kpi.Api.Application.Common;
 using Epoca.Kpi.Api.Application.Common.Bases;
 
 namespace Epoca.Kpi.Api.Application.Features.SimuladorPreco.Dtos;
 
-/// <summary>O filtro da consulta: igual ao SQL (D5) — uma filial, uma região, fornecedor opcional.</summary>
+/// <summary>
+/// O pedido de uma página. Os três primeiros são os filtros do SQL (D5): uma filial, uma região,
+/// fornecedor opcional. Os outros são da paginação no back-end (spec 2026-11-24): a página, a
+/// busca, as classes de venda e os códigos do "ver só os simulados". O tamanho da página NÃO
+/// vem daqui: é fixo no servidor.
+/// </summary>
 public record SimuladorPrecoFiltroDto(
     string CodFilial,
     int NumRegiao,
-    decimal? CodFornec);
+    IReadOnlyList<int>? Fornecedores,
+    int Pagina = 1,
+    string? Busca = null,
+    IReadOnlyList<string>? Classes = null,
+    IReadOnlyList<string>? Codigos = null);
 
 /// <summary>
 /// Uma linha do simulador. <b>É o contrato da tela, não o SQL</b>: quando a v2 do SQL trocar
@@ -51,12 +61,20 @@ public record ProdutoSimuladoDto(
     decimal? PerCofinsSaid,
     decimal? Indice,
     decimal? PrFuturo,
-    decimal? PrFinal);
+    decimal? PrFinal,
+    // A n-ésima repetição desta chave (produto + tributação), numerada pelo Oracle: vira o #n
+    // da chave da linha na tela (spec 2026-11-24-simulador-paginacao-no-backend).
+    int Ocorrencia,
+    // O fornecedor do produto, embaixo do código na tela (spec 2026-11-24-simulador-coluna-
+    // codigo-e-fornecedor). Nulos quando o produto não tem fornecedor no cadastro.
+    decimal? CodFornec,
+    string? Fornecedor);
 
 /// <summary>
-/// A resposta da consulta. A <see cref="Base"/> volta junto pelo mesmo motivo do DRE: a tela
-/// recusa exibir números de uma base diferente da da sessão (BIFURCACAO_DE_BASES §6).
+/// A resposta: UMA PÁGINA (spec 2026-11-24-simulador-paginacao-no-backend). A
+/// <see cref="Base"/> volta junto pelo mesmo motivo do DRE: a tela recusa exibir números de uma
+/// base diferente da da sessão (BIFURCACAO_DE_BASES §6).
 /// </summary>
 public record ConsultaSimuladorDto(
-    IReadOnlyList<ProdutoSimuladoDto> Produtos,
+    PagedResult<ProdutoSimuladoDto> Pagina,
     BaseDto? Base = null);

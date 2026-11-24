@@ -2,6 +2,7 @@
 
 import { memo, useMemo } from "react";
 import { cn } from "@/lib/cn";
+import { ConsultandoProdutos } from "@/components/simulador-preco/ConsultandoProdutos";
 import { formatarPercentualLivre, formatarValor3 } from "@/lib/formato";
 import {
   calcular,
@@ -32,12 +33,11 @@ import type { AjusteDaLinha, CampoPercentual, ProdutoSimulado } from "@/types/si
  */
 
 /**
- * A identidade de uma linha: código + tributação de CBS (spec §3.6). As linhas repetidas por NCM
- * (Q1) são de tributações diferentes; se ainda assim duas coincidirem, a página acrescenta um
- * contador. Não é a POSIÇÃO na lista, porque a simulação guardada tem de achar a mesma linha
- * numa consulta de amanhã.
+ * A identidade de uma linha mora em `lib/filtroSimulador.ts` (`chaveDaLinha`, conferida pela sp17):
+ * código + tributação e, na repetição, `#n` numerado pelo Oracle (`ocorrencia`). Reexportada
+ * aqui para quem já a importava desta tabela.
  */
-export const chaveDaLinha = (p: ProdutoSimulado) => `${p.codProd}|${p.codigoTributacao ?? "-"}`;
+export { chaveDaLinha } from "@/lib/filtroSimulador";
 
 /*
  * AS CLASSES DA TABELA SÃO AS DO DRE (23/11/2026, docs/superpowers/specs/
@@ -57,12 +57,13 @@ const TH_NUM = cn(TH, "text-right");
 const TH_GRUPO =
   "px-[var(--celula-x)] pt-3 pb-1 text-center text-[length:var(--fs-rotulo)] font-semibold uppercase tracking-[0.14em] text-[var(--text-primary)] whitespace-nowrap";
 /**
- * As colunas depois da do Produto: Compra (1), Entrada (5), Custo (3), Saída (5) e Preço (3) — SQL v2:
+ * As colunas depois da do Produto: Classe (1, 24/11/2026), Compra (1), Entrada (5), Custo (3), Saída
+ * (5) e Preço (3) — SQL v2:
  * o ST saiu da Entrada e o grupo Preço tem Preço futuro, ST e Preço final.
  * É o `colSpan` da linha de título dos grupos — com 17 ele criava uma coluna fantasma (revisão
  * final, 23/11/2026). Coluna nova no cabeçalho muda este número junto.
  */
-const COLUNAS_DEPOIS_DO_PRODUTO = 1 + 5 + 3 + 5 + 3;
+const COLUNAS_DEPOIS_DO_PRODUTO = 1 + 1 + 5 + 3 + 5 + 3;
 /** A tabela inteira: a coluna do Produto e as de depois. */
 const TOTAL_DE_COLUNAS = 1 + COLUNAS_DEPOIS_DO_PRODUTO;
 const TD = "px-[var(--celula-x)] py-[var(--celula-y)] align-top";
@@ -85,6 +86,13 @@ const TH_FUNDO_GRUPO = camada("var(--surface-2)");
 const TH_FUNDO_COMPRA = camada("var(--primary-dim)");
 const TH_FUNDO_PRECO = camada("var(--positive-glow)");
 const TD_FUNDO_SIMULADA = { backgroundColor: "var(--surface-2)" };
+/**
+ * A linha EDITADA na grid (Gabriel, 24/11/2026): âmbar, a cor de "alterado" de planilha, que
+ * não se confunde com o azul da Compra nem com o verde do Preço. O token é OPACO (`color-mix`
+ * no globals.css): a célula fixa precisa de fundo opaco, senão os números que rolam por baixo
+ * apareceriam através dela.
+ */
+const TD_FUNDO_EDITADA = { backgroundColor: "var(--linha-editada)" };
 const TD_FUNDO_COMPRA = { backgroundColor: "var(--primary-dim)" };
 const TD_FUNDO_PRECO = { backgroundColor: "var(--positive-glow)" };
 
@@ -97,6 +105,7 @@ export function TabelaSimulador({
   novos,
   onAbrirNovo,
   onRemoverNovo,
+  carregando = false,
   className,
 }: {
   /** Os produtos da consulta — só os da página atual (a página pagina; spec de 23/11/2026). */
@@ -115,16 +124,29 @@ export function TabelaSimulador({
   novos: { produto: ProdutoSimulado; chave: string }[];
   onAbrirNovo: (chave: string) => void;
   onRemoverNovo: (chave: string) => void;
+  /** A próxima página está a caminho e esta é a anterior, ainda na tela (React Query). */
+  carregando?: boolean;
   className?: string;
 }) {
   return (
-    // `.tabela-rolagem`: a tabela rola DENTRO do contêiner, com o cabeçalho e a coluna do produto
-    // grudados enquanto ela rola — as mesmas regras da tabela do DRE.
-    <div className={cn("tabela-rolagem rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface-1)]", className)}>
+    // O invólucro existe só para a TELA DE ESPERA POR CIMA (Gabriel, 24/11/2026): ela fica fora da
+    // área que rola e fora do esmaecido. Ele repassa o `flex-1 min-h-0` para a `.tabela-rolagem`
+    // continuar ocupando o que sobra da coluna.
+    <div className={cn("relative flex min-h-0 flex-1 flex-col", className)}>
+    {/* `.tabela-rolagem`: a tabela rola DENTRO do contêiner, com o cabeçalho e a coluna do produto
+        grudados enquanto ela rola — as mesmas regras da tabela do DRE. */}
+    <div
+      aria-busy={carregando}
+      className={cn(
+        "tabela-rolagem rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface-1)] transition-opacity",
+        carregando && "opacity-60",
+      )}
+    >
       <table className="w-full border-collapse text-[length:var(--fs-base)]">
         <thead>
           <tr className="border-b border-[var(--border)]">
-            <th className="celula-descricao" style={TH_FUNDO_GRUPO} />
+            <th className="celula-descricao largura-codigo-e-produto" style={TH_FUNDO_GRUPO} />
+            <th style={TH_FUNDO_GRUPO} />
             <th className={cn(TH_GRUPO, "col-bloco text-[var(--primary)]")} style={TH_FUNDO_COMPRA}>Compra</th>
             <th colSpan={5} className={cn(TH_GRUPO, "col-bloco")} style={TH_FUNDO_GRUPO}>Entrada</th>
             <th colSpan={3} className={cn(TH_GRUPO, "col-bloco")} style={TH_FUNDO_GRUPO}>Custo</th>
@@ -132,8 +154,28 @@ export function TabelaSimulador({
             <th colSpan={3} className={cn(TH_GRUPO, "col-bloco text-[var(--positive)]")} style={TH_FUNDO_PRECO}>Preço</th>
           </tr>
           <tr className="border-b border-[var(--border-strong)]">
-            <th className={cn(TH, "celula-descricao largura-da-descricao")}>Produto</th>
-            <th className={cn(TH_NUM, "col-bloco")} style={TH_FUNDO_COMPRA}>Preço de compra</th>
+            {/* Código e Produto: UMA célula fixa com duas partes (Gabriel, 24/11/2026). Sem o
+                `px` do TH: cada parte tem o seu, e a divisória cai exatamente entre elas. */}
+            <th className="celula-descricao largura-codigo-e-produto py-1.5 text-left text-[length:var(--fs-rotulo)] font-medium uppercase tracking-[0.08em] text-[var(--text-muted)] whitespace-nowrap">
+              <span className="codigo-e-produto">
+                <span className="px-[var(--celula-x)]">Código</span>
+                <span className="px-[var(--celula-x)]">Produto</span>
+              </span>
+            </th>
+            {/* A classe de venda (A, B, C) em coluna própria (Gabriel, 24/11/2026): a lista vem
+                ordenada por ela, e o filtro é por ela. */}
+            <th className={cn(TH, "text-center")}>Classe</th>
+            {/* A legenda diz de onde vem o número (Gabriel, 24/11/2026). "Preço de última compra"
+                no título seria falso nas linhas editadas e nos produtos novos, onde o preço é o
+                digitado: só a célula sem edição mostra a última compra (VLULTPCOMPRA). */}
+            <th
+              className={cn(TH, "col-bloco text-center")}
+              style={TH_FUNDO_COMPRA}
+              title="Sem edição, mostra o preço da última compra (VLULTPCOMPRA). Digite um valor para simular outro preço."
+            >
+              Preço de compra
+              <span className="block font-normal normal-case tracking-normal">últ. compra ou digitado</span>
+            </th>
             <th className={cn(TH_NUM, "col-bloco")}>IPI</th>
             <th className={cn(TH_NUM, "col-interna")}>ICMS</th>
             <th className={cn(TH_NUM, "col-interna")}>PIS</th>
@@ -194,6 +236,15 @@ export function TabelaSimulador({
           ))}
         </tbody>
       </table>
+    </div>
+    {/* Página, busca ou classe que ainda não veio do banco: a tabela anterior fica esmaecida e o
+        relógio aparece POR CIMA, no centro (Gabriel, 24/11/2026). Página já vista volta do cache
+        sem passar por aqui. `pointer-events-none` no fundo: a tabela continua rolável. */}
+    {carregando && (
+      <div className="pointer-events-none absolute inset-0 z-40 flex items-center justify-center p-4">
+        <ConsultandoProdutos sobreposto />
+      </div>
+    )}
     </div>
   );
 }
@@ -267,45 +318,66 @@ const Linha = memo(function Linha({
     // PONTEIRO"), que o pinta célula a célula — um `hover:bg-…` aqui o dobraria nas células
     // comuns e não chegaria às que têm fundo próprio. A zebra é a do DRE, mas só em linha não
     // simulada: `odd:` tem especificidade maior e apagaria o fundo da simulada.
-    <tr className={cn("group border-b border-[var(--border)]", simulado ? "bg-[var(--surface-2)]" : "odd:bg-[var(--zebra)]")}>
+    <tr className={cn("group border-b border-[var(--border)]", simulado ? "bg-[var(--linha-editada)]" : "odd:bg-[var(--zebra)]")}>
       {/*
         UMA COLUNA FIXA SÓ, com o código dentro (spec de 23/11/2026, objetivo 2). Duas colunas
         fixas lado a lado é o defeito documentado no globals.css: o navegador não respeita a
-        largura pedida, e os valores passam pela fresta entre elas.
+        largura pedida, e os valores passam pela fresta entre elas. Desde 24/11/2026 a célula tem
+        DUAS PARTES (`.codigo-e-produto`): o código com o fornecedor embaixo, e o produto.
 
         A marca da linha simulada é uma sombra por dentro à esquerda — com `border-collapse` a
         borda é da tabela, e não da célula. O fundo vai por `style` (ver o topo do arquivo).
       */}
       <td
-        className={cn(TD, "celula-descricao largura-da-descricao", simulado && "shadow-[inset_3px_0_0_var(--primary)]")}
-        style={simulado ? TD_FUNDO_SIMULADA : undefined}
+        className={cn(
+          "py-[var(--celula-y)] align-top celula-descricao largura-codigo-e-produto",
+          simulado && "shadow-[inset_4px_0_0_var(--warning)]",
+        )}
+        style={simulado ? TD_FUNDO_EDITADA : undefined}
       >
         {/* O produto inteiro é o botão do quadro (D21): é onde a mão vai para "abrir o item". */}
         <button
           type="button"
           onClick={() => onAbrir(chave)}
-          className={cn(FOCO, "block w-full text-left")}
+          className={cn(FOCO, "codigo-e-produto w-full text-left")}
           title={novo ? "Abrir o quadro para editar" : "Abrir o quadro do produto"}
         >
-          <span className="line-clamp-2 text-[var(--text-primary)] group-hover:text-[var(--primary)]">
+          {/* A parte do código: o código do produto e, embaixo, o fornecedor (código e nome curto,
+              o nome inteiro no title). No produto novo, "Simulado" (Gabriel, 24/11/2026). */}
+          <span className="min-w-0 px-[var(--celula-x)]">
             {novo ? (
-              <span className="mr-1.5 rounded-[var(--radius-sm)] bg-[var(--primary-dim)] px-1.5 py-0.5 text-[length:var(--fs-apoio)] font-medium text-[var(--primary)]">
-                NOVO
+              <span className="rounded-[var(--radius-sm)] bg-[var(--primary-dim)] px-1.5 py-0.5 text-[length:var(--fs-apoio)] font-medium text-[var(--primary)]">
+                Simulado
               </span>
             ) : (
-              <span className="tabular mr-1.5 text-[var(--text-muted)]">{p.codProd}</span>
+              <>
+                <span className="tabular block text-[var(--text-primary)]">{p.codProd}</span>
+                <span
+                  className="mt-0.5 block truncate text-[length:var(--fs-apoio)] text-[var(--text-muted)]"
+                  title={p.fornecedor ? `Fornecedor ${p.codFornec} · ${p.fornecedor}` : undefined}
+                >
+                  <span className="tabular">{p.codFornec ?? "—"}</span>
+                  {p.fornecedor && ` · ${p.fornecedor}`}
+                </span>
+              </>
             )}
-            {p.descricao}
           </span>
-          <span className="mt-0.5 block text-[length:var(--fs-apoio)] text-[var(--text-muted)]">
-            {novo ? "Produto hipotético · percentuais digitados" : <>NCM {p.ncm ?? "—"}{p.descricaoTributacao && ` · ${p.descricaoTributacao}`}{p.classeVenda && ` · Classe ${p.classeVenda}`}</>}
+          <span className="min-w-0 px-[var(--celula-x)]">
+            <span className="line-clamp-2 text-[var(--text-primary)] group-hover:text-[var(--primary)]">
+              {p.descricao}
+            </span>
+            <span className="mt-0.5 block text-[length:var(--fs-apoio)] text-[var(--text-muted)]">
+              {novo ? "Produto hipotético · percentuais digitados" : <>NCM {p.ncm ?? "—"}{p.descricaoTributacao && ` · ${p.descricaoTributacao}`}</>}
+            </span>
           </span>
         </button>
       </td>
 
+      <td className={cn(TD, "text-center font-semibold text-[var(--text-secondary)]")}>{novo ? "—" : (p.classeVenda ?? "—")}</td>
+
       {/* ── Compra: o único campo editável da célula (D10) ── */}
       <td className={cn(TD, "col-bloco")} style={TD_FUNDO_COMPRA}>
-        <div className="flex items-center justify-end gap-1">
+        <div className="flex items-center justify-center gap-1">
           {novo ? (
             <span className="tabular py-1">{formatarValor3(p.vlUltPCompra ?? 0)}</span>
           ) : (
@@ -352,11 +424,11 @@ const Linha = memo(function Linha({
           </button>
         </div>
         {invalido && (
-          <div className="mt-0.5 text-right text-[length:var(--fs-apoio)] text-[var(--negative)]">Preço inválido</div>
+          <div className="mt-0.5 text-center text-[length:var(--fs-apoio)] text-[var(--negative)]">Preço inválido</div>
         )}
         {/* D13: sem última compra o SQL entra com zero, e não com o custo de reposição. */}
         {!novo && !invalido && p.vlUltPCompra === 0 && !simulado && (
-          <div className="mt-0.5 text-right text-[length:var(--fs-apoio)] text-[var(--warning)]">sem última compra</div>
+          <div className="mt-0.5 text-center text-[length:var(--fs-apoio)] text-[var(--warning)]">sem última compra</div>
         )}
       </td>
 

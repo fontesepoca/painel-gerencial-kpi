@@ -10,8 +10,11 @@
 export interface FiltroSimulador {
   codFilial: string;
   numRegiao: number;
-  /** Nulo = todos os fornecedores (o SQL trata 0 como "todos"). */
-  codFornec: number | null;
+  /**
+   * Os códigos de fornecedor, ORDENADOS (234,500 e 500,234 são a mesma consulta). Vazio = todos.
+   * Vários desde 24/11/2026 (spec 2026-11-24-simulador-varios-fornecedores).
+   */
+  fornecedores: number[];
 }
 
 export interface ProdutoSimulado {
@@ -59,6 +62,17 @@ export interface ProdutoSimulado {
   prFuturo: number | null;
   /** `PRECOFINAL` do SQL v2: o preço futuro mais o `VLST` da tabela de preço. */
   prFinal: number | null;
+  /**
+   * A n-ésima repetição desta chave (produto + tributação), de 1 em diante, numerada pelo
+   * Oracle. Vira o `#n` da chave da linha (`chaveDaLinha`).
+   */
+  ocorrencia: number;
+  /**
+   * O fornecedor do produto (`PCPRODUT.CODFORNEC` / `PCFORNEC.FORNECEDOR`), ligado por fora do
+   * SQL v2 (spec 2026-11-24-simulador-coluna-codigo-e-fornecedor). Nulos sem cadastro.
+   */
+  codFornec: number | null;
+  fornecedor: string | null;
 }
 
 /** Os percentuais que o quadro do produto deixa editar (D21). */
@@ -99,7 +113,30 @@ export interface ProdutoNovo {
   st?: number;
 }
 
+/** As classes de venda (sp14, 24/11/2026: só A, B e C). */
+export type Classe = "A" | "B" | "C";
+
+/** O pedido de UMA página (spec 2026-11-24-simulador-paginacao-no-backend). */
+export interface PedidoDePagina extends FiltroSimulador {
+  pagina: number;
+  /** Já com o debounce. Nulo = sem busca. */
+  busca: string | null;
+  /** Nulo = sem filtro de classe (as três marcadas). */
+  classes: Classe[] | null;
+  /** "Ver só os simulados". Nulo = desligado. */
+  codigos: string[] | null;
+}
+
+/** O `PagedResult` da API. */
+export interface PaginaSimulador {
+  itens: ProdutoSimulado[];
+  pagina: number;
+  tamanhoPagina: number;
+  totalItens: number;
+  totalPaginas: number;
+}
+
 export interface ConsultaSimulador {
-  produtos: ProdutoSimulado[];
+  pagina: PaginaSimulador;
   base: { id: string; rotulo: string } | null;
 }

@@ -256,6 +256,10 @@ export function linhaDeProdutoNovo(n: ProdutoNovo): ProdutoSimulado {
   return {
     codFilial: null,
     codProd: 0,
+    // Não vem do Oracle: a chave do produto novo é o próprio id, nunca `chaveDaLinha`.
+    ocorrencia: 1,
+    codFornec: null,
+    fornecedor: null,
     descricao: n.descricao,
     classeVenda: null,
     ncm: null,

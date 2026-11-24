@@ -23,7 +23,8 @@ export interface EstadoDosFiltros {
   codFilial: string;
   /** Texto, como foi digitado: o número só é exigido no Consultar. */
   regiao: string;
-  fornecedor: Fornecedor | null;
+  /** Vários desde 24/11/2026; vazio = todos. */
+  fornecedores: Fornecedor[];
 }
 
 /** Por que o Consultar está desligado — ou `null` se pode consultar. */
@@ -94,13 +95,13 @@ export function FiltrosSimulador({
         )}
       </Campo>
 
-      {/* A busca do DRE, mas UM por vez: o SQL tem um :CODFORNEC só. Escolher outro substitui
-          o anterior; vazio é "todos". */}
+      {/* A busca do DRE, com VÁRIOS fornecedores (24/11/2026): código + Enter vira ficha, e o
+          próximo código entra junto. Vazio é "todos". */}
       <Campo rotulo="Fornecedor">
         {() => (
           <SelecaoDeFornecedores
-            selecionados={filtros.fornecedor ? [filtros.fornecedor] : []}
-            onMudar={(lista) => onMudar({ ...filtros, fornecedor: lista.at(-1) ?? null })}
+            selecionados={filtros.fornecedores}
+            onMudar={(lista) => onMudar({ ...filtros, fornecedores: lista })}
           />
         )}
       </Campo>

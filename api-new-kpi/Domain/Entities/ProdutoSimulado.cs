@@ -53,4 +53,20 @@ public class ProdutoSimulado
     public decimal? PrFuturo { get; init; }
     /// <summary><c>PRECOFINAL</c> do SQL v2: o preço futuro mais o <c>VLST</c> da tabela de preço.</summary>
     public decimal? PrFinal { get; init; }
+
+    /// <summary>
+    /// A n-ésima vez que esta chave (produto + tributação) aparece, de 1 em diante, numerada pelo
+    /// Oracle antes dos filtros (<c>ConsultaPaginada</c>). Vira o <c>#n</c> da chave da linha.
+    /// <c>decimal</c> porque o Oracle devolve NUMBER; o serviço converte.
+    /// </summary>
+    public decimal Ocorrencia { get; init; }
+
+    /// <summary>Quantas linhas passaram nos filtros, em todas as páginas (igual em toda linha).</summary>
+    public decimal TotalItens { get; init; }
+
+    /// <summary>O fornecedor do produto (<c>PCPRODUT.CODFORNEC</c>), por fora do SQL v2. Nulo sem cadastro.</summary>
+    public decimal? CodFornec { get; init; }
+
+    /// <summary>O nome do fornecedor (<c>PCFORNEC.FORNECEDOR</c>). Nulo sem cadastro.</summary>
+    public string? Fornecedor { get; init; }
 }

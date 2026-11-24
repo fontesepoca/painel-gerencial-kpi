@@ -2,12 +2,13 @@
 
 import { useCallback, useSyncExternalStore } from "react";
 import { chaveDaSimulacao } from "@/lib/chavesPorBase";
+import { juntarChavesAntigas } from "@/lib/rascunhoSimulacao";
 import type { AjusteDaLinha, ProdutoNovo } from "@/types/simulador-preco";
 
 /**
  * A simulação de preço que "se guarda sozinha" (decisão D22, revista em 18/11/2026): o que a
  * pessoa alterou na tabela e os produtos novos ficam no navegador e voltam quando ela consulta
- * de novo a mesma filial, região e fornecedor.
+ * de novo a mesma filial e região (o fornecedor saiu da chave em 24/11/2026).
  *
  * <b>Por que `useSyncExternalStore`, e não `useState` + efeito.</b> É o mesmo motivo do
  * `useOrdemSalva` do DRE, que explica em detalhe: ler o `localStorage` num efeito faz a tela
@@ -26,9 +27,8 @@ export interface SimulacaoGuardada {
 
 const VAZIA: SimulacaoGuardada = { consultas: {}, novos: [] };
 
-/** A consulta que a simulação acompanha: os mesmos três filtros do SQL. */
-export const chaveDaConsulta = (codFilial: string, numRegiao: number, codFornec: number | null) =>
-  `${codFilial}|${numRegiao}|${codFornec ?? 0}`;
+/** Filial + região: ver `chaveDaConsulta` em `lib/rascunhoSimulacao`. */
+export { chaveDaConsulta } from "@/lib/rascunhoSimulacao";
 
 /** O texto cru da última leitura, por chave: o snapshot tem de ser estável (ver useOrdemSalva). */
 const cache = new Map<string, { bruto: string | null; valor: SimulacaoGuardada }>();
@@ -68,7 +68,9 @@ function ler(chave: string | null): SimulacaoGuardada {
   if (bruto) {
     try {
       const lido = JSON.parse(bruto) as Partial<SimulacaoGuardada>;
-      valor = { consultas: lido.consultas ?? {}, novos: lido.novos ?? [] };
+      // As chaves antigas (com fornecedor) viram filial|região aqui, na leitura; a próxima
+      // gravação já sai no formato novo (spec 2026-11-24-simulador-varios-fornecedores).
+      valor = { consultas: juntarChavesAntigas(lido.consultas ?? {}), novos: lido.novos ?? [] };
     } catch {
       // Texto corrompido (edição à mão, versão antiga): começa limpo em vez de quebrar a tela.
       valor = VAZIA;

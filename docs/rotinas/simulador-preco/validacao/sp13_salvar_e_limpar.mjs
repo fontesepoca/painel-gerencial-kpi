@@ -11,6 +11,7 @@
 import {
   ajustesNaTela,
   contarPendencias,
+  contarPendenciasDeNovos,
   limparSimulacao,
   salvarRascunhos,
   trocarAjuste,
@@ -89,6 +90,16 @@ eq(limparSimulacao(s, { edicoes: true, novos: false }), { consultas: {}, novos: 
 eq(limparSimulacao(s, { edicoes: false, novos: true }), { consultas: { c: { a: { preco: "1" } } }, novos: [] }, "só novos");
 eq(limparSimulacao(s, { edicoes: true, novos: true }), { consultas: {}, novos: [] }, "os dois");
 eq(limparSimulacao(s, { edicoes: false, novos: false }), s, "nenhum: igual");
+
+// ── contarPendenciasDeNovos: os produtos novos também esperam o Salvar (24/11/2026) ──
+const novoA = { id: "a", descricao: "A", preco: 10, percentuais: {}, st: 0 };
+const novoB = { id: "b", descricao: "B", preco: 20, percentuais: {}, st: 0 };
+eq(contarPendenciasDeNovos([novoA], null), 0, "novos: sem rascunho, nada pendente");
+eq(contarPendenciasDeNovos([novoA], [novoA]), 0, "novos: rascunho igual ao salvo, 0");
+eq(contarPendenciasDeNovos([novoA], [novoA, novoB]), 1, "novos: um criado, 1");
+eq(contarPendenciasDeNovos([novoA, novoB], [novoB]), 1, "novos: um removido, 1");
+eq(contarPendenciasDeNovos([novoA], [{ ...novoA, preco: 11 }]), 1, "novos: um editado, 1");
+eq(contarPendenciasDeNovos([], []), 0, "novos: os dois vazios, 0");
 
 console.log(falhas === 0
   ? `sp13: ${conferencias} conferências, todas passaram.`

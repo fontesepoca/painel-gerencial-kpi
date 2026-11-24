@@ -42,8 +42,16 @@
   --negative-glow: rgb(244 63 94 / 0.12);
   --warning: #f59e0b;
   --warning-glow: rgb(245 158 11 / 0.1);
+  /* A linha editada na grid do simulador (Gabriel, 24/11/2026). OPACA de propósito, para servir
+     também à célula fixa, por onde os números rolam por baixo. Feita do âmbar e da superfície
+     DO TEMA ATIVO: como as duas são redefinidas no tema claro e na leitura ampliada no mesmo
+     elemento (html), a mistura acompanha sozinha, sem repetir o token em cada tema. */
+  --linha-editada: color-mix(in srgb, var(--warning) 14%, var(--surface-1));
   --info: #0ea5e9;
   --sobre-warning: #1a1200;
+  /* O texto SOBRE o vermelho de perigo (botão "Sim, limpar"): no escuro o --negative é claro, e
+     branco sobre ele ficava em ~2,6:1 na leitura ampliada (revisão de 24/11/2026). */
+  --sobre-negative: #1a0006;
 
   /* ── Texto ──
      `--text-muted` era #475569, que dá contraste 2,47 sobre a superfície 1 —
@@ -164,6 +172,7 @@ html[data-tema="claro"] {
   --shadow-modal:
     0 8px 24px rgb(15 23 42 / 0.12), 0 24px 60px rgb(15 23 42 / 0.18);
   --sobre-warning: #ffffff;
+  --sobre-negative: #ffffff;
 
   color-scheme: light;
 }
@@ -1076,6 +1085,41 @@ html[data-leitura="ampliada"] .selecao-vazia {
 @media (max-width: 767px) {
   .largura-da-descricao {
     width: 50vw;
+    min-width: 0;
+  }
+}
+
+/* O CÓDIGO E O PRODUTO DO SIMULADOR (24/11/2026, pedido do Gabriel): parecem duas colunas, mas
+   são UMA célula fixa com duas partes (ver "Uma coluna fixa só" abaixo: duas colunas fixas
+   abrem fresta). A largura é a da descrição (18rem) mais a parte do código. A divisória é um
+   traço absoluto da altura inteira da célula: a célula fixa é `position: sticky`, que já serve
+   de referência, e assim o traço não encurta quando outra célula da linha é mais alta. */
+.largura-codigo-e-produto {
+  --largura-do-codigo: 8rem;
+  width: calc(18rem + var(--largura-do-codigo));
+  min-width: calc(18rem + var(--largura-do-codigo));
+}
+
+.largura-codigo-e-produto::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: var(--largura-do-codigo);
+  width: 1px;
+  background: var(--border);
+  pointer-events: none;
+}
+
+.codigo-e-produto {
+  display: grid;
+  grid-template-columns: var(--largura-do-codigo) minmax(0, 1fr);
+}
+
+@media (max-width: 767px) {
+  .largura-codigo-e-produto {
+    --largura-do-codigo: 6rem;
+    width: 75vw;
     min-width: 0;
   }
 }
