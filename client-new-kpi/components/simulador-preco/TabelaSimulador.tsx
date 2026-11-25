@@ -167,10 +167,10 @@ export function TabelaSimulador({
                 ordenada por ela, e o filtro é por ela. */}
             <th className={cn(TH, "text-center")}>Classe</th>
             {/* Da PCTRIBUTACAO, só exibidas (spec 2026-11-25-simulador-classe-de-tributacao-e-cst). */}
-            <th className={cn(TH, "text-center")} title="CCLASSTRIB da PCTRIBUTACAO, pela tributação do NCM.">
+            <th className={cn(TH, "col-interna text-center")} title="CCLASSTRIB da PCTRIBUTACAO, pela tributação do NCM.">
               Classe de tributação
             </th>
-            <th className={cn(TH, "text-center")} title="CST da PCTRIBUTACAO. Não é o ST da coluna Preço.">
+            <th className={cn(TH, "col-interna text-center")} title="CST da PCTRIBUTACAO. Não é o ST da coluna Preço.">
               CST
             </th>
             {/* A legenda diz de onde vem o número (Gabriel, 24/11/2026). "Preço de última compra"
@@ -382,8 +382,9 @@ const Linha = memo(function Linha({
       </td>
 
       <td className={cn(TD, "text-center font-semibold text-[var(--text-secondary)]")}>{novo ? "—" : (p.classeVenda ?? "—")}</td>
-      <td className={cn(TD, "tabular text-center whitespace-nowrap text-[var(--text-secondary)]")}>{p.cClassTrib ?? "—"}</td>
-      <td className={cn(TD, "tabular text-center whitespace-nowrap text-[var(--text-secondary)]")}>{p.cst ?? "—"}</td>
+      {/* Divisória fina (col-interna) entre Classe, Classe de tributação e CST (Gabriel, 25/11/2026). */}
+      <td className={cn(TD, "col-interna tabular text-center whitespace-nowrap text-[var(--text-secondary)]")}>{p.cClassTrib ?? "—"}</td>
+      <td className={cn(TD, "col-interna tabular text-center whitespace-nowrap text-[var(--text-secondary)]")}>{p.cst ?? "—"}</td>
 
       {/* ── Compra: o único campo editável da célula (D10) ── */}
       <td className={cn(TD, "col-bloco")} style={TD_FUNDO_COMPRA}>
