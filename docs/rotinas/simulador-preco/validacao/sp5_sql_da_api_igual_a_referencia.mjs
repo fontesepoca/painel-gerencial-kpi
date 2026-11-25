@@ -12,7 +12,9 @@
 //        vezes ganha 1..N (:PCOMPRA → :pCompra1 … :pCompraN);
 //   A2 — CODFUNC = 1 vira :matricula1, :matricula2… (a matrícula da sessão, D3);
 //   A4 — sai o ";" final;
-//   A5 — saem as linhas de comentário "--" (cabeçalho e binds comentados).
+//   A5 — saem as linhas de comentário "--" (cabeçalho e binds comentados);
+//   A8 — o filtro de UM fornecedor vira uma LISTA (24/11/2026, spec
+//        2026-11-24-simulador-varios-fornecedores). Só escolhe os produtos; nenhuma conta muda.
 //
 // Sem banco e sem rede:
 //   node docs/rotinas/simulador-preco/validacao/sp5_sql_da_api_igual_a_referencia.mjs \
@@ -31,6 +33,18 @@ const camel = (nome) =>
 
 // A5 e A4.
 let r = ref.split("\n").filter((l) => !l.trim().startsWith("--")).join("\n").replace(/;\s*$/, "");
+
+// A8, ANTES do A1: os binds novos já entram com o nome final, em minúsculas, e o A1 só mexe nos
+// :NOMES em maiúsculas.
+const filtroDeUm = "F.CODFORNEC = DECODE(NVL(:CODFORNEC,0),0,P.CODFORNEC,:CODFORNEC)";
+if (!r.includes(filtroDeUm)) {
+  console.log("A8: a linha do fornecedor não está na referência; a adaptação precisa ser revista.");
+  process.exit(1);
+}
+r = r.replace(
+  filtroDeUm,
+  "(:fornecedoresNulo IS NULL OR INSTR(',' || :fornecedores || ',', ',' || TO_CHAR(F.CODFORNEC) || ',') > 0)",
+);
 
 // A1: conta as ocorrências de cada nome e numera quando repete.
 const ocorrencias = new Map();
@@ -52,7 +66,7 @@ const esperado = norm(r);
 const constante = norm(cs);
 
 if (constante.includes(esperado)) {
-  console.log(`IDENTICO: o miolo é a referência com só as adaptações A1, A2, A4 e A5 (${m} matrícula(s)).`);
+  console.log(`IDENTICO: o miolo é a referência com só as adaptações A1, A2, A4, A5 e A8 (${m} matrícula(s)).`);
 } else {
   // Onde começa a divergir: o maior prefixo da referência que a constante contém.
   let lo = 0, hi = esperado.length;

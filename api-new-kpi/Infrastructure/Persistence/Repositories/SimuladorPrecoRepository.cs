@@ -12,11 +12,10 @@ namespace Epoca.Kpi.Api.Infrastructure.Persistence.Repositories;
 public sealed class SimuladorPrecoRepository : ISimuladorPrecoRepository
 {
     /// <summary>
-    /// <b>Provisório.</b> O tempo da consulta numa filial inteira ainda não foi medido (spec §7,
-    /// Q5, query <c>sp4</c>). 300 s é folga para não cortar a primeira medição; o número certo
-    /// sai dela.
+    /// Uma página levou ~3 s no Oracle, e uma busca 1,5 s (sp14, 24/11/2026, filial 7, região 90,
+    /// todos os fornecedores). 60 s é folga larga sem deixar uma consulta presa por minutos.
     /// </summary>
-    private const int TempoLimiteSegundos = 300;
+    private const int TempoLimiteSegundos = 60;
 
     /// <summary>Quantas vezes <c>:PCOMPRA</c> aparece no SQL v2 (A1). Eram 8 na v1.</summary>
     private const int OcorrenciasDoPreco = 22;
@@ -30,11 +29,35 @@ public sealed class SimuladorPrecoRepository : ISimuladorPrecoRepository
         _baseAtual = baseAtual;
     }
 
-    public async Task<IReadOnlyList<ProdutoSimulado>> ConsultarAsync(
+    public async Task<IReadOnlyList<VinculoDeRegiao>> ObterVinculosDeRegiaoAsync(
+        int matricula,
+        CancellationToken cancellationToken = default)
+    {
+        var parametros = new DynamicParameters();
+        parametros.Add("matricula", matricula);
+
+        using var conexao = await _conexoes.CriarConexaoAsync(cancellationToken);
+
+        var linhas = await conexao.QueryAsync<VinculoDeRegiao>(
+            new CommandDefinition(
+                SimuladorPrecoQueries.VinculosDeRegiao,
+                parametros,
+                commandTimeout: TempoLimiteSegundos,
+                cancellationToken: cancellationToken));
+
+        return linhas.ToList();
+    }
+
+    public async Task<(IReadOnlyList<ProdutoSimulado> Itens, int Total)> ConsultarPaginaAsync(
         string codFilial,
         int numRegiao,
-        decimal? codFornec,
+        IReadOnlyList<int>? fornecedores,
         int matricula,
+        int pagina,
+        int tamanhoPagina,
+        string? busca,
+        IReadOnlyList<string>? classes,
+        IReadOnlyList<string>? codigos,
         CancellationToken cancellationToken = default)
     {
         // A ORDEM DOS Add É A ORDEM DOS :placeholders NO TEXTO — o ODP.NET liga por posição.
@@ -42,7 +65,7 @@ public sealed class SimuladorPrecoRepository : ISimuladorPrecoRepository
         // dá ORA-01008 ou, pior, um valor no lugar do outro.
         //
         // A ORDEM DA v2 (a sp5 imprime a mesma lista a partir da referência): os 22 :pCompra vêm
-        // PRIMEIRO, porque estão no SELECT interno; depois :numRegiao, :codFornec1/2,
+        // PRIMEIRO, porque estão no SELECT interno; depois :numRegiao, :fornecedoresNulo/:fornecedores (A8),
         // :matricula1/2 (as duas PCLIB) e :codFilial, no WHERE. Na v1 a ordem era outra.
         var parametros = new DynamicParameters();
 
@@ -56,17 +79,38 @@ public sealed class SimuladorPrecoRepository : ISimuladorPrecoRepository
 
         parametros.Add("numRegiao", numRegiao);
 
-        // Zero, e não nulo, para "todos": o SQL faz NVL(:codFornec, 0) e compara com 0 no
-        // DECODE. Mandar 0 tipado evita deixar ao Oracle adivinhar o tipo de um nulo sem tipo.
-        var fornecedor = codFornec ?? 0m;
-        parametros.Add("codFornec1", fornecedor);
-        parametros.Add("codFornec2", fornecedor);
+        // A LISTA de fornecedores (A8, 24/11/2026): texto "234,500" para o INSTR; nulo = todos.
+        // Como texto tipado, igual às classes: um nulo sem tipo fica ao acaso do Oracle.
+        var listaDeFornecedores = fornecedores is { Count: > 0 } ? string.Join(",", fornecedores) : null;
+        parametros.Add("fornecedoresNulo", listaDeFornecedores, DbType.String);
+        parametros.Add("fornecedores", listaDeFornecedores, DbType.String);
 
         parametros.Add("matricula1", matricula);
         parametros.Add("matricula2", matricula);
 
         // CODFILIAL é texto no Winthor (PCEST, PCFILIAL): vai como texto. Uma vez só na v2.
         parametros.Add("codFilial", codFilial);
+
+        // ── A paginação (ConsultaPaginada), DEPOIS dos 28 da Consulta — a sp15 confere. ──
+        // Cada filtro tem um bind "nulo" na frente: nulo = sem esse filtro.
+        var termo = string.IsNullOrWhiteSpace(busca) ? null : busca.Trim();
+        parametros.Add("buscaNula", termo, DbType.String);
+        parametros.Add("buscaCodigo", termo, DbType.String);
+        parametros.Add(
+            "buscaLike",
+            termo is null ? null : $"%{EscaparLike(termo.ToUpperInvariant())}%",
+            DbType.String);
+
+        var listaDeClasses = classes is null ? null : string.Join(",", classes);
+        parametros.Add("classesNula", listaDeClasses, DbType.String);
+        parametros.Add("classes", listaDeClasses, DbType.String);
+
+        var listaDeCodigos = codigos is null ? null : string.Join(",", codigos);
+        parametros.Add("codigosNulo", listaDeCodigos, DbType.String);
+        parametros.Add("codigos", listaDeCodigos, DbType.String);
+
+        parametros.Add("inicio", (pagina - 1) * tamanhoPagina);
+        parametros.Add("tamanho", tamanhoPagina);
 
         using var conexao = await _conexoes.CriarConexaoAsync(cancellationToken);
 
@@ -75,11 +119,24 @@ public sealed class SimuladorPrecoRepository : ISimuladorPrecoRepository
                 // A mesma porta do DRE: aplica as regras da base da sessão. O simulador não usa
                 // marcador nenhum hoje, e Aplicar devolve o texto igual — mas é por aqui que
                 // uma regra por base entraria, sem ninguém lembrar de ligá-la.
-                _baseAtual.Base.Regras.Aplicar(SimuladorPrecoQueries.Consulta),
+                _baseAtual.Base.Regras.Aplicar(SimuladorPrecoQueries.ConsultaPaginada),
                 parametros,
                 commandTimeout: TempoLimiteSegundos,
                 cancellationToken: cancellationToken));
 
-        return linhas.ToList();
+        var itens = linhas.ToList();
+
+        // O total vem em toda linha (COUNT(*) OVER ()). Sem linha nenhuma, ou a página está além
+        // do fim ou nada passou nos filtros: o total sai 0 nos dois casos, e a tela trata o
+        // primeiro voltando à última página.
+        var total = itens.Count == 0 ? 0 : (int)itens[0].TotalItens;
+        return (itens, total);
     }
+
+    /// <summary>
+    /// <c>%</c> e <c>_</c> digitados na busca são TEXTO, não curinga (spec, casos de borda): o
+    /// SQL usa <c>LIKE … ESCAPE '\'</c>, e por isso a própria barra também é escapada.
+    /// </summary>
+    internal static string EscaparLike(string texto) =>
+        texto.Replace(@"\", @"\\").Replace("%", @"\%").Replace("_", @"\_");
 }

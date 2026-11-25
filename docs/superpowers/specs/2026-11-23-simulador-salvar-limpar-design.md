@@ -11,7 +11,7 @@ da consulta") hoje se confundem.
 
 ## O que muda (decidido pelo Gabriel em 23/11/2026)
 
-1. **Edições da tabela (grid) só são guardadas no clique em "Salvar simulação".**
+1. **Edições da tabela (grid) só são guardadas no clique em "Salvar simulação"** (e, desde 24/11, os produtos novos também — ver abaixo).
    - Até lá, ficam na memória da aba (estado React), por consulta, como rascunho.
    - **Produtos novos continuam se guardando sozinhos**, como hoje.
 2. **"Limpar simulações"** abre um quadro com dois quadradinhos: "Edições dos produtos da
@@ -38,6 +38,37 @@ da consulta") hoje se confundem.
   - Com nenhum marcado, o botão "Limpar" fica desabilitado.
 - **Uma aba em sincronia com a outra.** Para o que está salvo, isso continua funcionando como
   hoje. O rascunho é de cada aba.
+
+## Mudança de 24/11/2026: os produtos novos também esperam o Salvar
+
+Decisão do Gabriel, depois de testar na tela: ter um comportamento para a tabela e outro para os
+produtos novos confundia. Agora tudo passa pelo **"Salvar simulação"**:
+- **Rascunho próprio.** Criar, editar ou remover um produto novo mexe num rascunho na memória
+  da aba.
+- **Contador.** O rascunho entra no "N alterações não salvas" e no aviso ao sair.
+- **Botão.** O "Salvar simulação" aparece também sem consulta, quando há produto novo.
+- **Limpar.** "Limpar simulações" com "Produtos novos" marcado também descarta esse rascunho.
+- **Teste.** O sp13 confere a contagem com `contarPendenciasDeNovos`: produto criado, removido
+  ou editado conta 1, e um rascunho igual ao salvo conta 0.
+
+## Revisão final (24/11/2026)
+
+Corrigido:
+- **Confirmação protegida.** Um Enter repetido ou um duplo clique em "Limpar" não confirma
+  mais sozinho. Os botões ganharam `key`, o foco vai para "Voltar" e "Sim, limpar" só aceita
+  clique depois de 0,6 s.
+- **Aviso ao trocar de tela.** Ir a outra tela pela barra lateral com edições não salvas agora
+  pede confirmação, já que o `beforeunload` não cobre a navegação do Next.
+- **Contraste.** O texto do "Sim, limpar" usa o token `--sobre-negative`, escuro no tema escuro
+  e branco no claro.
+
+Limitações conhecidas (adiadas):
+- **Duas abas na mesma consulta:** a última que salvar vence.
+- **Sessão expirada:** se ela expirar no meio, Salvar descarta o rascunho sem gravar.
+- **Edições escondidas:** com pendências de outra consulta e a consulta atual vazia, o botão
+  Salvar não aparece.
+- **Desempenho:** salvar um produto novo redesenha as 100 linhas da página.
+- **Leitor de tela:** o título do grupo usa `scope="colgroup"`.
 
 ## Fora do escopo
 

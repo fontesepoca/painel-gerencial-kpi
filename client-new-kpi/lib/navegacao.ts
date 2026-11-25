@@ -25,6 +25,11 @@ export interface TelaDoMenu {
   icone: IconeDeTela;
   /** Uma linha: o que a pessoa encontra ao abrir. */
   descricao: string;
+  /**
+   * O texto mais longo do cartão em "Rotinas disponíveis", na tela inicial (24/11/2026). A tela
+   * inicial lê esta mesma lista: uma tela nova aparece no menu e no início sem mais nada.
+   */
+  resumo: string;
   href: string;
 }
 
@@ -49,6 +54,8 @@ export const MODULOS: readonly ModuloDoMenu[] = [
         nome: "DRE Gerencial",
         icone: "dre",
         descricao: "Resultado por filial e período",
+        resumo:
+          "Demonstrativo de resultado por filial e período, em quatro dimensões de análise, com detalhamento por duplo clique e exportação.",
         href: "/dre-gerencial",
       },
       {
@@ -58,6 +65,10 @@ export const MODULOS: readonly ModuloDoMenu[] = [
         nome: "Simulador de Preço",
         icone: "preco",
         descricao: "Impostos, custo e preço futuro a partir do preço de compra",
+        // Texto do Gabriel (24/11/2026). Sem falar em "salvar no navegador": a forma de guardar
+        // as simulações ainda vai ser revista (localStorage, análise multifilial).
+        resumo:
+          "Impostos, custo e preço futuro a partir do preço de compra, com edição por produto, simulação de produtos novos.",
         href: "/simulador-preco",
       },
     ],

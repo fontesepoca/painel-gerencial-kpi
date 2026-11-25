@@ -64,6 +64,30 @@ public sealed class SimuladorPrecoController : ControllerBase
             resultado.Valor! with { Base = BaseDto.De(_baseAtual.Base) }));
     }
 
+    /// <summary>
+    /// As filiais em que o comprador logado tem região vinculada na TAB_REG_PR_FILIAL, e qual
+    /// (spec 2026-11-25-simulador-regiao-pelo-vinculo-do-comprador). A tela oferece só estas.
+    /// </summary>
+    [HttpGet("vinculos")]
+    public async Task<IActionResult> Vinculos(CancellationToken cancellationToken)
+    {
+        if (!PodeAbrir())
+        {
+            return StatusCode(
+                StatusCodes.Status403Forbidden,
+                ApiResponse<object>.Falha("Você não tem acesso ao simulador de preço."));
+        }
+
+        // A matrícula vem do token assinado, nunca da URL: cada um vê só os próprios vínculos.
+        if (!int.TryParse(User.FindFirst(GeradorDeToken.ClaimMatricula)?.Value, out var matricula))
+        {
+            return Unauthorized(ApiResponse<object>.Falha("Sessão inválida. Entre novamente."));
+        }
+
+        var resultado = await _servico.ObterVinculosAsync(matricula, cancellationToken);
+        return Ok(ApiResponse<IReadOnlyList<VinculoDeRegiaoDto>>.Ok(resultado.Valor!));
+    }
+
     private bool PodeAbrir() =>
         User.FindAll(GeradorDeToken.ClaimRotina)
             .Any(c => c.Value == RotinasDoWinthor.DreGerencial);

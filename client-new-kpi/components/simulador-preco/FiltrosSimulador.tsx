@@ -3,12 +3,16 @@
 import { useId } from "react";
 import { cn } from "@/lib/cn";
 import { SelecaoDeFornecedores } from "@/components/dre-gerencial/SelecaoDeFornecedores";
-import type { Filial, Fornecedor } from "@/types/dre-gerencial";
+import type { FilialDoSimulador } from "@/hooks/useSimuladorPreco";
+import type { Fornecedor } from "@/types/dre-gerencial";
 
 /**
- * Os filtros do simulador — iguais aos binds do SQL (decisão D5): uma filial, uma região e um
- * fornecedor opcional. O desenho é o dos filtros do DRE (`FiltrosDre.tsx`): mesmo rótulo,
- * mesmo campo, mesmo botão de executar.
+ * Os filtros do simulador: uma filial e fornecedores opcionais. O desenho é o dos filtros do
+ * DRE (`FiltrosDre.tsx`): mesmo rótulo, mesmo campo, mesmo botão de executar.
+ *
+ * <b>Sem campo de região desde 25/11/2026</b> (spec 2026-11-25-simulador-regiao-pelo-vinculo-
+ * do-comprador): como na rotina em operação, ela sai do vínculo do comprador com a filial na
+ * TAB_REG_PR_FILIAL. A lista só tem as filiais com vínculo, e cada uma mostra a sua região.
  */
 
 const ROTULO =
@@ -21,15 +25,13 @@ const CAMPO =
 
 export interface EstadoDosFiltros {
   codFilial: string;
-  /** Texto, como foi digitado: o número só é exigido no Consultar. */
-  regiao: string;
-  fornecedor: Fornecedor | null;
+  /** Vários desde 24/11/2026; vazio = todos. */
+  fornecedores: Fornecedor[];
 }
 
 /** Por que o Consultar está desligado — ou `null` se pode consultar. */
 export function motivoParaNaoConsultar(f: EstadoDosFiltros): string | null {
   if (f.codFilial === "") return "Escolha uma filial.";
-  if (!/^\d+$/.test(f.regiao.trim()) || Number(f.regiao) <= 0) return "Informe o número da região.";
   return null;
 }
 
@@ -43,7 +45,7 @@ export function FiltrosSimulador({
 }: {
   filtros: EstadoDosFiltros;
   onMudar: (f: EstadoDosFiltros) => void;
-  filiais: Filial[];
+  filiais: FilialDoSimulador[];
   carregandoFiliais: boolean;
   consultando: boolean;
   onConsultar: () => void;
@@ -53,7 +55,7 @@ export function FiltrosSimulador({
 
   return (
     <form
-      className="grid items-end gap-3 sm:grid-cols-[minmax(12rem,1fr)_9rem] lg:grid-cols-[minmax(12rem,1fr)_9rem_minmax(16rem,1.6fr)_auto]"
+      className="grid items-end gap-3 sm:grid-cols-[minmax(12rem,1fr)_minmax(16rem,1.6fr)] lg:grid-cols-[minmax(12rem,1fr)_minmax(16rem,1.6fr)_auto]"
       onSubmit={(e) => {
         // Enter num campo consulta, como o botão — sem recarregar a página.
         e.preventDefault();
@@ -69,38 +71,29 @@ export function FiltrosSimulador({
             disabled={carregandoFiliais}
             className={CAMPO}
           >
-            <option value="">{carregandoFiliais ? "Carregando…" : "Escolha a filial"}</option>
+            <option value="">
+              {carregandoFiliais
+                ? "Carregando…"
+                : filiais.length === 0
+                  ? "Nenhuma filial com região vinculada"
+                  : "Escolha a filial"}
+            </option>
             {filiais.map((f) => (
               <option key={f.codFilial} value={f.codFilial}>
-                {f.codFilial} — {f.label}
+                {f.codFilial} — {f.label} · região {f.numRegiao}
               </option>
             ))}
           </select>
         )}
       </Campo>
 
-      {/* Campo numérico POR ENQUANTO (decisão de 18/11/2026): a lista das regiões da filial
-          depende da PCREGIAO, que o usuário da aplicação ainda não lê, e da sp3. */}
-      <Campo rotulo="Região">
-        {(id) => (
-          <input
-            id={id}
-            inputMode="numeric"
-            placeholder="Nº"
-            value={filtros.regiao}
-            onChange={(e) => onMudar({ ...filtros, regiao: e.target.value.replace(/\D/g, "") })}
-            className={cn(CAMPO, "tabular")}
-          />
-        )}
-      </Campo>
-
-      {/* A busca do DRE, mas UM por vez: o SQL tem um :CODFORNEC só. Escolher outro substitui
-          o anterior; vazio é "todos". */}
+      {/* A busca do DRE, com VÁRIOS fornecedores (24/11/2026): código + Enter vira ficha, e o
+          próximo código entra junto. Vazio é "todos". */}
       <Campo rotulo="Fornecedor">
         {() => (
           <SelecaoDeFornecedores
-            selecionados={filtros.fornecedor ? [filtros.fornecedor] : []}
-            onMudar={(lista) => onMudar({ ...filtros, fornecedor: lista.at(-1) ?? null })}
+            selecionados={filtros.fornecedores}
+            onMudar={(lista) => onMudar({ ...filtros, fornecedores: lista })}
           />
         )}
       </Campo>

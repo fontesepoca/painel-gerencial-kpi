@@ -40,9 +40,26 @@ export function QuadroLimpar({
   const [novos, setNovos] = useState(temNovos);
   const [confirmando, setConfirmando] = useState(false);
 
+  const voltar = useRef<HTMLButtonElement>(null);
+
   useEffect(() => {
     dialogo.current?.showModal();
   }, []);
+
+  // No passo da confirmação o foco vai para o "Voltar" (revisão de 24/11/2026). As `key` dos
+  // botões fazem o React criar nós NOVOS ao trocar de passo: sem elas, o botão "Limpar" virava o
+  // "Sim, limpar" no mesmo lugar e com o foco, e um segundo Enter (ou um duplo clique) apagava
+  // tudo sem a pessoa ler a pergunta.
+  //
+  // O MOUSE pede mais: o "Sim, limpar" nasce no mesmo lugar do "Limpar", e o segundo clique de um
+  // duplo clique cairia nele. Por isso ele só aceita clique depois de um instante.
+  const [podeConfirmar, setPodeConfirmar] = useState(false);
+  useEffect(() => {
+    if (!confirmando) return;
+    voltar.current?.focus();
+    const t = window.setTimeout(() => setPodeConfirmar(true), 600);
+    return () => window.clearTimeout(t);
+  }, [confirmando]);
 
   const algumMarcado = edicoes || novos;
   const oQue = [edicoes && "as edições dos produtos da consulta", novos && "os produtos novos simulados"]
@@ -93,10 +110,11 @@ export function QuadroLimpar({
       <footer className="flex justify-end gap-2 border-t border-[var(--border)] px-5 py-3">
         {!confirmando ? (
           <>
-            <button type="button" onClick={onFechar} className={cn(FOCO, BOTAO_NEUTRO)}>
+            <button key="cancelar" type="button" onClick={onFechar} className={cn(FOCO, BOTAO_NEUTRO)}>
               Cancelar
             </button>
             <button
+              key="limpar"
               type="button"
               disabled={!algumMarcado}
               onClick={() => setConfirmando(true)}
@@ -113,14 +131,24 @@ export function QuadroLimpar({
           </>
         ) : (
           <>
-            <button type="button" onClick={() => setConfirmando(false)} className={cn(FOCO, BOTAO_NEUTRO)}>
+            <button
+              key="voltar"
+              ref={voltar}
+              type="button"
+              onClick={() => {
+                setConfirmando(false);
+                setPodeConfirmar(false);
+              }}
+              className={cn(FOCO, BOTAO_NEUTRO)}
+            >
               Voltar
             </button>
             <button
+              key="sim"
               type="button"
-              // O foco vai para o "Voltar" por ser o primeiro; apagar exige um clique de propósito.
+              disabled={!podeConfirmar}
               onClick={() => onLimpar({ edicoes, novos })}
-              className={cn(FOCO, "h-[var(--altura-controle)] rounded-[var(--radius-md)] bg-[var(--negative)] px-5 font-medium text-white hover:brightness-110")}
+              className={cn(FOCO, "h-[var(--altura-controle)] rounded-[var(--radius-md)] bg-[var(--negative)] px-5 font-medium text-[var(--sobre-negative)] hover:brightness-110 disabled:cursor-wait disabled:opacity-60")}
             >
               Sim, limpar
             </button>

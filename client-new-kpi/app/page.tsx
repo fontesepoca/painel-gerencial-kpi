@@ -4,8 +4,10 @@ import { redirect } from "next/navigation";
 import { NOME_DO_COOKIE, lerSessaoPublica } from "@/lib/servidor/sessoes";
 import { AppShell } from "@/components/layout/AppShell";
 import { IconeDaTela } from "@/components/layout/Icones";
-import type { IconeDeTela } from "@/lib/navegacao";
-import { ROTINA_DRE, podeAbrir } from "@/lib/rotinas";
+import { type IconeDeTela, modulosVisiveis } from "@/lib/navegacao";
+
+const ROTULO_DE_SECAO =
+  "mb-3 text-[length:var(--fs-rotulo)] font-medium tracking-[0.14em] text-[var(--text-muted)] uppercase";
 
 /**
  * A tela inicial: por onde se escolhe a rotina.
@@ -25,7 +27,7 @@ export default async function Home() {
 
   const { usuario } = sessao;
   const primeiroNome = usuario.nome.trim().split(/\s+/)[0] ?? usuario.nomeGuerra;
-  const temDre = podeAbrir(usuario.rotinas, ROTINA_DRE);
+  const telas = modulosVisiveis(usuario.rotinas).flatMap((m) => m.telas);
 
   return (
     // A MESMA CASCA DAS ROTINAS (12/11/2026): a barra de módulos à esquerda é a navegação, e
@@ -42,25 +44,30 @@ export default async function Home() {
           </p>
         </div>
 
-        {temDre ? (
+        {telas.length > 0 ? (
           <>
-            <h2 className="mb-3 text-[length:var(--fs-rotulo)] font-medium tracking-[0.14em] text-[var(--text-muted)] uppercase">
-              Rotinas disponíveis
-            </h2>
+            <h2 className={ROTULO_DE_SECAO}>Rotinas disponíveis</h2>
 
-            <div className="grid gap-4 md:grid-cols-[1.4fr_1fr]">
-              <CartaoDeRotina
-                href="/dre-gerencial"
-                icone="dre"
-                nome="DRE Gerencial"
-                descricao="Demonstrativo de resultado por filial e período, em quatro dimensões de análise, com detalhamento por duplo clique e exportação."
-              />
-
-              {/* O cartão de acesso ao lado da rotina, e não escondido no menu: a pergunta
-                  "por que a filial 12 não aparece" nasce aqui, antes de a pessoa abrir o DRE
-                  e esperar dois minutos por uma apuração sem a filial que ela queria. */}
-              <SeuAcesso filiais={usuario.filiais} />
+            {/* Os cartões vêm da MESMA lista da barra lateral, com a mesma permissão (24/11/2026):
+                antes o cartão do DRE era escrito à mão, e o Simulador de Preço aparecia no menu
+                mas não aqui. */}
+            <div className="grid gap-4 md:grid-cols-2">
+              {telas.map((tela) => (
+                <CartaoDeRotina
+                  key={tela.href}
+                  href={tela.href}
+                  icone={tela.icone}
+                  nome={tela.nome}
+                  descricao={tela.resumo}
+                />
+              ))}
             </div>
+
+            {/* O acesso fica numa seção própria, DEPOIS das rotinas (24/11/2026): ao lado delas,
+                parecia mais um cartão de rotina. Continua na tela inicial porque a pergunta "por
+                que a filial 12 não aparece" nasce aqui, antes de abrir uma rotina. */}
+            <h2 className={`${ROTULO_DE_SECAO} mt-10`}>Seu acesso</h2>
+            <SeuAcesso filiais={usuario.filiais} />
           </>
         ) : (
           <SemRotinas />
@@ -122,15 +129,13 @@ function SemRotinas() {
 /**
  * As filiais que a pessoa pode apurar, ao lado da rotina.
  *
- * Só aparece para quem tem o DRE — quem não tem também não tem filial que importe, e o
- * painel viraria uma caixa vazia ao lado de uma explicação.
+ * Só aparece para quem tem alguma rotina — quem não tem também não tem filial que importe, e
+ * o painel viraria uma caixa vazia ao lado de uma explicação. O título "Seu acesso" é o da
+ * seção, na página.
  */
 function SeuAcesso({ filiais }: { filiais: readonly string[] }) {
   return (
-    <aside className="flex flex-col gap-3 rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface-1)] p-5">
-      <span className="text-[length:var(--fs-rotulo)] font-medium tracking-[0.14em] text-[var(--text-muted)] uppercase">
-        Seu acesso
-      </span>
+    <aside aria-label="Seu acesso" className="flex flex-col gap-3 rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface-1)] p-5">
 
       <div className="flex flex-wrap gap-1">
         {filiais.map((filial) => (

@@ -60,7 +60,7 @@ o número da tela tem de ser o número que o SQL dá.
 | D19 | **Fornecedor pela busca do DRE, um por vez:** escolher outro substitui o anterior, e vazio é "todos". | Gabriel, 18/11. |
 | D20 | **Enter no preço vai ao preço da linha de baixo** (Shift+Enter, ao de cima), com o texto selecionado. | Gabriel, 18/11. Feito. |
 | D21 | **Clicar no produto abre o quadro dele numa janela no centro (modal)**, com preço **e percentuais** editáveis. Na célula da tabela, continua editável só o preço (D10). | Gabriel, 18/11. §3.6 |
-| D22 | ~~"Salvar simulação" e lista de salvas~~. **Revista no mesmo dia: a tela se guarda sozinha** no navegador, por base e matrícula, sem botão Salvar. Nada vai ao banco. | Gabriel, 18/11. §3.6 |
+| D22 | ~~"Salvar simulação" e lista de salvas~~. **Revista no mesmo dia: a tela se guarda sozinha** no navegador, por base e matrícula, sem botão Salvar. Nada vai ao banco. **Revista de novo em 23/11** ([spec](2026-11-23-simulador-salvar-limpar-design.md)): as edições dos produtos da consulta ficam num rascunho na memória da aba e só vão ao localStorage no botão **"Salvar simulação"**; os produtos novos continuam se guardando sozinhos; **"Limpar simulações"** apaga, com confirmação, o que for marcado. | Gabriel, 18/11 e 23/11. §3.6 |
 | D23 | **"Simular novo produto"** abre o mesmo quadro **em branco**, para um produto que não existe no cadastro. | Gabriel, 18/11. §3.6 |
 | D24 | **Confirmar no quadro leva as alterações para a tabela**, como se tivessem sido feitas nela, com o mesmo ↺ para redefinir. | Gabriel, 18/11. §3.6 |
 | D25 | **Na tabela, o percentual alterado pelo quadro fica em azul**, com o valor do SQL no `title`. | Gabriel, 18/11. |
@@ -133,6 +133,7 @@ foi **idêntico**, com os 15 binds na ordem acima.
 | **SQL v2** (23/11/2026, [spec](2026-11-23-simulador-sql-v2-design.md)): API, recálculo, ST e preço final, classe de venda | ✅ `sp5` idêntica à v2; `sp8` **9.811 linhas reais da v2, 0 diferenças, 147.220 conferências** (filial 7, região 90), com 5.502 linhas com ST; consulta em 8,7 s |
 | Paginação (100/página) e produtos novos na mesma tabela ([spec](2026-11-23-simulador-paginacao-design.md)) | ✅ `sp10` 12/12, `sp12` 4/4. A consulta **não** fica mais no sessionStorage (V4) |
 | Alinhamento visual com o DRE ([spec](2026-11-23-simulador-alinhamento-visual-design.md)) | ✅ código e revisão; capturas pendentes |
+| Salvar / Limpar simulações e títulos dos grupos centralizados ([spec](2026-11-23-simulador-salvar-limpar-design.md)) | ✅ `sp13` 25/25; `tsc` e `eslint` limpos; centralização do título na área visível medida no navegador (início, meio e fim da rolagem); **conferido na tela pelo Gabriel em 23/11/2026**. Commit `a2f1645` |
 | Quadro do produto, produtos novos e simulação guardada (§3.6): `QuadroSimulacao.tsx`, `useSimulacaoGuardada.ts` | ✅ `tsc` e `eslint` limpos; `sp8` com as funções novas: 137.072/137.072. **Não visto na tela por mim** (precisa de login) |
 
 **A primeira consulta real (sp6, filial 7, região 90, 18/11/2026):**

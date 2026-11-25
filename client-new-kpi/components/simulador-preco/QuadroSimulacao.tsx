@@ -203,10 +203,13 @@ export function QuadroSimulacao(props: Props) {
         </header>
 
         <div className="grid gap-5 p-5 md:grid-cols-[1.3fr_1fr]">
-          {/* ── Os campos ── */}
-          <div className="grid content-start gap-3 sm:grid-cols-2">
+          {/* ── Os campos ── Em 6 colunas finas (Gabriel, 25/11/2026: o quadro tinha scroll): os
+              percentuais ocupam 2 (três por linha), Preço de compra e ST ocupam 3 (lado a lado).
+              Eram 7 linhas, são 4. Cada Campo é um subgrid de 3 linhas (rótulo, caixa, apoio):
+              um rótulo que quebra em duas linhas não desalinha as caixas vizinhas. */}
+          <div className="grid content-start gap-3 sm:grid-cols-6">
             {props.modo === "novo" && (
-              <Campo rotulo="Descrição" className="sm:col-span-2" erro={faltaDescricao ? "Informe a descrição." : undefined}>
+              <Campo rotulo="Descrição" className="sm:col-span-6" erro={faltaDescricao ? "Informe a descrição." : undefined}>
                 {(id) => (
                   <input
                     id={id}
@@ -221,7 +224,7 @@ export function QuadroSimulacao(props: Props) {
 
             <Campo
               rotulo="Preço de compra (R$)"
-              className="sm:col-span-2"
+              className="sm:col-span-3"
               erro={precoInvalido ? "Preço inválido." : faltaPreco ? "Informe o preço." : undefined}
               alterado={p !== null && !precoInvalido && precoUsado !== referencia.preco}
               original={p ? formatarValor3(referencia.preco ?? 0) : undefined}
@@ -238,12 +241,35 @@ export function QuadroSimulacao(props: Props) {
               )}
             </Campo>
 
+            {/* O ST ao lado do preço (antes ficava no fim): os dois em R$, numa linha só. */}
+            <Campo
+              rotulo="ST (R$)"
+              className="sm:col-span-3"
+              info="O VLST da tabela de preço. Não depende do preço de compra; entra só no preço final."
+              erro={stInvalido ? "Valor inválido." : undefined}
+              alterado={p !== null && !stInvalido && stUsado !== referencia.st}
+              original={p ? formatarValor3(referencia.st) : undefined}
+              onRedefinir={p ? () => setSt(paraCampo(referencia.st)) : undefined}
+            >
+              {(id) => (
+                <input
+                  id={id}
+                  inputMode="decimal"
+                  value={st}
+                  placeholder="0"
+                  onChange={(e) => setSt(e.target.value)}
+                  className={cn(campo(stInvalido, p !== null && stUsado !== referencia.st), "tabular text-right")}
+                />
+              )}
+            </Campo>
+
             {CAMPOS_PERCENTUAIS.map(({ campo: c, rotulo, info }) => {
               const invalido = invalidos.includes(c);
               const alterado = !invalido && lidos[c] !== (referencia.percentuais[c] ?? 0);
               return (
                 <Campo
                   key={c}
+                  className="sm:col-span-2"
                   rotulo={`${rotulo} (%)`}
                   info={info}
                   erro={invalido ? "Percentual inválido." : undefined}
@@ -264,27 +290,6 @@ export function QuadroSimulacao(props: Props) {
                 </Campo>
               );
             })}
-
-            <Campo
-              rotulo="ST (R$)"
-              className="sm:col-span-2"
-              info="O VLST da tabela de preço. Não depende do preço de compra; entra só no preço final."
-              erro={stInvalido ? "Valor inválido." : undefined}
-              alterado={p !== null && !stInvalido && stUsado !== referencia.st}
-              original={p ? formatarValor3(referencia.st) : undefined}
-              onRedefinir={p ? () => setSt(paraCampo(referencia.st)) : undefined}
-            >
-              {(id) => (
-                <input
-                  id={id}
-                  inputMode="decimal"
-                  value={st}
-                  placeholder="0"
-                  onChange={(e) => setSt(e.target.value)}
-                  className={cn(campo(stInvalido, p !== null && stUsado !== referencia.st), "tabular text-right")}
-                />
-              )}
-            </Campo>
           </div>
 
           {/* ── O resultado ── */}
@@ -395,12 +400,15 @@ function Campo({
 }) {
   const id = useId();
   return (
-    <div className={cn("flex min-w-0 flex-col gap-1", className)}>
-      <label htmlFor={id} className="text-[length:var(--fs-rotulo)] font-medium tracking-[0.08em] text-[var(--text-muted)] uppercase">
+    // Subgrid de 3 linhas (rótulo, caixa, apoio): na mesma linha da grade, as caixas ficam
+    // alinhadas mesmo quando um rótulo ou um apoio quebra em duas linhas. O rótulo encosta
+    // embaixo (perto da caixa), o apoio encosta em cima.
+    <div className={cn("row-span-3 grid min-w-0 grid-rows-subgrid gap-y-1", className)}>
+      <label htmlFor={id} className="self-end text-[length:var(--fs-rotulo)] font-medium tracking-[0.08em] text-[var(--text-muted)] uppercase">
         {rotulo}
       </label>
       {children(id)}
-      <div className="flex min-h-4 items-center justify-between gap-2 text-[length:var(--fs-apoio)]">
+      <div className="flex min-h-4 items-start justify-between gap-2 self-start text-[length:var(--fs-apoio)]">
         {erro ? (
           <span className="text-[var(--negative)]">{erro}</span>
         ) : alterado ? (
