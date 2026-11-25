@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/cn";
+import { contarForaDoPadrao } from "@/lib/preferenciasDaExibicao";
 
 /** Uma opção do menu. `motivo` desabilita e diz por quê; `oculta` tira da lista. */
 export type OpcaoDeExibicao = {
@@ -51,10 +52,10 @@ export function MenuDeExibicao({
   }, [aberto]);
 
   // Quantas opções saíram do padrão de abertura: o botão avisa que a tabela está recortada,
-  // sem precisar abrir o menu para descobrir por que falta uma coluna.
-  const fora = grupos
-    .flatMap((g) => g.opcoes)
-    .filter((o) => !o.oculta && !o.motivo && o.marcada !== padrao(o.id)).length;
+  // sem precisar abrir o menu para descobrir por que falta uma coluna. O padrão é o mesmo
+  // com que a tela abre (`PADRAO_DA_EXIBICAO`) — até 25/11/2026 era uma lista própria, que
+  // ficou velha e fazia o selo abrir em 2.
+  const fora = contarForaDoPadrao(grupos.flatMap((g) => g.opcoes));
 
   return (
     <div ref={caixa} className="relative shrink-0">
@@ -111,11 +112,6 @@ export function MenuDeExibicao({
       )}
     </div>
   );
-}
-
-/** O estado com que cada opção abre a tela — é contra ele que o selo do botão conta. */
-function padrao(id: string): boolean {
-  return id === "av" || id === "ah" || id === "provisionado";
 }
 
 /**

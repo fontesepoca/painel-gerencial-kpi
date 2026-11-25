@@ -53,7 +53,8 @@ public sealed partial class RegistroDeBases
                 continue;
             }
 
-            lista.Add(new BaseConfigurada(id, opcao.Rotulo.Trim(), conexao, opcao.Regras));
+            lista.Add(new BaseConfigurada(
+                id, opcao.Rotulo.Trim(), conexao, opcao.Regras, opcao.PreferenciasNoBanco));
         }
 
         Disponiveis = lista;

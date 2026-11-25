@@ -2,11 +2,12 @@
  * As decisões do BFF das rotas do DRE (`app/api/[...caminho]/route.ts`), separadas da cola
  * do Next para serem testáveis sem servidor: o `dc87` as exercita.
  *
- * <b>Só `dre-gerencial` e `health` passam.</b> `/api/auth/*` NÃO: o navegador não pode
- * chamar o login da API pulando o freio de tentativas de `app/api/sessao/route.ts`. Trocar
- * esta lista é trocar o que o navegador alcança na API — por isso ela é testada.
+ * <b>Só `dre-gerencial`, `preferencias` e `health` passam.</b> `/api/auth/*` NÃO: o
+ * navegador não pode chamar o login da API pulando o freio de tentativas de
+ * `app/api/sessao/route.ts`. Trocar esta lista é trocar o que o navegador alcança na API —
+ * por isso ela é testada. `preferencias` (25/11/2026) exige sessão, como o DRE.
  */
-const REPASSADOS = new Set(["dre-gerencial", "health"]);
+const REPASSADOS = new Set(["dre-gerencial", "preferencias", "health"]);
 
 /** O que fazer com uma chamada do navegador a `/api/<caminho>`. */
 export type Repasse =
