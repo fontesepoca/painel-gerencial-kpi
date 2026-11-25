@@ -7,7 +7,8 @@
  *   - que a numeração das repetições (ROW_NUMBER) vem ANTES dos filtros, e o total
  *     (COUNT(*) OVER ()) DEPOIS deles;
  *   - a ordem da spec e o OFFSET/FETCH;
- *   - o ESCAPE da busca (% e _ digitados são texto, não curinga).
+ *   - o ESCAPE da busca (% e _ digitados são texto, não curinga);
+ *   - os LEFT JOIN de fora do SQL v2: fornecedor (24/11) e classe de tributação + CST (25/11).
  *
  * E, o mais importante: que a sequência de `:binds` do texto final é IGUAL à sequência de
  * `parametros.Add(...)` em `ConsultarPaginaAsync`. O ODP.NET liga por POSIÇÃO; um Add fora de
@@ -54,8 +55,10 @@ if (paginada !== undefined) {
     "senão a mesma linha muda de chave conforme a busca");
   // O total é contado NO MESMO SELECT cujo WHERE tem os filtros — um SELECT por FORA do que
   // numera. No texto, isso é: COUNT antes do ROW_NUMBER (SELECT de fora), e o filtro depois do
-  // fim da subconsulta que numera ("C) N").
-  const posFimDaNumeracao = p.indexOf("C) N WHERE");
+  // fim da subconsulta que numera (") N WHERE"). Até 25/11/2026 procurava "C) N WHERE", e só
+  // achava por acaso: o texto terminava em "PP.CODFORNEC) N", e CODFORNEC acaba em C. Com o join
+  // da PCTRIBUTACAO por último, passou a terminar em "C.CODIGOTRIBUTACAO) N".
+  const posFimDaNumeracao = p.indexOf(") N WHERE");
   ok(posTotal >= 0 && posTotal < posRowNumber, "o total é de um SELECT por fora do que numera");
   ok(posFimDaNumeracao > posRowNumber && posFiltro > posFimDaNumeracao,
     "os filtros estão no WHERE do SELECT do total (o total conta só o que passou nos filtros)",
@@ -87,6 +90,13 @@ if (paginada !== undefined) {
     "liga PCPRODUT e PCFORNEC por LEFT JOIN, logo depois da Consulta");
   ok(/PP\.CODFORNEC AS CODFORNEC\b/.test(p) && /FO\.FORNECEDOR AS FORNECEDOR\b/.test(p),
     "traz CODFORNEC e FORNECEDOR com aliases que o Dapper casa");
+
+  // A classe de tributação e o CST (spec 2026-11-25-simulador-classe-de-tributacao-e-cst): LEFT
+  // (não INNER) porque o SQL v2 liga a tributação com (+) — produto sem tributação fica na lista.
+  ok(/LEFT JOIN PCTRIBUTACAO TR2 ON TO_CHAR\(TR2\.CODIGO_TRIBUTACAO\) = C\.CODIGOTRIBUTACAO\) N\b/.test(p),
+    "liga PCTRIBUTACAO por LEFT JOIN pelo código de tributação, no nível que numera");
+  ok(/TO_CHAR\(TR2\.CCLASSTRIB\) AS CCLASSTRIB\b/.test(p) && /TO_CHAR\(TR2\.CST\) AS CST\b/.test(p),
+    "traz CCLASSTRIB e CST com aliases que o Dapper casa");
 }
 
 // ── A ordem dos binds ─────────────────────────────────────────────────────────

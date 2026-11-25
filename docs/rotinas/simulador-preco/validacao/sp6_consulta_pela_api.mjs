@@ -100,6 +100,17 @@ if (filtro.fornecedores.length > 0) {
     fora.map((p) => `${p.codProd}→${p.codFornec}`).join(", "));
 }
 
+// A classe de tributação e o CST (spec 2026-11-25-simulador-classe-de-tributacao-e-cst): as duas
+// propriedades vêm em toda linha (nulas quando o NCM não tem tributação). A contagem de baixo é o
+// sinal do Dapper: se NENHUMA linha com tributação trouxer cClassTrib, desconfie do nome da coluna
+// — o Dapper deixa vazio sem erro quando não casa o nome.
+const semAsChaves = p1.pagina.itens.filter((p) => !("cClassTrib" in p) || !("cst" in p));
+ok(semAsChaves.length === 0, "toda linha da página 1 traz as propriedades cClassTrib e cst",
+  semAsChaves.map((p) => p.codProd).join(", "));
+const comTributacao = p1.pagina.itens.filter((p) => p.codigoTributacao !== null && p.codigoTributacao !== undefined);
+const comClasse = comTributacao.filter((p) => p.cClassTrib !== null);
+console.log(`  ${comClasse.length} de ${comTributacao.length} linhas com tributação trazem cClassTrib.`);
+
 // ── Filtros ──────────────────────────────────────────────────────────────────
 const vanish = await pedir({ pagina: 1, busca: "VANISH" });
 ok(!vanish.erro, `busca "VANISH" responde (${vanish.segundos} s)`, vanish.erro ?? `${vanish.pagina?.totalItens} linhas`);

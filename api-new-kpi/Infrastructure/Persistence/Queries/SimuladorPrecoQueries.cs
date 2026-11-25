@@ -246,6 +246,13 @@ public static class SimuladorPrecoQueries
     /// vem por <c>LEFT JOIN</c> FORA da <see cref="Consulta"/>, para o SQL v2 ficar intacto (a sp5
     /// continua IDENTICO). É o mesmo que o SQL v2 usa (<c>F.CODFORNEC = P.CODFORNEC</c>). A ligação
     /// é pela chave, uma linha para uma: não repete produto. Nenhum bind novo.</para>
+    ///
+    /// <para><b>A classe de tributação e o CST</b> (spec 2026-11-25-simulador-classe-de-tributacao-e-cst)
+    /// vêm do mesmo jeito: <c>LEFT JOIN PCTRIBUTACAO</c> pelo <c>CODIGO_TRIBUTACAO</c> que o SQL v2
+    /// já devolve. LEFT porque o SQL v2 liga a tributação com <c>(+)</c>: produto sem tributação
+    /// para o NCM vem com código nulo e tem de continuar na lista. <c>CODIGO_TRIBUTACAO</c> é único
+    /// na tabela (conferido pelo Gabriel em 25/11/2026), então não repete linha. Alias <c>TR2</c>
+    /// porque <c>TR</c> já é a <c>PCTRIBUT</c> dentro do SQL v2. <c>TO_CHAR</c> pela A6.</para>
     /// </summary>
     public const string ConsultaPaginada = $$"""
         SELECT F.*
@@ -253,6 +260,8 @@ public static class SimuladorPrecoQueries
                   FROM (SELECT C.*,
                                PP.CODFORNEC AS CODFORNEC,
                                FO.FORNECEDOR AS FORNECEDOR,
+                               TO_CHAR(TR2.CCLASSTRIB) AS CCLASSTRIB,
+                               TO_CHAR(TR2.CST) AS CST,
                                ROW_NUMBER() OVER (PARTITION BY C.CODPROD, C.CODIGOTRIBUTACAO
                                                   ORDER BY C.DESCRICAO, C.CODFILIAL, C.CLASSEVENDA, C.NCM,
                                                            C.DESCRICAOTRIBUTACAO, C.TIPOIMPOSTO, C.VLULTPCOMPRA,
@@ -265,7 +274,8 @@ public static class SimuladorPrecoQueries
                                                            C.INDICE, C.PRFUTURO, C.PRFINAL) AS OCORRENCIA
                           FROM ({{Consulta}}) C
                           LEFT JOIN PCPRODUT PP ON PP.CODPROD = C.CODPROD
-                          LEFT JOIN PCFORNEC FO ON FO.CODFORNEC = PP.CODFORNEC) N
+                          LEFT JOIN PCFORNEC FO ON FO.CODFORNEC = PP.CODFORNEC
+                          LEFT JOIN PCTRIBUTACAO TR2 ON TO_CHAR(TR2.CODIGO_TRIBUTACAO) = C.CODIGOTRIBUTACAO) N
                  WHERE (:buscaNula IS NULL
                         OR TO_CHAR(N.CODPROD) = :buscaCodigo
                         OR UPPER(N.DESCRICAO) LIKE :buscaLike ESCAPE '\')

@@ -69,4 +69,13 @@ public class ProdutoSimulado
 
     /// <summary>O nome do fornecedor (<c>PCFORNEC.FORNECEDOR</c>). Nulo sem cadastro.</summary>
     public string? Fornecedor { get; init; }
+
+    /// <summary>
+    /// A classe de tributação (<c>PCTRIBUTACAO.CCLASSTRIB</c>), por fora do SQL v2 (spec
+    /// 2026-11-25-simulador-classe-de-tributacao-e-cst). Nula sem tributação para o NCM.
+    /// </summary>
+    public string? CClassTrib { get; init; }
+
+    /// <summary>O CST da tributação (<c>PCTRIBUTACAO.CST</c>). Nulo sem tributação para o NCM.</summary>
+    public string? Cst { get; init; }
 }

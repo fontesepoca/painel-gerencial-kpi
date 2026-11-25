@@ -57,13 +57,13 @@ const TH_NUM = cn(TH, "text-right");
 const TH_GRUPO =
   "px-[var(--celula-x)] pt-3 pb-1 text-center text-[length:var(--fs-rotulo)] font-semibold uppercase tracking-[0.14em] text-[var(--text-primary)] whitespace-nowrap";
 /**
- * As colunas depois da do Produto: Classe (1, 24/11/2026), Compra (1), Entrada (5), Custo (3), Saída
- * (5) e Preço (3) — SQL v2:
+ * As colunas depois da do Produto: Classe (1, 24/11/2026), Classe de tributação e CST (2,
+ * 25/11/2026), Compra (1), Entrada (5), Custo (3), Saída (5) e Preço (3) — SQL v2:
  * o ST saiu da Entrada e o grupo Preço tem Preço futuro, ST e Preço final.
  * É o `colSpan` da linha de título dos grupos — com 17 ele criava uma coluna fantasma (revisão
  * final, 23/11/2026). Coluna nova no cabeçalho muda este número junto.
  */
-const COLUNAS_DEPOIS_DO_PRODUTO = 1 + 1 + 5 + 3 + 5 + 3;
+const COLUNAS_DEPOIS_DO_PRODUTO = 1 + 2 + 1 + 5 + 3 + 5 + 3;
 /** A tabela inteira: a coluna do Produto e as de depois. */
 const TOTAL_DE_COLUNAS = 1 + COLUNAS_DEPOIS_DO_PRODUTO;
 const TD = "px-[var(--celula-x)] py-[var(--celula-y)] align-top";
@@ -146,7 +146,8 @@ export function TabelaSimulador({
         <thead>
           <tr className="border-b border-[var(--border)]">
             <th className="celula-descricao largura-codigo-e-produto" style={TH_FUNDO_GRUPO} />
-            <th style={TH_FUNDO_GRUPO} />
+            {/* Sobre Classe, Classe de tributação e CST: sem título de grupo. */}
+            <th colSpan={3} style={TH_FUNDO_GRUPO} />
             <th className={cn(TH_GRUPO, "col-bloco text-[var(--primary)]")} style={TH_FUNDO_COMPRA}>Compra</th>
             <th colSpan={5} className={cn(TH_GRUPO, "col-bloco")} style={TH_FUNDO_GRUPO}>Entrada</th>
             <th colSpan={3} className={cn(TH_GRUPO, "col-bloco")} style={TH_FUNDO_GRUPO}>Custo</th>
@@ -165,6 +166,13 @@ export function TabelaSimulador({
             {/* A classe de venda (A, B, C) em coluna própria (Gabriel, 24/11/2026): a lista vem
                 ordenada por ela, e o filtro é por ela. */}
             <th className={cn(TH, "text-center")}>Classe</th>
+            {/* Da PCTRIBUTACAO, só exibidas (spec 2026-11-25-simulador-classe-de-tributacao-e-cst). */}
+            <th className={cn(TH, "text-center")} title="CCLASSTRIB da PCTRIBUTACAO, pela tributação do NCM.">
+              Classe de tributação
+            </th>
+            <th className={cn(TH, "text-center")} title="CST da PCTRIBUTACAO. Não é o ST da coluna Preço.">
+              CST
+            </th>
             {/* A legenda diz de onde vem o número (Gabriel, 24/11/2026). "Preço de última compra"
                 no título seria falso nas linhas editadas e nos produtos novos, onde o preço é o
                 digitado: só a célula sem edição mostra a última compra (VLULTPCOMPRA). */}
@@ -374,6 +382,8 @@ const Linha = memo(function Linha({
       </td>
 
       <td className={cn(TD, "text-center font-semibold text-[var(--text-secondary)]")}>{novo ? "—" : (p.classeVenda ?? "—")}</td>
+      <td className={cn(TD, "tabular text-center whitespace-nowrap text-[var(--text-secondary)]")}>{p.cClassTrib ?? "—"}</td>
+      <td className={cn(TD, "tabular text-center whitespace-nowrap text-[var(--text-secondary)]")}>{p.cst ?? "—"}</td>
 
       {/* ── Compra: o único campo editável da célula (D10) ── */}
       <td className={cn(TD, "col-bloco")} style={TD_FUNDO_COMPRA}>

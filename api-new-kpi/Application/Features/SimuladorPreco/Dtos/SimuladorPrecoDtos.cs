@@ -68,7 +68,11 @@ public record ProdutoSimuladoDto(
     // O fornecedor do produto, embaixo do código na tela (spec 2026-11-24-simulador-coluna-
     // codigo-e-fornecedor). Nulos quando o produto não tem fornecedor no cadastro.
     decimal? CodFornec,
-    string? Fornecedor);
+    string? Fornecedor,
+    // Da PCTRIBUTACAO, depois da Classe na tela (spec 2026-11-25-simulador-classe-de-tributacao-
+    // e-cst). Nulos quando o NCM não tem tributação. No JSON: "cClassTrib" e "cst".
+    string? CClassTrib,
+    string? Cst);
 
 /// <summary>
 /// A resposta: UMA PÁGINA (spec 2026-11-24-simulador-paginacao-no-backend). A

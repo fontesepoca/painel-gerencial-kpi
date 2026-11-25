@@ -73,6 +73,13 @@ export interface ProdutoSimulado {
    */
   codFornec: number | null;
   fornecedor: string | null;
+  /**
+   * Da `PCTRIBUTACAO` (`CCLASSTRIB` e `CST`), ligados por fora do SQL v2 pelo código de
+   * tributação (spec 2026-11-25-simulador-classe-de-tributacao-e-cst). Nulos quando o NCM não tem
+   * tributação, e no produto novo. Só exibidos: nenhuma conta usa.
+   */
+  cClassTrib: string | null;
+  cst: string | null;
 }
 
 /** Os percentuais que o quadro do produto deixa editar (D21). */

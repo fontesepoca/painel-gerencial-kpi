@@ -142,5 +142,5 @@ public sealed class SimuladorPrecoService
         p.PercFreteFobEnt, p.VlFreteFobEnt,
         p.CustoAntesCbs, p.PercCbs, p.BaseCbs, p.VlCbs, p.CustoCalc,
         p.Margem, p.PercIcmsSaid, p.PerPisSaid, p.PerCofinsSaid, p.Indice, p.PrFuturo, p.PrFinal,
-        (int)p.Ocorrencia, p.CodFornec, p.Fornecedor);
+        (int)p.Ocorrencia, p.CodFornec, p.Fornecedor, p.CClassTrib, p.Cst);
 }

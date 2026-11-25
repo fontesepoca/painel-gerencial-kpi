@@ -260,6 +260,8 @@ export function linhaDeProdutoNovo(n: ProdutoNovo): ProdutoSimulado {
     ocorrencia: 1,
     codFornec: null,
     fornecedor: null,
+    cClassTrib: null,
+    cst: null,
     descricao: n.descricao,
     classeVenda: null,
     ncm: null,
