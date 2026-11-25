@@ -42,11 +42,14 @@
   --negative-glow: rgb(244 63 94 / 0.12);
   --warning: #f59e0b;
   --warning-glow: rgb(245 158 11 / 0.1);
-  /* A linha editada na grid do simulador (Gabriel, 24/11/2026). OPACA de propósito, para servir
-     também à célula fixa, por onde os números rolam por baixo. Feita do âmbar e da superfície
-     DO TEMA ATIVO: como as duas são redefinidas no tema claro e na leitura ampliada no mesmo
-     elemento (html), a mistura acompanha sozinha, sem repetir o token em cada tema. */
-  --linha-editada: color-mix(in srgb, var(--warning) 14%, var(--surface-1));
+  /* A linha editada na grid do simulador (Gabriel, 24/11/2026; âmbar trocado por azul em 25/11:
+     no simulador o âmbar é alerta, e o azul já é "mudou/simulado"). OPACA de propósito, para
+     servir também à célula fixa, por onde os números rolam por baixo. Feita do azul e da
+     superfície DO TEMA ATIVO: como os dois são redefinidos no tema claro e na leitura ampliada no
+     mesmo elemento (html), a mistura acompanha sozinha, sem repetir o token em cada tema. 20%
+     (Gabriel, 25/11/2026): bem visível e mais forte que o --primary-dim (8%) da coluna Compra.
+     Acima disso começa a parecer linha "selecionada" e compete com o selo Simulado. */
+  --linha-editada: color-mix(in srgb, var(--primary) 20%, var(--surface-1));
   --info: #0ea5e9;
   --sobre-warning: #1a1200;
   /* O texto SOBRE o vermelho de perigo (botão "Sim, limpar"): no escuro o --negative é claro, e

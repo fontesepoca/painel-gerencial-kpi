@@ -87,8 +87,8 @@ const TH_FUNDO_COMPRA = camada("var(--primary-dim)");
 const TH_FUNDO_PRECO = camada("var(--positive-glow)");
 const TD_FUNDO_SIMULADA = { backgroundColor: "var(--surface-2)" };
 /**
- * A linha EDITADA na grid (Gabriel, 24/11/2026): âmbar, a cor de "alterado" de planilha, que
- * não se confunde com o azul da Compra nem com o verde do Preço. O token é OPACO (`color-mix`
+ * A linha EDITADA na grid (Gabriel, 24/11/2026; azul desde 25/11, porque aqui o âmbar é cor de
+ * alerta e o azul já marca o que foi trocado ou simulado). O token é OPACO (`color-mix`
  * no globals.css): a célula fixa precisa de fundo opaco, senão os números que rolam por baixo
  * apareceriam através dela.
  */
@@ -331,7 +331,7 @@ const Linha = memo(function Linha({
       <td
         className={cn(
           "py-[var(--celula-y)] align-top celula-descricao largura-codigo-e-produto",
-          simulado && "shadow-[inset_4px_0_0_var(--warning)]",
+          simulado && "shadow-[inset_4px_0_0_var(--primary)]",
         )}
         style={simulado ? TD_FUNDO_EDITADA : undefined}
       >
