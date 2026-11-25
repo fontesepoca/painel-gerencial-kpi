@@ -14,7 +14,14 @@
 //     negativo, 51 fornecedores;
 //   - vários fornecedores (24/11/2026): com dois ou mais na linha de comando ("234,500"), o
 //     total da lista é a soma dos totais de cada um; sem nenhum, a lista vazia = todos;
-//   - coluna sempre nula ou zero (alias que o Dapper não casou — armadilha 4 da 9815).
+//   - coluna sempre nula ou zero (alias que o Dapper não casou — armadilha 4 da 9815);
+//   - a REGIÃO DO VÍNCULO (25/11/2026, spec 2026-11-25-simulador-regiao-pelo-vinculo-do-
+//     comprador): a região não vai mais no pedido. A resposta traz `numRegiao`, e ela tem de
+//     ser a mesma que `GET /vinculos` dá para a filial. Com uma terceira filial na linha de
+//     comando (uma em que você NÃO tem vínculo), confere a recusa com a mensagem.
+//
+// O total de 9.811 só é conferido quando o vínculo da filial 7 for a região 90 (a medição
+// de 24/11). Com outra região, o total é impresso e não comparado.
 //
 // Grava a união das páginas 1, 2 e 50 em JSON no formato { produtos: [...] }: é a
 // entrada da parte 2 da sp8 (o recálculo da tela contra o SQL).
@@ -22,7 +29,9 @@
 //
 //   node --env-file=.env.validacao \
 //     --import ./docs/rotinas/9815-dre-gerencial/validacao/_autenticar.mjs \
-//     docs/rotinas/simulador-preco/validacao/sp6_consulta_pela_api.mjs <filial> <regiao> [fornecedores, ex.: 234,500]
+//     docs/rotinas/simulador-preco/validacao/sp6_consulta_pela_api.mjs <filial> [fornecedores, ex.: 234,500 ou -] [filial sem vínculo]
+//
+// Use "-" no lugar dos fornecedores para "todos" quando for passar a filial sem vínculo.
 // ============================================================================
 import { writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -30,19 +39,19 @@ import { join } from "node:path";
 import { postar } from "../../9815-dre-gerencial/validacao/_postar.mjs";
 
 const API = process.env.API ?? "http://localhost:5207";
-const [codFilial, regiao, fornecedor] = process.argv.slice(2);
+const [codFilial, argFornecedores, filialSemVinculo] = process.argv.slice(2);
+const fornecedor = argFornecedores && argFornecedores !== "-" ? argFornecedores : undefined;
 
-if (!codFilial || !regiao) {
-  console.error("Uso: sp6_consulta_pela_api.mjs <filial> <regiao> [fornecedores, ex.: 234,500]");
+if (!codFilial) {
+  console.error("Uso: sp6_consulta_pela_api.mjs <filial> [fornecedores, ex.: 234,500 ou -] [filial sem vínculo]");
   process.exit(2);
 }
 
+// Sem numRegiao desde 25/11/2026: a API tira a região do vínculo do comprador.
 const filtro = {
   codFilial,
-  numRegiao: Number(regiao),
   fornecedores: fornecedor ? fornecedor.split(",").map(Number) : [],
 };
-const ehAMedicao = codFilial === "7" && regiao === "90" && !fornecedor;
 
 let conferencias = 0;
 let falhas = 0;
@@ -59,7 +68,7 @@ async function pedir(extra) {
   const corpo = await postar(`${API}/api/simulador-preco/consulta`, { ...filtro, ...extra });
   const segundos = ((Date.now() - inicio) / 1000).toFixed(1);
   return corpo?.sucesso
-    ? { pagina: corpo.dados.pagina, base: corpo.dados.base, segundos }
+    ? { pagina: corpo.dados.pagina, base: corpo.dados.base, numRegiao: corpo.dados.numRegiao, segundos }
     : { erro: corpo?.mensagem ?? "sem mensagem", segundos };
 }
 
@@ -71,7 +80,9 @@ if (p1.erro) {
   console.error(`A página 1 falhou em ${p1.segundos} s: ${p1.erro}`);
   process.exit(1);
 }
-console.log(`Base: ${p1.base?.rotulo} · filial ${codFilial} · região ${regiao}` +
+const regiao = p1.numRegiao;
+const ehAMedicao = codFilial === "7" && regiao === 90 && !fornecedor;
+console.log(`Base: ${p1.base?.rotulo} · filial ${codFilial} · região ${regiao} (do vínculo)` +
   (fornecedor ? ` · fornecedores ${fornecedor}` : ""));
 console.log(`Página 1: ${p1.segundos} s · ${p1.pagina.itens.length} linhas · total ${p1.pagina.totalItens} · ${p1.pagina.totalPaginas} páginas\n`);
 
@@ -89,6 +100,32 @@ if (!p2.erro) {
 }
 const ocorrencias = p1.pagina.itens.map((p) => p.ocorrencia);
 ok(ocorrencias.every((n) => Number.isInteger(n) && n >= 1), "toda linha tem ocorrência ≥ 1 (o Oracle numerou as repetições)");
+
+// ── A região do vínculo (25/11/2026) ─────────────────────────────────────────
+ok(Number.isInteger(regiao) && regiao > 0, "a resposta traz numRegiao, a região do vínculo", `veio ${regiao}`);
+{
+  // O `postar` só faz POST; o GET leva o mesmo token que o _autenticar.mjs entrega a ele.
+  const token = globalThis.__kpiObterToken ? await globalThis.__kpiObterToken() : null;
+  const resposta = await fetch(`${API}/api/simulador-preco/vinculos`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  }).catch(() => null);
+  const corpo = resposta ? await resposta.json().catch(() => null) : null;
+  if (corpo?.sucesso) {
+    const daFilial = corpo.dados.filter((v) => Number(v.codFilial) === Number(codFilial));
+    ok(daFilial.length === 1 && daFilial[0].numRegiao === regiao,
+      "a região da consulta é a mesma que GET /vinculos dá para a filial",
+      JSON.stringify(daFilial));
+    console.log(`  vínculos da sessão: ${corpo.dados.map((v) => `${v.codFilial}→${v.numRegiao}`).join(", ")}`);
+  } else {
+    console.log("  (GET /vinculos não conferido: sem a sessão para o GET; confira na tela)");
+  }
+}
+if (filialSemVinculo) {
+  const semVinculo = await pedir({ pagina: 1, codFilial: filialSemVinculo });
+  ok(semVinculo.erro?.includes("não tem região vinculada") === true,
+    `a filial ${filialSemVinculo}, sem vínculo, é recusada com a mensagem`,
+    semVinculo.erro ?? "veio com sucesso");
+}
 
 // O fornecedor do produto (spec 2026-11-24-simulador-coluna-codigo-e-fornecedor).
 const semFornecedor = p1.pagina.itens.filter((p) => p.codFornec === null || p.codFornec === undefined);

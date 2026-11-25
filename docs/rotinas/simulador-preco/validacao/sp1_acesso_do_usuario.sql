@@ -30,7 +30,10 @@ WITH necessarios AS (
   SELECT 'PCEXPISCOFINSITEM',           'tributação'     FROM DUAL UNION ALL
   SELECT 'PCREGIAO',                    'preço'          FROM DUAL UNION ALL
   SELECT 'PCTABPR',                     'preço'          FROM DUAL UNION ALL
-  SELECT 'PCTRIBUT',                    'tributação'     FROM DUAL
+  SELECT 'PCTRIBUT',                    'tributação'     FROM DUAL UNION ALL
+  -- 25/11/2026: a região do comprador (spec 2026-11-25-simulador-regiao-pelo-vinculo-do-
+  -- comprador). Do schema EPCTI; o grant e o sinônimo estão na sp19.
+  SELECT 'TAB_REG_PR_FILIAL',           'região'         FROM DUAL
 ),
 -- UMA linha por nome. ALL_OBJECTS lista cada PARTIÇÃO de uma tabela particionada com o
 -- mesmo object_name da tabela (TABLE PARTITION, TABLE SUBPARTITION): sem este filtro, a
@@ -106,7 +109,7 @@ DECLARE
     'PCTRIBUTACAO', 'PCTRIBUTACAO_FILTRO_NCM', 'PCPRODUT', 'PCTABTRIBENT', 'PCFILIAL',
     'PCFORNEC', 'PCFORNECFILIAL', 'PCPRODFILIAL', 'PCCONSUM', 'PCEST', 'PCPRINCIPATIVO',
     'PCSECAO', 'PCDEPTO', 'PCLINHAPROD', 'PCCATEGORIA', 'PCLIB', 'PCEXPISCOFINSITEM',
-    'PCREGIAO', 'PCTABPR', 'PCTRIBUT'
+    'PCREGIAO', 'PCTABPR', 'PCTRIBUT', 'TAB_REG_PR_FILIAL'
   );
   n   NUMBER;
   ok  PLS_INTEGER := 0;

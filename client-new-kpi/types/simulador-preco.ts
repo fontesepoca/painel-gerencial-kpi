@@ -8,8 +8,12 @@
  */
 
 export interface FiltroSimulador {
+  /**
+   * A região NÃO vai no pedido desde 25/11/2026: a API a tira do vínculo do comprador na
+   * TAB_REG_PR_FILIAL (spec 2026-11-25-simulador-regiao-pelo-vinculo-do-comprador), e a
+   * devolve em `ConsultaSimulador.numRegiao`.
+   */
   codFilial: string;
-  numRegiao: number;
   /**
    * Os códigos de fornecedor, ORDENADOS (234,500 e 500,234 são a mesma consulta). Vazio = todos.
    * Vários desde 24/11/2026 (spec 2026-11-24-simulador-varios-fornecedores).
@@ -145,5 +149,13 @@ export interface PaginaSimulador {
 
 export interface ConsultaSimulador {
   pagina: PaginaSimulador;
+  /** A região do vínculo do comprador que a consulta usou (25/11/2026). */
+  numRegiao: number;
   base: { id: string; rotulo: string } | null;
+}
+
+/** Uma filial em que o comprador tem região vinculada (`GET /api/simulador-preco/vinculos`). */
+export interface VinculoDeRegiao {
+  codFilial: string;
+  numRegiao: number;
 }

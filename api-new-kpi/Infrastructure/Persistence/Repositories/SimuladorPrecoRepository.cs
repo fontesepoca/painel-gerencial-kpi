@@ -29,6 +29,25 @@ public sealed class SimuladorPrecoRepository : ISimuladorPrecoRepository
         _baseAtual = baseAtual;
     }
 
+    public async Task<IReadOnlyList<VinculoDeRegiao>> ObterVinculosDeRegiaoAsync(
+        int matricula,
+        CancellationToken cancellationToken = default)
+    {
+        var parametros = new DynamicParameters();
+        parametros.Add("matricula", matricula);
+
+        using var conexao = await _conexoes.CriarConexaoAsync(cancellationToken);
+
+        var linhas = await conexao.QueryAsync<VinculoDeRegiao>(
+            new CommandDefinition(
+                SimuladorPrecoQueries.VinculosDeRegiao,
+                parametros,
+                commandTimeout: TempoLimiteSegundos,
+                cancellationToken: cancellationToken));
+
+        return linhas.ToList();
+    }
+
     public async Task<(IReadOnlyList<ProdutoSimulado> Itens, int Total)> ConsultarPaginaAsync(
         string codFilial,
         int numRegiao,

@@ -9,10 +9,9 @@ import {
 import { QuadroSimulacao } from "@/components/simulador-preco/QuadroSimulacao";
 import { FiltroDeClasses } from "@/components/simulador-preco/FiltroDeClasses";
 import { TabelaSimulador } from "@/components/simulador-preco/TabelaSimulador";
-import { useFiliais } from "@/hooks/useDreGerencial";
 import { useSessao } from "@/hooks/useSessao";
 import { chaveDaConsulta, useSimulacaoGuardada } from "@/hooks/useSimulacaoGuardada";
-import { usePaginaSimulador } from "@/hooks/useSimuladorPreco";
+import { useFiliaisDoSimulador, usePaginaSimulador } from "@/hooks/useSimuladorPreco";
 import { useValorComAtraso } from "@/hooks/useValorComAtraso";
 import { formatarMomentoDaConsulta } from "@/lib/formato";
 import {
@@ -48,7 +47,7 @@ import type {
  * Simulador de preço. Specs: docs/superpowers/specs/2026-11-18-simulador-de-preco-design.md e
  * 2026-11-24-simulador-paginacao-no-backend-design.md.
  *
- * O fluxo: a pessoa escolhe filial, região e (se quiser) fornecedores, consulta uma vez, e a
+ * O fluxo: a pessoa escolhe a filial e (se quiser) fornecedores, consulta uma vez, e a
  * partir daí só digita — na célula de preço ou no quadro do produto. Nenhuma tecla volta ao banco
  * (D1). A simulação (só os ajustes) vai ao localStorage (D22, revista em 23/11/2026 — spec
  * 2026-11-23-simulador-salvar-limpar): as edições dos produtos da consulta ficam num rascunho
@@ -77,18 +76,17 @@ type Quadro = { tipo: "existente"; chave: string } | { tipo: "novo"; id: string 
 
 const paraFiltro = (f: EstadoDosFiltros): FiltroSimulador => ({
   codFilial: f.codFilial,
-  numRegiao: Number(f.regiao),
+  // Sem região: a API a tira do vínculo do comprador com a filial (25/11/2026).
   // Ordenados e sem repetição: a mesma lista em outra ordem é a mesma consulta.
   fornecedores: [...new Set(f.fornecedores.map((x) => x.codFornec))].sort((a, b) => a - b),
 });
 
 const mesmoFiltro = (a: FiltroSimulador, b: FiltroSimulador) =>
-  a.codFilial === b.codFilial && a.numRegiao === b.numRegiao && a.fornecedores.join(",") === b.fornecedores.join(",");
+  a.codFilial === b.codFilial && a.fornecedores.join(",") === b.fornecedores.join(",");
 
 export default function SimuladorPrecoPage() {
   const [filtros, setFiltros] = useState<EstadoDosFiltros>({
     codFilial: "",
-    regiao: "",
     fornecedores: [],
   });
   /** O filtro do último Consultar — não o dos campos, que a pessoa pode já ter mudado. */
@@ -108,7 +106,8 @@ export default function SimuladorPrecoPage() {
   const [limpando, setLimpando] = useState(false);
 
   const { data: usuario } = useSessao();
-  const filiais = useFiliais();
+  // Só as filiais em que o comprador tem região vinculada, cada uma com a sua (25/11/2026).
+  const filiais = useFiliaisDoSimulador();
   const { simulacao, alterar } = useSimulacaoGuardada(usuario?.base.id ?? null, usuario?.matricula ?? null);
 
   /** A busca que vai ao Oracle: a digitada, só depois de uma pausa. */
@@ -121,12 +120,6 @@ export default function SimuladorPrecoPage() {
     setBuscaDaPagina(buscaAtrasada);
     setPagina(1);
   }
-
-  /**
-   * A consulta que ESTÁ na tela, como chave da simulação guardada: filial + região. O fornecedor
-   * saiu da chave em 24/11/2026, e a edição acompanha o produto em qualquer combinação.
-   */
-  const consultaAtual = aplicado ? chaveDaConsulta(aplicado.codFilial, aplicado.numRegiao) : null;
 
   const pedido = useMemo<PedidoDePagina | null>(
     () =>
@@ -141,6 +134,18 @@ export default function SimuladorPrecoPage() {
   );
   const consulta = usePaginaSimulador(pedido);
   const dados = consulta.data?.pagina;
+  /** A região do vínculo que a API usou (25/11/2026). Só existe com a resposta na mão. */
+  const regiaoUsada = consulta.data?.numRegiao ?? null;
+
+  /**
+   * A consulta que ESTÁ na tela, como chave da simulação guardada: filial + região. O fornecedor
+   * saiu da chave em 24/11/2026, e a edição acompanha o produto em qualquer combinação.
+   *
+   * Desde 25/11/2026 a região é a que VEIO NA RESPOSTA (o vínculo do comprador), não uma
+   * digitada. Sem resposta não há tabela, e portanto nada a editar: a chave nula não perde nada.
+   * As simulações salvas antes (ex.: `12|1`) continuam valendo, porque o formato é o mesmo.
+   */
+  const consultaAtual = aplicado && regiaoUsada !== null ? chaveDaConsulta(aplicado.codFilial, regiaoUsada) : null;
 
   const consultar = () => {
     const filtro = paraFiltro(filtros);
@@ -331,6 +336,13 @@ export default function SimuladorPrecoPage() {
               <span className="tabular">
                 {consulta.dataUpdatedAt > 0 && formatarMomentoDaConsulta(new Date(consulta.dataUpdatedAt).toISOString())}
               </span>
+              {/* A região não é escolhida: vem do vínculo do comprador com a filial, na
+                  TAB_REG_PR_FILIAL (Gabriel, 25/11/2026). Mostrada para ninguém ter de adivinhar. */}
+              {regiaoUsada !== null && (
+                <span title="A região vem do vínculo do comprador com a filial (TAB_REG_PR_FILIAL), como na rotina em operação.">
+                  Região {regiaoUsada} (vínculo do comprador)
+                </span>
+              )}
             </>
           )}
 
@@ -465,7 +477,8 @@ export default function SimuladorPrecoPage() {
 
         {aplicado === null && (
           <Aviso>
-            Escolha a filial e a região e clique em <b>Consultar</b>. Depois, digite o preço de compra
+            Escolha a filial e clique em <b>Consultar</b>. A região é a do seu vínculo com a filial,
+            como na rotina em operação. Depois, digite o preço de compra
             de qualquer produto, ou clique nele para ajustar também os impostos: custo e preço futuro
             mudam na hora, sem consultar de novo. Clique em <b>Salvar simulação</b> para guardá-la
             neste navegador.
@@ -473,7 +486,7 @@ export default function SimuladorPrecoPage() {
         )}
 
         {/* A tela de espera do DRE (cópia), só nas consultas demoradas: a primeira e a troca de
-            filial, região ou fornecedores. `isPending` = ainda não há página nenhuma desta
+            filial ou de fornecedores. `isPending` = ainda não há página nenhuma desta
             consulta; ir para outra página, buscar ou trocar a classe usa a página anterior como
             `placeholderData` e não cai aqui (Gabriel, 24/11/2026). */}
         {aplicado !== null && consulta.isPending && <ConsultandoProdutos />}

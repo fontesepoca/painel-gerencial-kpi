@@ -4,7 +4,9 @@ import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/services/apiClient";
 import { exigirMesmaBase } from "@/lib/baseDaResposta";
 import { useSessao } from "@/hooks/useSessao";
-import type { ConsultaSimulador, PedidoDePagina } from "@/types/simulador-preco";
+import { normalizarCodigo, useFiliais } from "@/hooks/useDreGerencial";
+import type { Filial } from "@/types/dre-gerencial";
+import type { ConsultaSimulador, PedidoDePagina, VinculoDeRegiao } from "@/types/simulador-preco";
 
 /**
  * UMA PÁGINA do simulador (spec docs/superpowers/specs/2026-11-24-simulador-paginacao-no-
@@ -16,7 +18,7 @@ import type { ConsultaSimulador, PedidoDePagina } from "@/types/simulador-preco"
  *   cancelado — e o BFF (`repassarParaApi`) repassa o cancelamento até a API e o Oracle.
  * - Página fora de uso sai do cache em 60 s (`gcTime`): menos dado guardado no navegador.
  * - Enquanto a próxima página carrega, a anterior continua na tela — mas SÓ dentro da mesma
- *   consulta (filial, região, fornecedores). Trocar de filial não pode mostrar a tabela da filial
+ *   consulta (filial e fornecedores; a região vem da filial). Trocar de filial não pode mostrar a tabela da filial
  *   antiga como se fosse a nova.
  *
  * <b>A resposta só passa se for da base da sessão</b> — a mesma segunda barreira do DRE.
@@ -42,9 +44,47 @@ export function usePaginaSimulador(pedido: PedidoDePagina | null) {
 }
 
 function mesmaConsulta(a: PedidoDePagina, b: PedidoDePagina): boolean {
-  return (
-    a.codFilial === b.codFilial &&
-    a.numRegiao === b.numRegiao &&
-    a.fornecedores.join(",") === b.fornecedores.join(",")
-  );
+  // Sem a região: ela vem do vínculo da filial (25/11/2026), então a mesma filial é a mesma região.
+  return a.codFilial === b.codFilial && a.fornecedores.join(",") === b.fornecedores.join(",");
 }
+
+/**
+ * As filiais do filtro do simulador: as da lista do DRE (já recortada pelo PCLIB da sessão) em
+ * que o comprador TAMBÉM tem região vinculada na TAB_REG_PR_FILIAL (Gabriel, 25/11/2026; spec
+ * 2026-11-25-simulador-regiao-pelo-vinculo-do-comprador). Cada uma leva a região do vínculo.
+ *
+ * <b>Filtro de tela.</b> A API confere o vínculo de novo a cada consulta e recusa filial sem
+ * região: quem montar a chamada à mão não passa.
+ */
+export function useFiliaisDoSimulador() {
+  const { data: usuario } = useSessao();
+  const baseId = usuario?.base.id ?? null;
+  const matricula = usuario?.matricula ?? null;
+  const filiais = useFiliais();
+
+  const vinculos = useQuery({
+    // A matrícula na chave: trocar de usuário no mesmo navegador não serve os vínculos do outro.
+    queryKey: ["simulador-preco", "vinculos", baseId, matricula] as const,
+    queryFn: () => apiClient.get<VinculoDeRegiao[]>("/api/simulador-preco/vinculos"),
+    enabled: baseId !== null && matricula !== null,
+    staleTime: 30 * 60 * 1000,
+  });
+
+  const regiaoPorFilial = new Map((vinculos.data ?? []).map((v) => [normalizarCodigo(v.codFilial), v.numRegiao]));
+  const data: FilialDoSimulador[] | undefined =
+    filiais.data && vinculos.data
+      ? filiais.data.flatMap((f) => {
+          const numRegiao = regiaoPorFilial.get(normalizarCodigo(f.codFilial));
+          return numRegiao === undefined ? [] : [{ ...f, numRegiao }];
+        })
+      : undefined;
+
+  return {
+    data,
+    isLoading: filiais.isLoading || vinculos.isLoading,
+    isError: filiais.isError || vinculos.isError,
+  };
+}
+
+/** Uma filial do filtro do simulador, com a região do vínculo do comprador. */
+export type FilialDoSimulador = Filial & { numRegiao: number };

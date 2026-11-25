@@ -12,6 +12,31 @@ namespace Epoca.Kpi.Api.Infrastructure.Persistence.Queries;
 public static class SimuladorPrecoQueries
 {
     /// <summary>
+    /// As regiões do comprador, uma por filial: o vínculo da rotina em operação (spec
+    /// 2026-11-25-simulador-regiao-pelo-vinculo-do-comprador). Lá, o trecho é este:
+    /// <c>RPF.codfilial = EST.CODFILIAL AND TPR.NUMREGIAO = rpf.numregiao AND rpf.matricula = …</c>.
+    ///
+    /// <para><b>Por que uma consulta à parte, e não um join no SQL v2.</b> Buscando a região
+    /// antes, o SQL v2 fica intacto (a sp5 continua IDENTICO), a tela sabe qual região valeu, e
+    /// "sem vínculo" vira mensagem em vez de lista vazia. Dá o mesmo resultado do join porque o
+    /// SQL v2 filtra uma filial só e há no máximo uma região por matrícula e filial (conferido
+    /// pelo Gabriel em 25/11/2026). Se aparecer uma segunda, o serviço recusa em vez de duplicar.</para>
+    ///
+    /// <para><b>Região nula fica de fora</b>: no join da rotina, ela não casa com PCTABPR
+    /// nenhuma, e a filial não traz produto. Aqui, vira "sem vínculo". <c>MARCADO</c> não é
+    /// filtrado, como na rotina. A tabela é do EPCTI; o EDI a lê por grant e sinônimo (sp19).</para>
+    ///
+    /// <para>Um bind: <c>:matricula</c>.</para>
+    /// </summary>
+    public const string VinculosDeRegiao = """
+        SELECT TO_CHAR(CODFILIAL) AS CODFILIAL,
+               NUMREGIAO          AS NUMREGIAO
+          FROM TAB_REG_PR_FILIAL
+         WHERE MATRICULA = :matricula
+           AND NUMREGIAO IS NOT NULL
+        """;
+
+    /// <summary>
     /// Os produtos da filial e da região, com impostos, custo, preço futuro e preço final.
     ///
     /// <para><b>Ordem dos 28 binds</b> — o ODP.NET liga por POSIÇÃO, e cada ocorrência é um

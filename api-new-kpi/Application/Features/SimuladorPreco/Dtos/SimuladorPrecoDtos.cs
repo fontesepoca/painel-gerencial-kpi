@@ -4,14 +4,15 @@ using Epoca.Kpi.Api.Application.Common.Bases;
 namespace Epoca.Kpi.Api.Application.Features.SimuladorPreco.Dtos;
 
 /// <summary>
-/// O pedido de uma página. Os três primeiros são os filtros do SQL (D5): uma filial, uma região,
-/// fornecedor opcional. Os outros são da paginação no back-end (spec 2026-11-24): a página, a
-/// busca, as classes de venda e os códigos do "ver só os simulados". O tamanho da página NÃO
-/// vem daqui: é fixo no servidor.
+/// O pedido de uma página. Os dois primeiros são os filtros do SQL (D5): uma filial e
+/// fornecedores opcionais. <b>A região não vem daqui</b> desde 25/11/2026: ela sai do vínculo do
+/// comprador na TAB_REG_PR_FILIAL, como na rotina em operação (spec
+/// 2026-11-25-simulador-regiao-pelo-vinculo-do-comprador). Os outros são da paginação no
+/// back-end (spec 2026-11-24): a página, a busca, as classes de venda e os códigos do "ver só os
+/// simulados". O tamanho da página NÃO vem daqui: é fixo no servidor.
 /// </summary>
 public record SimuladorPrecoFiltroDto(
     string CodFilial,
-    int NumRegiao,
     IReadOnlyList<int>? Fornecedores,
     int Pagina = 1,
     string? Busca = null,
@@ -77,8 +78,18 @@ public record ProdutoSimuladoDto(
 /// <summary>
 /// A resposta: UMA PÁGINA (spec 2026-11-24-simulador-paginacao-no-backend). A
 /// <see cref="Base"/> volta junto pelo mesmo motivo do DRE: a tela recusa exibir números de uma
-/// base diferente da da sessão (BIFURCACAO_DE_BASES §6).
+/// base diferente da da sessão (BIFURCACAO_DE_BASES §6). <see cref="NumRegiao"/> é a região do
+/// vínculo do comprador que a consulta usou: a tela a mostra e a usa na chave da simulação
+/// guardada (<c>filial|região</c>).
 /// </summary>
 public record ConsultaSimuladorDto(
     PagedResult<ProdutoSimuladoDto> Pagina,
+    int NumRegiao,
     BaseDto? Base = null);
+
+/// <summary>
+/// Uma filial em que o comprador tem região vinculada, e qual (spec
+/// 2026-11-25-simulador-regiao-pelo-vinculo-do-comprador). A tela cruza com a lista de filiais
+/// do DRE: oferece só estas.
+/// </summary>
+public record VinculoDeRegiaoDto(string CodFilial, int NumRegiao);

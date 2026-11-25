@@ -29,11 +29,6 @@ public sealed class SimuladorPrecoService
             return Result<ConsultaSimuladorDto>.Invalido("Escolha uma filial.");
         }
 
-        if (filtro.NumRegiao <= 0)
-        {
-            return Result<ConsultaSimuladorDto>.Invalido("Escolha uma região.");
-        }
-
         // Vários fornecedores (spec 2026-11-24-simulador-varios-fornecedores). Vazio = todos.
         IReadOnlyList<int>? fornecedores = null;
         if (filtro.Fornecedores is { Count: > 0 })
@@ -105,18 +100,81 @@ public sealed class SimuladorPrecoService
             codigos = limpos.Distinct().ToList();
         }
 
+        // ── A região: do vínculo do comprador, nunca digitada (spec 2026-11-25-simulador-regiao-
+        // pelo-vinculo-do-comprador). Por ÚLTIMO entre as validações: só vai ao banco um pedido
+        // que já passou nas outras. E ANTES da consulta pesada: sem vínculo, ela nem roda.
+        var vinculos = (await _repositorio.ObterVinculosDeRegiaoAsync(matricula, cancellationToken))
+            .Where(v => MesmaFilial(v.CodFilial, codFilial))
+            .Select(v => (int)v.NumRegiao)
+            .Distinct()
+            .ToList();
+
+        if (vinculos.Count == 0)
+        {
+            return Result<ConsultaSimuladorDto>.Invalido(
+                $"Você não tem região vinculada na filial {codFilial}. O vínculo é feito na TAB_REG_PR_FILIAL.");
+        }
+
+        // Hoje não acontece (conferido em 25/11/2026), mas a tabela não impede. No join da rotina
+        // em operação, cada produto viria uma vez por região; aqui, recusar é melhor que duplicar
+        // sem ninguém perceber.
+        if (vinculos.Count > 1)
+        {
+            return Result<ConsultaSimuladorDto>.Invalido(
+                $"Mais de uma região vinculada na filial {codFilial} ({string.Join(", ", vinculos.Order())}). " +
+                "Corrija o vínculo na TAB_REG_PR_FILIAL.");
+        }
+
+        var numRegiao = vinculos[0];
+
         var (linhas, total) = await _repositorio.ConsultarPaginaAsync(
-            codFilial, filtro.NumRegiao, fornecedores, matricula,
+            codFilial, numRegiao, fornecedores, matricula,
             filtro.Pagina, TamanhoDaPagina, busca, classes, codigos, cancellationToken);
 
         // Página vazia é resposta, nunca nulo: o front distingue "nenhum produto" de erro.
-        return Result<ConsultaSimuladorDto>.Ok(new ConsultaSimuladorDto(new PagedResult<ProdutoSimuladoDto>
-        {
-            Itens = linhas.Select(ParaDto).ToList(),
-            Pagina = filtro.Pagina,
-            TamanhoPagina = TamanhoDaPagina,
-            TotalItens = total,
-        }));
+        return Result<ConsultaSimuladorDto>.Ok(new ConsultaSimuladorDto(
+            new PagedResult<ProdutoSimuladoDto>
+            {
+                Itens = linhas.Select(ParaDto).ToList(),
+                Pagina = filtro.Pagina,
+                TamanhoPagina = TamanhoDaPagina,
+                TotalItens = total,
+            },
+            numRegiao));
+    }
+
+    /// <summary>
+    /// As filiais em que o comprador tem região vinculada, e qual. A tela oferece só estas no
+    /// filtro (Gabriel, 25/11/2026). Ordem: código como número, como a lista do DRE.
+    /// </summary>
+    public async Task<Result<IReadOnlyList<VinculoDeRegiaoDto>>> ObterVinculosAsync(
+        int matricula,
+        CancellationToken cancellationToken = default)
+    {
+        var vinculos = await _repositorio.ObterVinculosDeRegiaoAsync(matricula, cancellationToken);
+
+        IReadOnlyList<VinculoDeRegiaoDto> dtos = vinculos
+            .Select(v => new VinculoDeRegiaoDto(v.CodFilial.Trim(), (int)v.NumRegiao))
+            .OrderBy(v => int.TryParse(v.CodFilial, out var numero) ? numero : int.MaxValue)
+            .ThenBy(v => v.CodFilial, StringComparer.Ordinal)
+            .ToList();
+
+        return Result<IReadOnlyList<VinculoDeRegiaoDto>>.Ok(dtos);
+    }
+
+    /// <summary>
+    /// A filial do pedido vem da lista do DRE (<c>FILIAIS.CODFIL</c>), e a do vínculo vem da
+    /// <c>TAB_REG_PR_FILIAL</c>. Nenhuma das duas promete a mesma grafia: <c>"07"</c> contra
+    /// <c>"7"</c> passaria por "sem vínculo". Compara como número quando as duas são números — o
+    /// mesmo cuidado do <c>normalizarCodigo</c> da tela.
+    /// </summary>
+    internal static bool MesmaFilial(string a, string b)
+    {
+        a = a.Trim();
+        b = b.Trim();
+        return int.TryParse(a, out var na) && int.TryParse(b, out var nb)
+            ? na == nb
+            : string.Equals(a, b, StringComparison.Ordinal);
     }
 
     /// <summary>Linhas por página. Fixo no servidor: a tela não escolhe (spec).</summary>
