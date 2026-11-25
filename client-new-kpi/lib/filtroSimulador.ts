@@ -12,6 +12,44 @@ export const TAMANHO_DA_PAGINA = 100;
 /** Quantos códigos o "ver só os simulados" pode mandar (o servidor recusa acima disso). */
 export const LIMITE_DE_CODIGOS = 500;
 
+/**
+ * O tamanho máximo do campo de busca. Uma palavra cabe em 60 (o limite do servidor para busca
+ * por texto); a LISTA de códigos (25/11/2026) pode ir até 4000, também conferido pelo servidor.
+ */
+export const TAMANHO_MAXIMO_DA_BUSCA = 4000;
+
+/**
+ * A busca é uma LISTA de códigos (Gabriel, 25/11/2026)? Tem vírgula e só dígitos, vírgulas e
+ * espaços: `49555,49556,66635`, `49555, 49556`, `49555,`. Devolve os códigos sem repetição, na
+ * ordem digitada, escritos como número (`049555` vira `49555`), ou `null` quando não é lista.
+ * Vírgula sobrando é ignorada.
+ *
+ * <b>A mesma regra do servidor</b> (`SimuladorPrecoService.LerListaDeCodigos`): quem decide o
+ * filtro é ele; aqui ela só serve para a tela saber quais códigos não vieram.
+ */
+export function lerListaDeCodigos(busca: string): string[] | null {
+  if (!busca.includes(",")) return null;
+  const pedacos = busca.split(",").map((p) => p.trim()).filter((p) => p !== "");
+  if (pedacos.some((p) => !/^\d+$/.test(p))) return null;
+  return [...new Set(pedacos.map((p) => String(Number(p))))];
+}
+
+/**
+ * Os códigos da lista que NÃO vieram na consulta, para a tela avisar. Só dá para saber com
+ * TODAS as linhas na mão: na página 1 e com o total cabendo nela. Fora disso, `null` (a tela não
+ * avisa, em vez de acusar um código que só está noutra página).
+ */
+export function codigosNaoEncontrados(
+  lista: readonly string[],
+  codigosDaPagina: readonly number[],
+  pagina: number,
+  totalItens: number,
+): string[] | null {
+  if (pagina !== 1 || totalItens > codigosDaPagina.length) return null;
+  const vieram = new Set(codigosDaPagina.map(String));
+  return lista.filter((c) => !vieram.has(c));
+}
+
 /** Quanto a busca espera depois da última tecla antes de ir ao Oracle. */
 export const ATRASO_DA_BUSCA_MS = 500;
 

@@ -18,9 +18,12 @@ import {
   ATRASO_DA_BUSCA_MS,
   CLASSES,
   LIMITE_DE_CODIGOS,
+  TAMANHO_MAXIMO_DA_BUSCA,
   chaveDaLinha,
   classesParaApi,
+  codigosNaoEncontrados,
   codigosSimulados,
+  lerListaDeCodigos,
   paginaAoEsvaziar,
 } from "@/lib/filtroSimulador";
 import {
@@ -282,6 +285,14 @@ export default function SimuladorPrecoPage() {
       .map((n) => ({ produto: linhaDeProdutoNovo(n), chave: n.id }));
   }, [novosNaTela, buscaAtrasada]);
 
+  // A busca por lista de códigos (Gabriel, 25/11/2026): quais da lista NÃO vieram. Só com todas
+  // as linhas na mão (página 1, total cabendo nela) e com a resposta desta busca, não a anterior.
+  const listaDaBusca = useMemo(() => lerListaDeCodigos(buscaAtrasada), [buscaAtrasada]);
+  const faltandoDaLista =
+    listaDaBusca && dados && !consulta.isPlaceholderData
+      ? codigosNaoEncontrados(listaDaBusca, dados.itens.map((p) => p.codProd), pagina, dados.totalItens)
+      : null;
+
   const temConsulta = aplicado !== null && dados !== undefined;
   const totalItens = dados?.totalItens ?? 0;
   const totalPaginas = dados?.totalPaginas ?? 0;
@@ -360,9 +371,10 @@ export default function SimuladorPrecoPage() {
                   type="search"
                   value={busca}
                   onChange={(e) => setBusca(e.target.value)}
-                  maxLength={60}
-                  placeholder="Buscar produto ou código"
-                  aria-label="Buscar produto ou código (consulta ao parar de digitar)"
+                  maxLength={TAMANHO_MAXIMO_DA_BUSCA}
+                  placeholder="Produto, código ou códigos com vírgula"
+                  title="Um produto pelo nome ou código, ou vários códigos separados por vírgula: 49555,49556,66635"
+                  aria-label="Buscar produto, código ou vários códigos separados por vírgula (consulta ao parar de digitar)"
                   className="h-8 w-56 rounded-[var(--radius-md)] border border-[var(--border-strong)] bg-[var(--surface-2)] px-3 text-[length:var(--fs-base)] text-[var(--text-primary)] focus:border-[var(--primary)] focus:outline-none"
                 />
                 {simulados > 0 && (
@@ -503,6 +515,17 @@ export default function SimuladorPrecoPage() {
             : aplicado.fornecedores.length > 1
               ? " com estes fornecedores"
               : ""}.</Aviso>
+        )}
+
+        {/* Os códigos da lista que não vieram (Gabriel, 25/11/2026): quem cola 20 códigos sabe na
+            hora quais faltam. Com resultado nenhum, o aviso de baixo já diz; este fica para o
+            caso de PARTE da lista não vir. */}
+        {temConsulta && totalItens > 0 && faltandoDaLista !== null && faltandoDaLista.length > 0 && (
+          <Aviso>
+            Sem resultado para {faltandoDaLista.length === 1 ? "o código" : "os códigos"}{" "}
+            <b className="tabular">{faltandoDaLista.join(", ")}</b> nesta filial e região
+            {soSimulados !== null ? " entre os simulados" : ""}.
+          </Aviso>
         )}
 
         {temConsulta && totalItens === 0 && filtrando && (

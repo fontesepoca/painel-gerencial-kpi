@@ -92,6 +92,7 @@ export function FiltrosSimulador({
       <Campo rotulo="Fornecedor">
         {() => (
           <SelecaoDeFornecedores
+            tela="simulador"
             selecionados={filtros.fornecedores}
             onMudar={(lista) => onMudar({ ...filtros, fornecedores: lista })}
           />
