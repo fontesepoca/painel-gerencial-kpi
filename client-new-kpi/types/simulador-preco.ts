@@ -84,6 +84,11 @@ export interface ProdutoSimulado {
    */
   cClassTrib: string | null;
   cst: string | null;
+  /**
+   * A classe de comissão (`PCPRODUT.CLASSE`, SQL v3 de 26/11/2026). Só exibida. A classe de GIRO
+   * de estoque é a `classeVenda` (no v3, `CLASSE_GIRO_EST`), que ordena e filtra.
+   */
+  classeComissao: string | null;
 }
 
 /** Os percentuais que o quadro do produto deixa editar (D21). */

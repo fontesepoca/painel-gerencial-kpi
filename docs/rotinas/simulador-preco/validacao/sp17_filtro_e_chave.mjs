@@ -11,7 +11,13 @@
  *     docs/rotinas/simulador-preco/validacao/sp17_filtro_e_chave.mjs
  */
 import { chaveDaLinha } from "@/lib/filtroSimulador.ts";
-import { classesParaApi, codigosSimulados, paginaAoEsvaziar } from "@/lib/filtroSimulador.ts";
+import {
+  classesParaApi,
+  codigosNaoEncontrados,
+  codigosSimulados,
+  lerListaDeCodigos,
+  paginaAoEsvaziar,
+} from "@/lib/filtroSimulador.ts";
 
 let conferencias = 0;
 let falhas = 0;
@@ -52,6 +58,23 @@ eq(classesParaApi(["B"]), ["B"], "uma");
 eq(paginaAoEsvaziar(7, 0), 1, "página 7 voltou vazia: volta à 1");
 eq(paginaAoEsvaziar(1, 0), null, "página 1 vazia: é 'nenhum produto' de verdade, fica");
 eq(paginaAoEsvaziar(3, 100), null, "página com linhas: fica");
+
+// ── lerListaDeCodigos: a busca por lista (25/11/2026). A MESMA regra do servidor ──────────
+eq(lerListaDeCodigos("49555,49556,66635"), ["49555", "49556", "66635"], "lista simples");
+eq(lerListaDeCodigos("49555, 49556 ,66635"), ["49555", "49556", "66635"], "espaço em volta da vírgula");
+eq(lerListaDeCodigos("49555,"), ["49555"], "vírgula no fim: um código só, mas é lista");
+eq(lerListaDeCodigos("49555,49555,049555"), ["49555"], "repetido e zero à esquerda: uma vez só");
+eq(lerListaDeCodigos(",,"), [], "só vírgulas: lista vazia (o servidor recusa)");
+eq(lerListaDeCodigos("49555"), null, "sem vírgula: busca de sempre, não lista");
+eq(lerListaDeCodigos("VANISH,49555"), null, "letra na lista: busca de sempre");
+eq(lerListaDeCodigos("49 555,1"), null, "espaço DENTRO do código: não é lista");
+
+// ── codigosNaoEncontrados: o aviso dos que não vieram ───────────────────────────────────
+eq(codigosNaoEncontrados(["1", "2", "3"], [1, 3, 3], 1, 3), ["2"], "falta o 2 (o 3 com duas linhas conta uma vez)");
+eq(codigosNaoEncontrados(["1", "2"], [1, 2], 1, 2), [], "vieram todos");
+eq(codigosNaoEncontrados(["1", "2"], [], 1, 0), ["1", "2"], "nenhum veio");
+eq(codigosNaoEncontrados(["1", "2"], [1], 2, 101), null, "página 2: não dá para saber, não avisa");
+eq(codigosNaoEncontrados(["1", "2"], [1], 1, 150), null, "total maior que a página: não avisa");
 
 console.log(falhas === 0
   ? `sp17: ${conferencias} conferências, todas passaram.`

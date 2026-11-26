@@ -78,4 +78,10 @@ public class ProdutoSimulado
 
     /// <summary>O CST da tributação (<c>PCTRIBUTACAO.CST</c>). Nulo sem tributação para o NCM.</summary>
     public string? Cst { get; init; }
+
+    /// <summary>
+    /// A classe de comissão (<c>PCPRODUT.CLASSE</c>, <c>CLASSE_COMISSAO</c> no SQL v3, 26/11/2026).
+    /// Só exibida. A classe de giro de estoque continua em <see cref="ClasseVenda"/>.
+    /// </summary>
+    public string? ClasseComissao { get; init; }
 }

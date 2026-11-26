@@ -3,11 +3,14 @@ namespace Epoca.Kpi.Api.Infrastructure.Persistence.Queries;
 /// <summary>
 /// Consultas do simulador de preço. Somente leitura: tabela do Winthor nunca é escrita.
 ///
-/// <para><b>O SQL é a VERSÃO 2</b> (entregue pelo gestor em 23/11/2026), guardada sem edição em
-/// <c>docs/rotinas/simulador-preco/referencia/sql-v2.sql</c> — a v1 continua ao lado, em
-/// <c>sql-v1.sql</c>. As diferenças entre aquele texto e o daqui estão listadas na spec
-/// (<c>docs/superpowers/specs/2026-11-23-simulador-sql-v2-design.md</c>): A1, A2, A4, A6 e A8, mais o
-/// SELECT de fora (A7). A <c>sp5</c> prova que não há outra.</para>
+/// <para><b>O SQL é a VERSÃO 3</b> (entregue pelo gestor em 26/11/2026), guardada sem edição em
+/// <c>docs/rotinas/simulador-preco/referencia/sql-v3.sql</c> — a v1 e a v2 continuam ao lado.
+/// A v3 renomeia a classe de venda para <c>CLASSE_GIRO_EST</c> e traz a classe de comissão
+/// (<c>CLASSE_COMISSAO</c>, de <c>P.CLASSE</c>); nenhuma conta mudou. As diferenças entre aquele
+/// texto e o daqui estão nas specs (<c>2026-11-23-simulador-sql-v2-design.md</c> e
+/// <c>2026-11-26-simulador-sql-v3-classe-de-giro-e-de-comissao-design.md</c>): A1, A2, A4, A6, A8
+/// e A9 (o SELECT de fora da v3, com CCLASSTRIB/CST, é feito na ConsultaPaginada), mais o SELECT
+/// de fora daqui (A7). A <c>sp5</c> prova que não há outra.</para>
 /// </summary>
 public static class SimuladorPrecoQueries
 {
@@ -60,7 +63,8 @@ public static class SimuladorPrecoQueries
         SELECT TO_CHAR(CODFILIAL)              AS CODFILIAL,
                CODPROD                         AS CODPROD,
                DESCRICAO                       AS DESCRICAO,
-               TO_CHAR(CLASSEVENDA)            AS CLASSEVENDA,
+               TO_CHAR(CLASSE_GIRO_EST)        AS CLASSEVENDA,
+               TO_CHAR(CLASSE_COMISSAO)        AS CLASSECOMISSAO,
                TO_CHAR(NCM)                    AS NCM,
                TO_CHAR(CODIGO_TRIBUTACAO)      AS CODIGOTRIBUTACAO,
                DESCRICAO_TRIBUTACAO            AS DESCRICAOTRIBUTACAO,
@@ -94,7 +98,7 @@ public static class SimuladorPrecoQueries
                PRECOFINAL                      AS PRFINAL
           FROM (
         
-        SELECT B.CODFILIAL, B.CODPROD, B.DESCRICAO, B.CLASSEVENDA, B.NCM, B.CODIGO_TRIBUTACAO, B.DESCRICAO_TRIBUTACAO, B.TIPO_IMPOSTO,
+        SELECT B.CODFILIAL, B.CODPROD, B.DESCRICAO, B.CLASSEVENDA as CLASSE_GIRO_EST, B.CLASSE AS CLASSE_COMISSAO, B.NCM, B.CODIGO_TRIBUTACAO, B.DESCRICAO_TRIBUTACAO, B.TIPO_IMPOSTO,
                B.VLULTPCOMPRA, B.PERCIPI, B.VLIPI, B.PERCST, B.PERCICMS_ENT, B.PERC_BASE_RED_ENT,
                B.PERCICM_CUSTO, B.VLICMS AS VLICMS_ENT, B.PERPIS AS PERPIS_ENT, B.VLPIS AS VLPIS_ENT,
                B.PERCOFINS AS PERCOFINS_ENT, B.VLCOFINS AS VLCOFINS_ENT, B.PERCFRETEFOB AS PERCFRETEFOB_ENT,
@@ -109,7 +113,7 @@ public static class SimuladorPrecoQueries
                ROUND((NVL(B.CUSTO_ANTES_CBS,0) - NVL(B.VLCBS,0)) /
                      NULLIF(1 - (NVL(B.MARGEM,0) + NVL(B.PERCICMS_SAID,0) + NVL(B.PERPIS,0) +
                             NVL(B.PERCOFINS,0) + NVL(B.PERC_CBS,0)) / 100,0) + NVL(B.VLST,0),3) AS PRECOFINAL
-          FROM (SELECT E.CODFILIAL, P.CODPROD, P.DESCRICAO, P.CLASSEVENDA, P.NBM AS NCM, CBS.CODIGO_TRIBUTACAO,
+          FROM (SELECT E.CODFILIAL, P.CODPROD, P.DESCRICAO, P.CLASSEVENDA,P.CLASSE /*COMISSÃO*/, P.NBM AS NCM, CBS.CODIGO_TRIBUTACAO,
                        CBS.DESCRICAO_TRIBUTACAO, PF.CHAVENATURAL AS TIPO_IMPOSTO,
                        NVL(:pCompra1,NVL(E.VLULTPCOMPRA,0)) AS VLULTPCOMPRA,
                        CASE WHEN NVL(F.TIPOFORNEC,'I') = 'I' OR NVL(F.EQUIPINDUSTRIA,'N') = 'S'
@@ -288,7 +292,7 @@ public static class SimuladorPrecoQueries
                                TO_CHAR(TR2.CCLASSTRIB) AS CCLASSTRIB,
                                TO_CHAR(TR2.CST) AS CST,
                                ROW_NUMBER() OVER (PARTITION BY C.CODPROD, C.CODIGOTRIBUTACAO
-                                                  ORDER BY C.DESCRICAO, C.CODFILIAL, C.CLASSEVENDA, C.NCM,
+                                                  ORDER BY C.DESCRICAO, C.CODFILIAL, C.CLASSEVENDA, C.CLASSECOMISSAO, C.NCM,
                                                            C.DESCRICAOTRIBUTACAO, C.TIPOIMPOSTO, C.VLULTPCOMPRA,
                                                            C.PERCIPI, C.VLIPI, C.PERCST, C.VLST, C.PERCICMSENT,
                                                            C.PERCBASEREDENT, C.PERCICMCUSTO, C.VLICMSENT,

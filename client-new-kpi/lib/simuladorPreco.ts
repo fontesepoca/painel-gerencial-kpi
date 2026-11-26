@@ -262,6 +262,7 @@ export function linhaDeProdutoNovo(n: ProdutoNovo): ProdutoSimulado {
     fornecedor: null,
     cClassTrib: null,
     cst: null,
+    classeComissao: null,
     descricao: n.descricao,
     classeVenda: null,
     ncm: null,

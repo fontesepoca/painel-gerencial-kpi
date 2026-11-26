@@ -21,7 +21,7 @@ export function FiltroDeClasses({
   return (
     <fieldset className="flex items-center gap-1">
       <legend className="sr-only">Classes de venda</legend>
-      <span aria-hidden className="mr-1 text-[var(--text-muted)]">Classe</span>
+      <span aria-hidden className="mr-1 text-[var(--text-muted)]">CLASSE GIRO EST.</span>
       {CLASSES.map((classe) => {
         const marcada = marcadas.includes(classe);
         const ultima = marcada && marcadas.length === 1;

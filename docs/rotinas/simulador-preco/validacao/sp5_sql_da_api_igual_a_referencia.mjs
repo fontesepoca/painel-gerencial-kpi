@@ -14,12 +14,16 @@
 //   A4 — sai o ";" final;
 //   A5 — saem as linhas de comentário "--" (cabeçalho e binds comentados);
 //   A8 — o filtro de UM fornecedor vira uma LISTA (24/11/2026, spec
-//        2026-11-24-simulador-varios-fornecedores). Só escolhe os produtos; nenhuma conta muda.
+//        2026-11-24-simulador-varios-fornecedores). Só escolhe os produtos; nenhuma conta muda;
+//   A9 — só na v3: o SELECT de fora (CCLASSTRIB/CST, LEFT JOIN TR2) sai da referência, porque a
+//        API o faz na ConsultaPaginada (26/11/2026).
+//
+// Desde 26/11/2026 a referência é a sql-v3.sql.
 //
 // Sem banco e sem rede:
 //   node docs/rotinas/simulador-preco/validacao/sp5_sql_da_api_igual_a_referencia.mjs \
 //     api-new-kpi/Infrastructure/Persistence/Queries/SimuladorPrecoQueries.cs \
-//     docs/rotinas/simulador-preco/referencia/sql-v2.sql
+//     docs/rotinas/simulador-preco/referencia/sql-v3.sql
 // ============================================================================
 import { readFileSync } from "node:fs";
 
@@ -33,6 +37,16 @@ const camel = (nome) =>
 
 // A5 e A4.
 let r = ref.split("\n").filter((l) => !l.trim().startsWith("--")).join("\n").replace(/;\s*$/, "");
+
+// A9 (26/11/2026, v3): o SELECT de fora da v3 (CCLASSTRIB e CST da PCTRIBUTACAO, LEFT JOIN TR2)
+// NÃO entra na Consulta: o mesmo join é feito na ConsultaPaginada, com TO_CHAR (spec
+// 2026-11-26-simulador-sql-v3-classe-de-giro-e-de-comissao). Aqui ele é tirado da referência,
+// e o que sobra — o miolo — é o que tem de estar dentro da Consulta. Na v1 e na v2 ele não
+// existe, e nada muda.
+const involucroA9 =
+  /^\s*SELECT V2\.\*\s*,\s*TR2\.CCLASSTRIB\s*,\s*TR2\.CST\s+FROM \(([\s\S]*)\)\s*V2\s+LEFT JOIN PCTRIBUTACAO TR2 ON TR2\.CODIGO_TRIBUTACAO = V2\.CODIGO_TRIBUTACAO\s*$/;
+const comA9 = r.match(involucroA9);
+if (comA9) r = comA9[1];
 
 // A8, ANTES do A1: os binds novos já entram com o nome final, em minúsculas, e o A1 só mexe nos
 // :NOMES em maiúsculas.
@@ -66,7 +80,7 @@ const esperado = norm(r);
 const constante = norm(cs);
 
 if (constante.includes(esperado)) {
-  console.log(`IDENTICO: o miolo é a referência com só as adaptações A1, A2, A4, A5 e A8 (${m} matrícula(s)).`);
+  console.log(`IDENTICO: o miolo é a referência com só as adaptações A1, A2, A4, A5, A8${comA9 ? " e A9" : ""} (${m} matrícula(s)).`);
 } else {
   // Onde começa a divergir: o maior prefixo da referência que a constante contém.
   let lo = 0, hi = esperado.length;

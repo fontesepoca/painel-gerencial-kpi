@@ -55,7 +55,33 @@ public sealed class SimuladorPrecoService
         }
 
         var busca = filtro.Busca?.Trim();
-        if (busca is { Length: > TamanhoMaximoDaBusca })
+
+        // ── A busca por LISTA de códigos (Gabriel, 25/11/2026): "49555,49556,66635". ──
+        // Vira o mesmo filtro de códigos do "ver só os simulados" (:codigos), e o SQL não muda.
+        // Um código sozinho, sem vírgula, continua na busca de sempre (código exato ou descrição).
+        var listaDaBusca = LerListaDeCodigos(busca);
+        if (listaDaBusca is not null)
+        {
+            if (busca!.Length > TamanhoMaximoDaLista)
+            {
+                return Result<ConsultaSimuladorDto>.Invalido(
+                    $"Lista de códigos muito longa (máximo {TamanhoMaximoDaLista} caracteres).");
+            }
+
+            if (listaDaBusca.Count == 0)
+            {
+                return Result<ConsultaSimuladorDto>.Invalido("Informe ao menos um código na lista.");
+            }
+
+            if (listaDaBusca.Count > LimiteDeCodigos)
+            {
+                return Result<ConsultaSimuladorDto>.Invalido(
+                    $"Mais de {LimiteDeCodigos} códigos na lista: divida em partes.");
+            }
+
+            busca = null;
+        }
+        else if (busca is { Length: > TamanhoMaximoDaBusca })
         {
             return Result<ConsultaSimuladorDto>.Invalido(
                 $"Busca muito longa (máximo {TamanhoMaximoDaBusca} caracteres).");
@@ -100,6 +126,26 @@ public sealed class SimuladorPrecoService
             codigos = limpos.Distinct().ToList();
         }
 
+        // A lista da busca e o "ver só os simulados" juntos: só os códigos que estão nos dois.
+        // Comparados pelo NÚMERO ("049555" é o 49555), como o TO_CHAR(CODPROD) do SQL os escreve.
+        var semResultado = false;
+        if (listaDaBusca is not null)
+        {
+            if (codigos is null)
+            {
+                codigos = listaDaBusca;
+            }
+            else
+            {
+                var simulados = codigos.Select(c => long.TryParse(c, out var n) ? n.ToString() : c).ToHashSet();
+                codigos = listaDaBusca.Where(simulados.Contains).ToList();
+
+                // Interseção vazia: nada a buscar. NÃO pode ir ao SQL como texto vazio — no Oracle
+                // '' é nulo, e o :codigosNulo nulo quer dizer "sem filtro", o contrário.
+                semResultado = codigos.Count == 0;
+            }
+        }
+
         // ── A região: do vínculo do comprador, nunca digitada (spec 2026-11-25-simulador-regiao-
         // pelo-vinculo-do-comprador). Por ÚLTIMO entre as validações: só vai ao banco um pedido
         // que já passou nas outras. E ANTES da consulta pesada: sem vínculo, ela nem roda.
@@ -127,9 +173,14 @@ public sealed class SimuladorPrecoService
 
         var numRegiao = vinculos[0];
 
-        var (linhas, total) = await _repositorio.ConsultarPaginaAsync(
-            codFilial, numRegiao, fornecedores, matricula,
-            filtro.Pagina, TamanhoDaPagina, busca, classes, codigos, cancellationToken);
+        IReadOnlyList<ProdutoSimulado> linhas = [];
+        var total = 0;
+        if (!semResultado)
+        {
+            (linhas, total) = await _repositorio.ConsultarPaginaAsync(
+                codFilial, numRegiao, fornecedores, matricula,
+                filtro.Pagina, TamanhoDaPagina, busca, classes, codigos, cancellationToken);
+        }
 
         // Página vazia é resposta, nunca nulo: o front distingue "nenhum produto" de erro.
         return Result<ConsultaSimuladorDto>.Ok(new ConsultaSimuladorDto(
@@ -182,6 +233,32 @@ public sealed class SimuladorPrecoService
 
     private const int TamanhoMaximoDaBusca = 60;
 
+    /// <summary>
+    /// A busca por lista de códigos pode ser bem mais longa: 500 códigos de até 7 dígitos, com as
+    /// vírgulas, cabem com folga.
+    /// </summary>
+    private const int TamanhoMaximoDaLista = 4000;
+
+    /// <summary>
+    /// A busca é uma LISTA de códigos? Tem vírgula e só dígitos, vírgulas e espaços:
+    /// <c>49555,49556,66635</c>, <c>49555, 49556</c>, <c>49555,</c>. Devolve os códigos sem
+    /// repetição, na ordem digitada, escritos como número (<c>049555</c> vira <c>49555</c>) — ou
+    /// <c>null</c> quando a busca não é uma lista. Pedaços vazios (vírgula sobrando) são ignorados.
+    /// A tela tem a mesma regra em <c>lerListaDeCodigos</c> (lib/filtroSimulador.ts).
+    /// </summary>
+    internal static List<string>? LerListaDeCodigos(string? busca)
+    {
+        if (busca is null || !busca.Contains(',')) return null;
+
+        var pedacos = busca.Split(',').Select(p => p.Trim()).Where(p => p.Length > 0).ToList();
+        if (pedacos.Any(p => !p.All(char.IsAsciiDigit))) return null;
+
+        return pedacos
+            .Select(p => long.TryParse(p, out var n) ? n.ToString() : p)
+            .Distinct()
+            .ToList();
+    }
+
     /// <summary>Acima disso, a lista de códigos não cabe com folga num VARCHAR2 de bind.</summary>
     private const int LimiteDeCodigos = 500;
 
@@ -200,5 +277,5 @@ public sealed class SimuladorPrecoService
         p.PercFreteFobEnt, p.VlFreteFobEnt,
         p.CustoAntesCbs, p.PercCbs, p.BaseCbs, p.VlCbs, p.CustoCalc,
         p.Margem, p.PercIcmsSaid, p.PerPisSaid, p.PerCofinsSaid, p.Indice, p.PrFuturo, p.PrFinal,
-        (int)p.Ocorrencia, p.CodFornec, p.Fornecedor, p.CClassTrib, p.Cst);
+        (int)p.Ocorrencia, p.CodFornec, p.Fornecedor, p.CClassTrib, p.Cst, p.ClasseComissao);
 }

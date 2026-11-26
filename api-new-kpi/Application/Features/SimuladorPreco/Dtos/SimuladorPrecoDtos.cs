@@ -73,7 +73,10 @@ public record ProdutoSimuladoDto(
     // Da PCTRIBUTACAO, depois da Classe na tela (spec 2026-11-25-simulador-classe-de-tributacao-
     // e-cst). Nulos quando o NCM não tem tributação. No JSON: "cClassTrib" e "cst".
     string? CClassTrib,
-    string? Cst);
+    string? Cst,
+    // A classe de comissão (PCPRODUT.CLASSE), do SQL v3 (26/11/2026). Só exibida. A de giro de
+    // estoque (CLASSE_GIRO_EST no v3) continua em ClasseVenda, lá em cima.
+    string? ClasseComissao);
 
 /// <summary>
 /// A resposta: UMA PÁGINA (spec 2026-11-24-simulador-paginacao-no-backend). A

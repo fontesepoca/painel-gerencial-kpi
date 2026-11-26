@@ -141,6 +141,14 @@ if (filtro.fornecedores.length > 0) {
 // propriedades vêm em toda linha (nulas quando o NCM não tem tributação). A contagem de baixo é o
 // sinal do Dapper: se NENHUMA linha com tributação trouxer cClassTrib, desconfie do nome da coluna
 // — o Dapper deixa vazio sem erro quando não casa o nome.
+// A classe de comissão (SQL v3, 26/11/2026): a propriedade em toda linha.
+const semComissao = p1.pagina.itens.filter((p) => !("classeComissao" in p));
+ok(semComissao.length === 0, "toda linha da página 1 traz a propriedade classeComissao",
+  semComissao.map((p) => p.codProd).join(", "));
+const comComissao = p1.pagina.itens.filter((p) => p.classeComissao !== null && p.classeComissao !== undefined);
+console.log(`  ${comComissao.length} de ${p1.pagina.itens.length} linhas com classe de comissão` +
+  (comComissao.length > 0 ? ` (ex.: ${[...new Set(comComissao.map((p) => p.classeComissao))].slice(0, 5).join(", ")})` : ""));
+
 const semAsChaves = p1.pagina.itens.filter((p) => !("cClassTrib" in p) || !("cst" in p));
 ok(semAsChaves.length === 0, "toda linha da página 1 traz as propriedades cClassTrib e cst",
   semAsChaves.map((p) => p.codProd).join(", "));
