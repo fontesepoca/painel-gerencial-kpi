@@ -24,6 +24,13 @@ export const chaveDaOrdem = (baseId: string, analise: string) =>
 export const chavesAntigasDaOrdem = (baseId: string, analise: string): string[] =>
   baseId === BASE_DAS_CHAVES_ANTIGAS ? [`epoca:dre:ordem:v1:${analise}`] : [];
 
+/**
+ * A simulação de preço guardada no navegador (spec do simulador §3.6), por base E por
+ * matrícula: o que uma pessoa simulou não aparece para outra que use o mesmo navegador.
+ */
+export const chaveDaSimulacao = (baseId: string, matricula: number) =>
+  `epoca:simulador-preco:v1:${baseId}:${matricula}`;
+
 /** As filiais em cache. `null` antes de a sessão chegar: o hook fica desligado, não presume. */
 export const chaveDeFiliais = (baseId: string | null, matricula: number | null) =>
   ["dre-gerencial", "filiais", baseId, matricula] as const;

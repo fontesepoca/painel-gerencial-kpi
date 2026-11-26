@@ -53,7 +53,11 @@ async function request<T>(caminho: string, options: RequestOptions = {}): Promis
       // Dado financeiro nunca sai de cache.
       cache: "no-store",
     });
-  } catch {
+  } catch (erro) {
+    // Cancelado de propósito (uma busca nova substituiu esta — spec do simulador, 24/11/2026):
+    // o erro de abort segue como está, para o React Query reconhecê-lo e descartá-lo em
+    // silêncio. Virar "não foi possível conectar" mostraria um erro que não aconteceu.
+    if (resto.signal?.aborted) throw erro;
     throw new ApiError("Não foi possível conectar à API.", 0);
   }
 

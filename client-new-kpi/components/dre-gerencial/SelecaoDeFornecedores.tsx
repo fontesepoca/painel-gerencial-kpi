@@ -62,9 +62,16 @@ const buscavel = (termo: string) => {
 export function SelecaoDeFornecedores({
   selecionados,
   onMudar,
+  tela = "dre",
 }: {
   selecionados: Fornecedor[];
   onMudar: (fornecedores: Fornecedor[]) => void;
+  /**
+   * Quem usa a pesquisa. Só muda TEXTO: o DRE fala do DRE; o simulador de preço (Gabriel,
+   * 25/11/2026) mostra o fornecedor principal numa legenda própria, abaixo do código, e não
+   * menciona o DRE. A busca e a seleção são as mesmas nas duas.
+   */
+  tela?: "dre" | "simulador";
 }) {
   const [aberto, setAberto] = useState(false);
   const [busca, setBusca] = useState("");
@@ -356,7 +363,9 @@ export function SelecaoDeFornecedores({
                 Vários de uma vez, separados por vírgula:{" "}
                 <span className="tabular">29,253</span> e <strong>Enter</strong>.
                 <br />
-                Sem nenhum selecionado, o DRE sai com todos — como sempre foi.
+                {tela === "simulador"
+                  ? "Sem nenhum selecionado, a consulta traz todos."
+                  : "Sem nenhum selecionado, o DRE sai com todos — como sempre foi."}
               </p>
             ) : isFetching && achados === undefined ? (
               <p className="px-2 py-3 text-[length:var(--fs-apoio)] text-[var(--text-muted)]">
@@ -397,7 +406,16 @@ export function SelecaoDeFornecedores({
                         {f.fornecedor}
                       </span>
                       <span className="block text-[length:var(--fs-apoio)] text-[var(--text-muted)]">
-                        <span className="tabular">{f.codFornec}</span>
+                        {/* No simulador, o código numa ficha (Gabriel, 25/11/2026): separa-o do
+                            CNPJ ao lado. Mesmo desenho das fichas dos selecionados. O DRE fica
+                            com o texto simples. */}
+                        {tela === "simulador" ? (
+                          <span className="tabular inline-block rounded-[var(--radius-sm)] border border-[var(--border-strong)] bg-[var(--surface-3)] px-1.5 leading-[1.4] text-[var(--text-secondary)]">
+                            {f.codFornec}
+                          </span>
+                        ) : (
+                          <span className="tabular">{f.codFornec}</span>
+                        )}
                         {cnpj(f.cgc) !== null && (
                           <>
                             {" · "}
@@ -409,7 +427,7 @@ export function SelecaoDeFornecedores({
                             Escolher um e achar que levou a empresa inteira é o engano mais
                             provável desta tela — e silencioso, porque o DRE sai com números
                             plausíveis, só menores. */}
-                        {f.codFornecPrinc !== null && f.codFornecPrinc !== f.codFornec && (
+                        {tela === "dre" && f.codFornecPrinc !== null && f.codFornecPrinc !== f.codFornec && (
                           <>
                             {" · "}
                             <span className="text-[var(--warning)]">
@@ -418,6 +436,15 @@ export function SelecaoDeFornecedores({
                           </>
                         )}
                       </span>
+                      {/* No simulador (Gabriel, 25/11/2026): o principal numa legenda própria,
+                          abaixo, e a mesma ressalva do DRE em palavras do simulador — o filtro é
+                          PCPRODUT.CODFORNEC = este código, e não o grupo inteiro. */}
+                      {tela === "simulador" && f.codFornecPrinc !== null && f.codFornecPrinc !== f.codFornec && (
+                        <span className="block text-[length:var(--fs-apoio)] text-[var(--warning)]">
+                          Fornecedor principal: <span className="tabular">{f.codFornecPrinc}</span> · Esta
+                          pesquisa é só deste fornecedor
+                        </span>
+                      )}
                     </span>
                   </label>
                 );

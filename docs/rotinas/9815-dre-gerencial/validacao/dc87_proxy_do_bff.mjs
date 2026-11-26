@@ -189,6 +189,18 @@ const pedido = (url, init = {}) => new Request(`http://bff.local${url}`, init);
     { tipo: "repassar", caminho: "/api/dre-gerencial/fornecedores" },
     "DRE com sessão: repassa",
   );
+  // O simulador de preço (18/11/2026): exige sessão como o DRE.
+  eq(
+    decidirRepasse(["simulador-preco", "consulta"], true),
+    { tipo: "repassar", caminho: "/api/simulador-preco/consulta" },
+    "simulador com sessão: repassa",
+  );
+  const simuladorSemSessao = decidirRepasse(["simulador-preco", "consulta"], false);
+  eq(
+    simuladorSemSessao.tipo === "recusar" && simuladorSemSessao.status,
+    401,
+    "simulador sem sessão: 401, sem chamar a API",
+  );
   // As preferências de tela por usuário (25/11/2026): mesma regra do DRE.
   eq(
     decidirRepasse(["preferencias", "dre-gerencial"], true),

@@ -128,7 +128,7 @@ export function useFiliais() {
  * a mesma grafia, e `"07"` contra `"7"` é o tipo de divergência que passaria como "esta pessoa
  * não tem acesso à filial 7". Comparar pelo número quando os dois são numéricos evita isso.
  */
-function normalizarCodigo(codigo: string): string {
+export function normalizarCodigo(codigo: string): string {
   const texto = codigo.trim();
   const numero = Number(texto);
   return Number.isNaN(numero) ? texto.toUpperCase() : String(numero);

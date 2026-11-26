@@ -16,17 +16,25 @@ export interface TelaDoMenu {
   /**
    * Código da rotina no Winthor. Decide a permissão e mais nada: desde 12/11/2026 o número
    * não aparece na tela — a pessoa procura a tela pelo nome e pelo ícone.
+   *
+   * <b>Não é único:</b> duas telas podem dividir a mesma permissão (o Simulador de Preço usa a
+   * 9815 do DRE). O que identifica uma tela é o `href`.
    */
   codigo: string;
   nome: string;
   icone: IconeDeTela;
   /** Uma linha: o que a pessoa encontra ao abrir. */
   descricao: string;
+  /**
+   * O texto mais longo do cartão em "Rotinas disponíveis", na tela inicial (24/11/2026). A tela
+   * inicial lê esta mesma lista: uma tela nova aparece no menu e no início sem mais nada.
+   */
+  resumo: string;
   href: string;
 }
 
 export type IconeDeModulo = "gerencial";
-export type IconeDeTela = "dre";
+export type IconeDeTela = "dre" | "preco";
 
 export interface ModuloDoMenu {
   id: string;
@@ -46,7 +54,22 @@ export const MODULOS: readonly ModuloDoMenu[] = [
         nome: "DRE Gerencial",
         icone: "dre",
         descricao: "Resultado por filial e período",
+        resumo:
+          "Demonstrativo de resultado por filial e período, em quatro dimensões de análise, com detalhamento por duplo clique e exportação.",
         href: "/dre-gerencial",
+      },
+      {
+        // Tela nova, sem rotina própria no Winthor: a permissão é a do DRE (decisão D4 da
+        // spec docs/superpowers/specs/2026-11-18-simulador-de-preco-design.md).
+        codigo: ROTINA_DRE,
+        nome: "Simulador de Preço",
+        icone: "preco",
+        descricao: "Impostos, custo e preço futuro a partir do preço de compra",
+        // Texto do Gabriel (24/11/2026). Sem falar em "salvar no navegador": a forma de guardar
+        // as simulações ainda vai ser revista (localStorage, análise multifilial).
+        resumo:
+          "Impostos, custo e preço futuro a partir do preço de compra, com edição por produto, simulação de produtos novos.",
+        href: "/simulador-preco",
       },
     ],
   },
