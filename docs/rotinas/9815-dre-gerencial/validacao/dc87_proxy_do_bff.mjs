@@ -201,6 +201,18 @@ const pedido = (url, init = {}) => new Request(`http://bff.local${url}`, init);
     401,
     "simulador sem sessão: 401, sem chamar a API",
   );
+  // As preferências de tela por usuário (25/11/2026): mesma regra do DRE.
+  eq(
+    decidirRepasse(["preferencias", "dre-gerencial"], true),
+    { tipo: "repassar", caminho: "/api/preferencias/dre-gerencial" },
+    "preferências com sessão: repassa",
+  );
+  const preferenciasSemSessao = decidirRepasse(["preferencias", "dre-gerencial"], false);
+  eq(
+    preferenciasSemSessao.tipo === "recusar" && preferenciasSemSessao.status,
+    401,
+    "preferências sem sessão: 401, sem chamar a API",
+  );
   eq(
     decidirRepasse(["dre-gerencial", "a/b"], true),
     { tipo: "repassar", caminho: "/api/dre-gerencial/a%2Fb" },

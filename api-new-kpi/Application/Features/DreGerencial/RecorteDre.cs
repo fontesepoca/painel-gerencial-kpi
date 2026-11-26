@@ -149,7 +149,9 @@ public sealed record RecorteDre(
         IReadOnlyList<FaturamentoDre> faturamentoPorMes,
         // Os títulos em aberto (competência). Nulo em caixa: aí a coluna nem tem a lista,
         // e o montador não preenche Provisionado nenhum.
-        IReadOnlyList<DespesaDre>? abertos = null)
+        IReadOnlyList<DespesaDre>? abertos = null,
+        // Os confirmados não pagos (competência, 24/11/2026) — uma parte das despesas.
+        IReadOnlyList<DespesaDre>? confirmados = null)
     {
         if (!PorMes)
         {
@@ -163,7 +165,8 @@ public sealed record RecorteDre(
                     Despesas: despesas,
                     Faturamento: FaturamentoDre.Somar(Chave ?? "", faturamentoPorMes),
                     Bloco: Bloco,
-                    Abertos: abertos),
+                    Abertos: abertos,
+                    Confirmados: confirmados),
             ];
         }
 
@@ -174,6 +177,10 @@ public sealed record RecorteDre(
         var faturamento = faturamentoPorMes.ToDictionary(f => f.MesAno);
 
         var abertosPorMes = abertos?
+            .GroupBy(d => d.MesAno)
+            .ToDictionary(g => g.Key, g => (IReadOnlyList<DespesaDre>)g.ToList());
+
+        var confirmadosPorMes = confirmados?
             .GroupBy(d => d.MesAno)
             .ToDictionary(g => g.Key, g => (IReadOnlyList<DespesaDre>)g.ToList());
 
@@ -193,7 +200,8 @@ public sealed record RecorteDre(
                 Bloco: Bloco,
                 // Vazia, e não nula, num mês todo pago: "competência sem aberto" e "caixa"
                 // são coisas diferentes, e só a segunda some com a coluna.
-                Abertos: abertosPorMes is null ? null : abertosPorMes.GetValueOrDefault(p.MesAno, [])))
+                Abertos: abertosPorMes is null ? null : abertosPorMes.GetValueOrDefault(p.MesAno, []),
+                Confirmados: confirmadosPorMes is null ? null : confirmadosPorMes.GetValueOrDefault(p.MesAno, [])))
             .ToList();
     }
 

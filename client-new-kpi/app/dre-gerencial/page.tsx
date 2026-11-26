@@ -13,7 +13,7 @@ import { recalcular } from "@/lib/recalculoDoDre";
 import { useApuracao, useFiliais } from "@/hooks/useDreGerencial";
 import { useSessao } from "@/hooks/useSessao";
 import { useEscalaDeImpressao } from "@/hooks/useEscalaDeImpressao";
-import { useOcultarBaixas } from "@/hooks/useOcultarBaixas";
+import { useCarregarExibicao, useExibicao } from "@/hooks/useExibicao";
 import { linhasDaApuracao } from "@/lib/baixasEstornadas";
 import { cn } from "@/lib/cn";
 import { formatarDataIso, formatarDuracao } from "@/lib/formato";
@@ -35,39 +35,29 @@ export default function DreGerencialPage() {
   // Fora do `useCallback` do Excel: o React Compiler não aceita encadeamento opcional na lista
   // de dependências, e a base é o que muda o nome do arquivo.
   const baseDaSessao = usuario?.base.id;
-  const [mostrarZeradas, setMostrarZeradas] = useState(false);
-  // Ligado por padrão: a tela de sempre mostra os informativos (29/10/2026).
-  const [mostrarInformativos, setMostrarInformativos] = useState(true);
-  // "Ocultar baixas estornadas e da rotina 737", marcado por padrão (30/10/2026): o mesmo
-  // estado do checkbox do detalhamento. Escolhe qual dos dois DREs da API vai à tela.
-  const [ocultarBaixas, setOcultarBaixas] = useOcultarBaixas();
-  // Os controles da linha no menu Exibição (06/11/2026): a seleção para exportar várias
-  // contas começa escondida, o punho de mover começa à vista.
-  const [mostrarSelecao, setMostrarSelecao] = useState(false);
-  const [mostrarPunho, setMostrarPunho] = useState(true);
-  // O código de cada linha à esquerda da descrição — desligado por padrão, como a tela era
-  // (10/11/2026, pedido do Gabriel).
-  const [mostrarCodigos, setMostrarCodigos] = useState(false);
-
   /**
-   * As colunas de análise, ligadas por padrão.
-   *
-   * <b>Quem lê o DRE nem sempre lê as três colunas.</b> Numa conversa sobre valores, o
-   * `%AV` e o `%AH` são ruído entre os números que importam; numa análise de composição,
-   * o `%AV` é o assunto. Separados, cada um decide o que está olhando.
-   *
-   * <b>Marcados ao abrir</b>, a pedido do Gabriel em 05/10/2026: a tela continua sendo o
-   * que sempre foi, e esconder coluna é escolha de quem está lendo, não o estado inicial.
+   * AS OPÇÕES DO MENU EXIBIÇÃO, guardadas por usuário no banco (25/11/2026): a tela abre como
+   * a pessoa deixou, em qualquer aba e em qualquer máquina. Cada clique grava só a opção
+   * mexida. O padrão de cada uma — e a data e o motivo dele — mora em `PADRAO_DA_EXIBICAO`
+   * (`lib/preferenciasDaExibicao.ts`); a rede, em `hooks/useExibicao.ts`. Ver
+   * docs/plataforma/PREFERENCIAS.md.
    */
-  const [mostrarAv, setMostrarAv] = useState(true);
-  const [mostrarAh, setMostrarAh] = useState(true);
-  // As colunas Provisionado e Total (competência, 14/10/2026). Marcado ao abrir, como os
-  // outros dois: quem não quer vê-las desmarca.
-  const [mostrarProvisionado, setMostrarProvisionado] = useState(true);
-  // O recorte das colunas (15/10/2026): sem o bloco Total no fim, ou só ele. Os dois se
-  // excluem — marcar um desmarca o outro, no `MenuDeExibicao`.
-  const [semTotal, setSemTotal] = useState(false);
-  const [soTotal, setSoTotal] = useState(false);
+  useCarregarExibicao();
+  const [exibicao, mudarExibicao] = useExibicao();
+  const mostrarZeradas = exibicao.zeradas;
+  const mostrarInformativos = exibicao.informativos;
+  // O mesmo estado do checkbox do detalhamento: mudar lá também grava.
+  const ocultarBaixas = exibicao["ocultar-baixas"];
+  const mostrarSelecao = exibicao["selecionar-linhas"];
+  const mostrarPunho = exibicao["mover-linhas"];
+  const mostrarCodigos = exibicao.codigos;
+  const mostrarAv = exibicao.av;
+  const mostrarAh = exibicao.ah;
+  const mostrarProvisionado = exibicao.provisionado;
+  const mostrarConfirmados = exibicao.confirmados;
+  // Os dois recortes se excluem — marcar um desmarca o outro, no `onMudar` do menu.
+  const semTotal = exibicao["sem-total"];
+  const soTotal = exibicao["so-total"];
   const [expandida, setExpandida] = useState(false);
 
   /**
@@ -155,6 +145,7 @@ export default function DreGerencialPage() {
             av: mostrarAv,
             ah: mostrarAh,
             provisionado: mostrarProvisionado,
+            confirmados: mostrarConfirmados,
             total: !semTotal,
             // A mesma condição de `podeSoTotal`, mas da apuração recebida: o callback vem
             // antes daquela constante.
@@ -185,6 +176,7 @@ export default function DreGerencialPage() {
       mostrarAv,
       mostrarAh,
       mostrarProvisionado,
+      mostrarConfirmados,
       semTotal,
       soTotal,
       mostrarCodigos,
@@ -248,6 +240,9 @@ export default function DreGerencialPage() {
   // diferente do %AH, que fica desabilitado, porque aqui não há "ainda não": não existe.
   const temProvisionado =
     dados?.periodos.some((p) => p.temProvisionado === true) ?? false;
+  // O mesmo para os Confirmados: só em competência, e só com algum confirmado não pago.
+  const temConfirmado =
+    dados?.periodos.some((p) => p.temConfirmado === true) ?? false;
   // "Só o Total" vale com MAIS DE DOIS meses — pedido do Gabriel — e só quando o bloco do fim
   // é um total: nos modos de ano ele pode ser a variação entre colunas, e a variação sozinha
   // não é o DRE de período nenhum.
@@ -444,7 +439,7 @@ export default function DreGerencialPage() {
                             rotulo: "Mostrar zeradas",
                             apoio: "Contas sem movimento no período",
                             marcada: mostrarZeradas,
-                            onMudar: setMostrarZeradas,
+                            onMudar: (m) => mudarExibicao({ zeradas: m }),
                           },
                           {
                             id: "informativos",
@@ -452,7 +447,7 @@ export default function DreGerencialPage() {
                             apoio:
                               "Linhas com o selo INFO, que não entram em nenhum total",
                             marcada: mostrarInformativos,
-                            onMudar: setMostrarInformativos,
+                            onMudar: (m) => mudarExibicao({ informativos: m }),
                           },
                           {
                             // O MESMO checkbox do detalhamento (30/10/2026): um estado só na
@@ -463,7 +458,7 @@ export default function DreGerencialPage() {
                             apoio:
                               "As contas sem os pagamentos estornados e sem os baixados pela 737",
                             marcada: ocultarBaixas,
-                            onMudar: setOcultarBaixas,
+                            onMudar: (m) => mudarExibicao({ "ocultar-baixas": m }),
                             motivo: dados?.linhasSemEstornos
                               ? null
                               : "A API desta apuração é anterior a esta opção. Apure de novo.",
@@ -474,7 +469,7 @@ export default function DreGerencialPage() {
                             apoio:
                               "Análise vertical: o peso de cada linha na receita",
                             marcada: mostrarAv,
-                            onMudar: setMostrarAv,
+                            onMudar: (m) => mudarExibicao({ av: m }),
                           },
                           {
                             id: "ah",
@@ -482,7 +477,7 @@ export default function DreGerencialPage() {
                             apoio:
                               "Análise horizontal: a variação sobre a coluna anterior",
                             marcada: mostrarAh,
-                            onMudar: setMostrarAh,
+                            onMudar: (m) => mudarExibicao({ ah: m }),
                             motivo: temAh
                               ? null
                               : "Aparece a partir de dois meses: compara uma coluna com a anterior.",
@@ -493,8 +488,20 @@ export default function DreGerencialPage() {
                             apoio:
                               "Títulos não pagos e não confirmados, e o Total (R + P)",
                             marcada: mostrarProvisionado,
-                            onMudar: setMostrarProvisionado,
+                            onMudar: (m) => mudarExibicao({ provisionado: m }),
                             oculta: !temProvisionado,
+                          },
+                          {
+                            // 24/11/2026, divergência 23: desmarcado, o Vl. Realizado é o
+                            // pago mais o confirmado, como desde 22/10; marcado, os dois se
+                            // separam e o Total soma o que estiver na tela.
+                            id: "confirmados",
+                            rotulo: "Confirmados",
+                            apoio:
+                              "Separa do Vl. Realizado os títulos confirmados ainda não pagos",
+                            marcada: mostrarConfirmados,
+                            onMudar: (m) => mudarExibicao({ confirmados: m }),
+                            oculta: !temConfirmado,
                           },
                         ],
                       },
@@ -507,10 +514,8 @@ export default function DreGerencialPage() {
                             apoio: "Só os meses, sem o bloco do período no fim",
                             marcada: semTotal,
                             // Os dois recortes se excluem: marcar um desmarca o outro.
-                            onMudar: (m) => {
-                              setSemTotal(m);
-                              if (m) setSoTotal(false);
-                            },
+                            onMudar: (m) =>
+                              mudarExibicao(m ? { "sem-total": true, "so-total": false } : { "sem-total": false }),
                             motivo: temAh
                               ? null
                               : "Com um mês só, não há coluna Total.",
@@ -521,10 +526,8 @@ export default function DreGerencialPage() {
                             apoio:
                               "Esconde os meses e deixa o bloco do período",
                             marcada: soTotal,
-                            onMudar: (m) => {
-                              setSoTotal(m);
-                              if (m) setSemTotal(false);
-                            },
+                            onMudar: (m) =>
+                              mudarExibicao(m ? { "so-total": true, "sem-total": false } : { "so-total": false }),
                             motivo: podeSoTotal
                               ? null
                               : variacaoNoFim
@@ -545,21 +548,21 @@ export default function DreGerencialPage() {
                             rotulo: "Selecionar linhas",
                             apoio: "Um checkbox por conta, para exportar o detalhamento de várias num .zip",
                             marcada: mostrarSelecao,
-                            onMudar: setMostrarSelecao,
+                            onMudar: (m) => mudarExibicao({ "selecionar-linhas": m }),
                           },
                           {
                             id: "mover-linhas",
                             rotulo: "Mover linhas",
                             apoio: "O punho ⠿ para arrastar uma conta de bloco, e a dica de como usar",
                             marcada: mostrarPunho,
-                            onMudar: setMostrarPunho,
+                            onMudar: (m) => mudarExibicao({ "mover-linhas": m }),
                           },
                           {
                             id: "codigos",
                             rotulo: "Códigos",
                             apoio: "O número da conta, grupo ou centro à esquerda da descrição; traço nos totalizadores",
                             marcada: mostrarCodigos,
-                            onMudar: setMostrarCodigos,
+                            onMudar: (m) => mudarExibicao({ codigos: m }),
                           },
                         ],
                       },
@@ -615,6 +618,7 @@ export default function DreGerencialPage() {
                   mostrarAv,
                   mostrarAh,
                   mostrarProvisionado: mostrarProvisionado && temProvisionado,
+                  mostrarConfirmados: mostrarConfirmados && temConfirmado,
                   mostrarTotal: !semTotal,
                   soTotal: soTotal && podeSoTotal,
                   filtroDeLinhas,

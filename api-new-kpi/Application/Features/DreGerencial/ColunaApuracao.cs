@@ -66,6 +66,12 @@ namespace Epoca.Kpi.Api.Application.Features.DreGerencial;
 /// As despesas EM ABERTO do recorte (<c>DTPAGTO IS NULL</c>) — a coluna PROVISIONADO.
 /// <c>null</c> em caixa, onde não existe; lista vazia quando a coluna está toda paga.
 /// </param>
+/// <param name="Confirmados">
+/// Os confirmados NÃO pagos do recorte (<c>DTPAGTO IS NULL AND TIPOLANC = 'C'</c>) — a parte
+/// de <see cref="Despesas"/> que o checkbox "Confirmados" separa em coluna própria (24/11/2026).
+/// <b>Já estão somados em Despesas</b>: não é valor a mais, é quanto do Valor é confirmado.
+/// <c>null</c> em caixa; lista vazia quando a coluna não tem nenhum.
+/// </param>
 public sealed record ColunaApuracao(
     string Chave,
     string Rotulo,
@@ -74,13 +80,21 @@ public sealed record ColunaApuracao(
     IReadOnlyList<DespesaDre> Despesas,
     FaturamentoDre? Faturamento,
     int Bloco = 0,
-    IReadOnlyList<DespesaDre>? Abertos = null)
+    IReadOnlyList<DespesaDre>? Abertos = null,
+    IReadOnlyList<DespesaDre>? Confirmados = null)
 {
     /// <summary>
     /// A mesma coluna sem as baixas estornadas e as da rotina 737 nos PAGOS (30/10/2026). O
     /// provisionado fica como está: título em aberto nunca sai por esse filtro. Ver
     /// <see cref="DespesaDre.SemBaixasOcultaveis"/>.
+    ///
+    /// <para>Os CONFIRMADOS saem junto: eles estão dentro de <see cref="Despesas"/>, e o que o
+    /// filtro tira de lá tem de sair daqui também, ou o Valor − Confirmado erraria.</para>
     /// </summary>
     public ColunaApuracao SemBaixasOcultaveis() =>
-        this with { Despesas = Despesas.Select(d => d.SemBaixasOcultaveis()).ToList() };
+        this with
+        {
+            Despesas = Despesas.Select(d => d.SemBaixasOcultaveis()).ToList(),
+            Confirmados = Confirmados?.Select(d => d.SemBaixasOcultaveis()).ToList(),
+        };
 }

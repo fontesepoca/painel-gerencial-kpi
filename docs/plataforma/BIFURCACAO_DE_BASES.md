@@ -234,6 +234,11 @@ lá → só então ligar regras. Nenhuma consulta é editada.
   a Nutrifar, não a P&G, e o centro 25 não tem movimento. O filtro funciona e o
   `RegrasDaBase` não ganhou o quinto campo. Ver
   [FILTRO_FORNECEDOR.md](../rotinas/9815-dre-gerencial/FILTRO_FORNECEDOR.md#no-minas-rural--07102026).
+- **Preferências de tela no Minas Rural.** `Bases:<Id>:PreferenciasNoBanco` (25/11/2026) diz se
+  a base tem a `TAB_WEB_PREFERENCIA_TELA`: a Época tem (`true`), o Minas Rural ainda não
+  (`false` — a tela abre no padrão e não lembra, sem erro). Para ligar lá: o bloco do
+  [pr0](validacao/pr0_tab_web_preferencia_tela.sql) e a chave em `true`. Ver
+  [PREFERENCIAS.md](PREFERENCIAS.md).
 - **Dados de ambiente local.** Quem desenvolve precisa da `OracleMinasRural` no
   `appsettings.Development.json`, com o `EDI`; o `appsettings.example.json` ganha a chave.
 

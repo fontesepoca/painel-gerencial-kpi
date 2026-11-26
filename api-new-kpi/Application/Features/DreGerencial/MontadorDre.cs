@@ -291,6 +291,19 @@ public static class MontadorDre
                 g => (Valor: g.Sum(x => x.Despesa.VlRealizado),
                       Exclusivo: g.Sum(x => x.Despesa.VpagoExclusivoFornec)));
 
+        // O CONFIRMADO NÃO PAGO, indexado como o Valor — ele é uma PARTE do Valor (24/11/2026).
+        var valorConfirmado = colunas
+            .SelectMany(c => (c.Confirmados ?? []).Select(d => (Coluna: c.Chave, Despesa: d)))
+            .GroupBy(x =>
+            {
+                var (chave, ro, ll, lf) = Destino(x.Despesa, subidas, operacionaisDaEstrutura);
+                return (chave, ro, ll, lf, x.Coluna);
+            })
+            .ToDictionary(
+                g => g.Key,
+                g => (Valor: g.Sum(x => x.Despesa.VlRealizado),
+                      Exclusivo: g.Sum(x => x.Despesa.VpagoExclusivoFornec)));
+
         // Quantos títulos EM ABERTO cada linha tem em todas as colunas. A visibilidade com
         // "Mostrar Contas Zeradas" desmarcada é por VALOR desde 11/11/2026 (divergência 22, ver
         // `SemMovimento` abaixo); os abertos só contam para o front mostrar a linha quando o
@@ -330,7 +343,15 @@ public static class MontadorDre
         // 14/10/2026); receita, deduções, CMV e LUCRO BRUTO, não.
         var provisionadoPorColuna = colunas.ToDictionary(
             c => c.Chave,
-            c => MontarMesProvisionado(linhas, valorAberto, c));
+            c => MontarMesProvisionado(linhas, valorAberto, c, c.Abertos));
+
+        // O CONFIRMADO de cada célula (24/11/2026): quanto do Valor é título confirmado não
+        // pago. Já está dentro do Valor — a tela o separa com o checkbox "Confirmados" —, e é
+        // montado pelas MESMAS somas do Provisionado, então cada totalizador de despesa tem o
+        // seu e a coluna Vl. Realizado (Valor − Confirmado) fecha sozinha.
+        var confirmadoPorColuna = colunas.ToDictionary(
+            c => c.Chave,
+            c => MontarMesProvisionado(linhas, valorConfirmado, c, c.Confirmados));
 
         // A versão R + P dos percentuais só existe quando ALGUMA coluna tem aberto — sem
         // nenhum, a tela nem mostra o Provisionado, e os percentuais são os de sempre.
@@ -397,10 +418,16 @@ public static class MontadorDre
                     PercentualAh: CalcularAh(valor, anterior),
                     Provisionado: provisionado,
                     PercentualAvComProvisionado: avRp,
-                    PercentualAhComProvisionado: ahRp);
+                    PercentualAhComProvisionado: ahRp,
+                    Confirmado: confirmadoPorColuna[c.Chave][indice]);
             }).ToList();
 
             var somaPeriodo = valores.Sum(v => v.Valor);
+
+            var confirmados = valores.Where(v => v.Confirmado is not null).ToList();
+            decimal? confirmadoPeriodo = confirmados.Count == 0
+                ? null
+                : confirmados.Sum(v => v.Confirmado!.Value);
 
             // Soma das colunas JÁ arredondadas, como o Valor. Nula quando nenhuma coluna tem
             // provisionado — "nada em aberto" e "não se aplica" não são zero.
@@ -426,7 +453,8 @@ public static class MontadorDre
                         ? CalcularAvTotal(
                             l, somaPeriodo + (provisionadoPeriodo ?? 0m),
                             colunas.Select(c => c.Faturamento))
-                        : null),
+                        : null,
+                    Confirmado: confirmadoPeriodo),
                 Totalizadora: l.Estrutura.InfContas == "S",
                 Calculada: l.Calculada,
                 NaoSoma: EhNaoSoma(l),
@@ -468,7 +496,8 @@ public static class MontadorDre
             Periodos: colunas
                 .Select(c => new PeriodoDto(
                     c.Chave, c.Rotulo, c.DataInicio, c.DataFim, c.Bloco,
-                    TemProvisionado: c.Abertos is { Count: > 0 }))
+                    TemProvisionado: c.Abertos is { Count: > 0 },
+                    TemConfirmado: c.Confirmados is { Count: > 0 }))
                 .ToList(),
             Linhas: resultado,
             Avisos: avisos,
@@ -1075,14 +1104,18 @@ public static class MontadorDre
     /// <para><b>Arredondamento como o Valor</b>: a conta é arredondada sozinha, e o
     /// totalizador é a soma em precisão cheia, arredondada no fim.</para>
     /// </summary>
+    /// <para><b>Serve também ao CONFIRMADO</b> (24/11/2026): <paramref name="lista"/> diz de
+    /// qual parcela se trata — <c>c.Abertos</c> ou <c>c.Confirmados</c> —, e as somas são as
+    /// mesmas. É o que faz o Vl. Confirmado do LUCRO LIQUIDO bater com o das contas.</para>
     private static decimal?[] MontarMesProvisionado(
         List<LinhaEmMontagem> linhas,
         Dictionary<(string, string, string, string, string), (decimal Valor, decimal Exclusivo)>
             valorAberto,
-        ColunaApuracao c)
+        ColunaApuracao c,
+        IReadOnlyList<DespesaDre>? lista)
     {
         var p = new decimal?[linhas.Count];
-        if (c.Abertos is not { Count: > 0 }) return p;
+        if (lista is not { Count: > 0 }) return p;
 
         var participacao = c.Faturamento?.Participacao ?? 1m;
         decimal operacional = 0m, posOperacional = 0m, promovida = 0m;

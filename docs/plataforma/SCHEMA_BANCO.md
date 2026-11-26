@@ -22,6 +22,12 @@ não é o dicionário completo das tabelas.
 > execução. Consequência prática — a aplicação pode rodar com **usuário Oracle
 > somente-leitura** durante toda a validação, e fica impossibilitada de alterar qualquer
 > coisa na base de produção.
+>
+> **Exceção desde 25/11/2026: `TAB_WEB_PREFERENCIA_TELA`.** As opções do menu Exibição
+> passaram a ser guardadas por usuário no banco, e esta é a primeira tabela em que a
+> aplicação grava (`SELECT, INSERT, UPDATE`, sem `DELETE`). A tabela é nossa, com prefixo
+> próprio; nenhuma tabela do Winthor nem da 9815 ganhou escrita. Ver
+> [PREFERENCIAS.md](PREFERENCIAS.md).
 
 Confirmado por varredura dos 16 arquivos de trace: **12 `INSERT INTO tab_log_exec_rotina`**,
 12 `COMMIT`, 4 `ROLLBACK` (os cenários que falharam), e **nenhum** `UPDATE`, `DELETE`,

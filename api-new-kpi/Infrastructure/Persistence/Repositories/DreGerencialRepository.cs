@@ -174,7 +174,8 @@ public sealed class DreGerencialRepository : IDreGerencialRepository
         AnaliseDre analise,
         IReadOnlyList<decimal>? fornecedores = null,
         bool emAberto = false,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        bool soConfirmados = false)
     {
         if (filiais.Count == 0)
         {
@@ -236,11 +237,16 @@ public sealed class DreGerencialRepository : IDreGerencialRepository
             // O PROVISIONADO é a MESMA consulta trocando só o pagamento — ver `ConsultasEmAberto`.
             // A lista de binds abaixo vale para as três versões, de propósito. Em competência o
             // realizado é pago OU confirmado (TIPOLANC = C, 22/10/2026); em caixa, só pago.
+            // Os CONFIRMADOS não pagos (24/11/2026) são uma quarta versão, e uma PARTE da do
+            // realizado em competência — o ocultável deles é o do realizado, por isso o
+            // `SinalDeOcultavel(emAberto)` abaixo continua certo para os dois.
             emAberto
                 ? ConsultasEmAberto.Despesas(analise.SqlDespesas)
-                : regime == RegimeDre.Competencia
-                    ? ConsultasEmAberto.RealizadoEmCompetencia(analise.SqlDespesas)
-                    : analise.SqlDespesas,
+                : soConfirmados
+                    ? ConsultasEmAberto.ConfirmadosNaoPagos(analise.SqlDespesas)
+                    : regime == RegimeDre.Competencia
+                        ? ConsultasEmAberto.RealizadoEmCompetencia(analise.SqlDespesas)
+                        : analise.SqlDespesas,
             placeholdersA,
             regime.ExpressaoBucket,
             regime.ExpressaoFiltro,
@@ -796,10 +802,11 @@ public sealed class DreGerencialRepository : IDreGerencialRepository
         IReadOnlyList<decimal>? fornecedores = null,
         IReadOnlyList<string>? sobra = null,
         bool emAberto = false,
-        CancellationToken cancellationToken = default) =>
+        CancellationToken cancellationToken = default,
+        string? parte = null) =>
         ConsultarLancamentosAsync(filiais, dataInicio, dataFim, regime, analise, bloco,
             [chave], lote: false, fornecedores, sobra, emAberto, commandTimeout: 300,
-            cancellationToken);
+            cancellationToken, parte);
 
     public Task<IReadOnlyList<DetalheLancamentoDre>> ObterDetalheLancamentosDoLoteAsync(
         IReadOnlyList<string> filiais,
@@ -836,7 +843,8 @@ public sealed class DreGerencialRepository : IDreGerencialRepository
         IReadOnlyList<string>? sobra,
         bool emAberto,
         int commandTimeout,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        string? parte = null)
     {
         if (filiais.Count == 0)
         {
@@ -878,11 +886,16 @@ public sealed class DreGerencialRepository : IDreGerencialRepository
         // Os títulos EM ABERTO da célula de Provisionado: a mesma consulta, trocando só o
         // pagamento — ver `ConsultasEmAberto`. Os binds abaixo valem para as duas versões.
         // O realizado do detalhe segue a apuração: em competência, pago OU confirmado.
+        // Com o checkbox "Confirmados" (24/11/2026) o realizado de competência se divide: a
+        // célula Vl. Realizado lista só os PAGOS — a consulta original, o filtro da 9815 —, e a
+        // Vl. Confirmado só os confirmados não pagos. O serviço já validou `parte`.
         var baseSql = emAberto
             ? ConsultasEmAberto.Lancamentos(DreDetalheQueries.Lancamentos)
-            : regime == RegimeDre.Competencia
-                ? ConsultasEmAberto.LancamentosRealizadosEmCompetencia(DreDetalheQueries.Lancamentos)
-                : DreDetalheQueries.Lancamentos;
+            : regime != RegimeDre.Competencia || parte == "pagos"
+                ? DreDetalheQueries.Lancamentos
+                : parte == "confirmados"
+                    ? ConsultasEmAberto.LancamentosConfirmados(DreDetalheQueries.Lancamentos)
+                    : ConsultasEmAberto.LancamentosRealizadosEmCompetencia(DreDetalheQueries.Lancamentos);
 
         // LOTE: a mesma consulta, com IN no recorte e a chave de cada lançamento.
         if (lote)

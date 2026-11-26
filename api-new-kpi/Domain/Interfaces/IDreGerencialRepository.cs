@@ -43,6 +43,11 @@ public interface IDreGerencialRepository
     /// Os títulos EM ABERTO (<c>DTPAGTO IS NULL</c>) em vez dos pagos — a coluna PROVISIONADO.
     /// Mesma consulta, mesmos binds; ver <c>ConsultasEmAberto</c>.
     /// </param>
+    /// <param name="soConfirmados">
+    /// Só os confirmados NÃO pagos (<c>DTPAGTO IS NULL AND TIPOLANC = 'C'</c>) — a parte do
+    /// Vl. Realizado em competência que o checkbox "Confirmados" separa (24/11/2026). Ignorado
+    /// quando <paramref name="emAberto"/> é verdadeiro.
+    /// </param>
     Task<IReadOnlyList<DespesaDre>> ObterDespesasAsync(
         IReadOnlyList<string> filiais,
         DateOnly dataInicio,
@@ -51,7 +56,8 @@ public interface IDreGerencialRepository
         AnaliseDre analise,
         IReadOnlyList<decimal>? fornecedores = null,
         bool emAberto = false,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        bool soConfirmados = false);
 
     /// <summary>
     /// Os fornecedores que casam com <paramref name="busca"/>, por nome ou por código exato,
@@ -163,7 +169,8 @@ public interface IDreGerencialRepository
         IReadOnlyList<decimal>? fornecedores = null,
         IReadOnlyList<string>? sobra = null,
         bool emAberto = false,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        string? parte = null);
 
     /// <summary>
     /// Os lançamentos de VÁRIAS linhas de um bloco numa coluna — a exportação em lote

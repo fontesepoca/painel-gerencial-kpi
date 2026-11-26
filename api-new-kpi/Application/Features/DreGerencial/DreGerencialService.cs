@@ -547,9 +547,11 @@ public sealed class DreGerencialService
         // conexão do pool (uma consulta por conexão; o ODP.NET não aceita duas ao mesmo tempo
         // na mesma).
         //
-        // Conexões ao mesmo tempo, por apuração: 1 da estrutura + 3 por recorte (despesas,
-        // faturamento, em aberto) — 4 no modo mensal, 16 no teto de cinco anos. O pool do
-        // appsettings.example é 20.
+        // Conexões ao mesmo tempo, por apuração: 1 da estrutura + 4 por recorte em competência
+        // (despesas, faturamento, em aberto e, desde 24/11/2026, os confirmados) — 5 no modo
+        // mensal, 21 no teto de cinco anos; em caixa, 3 por recorte. O pool do
+        // appsettings.example é 20: no teto de cinco anos em competência, uma chamada espera
+        // a primeira que terminar.
         var estruturaTask = _repositorio.ObterEstruturaAsync(
             filtro.Filiais,
             recortes.Min(r => r.DataInicio),
@@ -582,6 +584,16 @@ public sealed class DreGerencialService
                     filtro.Fornecedores, emAberto: true, cancellationToken: cancellationToken)
                 : null;
 
+            // Os CONFIRMADOS não pagos (24/11/2026): quanto do Valor em competência é título
+            // com TIPOLANC = 'C' ainda sem pagamento — o checkbox "Confirmados" separa em
+            // coluna própria. Sempre consultado em competência, para marcar e desmarcar não
+            // custar reapuração; em paralelo, como o provisionado.
+            var confirmadosTask = regime == RegimeDre.Competencia
+                ? _repositorio.ObterDespesasAsync(
+                    filtro.Filiais, recorte.DataInicio, recorte.DataFim, regime, analise,
+                    filtro.Fornecedores, cancellationToken: cancellationToken, soConfirmados: true)
+                : null;
+
             // Despesas e faturamento também juntos: até 16/10/2026 o faturamento — o mais
             // caro, 92,5% da apuração — só começava quando as despesas terminavam.
             var despesasTask = _repositorio.ObterDespesasAsync(
@@ -595,8 +607,9 @@ public sealed class DreGerencialService
             var despesas = await despesasTask;
             var faturamento = await faturamentoTask;
             var abertos = abertosTask is null ? null : await abertosTask;
+            var confirmados = confirmadosTask is null ? null : await confirmadosTask;
 
-            return recorte.EmColunas(despesas, faturamento, abertos);
+            return recorte.EmColunas(despesas, faturamento, abertos, confirmados);
         }));
 
         // Esperar as duas frentes JUNTAS: se a estrutura falhar, o erro aparece sem esperar o
@@ -769,6 +782,21 @@ public sealed class DreGerencialService
                         "O provisionado só existe no regime competência.");
                 }
 
+                // A parte do realizado (checkbox "Confirmados", 24/11/2026): lista fechada, e
+                // só em competência — em caixa o realizado já é só o pago.
+                var parte = filtro.Parte;
+                if (parte is not null && parte is not ("pagos" or "confirmados"))
+                {
+                    return Result<DetalhamentoDto>.Invalido(
+                        $"Parte '{parte}' não existe. Valores aceitos: pagos, confirmados.");
+                }
+
+                if (parte is not null && regime != RegimeDre.Competencia)
+                {
+                    return Result<DetalhamentoDto>.Invalido(
+                        "Os confirmados só existem no regime competência.");
+                }
+
                 // Pagos, em aberto, ou os dois (Total R + P, 16/10/2026). Os dois lados são a
                 // MESMA consulta trocando só o filtro de DTPAGTO (`ConsultasEmAberto`), em
                 // paralelo — cada chamada abre a própria conexão, como na apuração.
@@ -776,7 +804,9 @@ public sealed class DreGerencialService
                     _repositorio.ObterDetalheLancamentosAsync(
                         filtro.Filiais, filtro.DataInicio, filtro.DataFim, regime, analise,
                         filtro.Bloco, filtro.Chave, fornecedores, filtro.Sobra,
-                        emAberto: emAberto, cancellationToken: cancellationToken);
+                        emAberto: emAberto, cancellationToken: cancellationToken,
+                        // A parte vale só para o lado REALIZADO, e só fora do Total (R + P).
+                        parte: emAberto || ambos ? null : parte);
 
                 var nenhum = Task.FromResult<IReadOnlyList<DetalheLancamentoDre>>([]);
                 var pagosTask = ambos || !filtro.Provisionado ? Buscar(false) : nenhum;
