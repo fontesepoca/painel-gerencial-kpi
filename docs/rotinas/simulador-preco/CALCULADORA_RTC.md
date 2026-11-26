@@ -23,6 +23,9 @@ Reforma Tributária. **Ainda não há código**: este documento antecede a spec.
 | D8 | **Substitui a D6.** 2027 já entra na primeira entrega. A partir de 2027, os parâmetros que a calculadora não tem (no mínimo as alíquotas nominais de CBS, IBS estadual e IBS municipal) são **informados por nós**, "na medida do possível". O preço de 2027 em diante é estimativa, e a tela avisa isso. O "switch 2026/2027" virou o seletor de cenários da D10. | Gabriel, 26/11/2026 |
 | D9 | **Cada comprador digita na tela** os parâmetros dos cenários estimados. Proposta: guardar por usuário na tabela de preferências (banco), e nunca no navegador. Imposto Seletivo fica fora da primeira entrega. ~~Os padrões de PIS e COFINS zerados e IPI mantido aguardam confirmação.~~ **Respondido pela planilha v3**: cada cenário traz "PIS/COFINS ativo?" e "Fator ICMS/ST", e o IPI não muda. O parâmetro "IPI manter ou zerar" **sai**. | Gabriel, 26/11/2026 |
 | D10 | **Seletor com os 5 cenários** da planilha v3 (2026 Oficial RFB, 2027 Ref. TCU, 2029 Transição, 2033 Pleno, Personalizado), no papel da célula D6 do painel. A grade inteira se recalcula para o cenário escolhido. **O 2026 não é editável** (as alíquotas vêm da calculadora). Os outros 4 são editáveis por comprador (D9), com os valores do painel da v3 como ponto de partida, e cada um tem alíquotas, "PIS/COFINS ativo?" e "Fator ICMS/ST". A visão lado a lado da `Comparativo_Transicao` fica para depois. Substitui o "switch 2026/2027" da D8. | Gabriel, 26/11/2026 |
+| D11 | **Destino = o município da filial consultada.** O código IBGE vem do cadastro da filial (tabela e coluna a confirmar no banco). | Gabriel, 26/11/2026 |
+| D12 | **Regime do fornecedor vem do Winthor**, pela coluna `PCFORNEC.SIMPLESNACIONAL` (`VARCHAR2(1)`), encontrada pelo Gabriel em 26/11/2026. Valores na base da Época: `N` = 10.086, `S` = 3.420, nulo = 4. `S` = Simples (crédito de CBS/IBS × % aproveitável, crédito de ICMS zerado), `N` = Regime Regular. **Nulo: a tela avisa na linha** ("regime do fornecedor não informado no cadastro"), porque a categoria pode crescer (Gabriel, 26/11/2026). Proposta para o cálculo dessa linha: tratar como Regime Regular, e o aviso diz isso. O fornecedor considerado é o do produto (`CODFORNEC` do SQL v3). | Gabriel, 26/11/2026 |
+| D13 | **Base da verba NET / GROSS**: seletor no modal de edição, junto com o % e o valor fixo da verba, por produto, com **NET como padrão** (coluna Z da planilha v3). | Proposta, Gabriel entendeu a regra |
 | ~~D6~~ | ~~**Só 2026 por enquanto.**~~ Substituída pela D8. | Gabriel |
 
 ## Testes feitos pelo Gabriel no Swagger (26/11/2026)
@@ -229,6 +232,74 @@ confirmado no **Teste 6**.
 Os outros itens do mapa (sincronizar os dados abertos no banco, calculadora do Simples Nacional,
 validação de XML da NF-e, apuração assistida e DARF) ficam **fora da primeira entrega**.
 
+## De onde vem cada dado (proposta, 26/11/2026)
+
+Cenário 2026 Oficial RFB como padrão. Nos cenários estimados, só mudam as alíquotas (que passam a
+ser digitadas) e os fatores do cenário.
+
+Tudo o que vem do **banco** é lido pela consulta do simulador (o SQL v3), que junta as tabelas
+abaixo. A coluna "Já vem?" diz se o dado já está no SQL v3 de hoje ou se é preciso
+acrescentar.
+
+| Dado | Fonte | Tabela de origem | Já vem? |
+|---|---|---|---|
+| Produto, fornecedor, NCM | **Banco** | `PCPRODUT`, `PCFORNEC` | sim |
+| CST IBS/CBS e classe tributária | **Banco** | `PCTRIBUTACAO` | sim |
+| Preço de compra | **Banco** (ou digitado) | `PCEST.VLULTPCOMPRA`, editável na tela como hoje | sim |
+| IPI, PIS e COFINS de entrada | **Banco** | `PCTABTRIBENT`, `PCEXPISCOFINSITEM`, `PCPRODUT` | sim |
+| ICMS de entrada, redução de base, ICMS de saída | **Banco** | `PCPRODFILIAL` | sim |
+| Frete FOB | **Banco** | `PCFORNECFILIAL`, `PCTABTRIBENT` | sim |
+| ST | **Banco** | `PCTABPR.VLST` | sim |
+| Margem | **Banco** (ou digitada) | como na tela atual | sim |
+| **Preço atual (legado)** | **Banco** | `PRECOFINAL` (D1) | sim |
+| Regime do fornecedor | **Banco** | `PCFORNEC.SIMPLESNACIONAL` (D12) | **não**: a `PCFORNEC` já está no SQL, falta trazer a coluna |
+| Município e UF de destino | **Banco** | `PCFILIAL.CIDADE` + `UF` → `PCCIDADE.CODIBGE` (D11, sp20) | **não**: consulta pequena à parte, uma vez por filial, como a da região |
+| Qtd comprada e qtd bonificada | **Digitado** | D7 |
+| Bonificação gera crédito? | **Digitado** | a decidir; proposta: padrão NÃO, como na v3 |
+| Verba (%), verba fixa (R$/un), base NET/GROSS | **Digitado** | D7, D13 |
+| Alíquotas dos cenários estimados | **Digitado** | por comprador (D9), com os valores da v3 como ponto de partida |
+| Alíquota cheia de CBS, IBS UF e IBS Mun (2026) | **Calculadora** | `pCBS`, `pIBSUF`, `pIBSMun` |
+| Redução e alíquota efetiva | **Calculadora** | `gRed.pRedAliq`, `gRed.pAliqEfet` (Teste 3) |
+| Estado do item e erro de cadastro | **Calculadora** | `estadoItem`, `erros[].code` (Teste 6) |
+| Fundamento legal | **Calculadora** | `memoriaCalculo` |
+| Fórmulas (rateio, créditos, custo, verba, índice, preço base, base de saída, CBS/IBS por fora, preço final, diferença) | **Planilha v3** | implementadas no nosso código |
+| % crédito aproveitável do Simples (20%) | **Planilha v3** | parâmetro do painel |
+| Fatores dos cenários ("PIS/COFINS ativo?", "Fator ICMS/ST") | **Planilha v3** | do painel; editáveis nos cenários estimados |
+
+## Onde cada cálculo acontece (proposta, 26/11/2026)
+
+Quatro lugares: o **banco** (o SQL v3), a **calculadora** da Receita, a **nossa API** (.NET) e a
+**tela** (o navegador). Pela D4, a conta do preço novo é feita na tela, para responder na hora a
+cada edição.
+
+| Cálculo | Onde | Por quê |
+|---|---|---|
+| Preço atual (legado): custo antes da CBS, base e valor da CBS legados, `PRECOFINAL` | **Banco** (SQL v3) | é a conta da rotina atual, que não muda (D1) |
+| Alíquota cheia, redução e **alíquota efetiva** de CBS e IBS de cada combinação NCM + CST + classe | **Calculadora** | é a regra oficial (Testes 1, 3 e 6) |
+| Conferir se a classe combina com o NCM | **Calculadora** | erro `REG-011` (Teste 6) |
+| Juntar as combinações distintas da página, chamar a calculadora, guardar as respostas em memória | **Nossa API** | o navegador nunca fala com a calculadora (D4, D5) |
+| Validar município, UF e data antes de chamar | **Nossa API** | esses erros derrubam o lote inteiro (Teste 6) |
+| Converter os valores da calculadora (texto → número) e traduzir os erros | **Nossa API** | Teste 1 |
+| Montar os parâmetros do cenário (2026 da calculadora; os estimados, das preferências do comprador) | **Nossa API** | D9, D10 |
+| Rateio da bonificação e preço médio pós-bonificação (colunas M, N da v3) | **Tela** | muda a cada edição |
+| Crédito de ICMS, PIS e COFINS de entrada e base RTC de entrada (R, V) | **Tela** | idem |
+| Crédito de CBS e IBS de entrada, com regime do fornecedor (W, X) | **Tela** | base × alíquota efetiva que a API trouxe |
+| Custo NET, verba NET/GROSS, custo líquido (Y–AD) | **Tela** | idem |
+| Índice de markup, preço base, base RTC de saída (AI–AK) | **Tela** | idem |
+| CBS e IBS por fora (AL–AO) | **Tela** | base de saída × alíquota efetiva, com o **mesmo arredondamento da Receita** (2 casas) |
+| Preço final novo, diferença em R$ e em % (AR, AT, AU) | **Tela** | idem |
+| Recalcular tudo ao trocar de cenário | **Tela** | sem nova consulta ao banco; a API só é chamada se faltarem alíquotas do cenário |
+
+**Garantias propostas:**
+1. As fórmulas da tela ficam **num único arquivo**, sem tela misturada, testado de duas formas:
+   contra os valores das linhas da planilha v3 (o mesmo produto tem de dar o mesmo preço) e
+   contra a calculadora (base × alíquota efetiva tem de dar o `vCBS` que ela devolve).
+2. O preço novo **não é gravado** em lugar nenhum: é simulação. Nada sai da tela para a NF-e.
+
+**Não usados da planilha** (substituídos por fonte melhor): a tabela de CST IBS/CBS (a redução vem
+da calculadora), a tabela de CST ICMS (os percentuais vêm do cadastro) e o "Preço Atual (App)"
+(vem do SQL v3).
+
 ## Tratamento de erro (D5)
 
 > **Atualizado após o Teste 6:** a API usa o **`/calculadora/observabilidade/regime-geral`**.
@@ -268,12 +339,28 @@ anotados.
       `feat/simula-preco`.
 - [ ] A **"gera crédito"** da entrada também depende da classe, e não só do CST? A planilha usa
       a tabela de CST para isso (colunas W e X da v3). Confirmar com o fiscal antes da spec.
-- [ ] De onde vem o **CST de ICMS** (provavelmente `PCTABTRIBENT.SITTRIBUT`, como na rotina atual).
-- [ ] Qual **município e UF** de destino a API manda à calculadora. **Não pode ser fixo em
-      3144805/MG (Nova Lima)**: há vários cenários de destino (Gabriel, 26/11/2026). Em 2026 o
-      destino não muda o valor (Teste 4). Proposta: a cidade da filial como padrão, com troca
-      opcional na tela.
-- [ ] De onde vem o **regime do fornecedor** (Regular ou Simples): do cadastro do Winthor ou
-      digitado?
-- [ ] De onde vem a **base da verba (NET ou GROSS)** por produto: digitada, como o % da verba?
+- [ ] De onde vem o **CST de ICMS**. Proposta (26/11/2026): **não usar a tabela de CST ICMS da
+      planilha**. O SQL v3 já traz o que ela decide, direto do cadastro e como a rotina atual:
+      ICMS de entrada (`PCPRODFILIAL.PERCICMS_ENT`), redução de base (`PERC_BASE_RED`), ICMS de
+      saída (`PERCICMS_SAID`) e o valor da ST (`PCTABPR.VLST`). O crédito de ICMS (coluna R da
+      v3) sai desses percentuais, e o "Fator ICMS/ST" do cenário multiplica cada um.
+- [x] Destino: o município da filial (D11).
+- [ ] **Origem do código IBGE da filial.** A `PCFILIAL` só tem `CIDADE` (nome, `VARCHAR2(30)`) e
+      `UF`. A `PCCIDADE` não aparece para o usuário consultado. As colunas de IBGE visíveis nas
+      `PC*` são `PCEMPR.CODIBGE`, `PCNFENT.CODIBGE`, `PCNFSAID.CODIBGE` e
+      `PCCONSUM.CLIIBGEOBRG`, e nenhuma é da filial (26/11/2026). Com o usuário **EPCTI**, a
+      `PCCIDADE` aparece (`CODCIDADE`, `CODIBGE`, `NOMECIDADE`, `UF`), mas a `PCFILIAL` não tem
+      código de cidade, só o nome: a ligação teria de ser por **nome + UF**. Com o **usuário da
+      API**, a `PCCIDADE` dá **ORA-00942** (sem permissão). **Decisão do Gabriel: dar o grant.**
+      Script: `validacao/sp20_grant_pccidade.sql`. **Feito em 26/11/2026**: o EDI lê a
+      `PCCIDADE` (5566 linhas), e todas as filiais acham a sua cidade por nome + UF, uma só cada
+      (Contagem 3118601, Serra/ES 3205002, Rio de Janeiro 3304557, Uberlândia 3170206), **exceto
+      a filial 99**, que não tem cidade nem UF na `PCFILIAL`.
+- [x] **Filial 99:** não é usada (Gabriel, 26/11/2026). Por segurança, se alguma filial ficar
+      sem código IBGE, a API devolve uma mensagem clara dizendo qual, em vez de chamar a
+      calculadora.
+- [ ] Rodar a sp20 na Minas Rural.
+- [x] Regime do fornecedor: `PCFORNEC.SIMPLESNACIONAL` (D12). Falta conferir os valores.
+- [x] Base da verba: seletor NET / GROSS no modal, NET como padrão (D13).
+- [x] Nulo na `SIMPLESNACIONAL`: aviso na tela (D12).
 - [ ] Spec completa, para aprovação.
