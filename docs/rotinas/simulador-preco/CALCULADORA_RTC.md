@@ -24,8 +24,12 @@ Reforma Tributária. **Ainda não há código**: este documento antecede a spec.
 | D9 | **Cada comprador digita na tela** os parâmetros dos cenários estimados. Proposta: guardar por usuário na tabela de preferências (banco), e nunca no navegador. Imposto Seletivo fica fora da primeira entrega. ~~Os padrões de PIS e COFINS zerados e IPI mantido aguardam confirmação.~~ **Respondido pela planilha v3**: cada cenário traz "PIS/COFINS ativo?" e "Fator ICMS/ST", e o IPI não muda. O parâmetro "IPI manter ou zerar" **sai**. | Gabriel, 26/11/2026 |
 | D10 | **Seletor com os 5 cenários** da planilha v3 (2026 Oficial RFB, 2027 Ref. TCU, 2029 Transição, 2033 Pleno, Personalizado), no papel da célula D6 do painel. A grade inteira se recalcula para o cenário escolhido. **O 2026 não é editável** (as alíquotas vêm da calculadora). Os outros 4 são editáveis por comprador (D9), com os valores do painel da v3 como ponto de partida, e cada um tem alíquotas, "PIS/COFINS ativo?" e "Fator ICMS/ST". A visão lado a lado da `Comparativo_Transicao` fica para depois. Substitui o "switch 2026/2027" da D8. | Gabriel, 26/11/2026 |
 | D11 | **Destino = o município da filial consultada.** O código IBGE vem do cadastro da filial (tabela e coluna a confirmar no banco). | Gabriel, 26/11/2026 |
-| D12 | **Regime do fornecedor vem do Winthor**, pela coluna `PCFORNEC.SIMPLESNACIONAL` (`VARCHAR2(1)`), encontrada pelo Gabriel em 26/11/2026. Valores na base da Época: `N` = 10.086, `S` = 3.420, nulo = 4. `S` = Simples (crédito de CBS/IBS × % aproveitável, crédito de ICMS zerado), `N` = Regime Regular. **Nulo: a tela avisa na linha** ("regime do fornecedor não informado no cadastro"), porque a categoria pode crescer (Gabriel, 26/11/2026). Proposta para o cálculo dessa linha: tratar como Regime Regular, e o aviso diz isso. O fornecedor considerado é o do produto (`CODFORNEC` do SQL v3). | Gabriel, 26/11/2026 |
+| D12 | **Regime do fornecedor vem do Winthor**, pela coluna `PCFORNEC.SIMPLESNACIONAL` (`VARCHAR2(1)`), encontrada pelo Gabriel em 26/11/2026. Valores na base da Época: `N` = 10.086, `S` = 3.420, nulo = 4. `S` = Simples (crédito de CBS/IBS × % aproveitável, crédito de ICMS zerado), `N` = Regime Regular. **Nulo: a tela avisa na linha** ("regime do fornecedor não informado no cadastro"), porque a categoria pode crescer (Gabriel, 26/11/2026). **Nulo é calculado como Regime Regular** (decisão do Gabriel, 27/11/2026), e o aviso diz isso: "regime do fornecedor não informado no cadastro; calculado como Regime Regular". O fornecedor considerado é o do produto (`CODFORNEC` do SQL v3). | Gabriel, 26/11/2026 |
 | D13 | **Base da verba NET / GROSS**: seletor no modal de edição, junto com o % e o valor fixo da verba, por produto, com **NET como padrão** (coluna Z da planilha v3). | Proposta, Gabriel entendeu a regra |
+| D14 | **O gestor aprovou** as tabelas "De onde vem cada dado" e "Onde cada cálculo acontece" (enviadas pelo Gabriel como planilha, abas Dados, Cálculos e Legenda). | Gestor, via Gabriel, 27/11/2026 |
+| D15 | **ICMS vem do cadastro**, e não da tabela de CST ICMS da planilha: ICMS de entrada (`PCPRODFILIAL.PERCICMS_ENT`), redução de base (`PERC_BASE_RED`), ICMS de saída (`PERCICMS_SAID`) e ST (`PCTABPR.VLST`), todos já no SQL v3. O "Fator ICMS/ST" do cenário multiplica cada um. | Gabriel, 27/11/2026 |
+| D16 | **"Bonificação gera crédito?"**: opção no modal de edição, por produto, com **padrão NÃO**, digitada pelo comprador. Vale **só para o crédito de ICMS e de PIS/COFINS** (colunas R da v3 e o crédito de PIS/COFINS). SIM quando a nota de bonificação do fornecedor vem com o imposto destacado: o crédito por unidade usa o preço cheio. NÃO: o crédito da compra é diluído por `qtd comprada ÷ (comprada + bonificada)`. Exemplo: 100 un a R$ 10,00 + 20 bonificadas, ICMS 12% → NÃO = R$ 1,00/un (R$ 120 no total); SIM = R$ 1,20/un (R$ 144). Padrão NÃO porque não promete crédito que talvez não exista (o preço não sai mais baixo do que deveria). **CBS e IBS não usam essa opção**: a bonificação que consta da nota não tem CBS/IBS, logo não gera crédito (a confirmar com o fiscal). O crédito de CBS/IBS da compra depende do produto (CST e classe), item em aberto. Com bonificação zero, a opção não muda nada. | Gabriel, 27/11/2026 |
+| D17 | **Conformidade com a Receita.** Só o cenário **2026 Oficial RFB** é alinhado com a Receita, porque as alíquotas e reduções vêm da calculadora oficial. A tela mostra: (1) no 2026, o selo **"Oficial RFB"**; (2) nos outros 4 cenários, o aviso **"Estimativa — não usar para tributação"**, sempre visível enquanto um deles estiver selecionado; (3) o **estado por linha** vindo da calculadora (calculado, cálculo simulado, inconsistência de cadastro), para o comprador saber em qual preço confiar. O simulador **não emite nada nem vai para a NF-e**: a proteção contra multa e tributação errada depende do **cadastro fiscal** (NCM, CST, classe) e da **NF-e emitida pelo Winthor**. As inconsistências que a calculadora aponta (ex.: `REG-011`) servem de alerta para corrigir o cadastro. | Gabriel, 27/11/2026 |
 | ~~D6~~ | ~~**Só 2026 por enquanto.**~~ Substituída pela D8. | Gabriel |
 
 ## Testes feitos pelo Gabriel no Swagger (26/11/2026)
@@ -232,7 +236,7 @@ confirmado no **Teste 6**.
 Os outros itens do mapa (sincronizar os dados abertos no banco, calculadora do Simples Nacional,
 validação de XML da NF-e, apuração assistida e DARF) ficam **fora da primeira entrega**.
 
-## De onde vem cada dado (proposta, 26/11/2026)
+## De onde vem cada dado (aprovada pelo gestor em 27/11/2026, D14)
 
 Cenário 2026 Oficial RFB como padrão. Nos cenários estimados, só mudam as alíquotas (que passam a
 ser digitadas) e os fatores do cenário.
@@ -255,7 +259,7 @@ acrescentar.
 | Regime do fornecedor | **Banco** | `PCFORNEC.SIMPLESNACIONAL` (D12) | **não**: a `PCFORNEC` já está no SQL, falta trazer a coluna |
 | Município e UF de destino | **Banco** | `PCFILIAL.CIDADE` + `UF` → `PCCIDADE.CODIBGE` (D11, sp20) | **não**: consulta pequena à parte, uma vez por filial, como a da região |
 | Qtd comprada e qtd bonificada | **Digitado** | D7 |
-| Bonificação gera crédito? | **Digitado** | a decidir; proposta: padrão NÃO, como na v3 |
+| Bonificação gera crédito? | **Digitado** | D16: padrão NÃO; só ICMS e PIS/COFINS |
 | Verba (%), verba fixa (R$/un), base NET/GROSS | **Digitado** | D7, D13 |
 | Alíquotas dos cenários estimados | **Digitado** | por comprador (D9), com os valores da v3 como ponto de partida |
 | Alíquota cheia de CBS, IBS UF e IBS Mun (2026) | **Calculadora** | `pCBS`, `pIBSUF`, `pIBSMun` |
@@ -266,7 +270,7 @@ acrescentar.
 | % crédito aproveitável do Simples (20%) | **Planilha v3** | parâmetro do painel |
 | Fatores dos cenários ("PIS/COFINS ativo?", "Fator ICMS/ST") | **Planilha v3** | do painel; editáveis nos cenários estimados |
 
-## Onde cada cálculo acontece (proposta, 26/11/2026)
+## Onde cada cálculo acontece (aprovada pelo gestor em 27/11/2026, D14)
 
 Quatro lugares: o **banco** (o SQL v3), a **calculadora** da Receita, a **nossa API** (.NET) e a
 **tela** (o navegador). Pela D4, a conta do preço novo é feita na tela, para responder na hora a
@@ -339,11 +343,13 @@ anotados.
       `feat/simula-preco`.
 - [ ] A **"gera crédito"** da entrada também depende da classe, e não só do CST? A planilha usa
       a tabela de CST para isso (colunas W e X da v3). Confirmar com o fiscal antes da spec.
-- [ ] De onde vem o **CST de ICMS**. Proposta (26/11/2026): **não usar a tabela de CST ICMS da
+- [x] De onde vem o **CST de ICMS**: do cadastro (**D15**, Gabriel, 27/11/2026). **Não usar a tabela de CST ICMS da
       planilha**. O SQL v3 já traz o que ela decide, direto do cadastro e como a rotina atual:
       ICMS de entrada (`PCPRODFILIAL.PERCICMS_ENT`), redução de base (`PERC_BASE_RED`), ICMS de
       saída (`PERCICMS_SAID`) e o valor da ST (`PCTABPR.VLST`). O crédito de ICMS (coluna R da
       v3) sai desses percentuais, e o "Fator ICMS/ST" do cenário multiplica cada um.
+- [x] "Bonificação gera crédito?": padrão NÃO, só ICMS e PIS/COFINS (D16).
+- [ ] Confirmar com o fiscal que a bonificação na nota **não tem CBS/IBS** (base da D16).
 - [x] Destino: o município da filial (D11).
 - [ ] **Origem do código IBGE da filial.** A `PCFILIAL` só tem `CIDADE` (nome, `VARCHAR2(30)`) e
       `UF`. A `PCCIDADE` não aparece para o usuário consultado. As colunas de IBGE visíveis nas
@@ -362,5 +368,7 @@ anotados.
 - [ ] Rodar a sp20 na Minas Rural.
 - [x] Regime do fornecedor: `PCFORNEC.SIMPLESNACIONAL` (D12). Falta conferir os valores.
 - [x] Base da verba: seletor NET / GROSS no modal, NET como padrão (D13).
-- [x] Nulo na `SIMPLESNACIONAL`: aviso na tela (D12).
-- [ ] Spec completa, para aprovação.
+- [x] Nulo na `SIMPLESNACIONAL`: aviso na tela e cálculo como Regime Regular (D12, 27/11/2026).
+- [x] Selo "Oficial RFB" no 2026 e aviso de estimativa nos outros cenários (D17).
+- [x] Spec completa: [2026-11-27-simulador-calculadora-rtc-design.md](../../superpowers/specs/2026-11-27-simulador-calculadora-rtc-design.md),
+      **aprovada pelo Gabriel em 27/11/2026**.
